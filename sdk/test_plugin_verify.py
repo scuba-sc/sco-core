@@ -191,6 +191,14 @@ class PluginArchiveVerifierTests(unittest.TestCase):
         with self.assertRaisesRegex(verifier.VerifyError, "collision"):
             self.verify()
 
+    def test_collision_prefix_work_has_a_total_bound_before_hashing(self):
+        deep = "a/" * 480
+        entries = [(f"p/{i:03}/{deep}f{i:03}.txt", b"") for i in range(8)]
+        write_archive(self.archive_path, entries)
+        with mock.patch.object(verifier, "_archive_sha256", side_effect=AssertionError("hashed before prefix bound")):
+            with self.assertRaisesRegex(verifier.VerifyError, "collision checks exceed 4,194,304 aggregate prefix characters"):
+                self.verify()
+
     def test_rejects_symlinks_and_special_files(self):
         link = zipfile.ZipInfo("pilot/entry-link")
         link.create_system = 3
@@ -454,6 +462,27 @@ class PluginFolderNoLoadTests(unittest.TestCase):
         self.assertNotIn("scripts/nested/external.xml", result.stdout)
         self.assertIn("pack    1 file(s)", result.stdout)
 
+    def test_no_load_escapes_control_bytes_in_content_filenames(self):
+        (self.plugin / "plugin.ini").write_bytes(self.manifest(kind="data"))
+        listings = self.plugin / "lists"
+        listings.mkdir()
+        try:
+            (listings / "spoof\x1b[2J\n.txt").write_text("fixture\n")
+        except OSError as exc:
+            self.skipTest(f"platform does not permit control bytes in file names: {exc}")
+        result = self.run_check("--no-load")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertNotIn("\x1b", result.stdout)
+        self.assertNotIn("\n.txt", result.stdout)
+        self.assertIn(r"content lists/spoof\x1B[2J\x0A.txt", result.stdout)
+
+    def test_no_load_escapes_control_bytes_in_entry_metadata(self):
+        self.write_plugin(manifest=self.manifest(entry="pilot\x7f.dll"), include_entry=False)
+        result = self.run_check("--no-load")
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertNotIn("\x7f", result.stdout)
+        self.assertIn(r"pilot\x7F.dll", result.stdout)
+
     def test_no_load_limits_script_depth_to_host_inventory_depth(self):
         (self.plugin / "plugin.ini").write_bytes(self.manifest(kind="data"))
         (self.plugin / "lists").mkdir()
@@ -480,9 +509,13 @@ class PluginFolderNoLoadTests(unittest.TestCase):
 
     def test_no_load_rejects_invoke_flag_conflict(self):
         self.write_plugin()
-        result = self.run_check("--no-load", "--invoke", "pilot.ping")
-        self.assertEqual(result.returncode, 2)
-        self.assertIn("--no-load cannot be combined with --invoke", result.stderr)
+        for args in (("--no-load", "--invoke", "pilot.ping"),
+                     ("--invoke", "pilot.ping", "--no-load")):
+            with self.subTest(args=args):
+                result = self.run_check(*args)
+                self.assertEqual(result.returncode, 2)
+                self.assertIn("--no-load cannot be combined with --invoke", result.stderr)
+                self.assertNotIn("can't load", result.stdout)
 
     def test_no_load_rejects_dynamic_only_flags(self):
         self.write_plugin()

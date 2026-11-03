@@ -31,6 +31,7 @@ MAX_COMPRESSION_RATIO = 200
 MAX_EMPTY_FILE_COMPRESSED_BYTES = 64
 MAX_PATH_BYTES = 1024
 MAX_SEGMENT_BYTES = 255
+MAX_COLLISION_PREFIX_CHARS = 4 * 1024 * 1024
 MAX_MANIFEST_BYTES = 16 * 1024
 CHUNK_BYTES = 1024 * 1024
 SUPPORTED_COMPRESSION = {zipfile.ZIP_STORED, zipfile.ZIP_DEFLATED}
@@ -193,6 +194,21 @@ def _collision_keys(prefix):
     return (nfc.casefold(), nfkc.casefold())
 
 
+def _collision_prefix_cost(parts):
+    """Bound material retained and normalized while checking every path prefix."""
+    original_length = 0
+    nfc_length = 0
+    nfkc_length = 0
+    total = 0
+    for index, part in enumerate(parts):
+        separator = 1 if index else 0
+        original_length += len(part) + separator
+        nfc_length += len(unicodedata.normalize("NFC", part).casefold()) + separator
+        nfkc_length += len(unicodedata.normalize("NFKC", part).casefold()) + separator
+        total += original_length + nfc_length + nfkc_length
+    return total
+
+
 def _inspect_entries(infos, central_directory_offset):
     if len(infos) > MAX_ENTRIES:
         raise VerifyError(f"archive has {len(infos)} entries; limit is {MAX_ENTRIES}")
@@ -201,11 +217,17 @@ def _inspect_entries(infos, central_directory_offset):
     header_offsets = set()
     file_count = 0
     total_uncompressed = 0
+    collision_prefix_chars = 0
     for info in infos:
         if getattr(info, "orig_filename", info.filename) != info.filename:
             raise VerifyError("archive path contains a NUL byte or was otherwise truncated by ZIP parsing")
         kind = _entry_kind(info)
         parts = _path_parts(info.filename, kind == "directory")
+        collision_prefix_chars += _collision_prefix_cost(parts)
+        if collision_prefix_chars > MAX_COLLISION_PREFIX_CHARS:
+            raise VerifyError(
+                f"archive path collision checks exceed {MAX_COLLISION_PREFIX_CHARS:,} aggregate prefix characters"
+            )
         path = "/".join(parts)
         previous = by_path.get(path)
         if previous is not None:

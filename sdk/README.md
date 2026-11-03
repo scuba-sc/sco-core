@@ -218,7 +218,7 @@ out/bin/sco-plugin-check out/data/plugins/hello --cap teleport --invoke hello.wa
 lua5.4 tools/lua-check.lua examples/greeter --invoke greeter.greet "Pilot One" true
 ```
 
-`--no-load` validates `plugin.ini` with the host's folder-check rules, the manifest id against the folder name, and a regular, non-symlink plugin folder, manifest and entry file. For a data pack it inventories recognized files in host-indexed locations, skips symlinks and non-regular files, and bounds work to 4,096 indexed files, 16,384 filesystem entries examined and 16 script-directory levels. Manifest/entry paths are limited by the checker's 1,023-byte buffer; data-scan paths are limited to 4,096 bytes, and Windows paths also obey the OS path limit. This folder scan reads names and filesystem metadata; it does not inspect content syntax. The mode does not load or execute plugin code. A passing check does not establish code safety, binary ABI compatibility, provider availability or runtime compatibility. `--no-load` cannot be combined with dynamic-only `--cap`, `--short-tables` or `--invoke` options.
+`--no-load` validates `plugin.ini` with the host's folder-check rules, the manifest id against the folder name, and a regular, non-symlink plugin folder, manifest and entry file. For a data pack it inventories recognized files in host-indexed locations, skips symlinks and non-regular files, and bounds work to 4,096 indexed files, 16,384 filesystem entries examined and 16 script-directory levels. Manifest/entry paths are limited by the checker's 1,023-byte buffer; data-scan paths are limited to 4,096 bytes, and Windows paths also obey the OS path limit. Displayed paths escape control, quote, backslash and non-ASCII bytes. This folder scan reads names and filesystem metadata; it does not inspect content syntax. The mode does not load or execute plugin code. A passing check does not establish code safety, binary ABI compatibility, provider availability or runtime compatibility. `--no-load` cannot be combined with dynamic-only `--cap`, `--short-tables` or `--invoke` options.
 
 Without `--no-load`, `sco-plugin-check` keeps its normal dynamic behavior: for a native plugin it loads the DLL, calls `sco_plugin_query` and `sco_plugin_load` against a stand-in host that enforces the documented rules, fires `game.ready` and a few `tick`s, runs every command that takes no arguments (and the one you name with `--invoke`), and unloads. This executes native plugin code with the checker's user rights. For a data pack it lists the files the host would index. `--cap NAME` makes `has(NAME)` answer 1; by default every capability is missing, as on a game build the mod doesn't support yet. Exit code 0 means every check passed.
 
@@ -254,7 +254,8 @@ manifest-only parser. That mode parses stdin and returns before the checker's fo
 dynamic-loader paths. The verifier never writes archive entries to disk or opens an entry as code.
 It checks declared resource bounds before hashing archive bytes or opening members. Resource bounds are
 256 MiB compressed archive, 4,096 entries, 128 MiB per file, 512 MiB total uncompressed data, a
-200:1 maximum compression ratio, an 8 MiB central directory, and a 16 KiB manifest.
+200:1 maximum compression ratio, an 8 MiB central directory, a 16 KiB manifest, and 4,194,304
+aggregate Unicode characters of original/NFC-casefold/NFKC-casefold path-prefix material for collision checks.
 
 This establishes archive structure, manifest syntax, folder identity and declared-entry presence.
 The reported API and dependencies are not compared with a host or resolved. Passing does not test

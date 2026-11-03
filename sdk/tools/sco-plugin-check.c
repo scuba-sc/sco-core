@@ -84,6 +84,36 @@ static void fail(const char* fmt, ...) {
 #define MAX_PACK_SCAN_ENTRIES 16384u
 #define MAX_PACK_SCAN_PATH_BYTES 4096u
 #define MAX_PACK_SCRIPT_DEPTH 16u
+#define MAX_SAFE_PATH_DISPLAY_BYTES (4u * (MAX_PACK_SCAN_PATH_BYTES + 1u) + 1u)
+
+/* Keep terminal output safe for control bytes and undecodable filename bytes. */
+static const char* safe_path_text(const char* path) {
+    static char escaped[MAX_SAFE_PATH_DISPLAY_BYTES];
+    static const char too_long[] = "<path omitted: display limit>";
+    static const char hex[] = "0123456789ABCDEF";
+    const unsigned char* p = (const unsigned char*)path;
+    size_t written = 0;
+    if (!path) return "<null path>";
+    for (; *p; ++p) {
+        const unsigned char c = *p;
+        if (c >= 0x20 && c <= 0x7e && c != '\\' && c != '"') {
+            if (written + 1u >= sizeof escaped) return too_long;
+            escaped[written++] = (char)c;
+        } else if (c == '\\' || c == '"') {
+            if (written + 2u >= sizeof escaped) return too_long;
+            escaped[written++] = '\\';
+            escaped[written++] = (char)c;
+        } else {
+            if (written + 4u >= sizeof escaped) return too_long;
+            escaped[written++] = '\\';
+            escaped[written++] = 'x';
+            escaped[written++] = hex[c >> 4];
+            escaped[written++] = hex[c & 0x0f];
+        }
+    }
+    escaped[written] = '\0';
+    return escaped;
+}
 
 /* One [settings] declaration, as far as the checker reports it. */
 typedef struct setting { char name[32]; char type[16]; } setting;
@@ -618,9 +648,9 @@ static int read_manifest(const char* path, manifest* m) {
     static char buf[MAX_MANIFEST_BYTES + 1];
     size_t len;
     FILE* f = fopen(path, "rb");
-    if (!f) { fail("%s: can't open", path); return 0; }
+    if (!f) { fail("%s: can't open", safe_path_text(path)); return 0; }
     len = fread(buf, 1, sizeof buf, f);
-    if (ferror(f)) { fclose(f); fail("%s: can't read", path); return 0; }
+    if (ferror(f)) { fclose(f); fail("%s: can't read", safe_path_text(path)); return 0; }
     fclose(f);
     return parse_manifest_bytes(buf, len, m, 1);
 }
@@ -735,7 +765,7 @@ static int list_content(const char* dir, const char* sub, const char* ext, int d
             if (fd.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) continue;
             snprintf(rel, sizeof rel, "%s/%s", sub, fd.cFileName);
             if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) { if (deep) count += list_content(dir, rel, ext, deep); }
-            else if (ends_with_nocase(fd.cFileName, ext)) { printf("  content %s\n", rel); ++count; }
+            else if (ends_with_nocase(fd.cFileName, ext)) { printf("  content %s\n", safe_path_text(rel)); ++count; }
         } while (FindNextFileA(h, &fd));
         FindClose(h);
     }
@@ -752,7 +782,7 @@ static int list_content(const char* dir, const char* sub, const char* ext, int d
             snprintf(full, sizeof full, "%s/%s", dir, rel);
             if (lstat(full, &st) != 0 || S_ISLNK(st.st_mode)) continue; /* the host skips symlinks */
             if (S_ISDIR(st.st_mode)) { if (deep) count += list_content(dir, rel, ext, deep); }
-            else if (ends_with_nocase(e->d_name, ext)) { printf("  content %s\n", rel); ++count; }
+            else if (ends_with_nocase(e->d_name, ext)) { printf("  content %s\n", safe_path_text(rel)); ++count; }
         }
         closedir(d);
     }
@@ -806,26 +836,26 @@ static int no_load_list_content(const char* dir, const char* sub, const char* ex
         DWORD error;
         int written;
         if (strlen(path) >= MAX_PATH) {
-            fail("data pack path exceeds the Windows path limit: %s", sub);
+            fail("data pack path exceeds the Windows path limit: %s", safe_path_text(sub));
             return -1;
         }
         if (attributes == INVALID_FILE_ATTRIBUTES) {
             error = GetLastError();
             if (error == ERROR_FILE_NOT_FOUND || error == ERROR_PATH_NOT_FOUND) return 0;
-            fail("cannot inspect data pack folder %s (Windows error %lu)", sub, (unsigned long)error);
+            fail("cannot inspect data pack folder %s (Windows error %lu)", safe_path_text(sub), (unsigned long)error);
             return -1;
         }
         if ((attributes & FILE_ATTRIBUTE_REPARSE_POINT) || !(attributes & FILE_ATTRIBUTE_DIRECTORY)) return 0;
         written = snprintf(pattern, sizeof pattern, "%s/*", path);
         if (written < 0 || (size_t)written >= sizeof pattern || strlen(pattern) >= MAX_PATH) {
-            fail("data pack search path exceeds the Windows path limit: %s", sub);
+            fail("data pack search path exceeds the Windows path limit: %s", safe_path_text(sub));
             return -1;
         }
         h = FindFirstFileA(pattern, &fd);
         if (h == INVALID_HANDLE_VALUE) {
             error = GetLastError();
             if (error == ERROR_FILE_NOT_FOUND) return 0;
-            fail("cannot read data pack folder %s (Windows error %lu)", sub, (unsigned long)error);
+            fail("cannot read data pack folder %s (Windows error %lu)", safe_path_text(sub), (unsigned long)error);
             return -1;
         }
         for (;;) {
@@ -840,7 +870,7 @@ static int no_load_list_content(const char* dir, const char* sub, const char* ex
                     return -1;
                 }
                 if (strlen(full) >= MAX_PATH) {
-                    fail("data pack path exceeds the Windows path limit: %s", relative);
+                    fail("data pack path exceeds the Windows path limit: %s", safe_path_text(relative));
                     FindClose(h);
                     return -1;
                 }
@@ -855,7 +885,7 @@ static int no_load_list_content(const char* dir, const char* sub, const char* ex
                     } else if (!(fd.dwFileAttributes & FILE_ATTRIBUTE_DEVICE) &&
                                ends_with_nocase(fd.cFileName, ext) &&
                                (!mission_declaration || mission_declaration_name(relative))) {
-                        printf("  content %s\n", relative);
+                        printf("  content %s\n", safe_path_text(relative));
                         ++count;
                     }
                 }
@@ -863,7 +893,7 @@ static int no_load_list_content(const char* dir, const char* sub, const char* ex
             if (!FindNextFileA(h, &fd)) {
                 error = GetLastError();
                 if (error != ERROR_NO_MORE_FILES) {
-                    fail("cannot finish reading data pack folder %s (Windows error %lu)", sub, (unsigned long)error);
+                    fail("cannot finish reading data pack folder %s (Windows error %lu)", safe_path_text(sub), (unsigned long)error);
                     FindClose(h);
                     return -1;
                 }
@@ -879,13 +909,13 @@ static int no_load_list_content(const char* dir, const char* sub, const char* ex
         struct dirent* e;
         if (lstat(path, &root_stat) != 0) {
             if (errno == ENOENT || errno == ENOTDIR) return 0;
-            fail("cannot inspect data pack folder %s (errno %d)", sub, errno);
+            fail("cannot inspect data pack folder %s (errno %d)", safe_path_text(sub), errno);
             return -1;
         }
         if (S_ISLNK(root_stat.st_mode) || !S_ISDIR(root_stat.st_mode)) return 0;
         d = opendir(path);
         if (!d) {
-            fail("cannot read data pack folder %s (errno %d)", sub, errno);
+            fail("cannot read data pack folder %s (errno %d)", safe_path_text(sub), errno);
             return -1;
         }
         for (;;) {
@@ -893,7 +923,7 @@ static int no_load_list_content(const char* dir, const char* sub, const char* ex
             e = readdir(d);
             if (!e) {
                 if (errno) {
-                    fail("cannot finish reading data pack folder %s (errno %d)", sub, errno);
+                    fail("cannot finish reading data pack folder %s (errno %d)", safe_path_text(sub), errno);
                     closedir(d);
                     return -1;
                 }
@@ -911,7 +941,7 @@ static int no_load_list_content(const char* dir, const char* sub, const char* ex
                     return -1;
                 }
                 if (lstat(full, &st) != 0) {
-                    fail("cannot inspect data pack path %s (errno %d)", relative, errno);
+                    fail("cannot inspect data pack path %s (errno %d)", safe_path_text(relative), errno);
                     closedir(d);
                     return -1;
                 }
@@ -925,7 +955,7 @@ static int no_load_list_content(const char* dir, const char* sub, const char* ex
                     }
                 } else if (S_ISREG(st.st_mode) && ends_with_nocase(e->d_name, ext) &&
                            (!mission_declaration || mission_declaration_name(relative))) {
-                    printf("  content %s\n", relative);
+                    printf("  content %s\n", safe_path_text(relative));
                     ++count;
                 }
             }
@@ -2127,7 +2157,7 @@ int main(int argc, char** argv) {
     const char* dir = NULL;
     const char* invoke_name = NULL;
     char** invoke_args = NULL;
-    int ninvoke_args = 0, i, no_load = 0;
+    int ninvoke_args = 0, i, no_load = 0, saw_no_load = 0, saw_invoke = 0;
     char path[1024], folder[256];
     int path_written;
     manifest m;
@@ -2140,6 +2170,17 @@ int main(int argc, char** argv) {
             return 2;
         }
         return manifest_stdin_mode(argv[2]);
+    }
+
+    /* --invoke consumes all remaining argv as command arguments, so detect an explicit
+     * --no-load conflict first regardless of ordering. */
+    for (i = 1; i < argc; ++i) {
+        if (!strcmp(argv[i], "--no-load")) saw_no_load = 1;
+        else if (!strcmp(argv[i], "--invoke")) saw_invoke = 1;
+    }
+    if (saw_no_load && saw_invoke) {
+        fprintf(stderr, "--no-load cannot be combined with --invoke\n");
+        return 2;
     }
 
     for (i = 1; i < argc; ++i) {
@@ -2170,7 +2211,7 @@ int main(int argc, char** argv) {
 
     snprintf(folder, sizeof folder, "%s", base_name(dir));
     for (i = (int)strlen(folder); i > 0 && (folder[i - 1] == '/' || folder[i - 1] == '\\'); --i) folder[i - 1] = 0;
-    printf("%s\n", dir);
+    printf("%s\n", safe_path_text(dir));
     if (no_load) printf("  mode    no-load; plugin code will not be loaded or executed\n");
     if (no_load && !regular_directory_exists(dir))
         fail("plugin folder is not a regular non-symlink directory");
@@ -2183,8 +2224,9 @@ int main(int argc, char** argv) {
         fail("plugin.ini is not a regular non-symlink file or was not found");
     else if (read_manifest(path, &m)) {
         snprintf(plugin_id, sizeof plugin_id, "%s", m.id);
-        printf("  ini     id=%s kind=%s api=%s%s%s\n", m.id, m.kind, m.api, m.entry[0] ? " entry=" : "", m.entry);
-        if (strcmp(folder, m.id)) fail("id '%s' does not match folder '%s'", m.id, folder);
+        printf("  ini     id=%s kind=%s api=%s%s%s\n", m.id, m.kind, m.api,
+               m.entry[0] ? " entry=" : "", safe_path_text(m.entry));
+        if (strcmp(folder, m.id)) fail("id '%s' does not match folder '%s'", m.id, safe_path_text(folder));
         for (i = 0; i < m.nrequires; ++i) {
             if (no_load)
                 printf("  needs   %s (declared; provider availability not checked)\n", m.requires_[i]);
@@ -2197,10 +2239,11 @@ int main(int argc, char** argv) {
             path_written = snprintf(path, sizeof path, "%s/%s", dir, m.entry);
             if (no_load) {
                 if (path_written < 0 || (size_t)path_written >= sizeof path)
-                    fail("entry '%s' path exceeds the checker path-buffer limit", m.entry);
-                else if (!regular_file_exists(path)) fail("entry '%s' is not a regular non-symlink file or was not found", m.entry);
-                else printf("  entry   %s present; not loaded or executed\n", m.entry);
-            } else if (!file_exists(path)) fail("entry '%s' not found", m.entry);
+                    fail("entry '%s' path exceeds the checker path-buffer limit", safe_path_text(m.entry));
+                else if (!regular_file_exists(path))
+                    fail("entry '%s' is not a regular non-symlink file or was not found", safe_path_text(m.entry));
+                else printf("  entry   %s present; not loaded or executed\n", safe_path_text(m.entry));
+            } else if (!file_exists(path)) fail("entry '%s' not found", safe_path_text(m.entry));
         }
         if (!failures && !strcmp(m.kind, "data")) {
             if (no_load) {

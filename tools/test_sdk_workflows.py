@@ -384,6 +384,7 @@ class ArchiveAndMCP(unittest.TestCase):
                 self.assertIn('--no-load', sdk_readme)
                 self.assertIn('does not establish code safety', sdk_readme)
                 self.assertIn('16,384 filesystem entries', sdk_readme)
+                self.assertIn('4,194,304', sdk_readme)
 
     def client(self, **kw):
         c = client_module.Client(self.cat, **kw)
