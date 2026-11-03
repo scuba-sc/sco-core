@@ -8,15 +8,27 @@ The product is the offline mod/launcher/host. Author extensions use SCO's `nativ
 
 The Plugins page scans immediate `data/plugins/<id>/` directories with `plugin.ini`, approximately every three seconds. It displays metadata; this is not complete host manifest, dependency or ABI validation. Its switch toggles the `disabled` marker for the next game start. The host performs authoritative load/refusal checks. `plugins = on` is the current product default in code; explicitly check the owner's configuration rather than relying on contradictory SDK guide defaults. The launcher cannot execute in-game `sco.reload`.
 
-For a Windows native example, prepare a distribution ZIP whose install subtree is:
+For a Windows native example, prepare a distribution ZIP with the plugin ID folder at the archive root:
 
 ```text
-data/plugins/pilot_probe/plugin.ini
-data/plugins/pilot_probe/pilot_probe.dll
-data/plugins/pilot_probe/LICENSE
+pilot_probe/plugin.ini
+pilot_probe/pilot_probe.dll
+pilot_probe/LICENSE
 ```
 
-This ZIP layout is a proposed manual distribution convention around the existing folder contract. The launcher has no standalone ZIP import route verified here. Deliver `INSTALL.md`, a payload hash list and an evidence receipt beside the ZIP. The user extracts to a new staging directory, inspects it, then copies its `data/plugins/pilot_probe` folder into the product's own `data/plugins` with the game stopped. Do not install in StarCitizen/Bin64. Do not include or replace sc-offline.exe, dinput8.dll or sc-offline.ini.
+This single-folder ZIP layout is a proposed manual distribution convention around the existing folder contract, and matches the SDK's static archive verifier. From the unpacked SDK root, after building its trusted checker with the documented SDK CMake build, run this before extracting the archive:
+
+```sh
+# Human-readable report
+python3 tools/sco-plugin-verify.py /path/to/pilot_probe.zip --checker out/bin/sco-plugin-check
+
+# Or save a machine-readable receipt
+python3 tools/sco-plugin-verify.py /path/to/pilot_probe.zip --checker out/bin/sco-plugin-check --json > /path/to/pilot_probe-verification.json
+```
+
+On Windows use `python` or `py -3`, and the checker path `out/bin/sco-plugin-check.exe`. Use the checker from the matching SDK, not one supplied in the plugin ZIP. A successful result has status `archive-structure-and-manifest-verified` and reports the archive hash, per-file hashes, manifest ID/kind/API/entry and declared dependency names. The tool reads bounded ZIP entries and parses `plugin.ini` through the SDK manifest-only parser; it does not install or execute archive entries. It does not authenticate the archive, publisher or source, resolve dependencies, establish trust, inspect native-code safety, or guarantee host/runtime compatibility. SHA-256 values identify content and are not signatures. A passing result is static archive and manifest evidence only; it is not a host check or endorsement. Keep the JSON receipt outside the ZIP payload.
+
+The launcher has no standalone ZIP import route verified here. Deliver `INSTALL.md`, a payload hash list and an evidence receipt beside the ZIP. After verification, independently extract into a new staging directory and compare the extracted files and hashes. For manual installation, copy the extracted top-level `pilot_probe` folder into the product's own `data/plugins` directory with the game stopped. Do not install in StarCitizen/Bin64. Do not include or replace sc-offline.exe, dinput8.dll or sc-offline.ini. An outer `data/plugins/` wrapper is not accepted by this verifier; verify the plugin-folder ZIP and document the later copy destination in `INSTALL.md`.
 
 Native payloads must be built for Windows x64 to label them installable in the supported game product. A local macOS/Linux build may retain `.dll` because the SDK CMake helper uses that suffix; label any such ZIP `development-<actual-platform>` and do not give it Windows installation status. Lua includes its declared entry and modules; data includes manifest/content only, without native entry. Include applicable licences/notices.
 

@@ -328,6 +328,46 @@ class ArchiveAndMCP(unittest.TestCase):
         self.assertFalse(any(c['source'].startswith('sdk/skills/') for c in overlay))
         self.assertNotIn('sdk-workflows.json', pkg.archive_entries(self.manifest, 'game-sc')[1])
 
+    def test_plugin_archive_verifier_guidance_and_dependencies_are_packaged(self):
+        for profile in ('core', 'legacy', 'core-source'):
+            with self.subTest(profile=profile):
+                top, entries = pkg.archive_entries(self.manifest, profile)
+                prefix = 'sdk/' if profile == 'core-source' else ''
+                skill_path = prefix + 'skills/sco-package-plugin/SKILL.md'
+                reference_path = prefix + 'skills/sco-package-plugin/references/sc-offline.md'
+                verifier_path = prefix + 'tools/sco-plugin-verify.py'
+                checker_path = prefix + 'tools/sco-plugin-check.c'
+                self.assertIn(skill_path, entries)
+                self.assertIn(reference_path, entries)
+                self.assertIn(verifier_path, entries)
+                self.assertIn(checker_path, entries)
+                self.assertIn('include/sco_api.h', entries)
+                self.assertIn('include/sco_widgets.h', entries)
+                workflow_guide = entries['docs/agent-workflows.md'][0].decode()
+                self.assertIn('Stage, statically verify, inventory and round-trip a distribution',
+                              workflow_guide)
+
+                index = json.loads(entries['sdk-workflows.json'][0])
+                workflow = next(item for item in index['workflows']
+                                if item['id'] == 'sco-package-plugin')
+                self.assertIn('statically verify', workflow['description'])
+                files = {item['path']: item['text'] for item in workflow['files']}
+                self.assertIn(skill_path, files)
+                self.assertIn(reference_path, files)
+                skill = files[skill_path]
+                reference = files[reference_path]
+                for required in ('tools/sco-plugin-verify.py', '--json >',
+                                 'archive-structure-and-manifest-verified',
+                                 'does not authenticate',
+                                 'guarantee host/runtime compatibility'):
+                    self.assertIn(required, skill)
+                    self.assertIn(required, reference)
+                self.assertIn('installing or executing archive entries', skill)
+                self.assertIn('does not install or execute archive entries', reference)
+                self.assertIn('pilot_probe/plugin.ini', reference)
+                self.assertIn('outer `data/plugins/` wrapper is not accepted', reference)
+                self.assertNotIn('data/plugins/pilot_probe/plugin.ini', reference)
+
     def client(self, **kw):
         c = client_module.Client(self.cat, **kw)
         self.addCleanup(c.close)
