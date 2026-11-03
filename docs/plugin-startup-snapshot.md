@@ -18,9 +18,10 @@ take a nonblocking exclusive OS lock on `plugin-startup.lock` beside the output 
 publishes a `starting` record. It holds that cross-process lock through the load pass. A second
 cooperating process using the same data root skips publication while the lock is held. Once
 `LoadPlugins` returns, the host publishes `complete` only from the final core plugin list. If the
-host catches a C++ exception from the load pass it may publish `failed` with counts but no rows. If
-the final list cannot be represented under this contract it publishes `incomplete` with counts but
-no rows. A process crash may leave `starting`; it is never changed to a `running` state.
+host catches a C++ exception from the load pass it may publish `failed` with null counts and no
+rows. If the final list cannot be represented under this contract it publishes `incomplete` with
+null counts and no rows. A process crash may leave `starting`; it is never changed to a `running`
+state.
 
 Each publication is written to a same-directory, session-specific temporary file, flushed, and
 atomically renamed over the target while the lock is held. Readers should open only the exact
@@ -58,12 +59,13 @@ The JSON object contains exactly these fields:
 | `started_at_utc` | `YYYY-MM-DDTHH:MM:SSZ` |
 | `completed_at_utc` | same timestamp form; `null` only for `starting` |
 | `plugins_enabled_at_start` | boolean copied from host configuration |
-| `plugin_count` | count known to the host at this record state; `starting` publishes zero |
-| `loaded_count` | known number of plugins whose host state is `loaded`; `starting` publishes zero |
+| `plugin_count` | integer count for `complete`; `null` for `starting`, `failed`, or `incomplete` |
+| `loaded_count` | integer loaded count for `complete`; `null` for every non-complete state |
 | `plugins` | array only for `complete`; otherwise `null` |
 
 `complete` has at most 256 rows; both counts match the rows and `loaded_count` matches their
-`loaded` states. Each row contains exactly `id`, `manifest_valid`, `version`, `kind`, `state`,
+`loaded` states. Every non-complete record has `plugin_count`, `loaded_count`, and `plugins` all
+`null`. Each row contains exactly `id`, `manifest_valid`, `version`, `kind`, `state`,
 `reason_code`, and `restart_required`.
 
 - A valid manifest carries its core ID, a 1--31 character ASCII version from `[A-Za-z0-9._+-]`,

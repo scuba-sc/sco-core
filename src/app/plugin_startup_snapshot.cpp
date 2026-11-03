@@ -525,9 +525,12 @@ bool Serialize(const Record& record, std::string& json) {
         if (!AppendQuoted(out, *record.completedAtUtc)) return false;
     } else if (!Append(out, "null")) return false;
     if (!Append(out, ",\"plugins_enabled_at_start\":") || !AppendBool(out, record.pluginsEnabledAtStart) ||
-        !Append(out, ",\"plugin_count\":") || !AppendCount(out, record.pluginCount) ||
-        !Append(out, ",\"loaded_count\":") || !AppendCount(out, record.loadedCount) ||
-        !Append(out, ",\"plugins\":")) return false;
+        !Append(out, ",\"plugin_count\":")) return false;
+    if (record.state == RecordState::Complete) {
+        if (!AppendCount(out, record.pluginCount) || !Append(out, ",\"loaded_count\":") ||
+            !AppendCount(out, record.loadedCount)) return false;
+    } else if (!Append(out, "null,\"loaded_count\":null")) return false;
+    if (!Append(out, ",\"plugins\":")) return false;
     if (!record.plugins) {
         if (!Append(out, "null}")) return false;
     } else {
