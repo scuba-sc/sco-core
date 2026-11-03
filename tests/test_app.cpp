@@ -1527,6 +1527,46 @@ static void TestHostOwnerMismatch() {
     CHECK(sco::app::Stop() == sco::Result::Ok);
 }
 
+static std::string ReadWholeFile(const fs::path& path) {
+    std::ifstream file(path, std::ios::binary);
+    return std::string(std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>());
+}
+
+static void TestPluginStartupSnapshotApp(const fs::path& out) {
+    const fs::path root = out / "plugin-startup-app-plugins";
+    std::error_code ec;
+    fs::remove_all(root, ec);
+    fs::create_directories(root, ec);
+
+    sco::app::Platform refused;
+    refused.pluginRoot = root;
+    refused.dataRoot = out / "plugin-startup-app-refused";
+    refused.pluginsEnabled = false;
+    refused.gameServices = true;
+    refused.pluginStartupSnapshot = true;
+    CHECK(sco::app::StartDetailed(refused) == sco::app::StartResult::RefusedBeforeExposure);
+    CHECK(!fs::exists(refused.dataRoot / "plugin-startup.json"));
+
+    sco::app::Platform platform;
+    platform.pluginRoot = root;
+    platform.pluginsEnabled = false;
+    platform.dataRoot = out / "plugin-startup-app-default-off";
+    fs::remove_all(platform.dataRoot, ec);
+    CHECK(sco::app::StartDetailed(platform) == sco::app::StartResult::Started);
+    CHECK(!fs::exists(platform.dataRoot / "plugin-startup.json"));
+    CHECK(sco::app::Stop() == sco::Result::Ok);
+
+    platform.dataRoot = out / "plugin-startup-app";
+    fs::remove_all(platform.dataRoot, ec);
+    platform.pluginStartupSnapshot = true;
+    CHECK(sco::app::StartDetailed(platform) == sco::app::StartResult::Started);
+    const std::string json = ReadWholeFile(platform.dataRoot / "plugin-startup.json");
+    CHECK(json.find("\"record_state\":\"complete\"") != std::string::npos &&
+          json.find("\"plugins_enabled_at_start\":false") != std::string::npos &&
+          json.find("\"plugin_count\":0,\"loaded_count\":0,\"plugins\":[]") != std::string::npos);
+    CHECK(sco::app::Stop() == sco::Result::Ok);
+}
+
 int main(int argc, char** argv) {
     if (argc < 3) { std::printf("usage: test_app <sdk dir> <out dir>\n"); return 2; }
     sco::SetLogSink(Sink);
@@ -1579,6 +1619,7 @@ int main(int argc, char** argv) {
     TestReloadNonCodeDependents(argv[2]);
     TestAppSettings(argv[2]);
     TestReloadSettings(argv[2]);
+    TestPluginStartupSnapshotApp(argv[2]);
     P::SetCallGuard(nullptr);
     std::printf("sco-core app tests: %d passed, %d failed\n", g_pass, g_fail);
     return g_fail ? 1 : 0;

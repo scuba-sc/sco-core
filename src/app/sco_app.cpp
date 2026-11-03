@@ -3,6 +3,7 @@
 #include "sco/app.h"
 #include "owned_start.h"
 #include "owned_subsystems.h"
+#include "plugin_startup_snapshot.h"
 #include "../api/owned_publication.h"
 #include "../owned_registry_reservation.h"
 #include "../ipc/diagnostics_worker.h"
@@ -69,6 +70,7 @@ std::optional<uint64_t>       g_lastDiagnosticTick;
 bool                         g_gameServicesPublished = false;
 bool                         g_reloading = false;
 bool                         g_reloadCommand = false;   // sco.reload is registered (once per process)
+sco::app::detail::plugin_startup::Writer g_pluginStartupSnapshot;
 
 enum class MenuPhase { Unused, Loading, Active, NormalPending, QuarantinePending, Released, Retained };
 struct MenuInstance {
@@ -765,7 +767,18 @@ static bool StartImpl(const Platform& platform, const sco::detail::StartupPublis
         catch (...) { g_hostServiceStarted = false; }
         if (!g_hostServiceStarted) Log("[app] optional host service unavailable");
     }
-    LoadPlugins(pf, api, opts, cap);
+    // This is the first point at which startup has passed the app gate, discovered and prepared its
+    // final list, and is about to call the loader. A process crash may leave `starting`; it is never
+    // called running. The optional writer owns a nonblocking cross-process lease until completion.
+    if (!cap && pf.pluginStartupSnapshot && !pf.dataRoot.empty())
+        (void)g_pluginStartupSnapshot.Begin(pf.dataRoot / "plugin-startup.json", pf.pluginsEnabled);
+    try {
+        LoadPlugins(pf, api, opts, cap);
+    } catch (...) {
+        if (!cap && pf.pluginStartupSnapshot) (void)g_pluginStartupSnapshot.Failed(g_list);
+        throw;
+    }
+    if (!cap && pf.pluginStartupSnapshot) (void)g_pluginStartupSnapshot.Complete(g_list);
     FinalizeStartup(pf, cap);
     return true;
     } catch (...) {
@@ -827,7 +840,8 @@ bool StartOwned(const Platform& platform, const OwnedShutdown::Transition& trans
     if (platform.pluginsEnabled || platform.nBuiltins || platform.scripts || platform.gameServices ||
         platform.hostService.start || platform.hostService.tick || platform.hostService.stop ||
         platform.hostMenu.context || platform.hostMenu.load || platform.hostMenu.frame || platform.hostMenu.stop ||
-        platform.setCapabilities || platform.diagnosticSources.diagnosticsPlugin || platform.runtimeInspection.enabled ||
+        platform.setCapabilities || platform.pluginStartupSnapshot ||
+        platform.diagnosticSources.diagnosticsPlugin || platform.runtimeInspection.enabled ||
         platform.privateSession.enabled || platform.reservedChords || platform.nReservedChords) {
         platform.shutdownOwner->fault();
         return false;
