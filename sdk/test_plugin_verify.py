@@ -95,6 +95,21 @@ class PluginArchiveVerifierTests(unittest.TestCase):
         result = self.verify()
         self.assertEqual(result["plugin"]["requires"], ["future.service"])
 
+    def test_archive_parser_diagnostics_escape_untrusted_setting_values(self):
+        manifest = (b"id = pilot\nname = Pilot\nversion = 1.0\napi = 1.0\nkind = native\n"
+                    b"entry = pilot.dll\n[settings]\nenabled = bool default \x1b[2J\n")
+        write_archive(self.archive_path, [("pilot/plugin.ini", manifest), ("pilot/pilot.dll", b"opaque")])
+        completed = subprocess.run(
+            [sys.executable, str(HERE / "tools" / "sco-plugin-verify.py"), str(self.archive_path),
+             "--checker", CHECKER],
+            capture_output=True,
+            check=False,
+        )
+        output = completed.stdout + completed.stderr
+        self.assertEqual(completed.returncode, 1, output)
+        self.assertNotIn(b"\x1b", output)
+        self.assertIn(b"\\x1B[2J", output)
+
     def test_manifest_id_must_match_single_archive_folder(self):
         manifest = native_manifest().replace(b"id = pilot", b"id = other")
         write_archive(self.archive_path, [("pilot/plugin.ini", manifest), ("pilot/pilot.dll", b"opaque")])
@@ -482,6 +497,19 @@ class PluginFolderNoLoadTests(unittest.TestCase):
         self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
         self.assertNotIn("\x7f", result.stdout)
         self.assertIn(r"pilot\x7F.dll", result.stdout)
+
+    def test_dynamic_loader_failure_escapes_caller_path_and_loader_detail(self):
+        self.plugin = self.root / "parent\x1b[2J" / "pilot"
+        try:
+            self.plugin.mkdir(parents=True)
+        except OSError as exc:
+            self.skipTest(f"platform does not permit control bytes in paths: {exc}")
+        self.write_plugin(entry_bytes=b"not a loadable native library")
+        result = self.run_check()
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("can't load", result.stdout)
+        self.assertNotIn("\x1b", result.stdout)
+        self.assertIn(r"parent\x1B[2J/pilot/pilot.dll", result.stdout)
 
     def test_no_load_limits_script_depth_to_host_inventory_depth(self):
         (self.plugin / "plugin.ini").write_bytes(self.manifest(kind="data"))

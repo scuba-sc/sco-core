@@ -86,25 +86,26 @@ static void fail(const char* fmt, ...) {
 #define MAX_PACK_SCRIPT_DEPTH 16u
 #define MAX_SAFE_PATH_DISPLAY_BYTES (4u * (MAX_PACK_SCAN_PATH_BYTES + 1u) + 1u)
 
-/* Keep terminal output safe for control bytes and undecodable filename bytes. */
-static const char* safe_path_text(const char* path) {
-    static char escaped[MAX_SAFE_PATH_DISPLAY_BYTES];
-    static const char too_long[] = "<path omitted: display limit>";
+/* Keep terminal output safe for control bytes and undecodable path/manifest bytes. */
+static const char* safe_text_span(const char* text, size_t length, char* escaped, size_t cap) {
+    static const char too_long[] = "<text omitted: display limit>";
     static const char hex[] = "0123456789ABCDEF";
-    const unsigned char* p = (const unsigned char*)path;
+    const unsigned char* p = (const unsigned char*)text;
     size_t written = 0;
-    if (!path) return "<null path>";
-    for (; *p; ++p) {
+    size_t i;
+    if (!text) return "<null text>";
+    if (!escaped || !cap) return too_long;
+    for (i = 0; i < length; ++i, ++p) {
         const unsigned char c = *p;
         if (c >= 0x20 && c <= 0x7e && c != '\\' && c != '"') {
-            if (written + 1u >= sizeof escaped) return too_long;
+            if (written + 1u >= cap) return too_long;
             escaped[written++] = (char)c;
         } else if (c == '\\' || c == '"') {
-            if (written + 2u >= sizeof escaped) return too_long;
+            if (written + 2u >= cap) return too_long;
             escaped[written++] = '\\';
             escaped[written++] = (char)c;
         } else {
-            if (written + 4u >= sizeof escaped) return too_long;
+            if (written + 4u >= cap) return too_long;
             escaped[written++] = '\\';
             escaped[written++] = 'x';
             escaped[written++] = hex[c >> 4];
@@ -113,6 +114,12 @@ static const char* safe_path_text(const char* path) {
     }
     escaped[written] = '\0';
     return escaped;
+}
+
+static const char* safe_path_text(const char* path) {
+    static char escaped[MAX_SAFE_PATH_DISPLAY_BYTES];
+    if (!path) return "<null path>";
+    return safe_text_span(path, strlen(path), escaped, sizeof escaped);
 }
 
 /* One [settings] declaration, as far as the checker reports it. */
@@ -386,7 +393,14 @@ static int check_setting(const sdecl* d, strv text, char* why, size_t cap) {
 }
 
 static int setting_bad(int line, strv name, const char* what, const char* detail) {
-    fail("plugin.ini line %d: setting '%.*s': %s%s", line, (int)name.n, name.p, what, detail ? detail : "");
+    char safe_name[4u * 32u + 1u];
+    char safe_what[4u * 512u + 1u];
+    char safe_detail[4u * 512u + 1u];
+    safe_text_span(name.p, name.n, safe_name, sizeof safe_name);
+    safe_text_span(what, strlen(what), safe_what, sizeof safe_what);
+    if (detail) safe_text_span(detail, strlen(detail), safe_detail, sizeof safe_detail);
+    else safe_detail[0] = '\0';
+    fail("plugin.ini line %d: setting '%s': %s%s", line, safe_name, safe_what, safe_detail);
     return 0;
 }
 
@@ -2030,10 +2044,12 @@ static void check_native(const char* dir, const manifest* m, const char* invoke_
     sco_api api;
     sco_result r;
     int i;
+    char safe_path[MAX_SAFE_PATH_DISPLAY_BYTES];
 #if defined(_WIN32)
     HMODULE mod;
 #else
     void* mod;
+    char safe_error[MAX_SAFE_PATH_DISPLAY_BYTES];
 #endif
 
     snprintf(path, sizeof path, "%s/%s", dir, m->entry);
@@ -2041,16 +2057,29 @@ static void check_native(const char* dir, const manifest* m, const char* invoke_
     {
         /* LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR needs a full path, as the host passes. */
         char full[MAX_PATH];
-        if (GetFullPathNameA(path, sizeof full, full, NULL) - 1u >= sizeof full - 1u) { fail("%s: path too long", path); return; }
+        if (GetFullPathNameA(path, sizeof full, full, NULL) - 1u >= sizeof full - 1u) {
+            fail("%s: path too long", safe_text_span(path, strlen(path), safe_path, sizeof safe_path));
+            return;
+        }
         strncpy(path, full, sizeof path - 1);
         path[sizeof path - 1] = '\0';
     }
     mod = LoadLibraryExA(path, NULL, LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR | LOAD_LIBRARY_SEARCH_SYSTEM32);
-    if (!mod) { fail("%s: can't load (error %lu)", path, (unsigned long)GetLastError()); return; }
+    if (!mod) {
+        fail("%s: can't load (error %lu)", safe_text_span(path, strlen(path), safe_path, sizeof safe_path),
+             (unsigned long)GetLastError());
+        return;
+    }
 #define SYM(name) ((void*)GetProcAddress(mod, name))
 #else
     mod = dlopen(path, RTLD_NOW | RTLD_LOCAL);
-    if (!mod) { fail("%s: can't load (%s)", path, dlerror()); return; }
+    if (!mod) {
+        const char* error = dlerror();
+        if (!error) error = "unknown loader error";
+        fail("%s: can't load (%s)", safe_text_span(path, strlen(path), safe_path, sizeof safe_path),
+             safe_text_span(error, strlen(error), safe_error, sizeof safe_error));
+        return;
+    }
 #define SYM(name) dlsym(mod, name)
 #endif
     /* Object to function pointer: same size on every platform the SDK targets (abi_v1.c). */
