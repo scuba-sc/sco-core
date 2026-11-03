@@ -10,6 +10,7 @@ import argparse
 import hashlib
 import importlib.util
 import json
+import os
 from pathlib import Path
 import stat
 import subprocess
@@ -277,6 +278,7 @@ class PluginArchiveVerifierTests(unittest.TestCase):
         self.assertIn('"sco_widgets.h"', checker_source)
         self.assertIn("--no-load", checker_source)
         self.assertIn("does not establish code safety", sdk_readme)
+        self.assertIn("16,384 filesystem entries", sdk_readme)
         self.assertIn("add_executable(sco-plugin-check tools/sco-plugin-check.c)", cmake_source)
 
     @unittest.skipUnless(PACKAGED_SDK, "requires an extracted SDK archive")
@@ -350,7 +352,57 @@ class PluginFolderNoLoadTests(unittest.TestCase):
         self.write_plugin(include_entry=False)
         result = self.run_check("--no-load")
         self.assertEqual(result.returncode, 1)
-        self.assertIn("entry 'pilot.dll' is not a regular file or was not found", result.stdout)
+        self.assertIn("entry 'pilot.dll' is not a regular non-symlink file or was not found", result.stdout)
+
+    def test_no_load_rejects_parent_traversal_entry(self):
+        self.write_plugin(manifest=self.manifest(entry="../outside.dll"))
+        (self.root / "outside.dll").write_bytes(b"not executable")
+        result = self.run_check("--no-load")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("entry must be a file name in the plugin folder", result.stdout)
+
+    def test_no_load_refuses_truncated_manifest_paths(self):
+        self.plugin = self.root / ("x" * 1100) / "pilot"
+        result = self.run_check("--no-load")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("plugin.ini path exceeds the checker path-buffer limit", result.stdout)
+
+    def test_no_load_rejects_symlinked_manifest_and_entry(self):
+        outside_manifest = self.root / "outside.ini"
+        outside_manifest.write_bytes(self.manifest())
+        try:
+            (self.plugin / "plugin.ini").symlink_to(outside_manifest)
+        except (OSError, NotImplementedError) as exc:
+            self.skipTest(f"symlink creation unavailable: {exc}")
+        result = self.run_check("--no-load")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("plugin.ini is not a regular non-symlink file", result.stdout)
+
+        (self.plugin / "plugin.ini").unlink()
+        self.write_plugin(include_entry=False)
+        outside_entry = self.root / "outside.dll"
+        outside_entry.write_bytes(b"not executable")
+        try:
+            (self.plugin / "pilot.dll").symlink_to(outside_entry)
+        except (OSError, NotImplementedError) as exc:
+            self.skipTest(f"symlink creation unavailable: {exc}")
+        result = self.run_check("--no-load")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("entry 'pilot.dll' is not a regular non-symlink file", result.stdout)
+
+    def test_no_load_rejects_symlinked_plugin_folder_with_or_without_trailing_separator(self):
+        self.write_plugin()
+        link = self.root / "pilot-link"
+        try:
+            link.symlink_to(self.plugin, target_is_directory=True)
+        except (OSError, NotImplementedError) as exc:
+            self.skipTest(f"symlink creation unavailable: {exc}")
+        for folder in (str(link), str(link) + os.sep):
+            with self.subTest(folder=folder):
+                result = subprocess.run([CHECKER, folder, "--no-load"], capture_output=True, text=True, check=False)
+                self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+                self.assertIn("plugin folder is not a regular non-symlink directory", result.stdout)
+                self.assertNotIn("  ini     id=", result.stdout)
 
     def test_no_load_reports_data_pack_inventory(self):
         (self.plugin / "plugin.ini").write_bytes(self.manifest(kind="data"))
@@ -364,6 +416,67 @@ class PluginFolderNoLoadTests(unittest.TestCase):
         self.assertIn("content scripts/nested/events.xml", result.stdout)
         self.assertIn("pack    2 file(s)", result.stdout)
         self.assertIn("NO-LOAD OK", result.stdout)
+
+    def test_no_load_inventories_mission_declaration_content(self):
+        (self.plugin / "plugin.ini").write_bytes(self.manifest(kind="data"))
+        (self.plugin / "missions").mkdir()
+        (self.plugin / "missions" / "pilot_route.scom").write_text("mission declaration\n")
+        result = self.run_check("--no-load")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("content missions/pilot_route.scom", result.stdout)
+        self.assertIn("pack    1 file(s)", result.stdout)
+
+    def test_no_load_ignores_symlinked_content_roots_and_nested_directories(self):
+        (self.plugin / "plugin.ini").write_bytes(self.manifest(kind="data"))
+        (self.plugin / "lists").mkdir()
+        (self.plugin / "lists" / "routes.txt").write_text("local\n")
+        outside = self.root / "outside"
+        outside.mkdir()
+        (outside / "external.xml").write_text("<outside/>\n")
+        try:
+            (self.plugin / "scripts").symlink_to(outside, target_is_directory=True)
+        except (OSError, NotImplementedError) as exc:
+            self.skipTest(f"symlink creation unavailable: {exc}")
+
+        result = self.run_check("--no-load")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertNotIn("scripts/external.xml", result.stdout)
+        self.assertIn("pack    1 file(s)", result.stdout)
+
+        (self.plugin / "scripts").unlink()
+        (self.plugin / "scripts").mkdir()
+        try:
+            (self.plugin / "scripts" / "nested").symlink_to(outside, target_is_directory=True)
+        except (OSError, NotImplementedError) as exc:
+            self.skipTest(f"symlink creation unavailable: {exc}")
+        result = self.run_check("--no-load")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertNotIn("scripts/nested/external.xml", result.stdout)
+        self.assertIn("pack    1 file(s)", result.stdout)
+
+    def test_no_load_limits_script_depth_to_host_inventory_depth(self):
+        (self.plugin / "plugin.ini").write_bytes(self.manifest(kind="data"))
+        (self.plugin / "lists").mkdir()
+        (self.plugin / "lists" / "routes.txt").write_text("local\n")
+        current = self.plugin / "scripts"
+        for depth in range(1, 18):
+            current = current / f"d{depth}"
+        current.mkdir(parents=True)
+        (current / "too_deep.xml").write_text("<ignored/>\n")
+        result = self.run_check("--no-load")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertNotIn("too_deep.xml", result.stdout)
+        self.assertIn("pack    1 file(s); scan limit 16384 entries, scripts depth 16", result.stdout)
+
+    def test_no_load_bounds_total_filesystem_entries_scanned(self):
+        (self.plugin / "plugin.ini").write_bytes(self.manifest(kind="data"))
+        listings = self.plugin / "lists"
+        listings.mkdir()
+        for i in range(16385):
+            (listings / f"noise_{i:05}.bin").touch()
+        result = self.run_check("--no-load")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("data pack inventory exceeds scan limit of 16384 filesystem entries", result.stdout)
 
     def test_no_load_rejects_invoke_flag_conflict(self):
         self.write_plugin()

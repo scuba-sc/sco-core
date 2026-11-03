@@ -52,6 +52,7 @@
 #include <sys/stat.h>
 #endif
 #include <ctype.h>
+#include <errno.h>
 #include <math.h>
 #include <stdarg.h>
 #include <stddef.h>
@@ -80,6 +81,9 @@ static void fail(const char* fmt, ...) {
 #define MAX_MANIFEST_BYTES (16 * 1024)
 #define MAX_SETTINGS 32
 #define MAX_PACK_FILES 4096
+#define MAX_PACK_SCAN_ENTRIES 16384u
+#define MAX_PACK_SCAN_PATH_BYTES 4096u
+#define MAX_PACK_SCRIPT_DEPTH 16u
 
 /* One [settings] declaration, as far as the checker reports it. */
 typedef struct setting { char name[32]; char type[16]; } setting;
@@ -656,14 +660,44 @@ static int file_exists(const char* path) {
     return 1;
 }
 
-/* The no-load path promises an entry file, not merely an openable path such as a directory. */
+/* The no-load path promises an ordinary file, not a directory or an entry symlink. */
 static int regular_file_exists(const char* path) {
 #if defined(_WIN32)
     const DWORD attributes = GetFileAttributesA(path);
-    return attributes != INVALID_FILE_ATTRIBUTES && !(attributes & FILE_ATTRIBUTE_DIRECTORY);
+    return attributes != INVALID_FILE_ATTRIBUTES &&
+           !(attributes & (FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_REPARSE_POINT | FILE_ATTRIBUTE_DEVICE));
 #else
     struct stat st;
-    return stat(path, &st) == 0 && S_ISREG(st.st_mode);
+    return lstat(path, &st) == 0 && S_ISREG(st.st_mode);
+#endif
+}
+
+/* The caller-selected plugin root is also part of the no-load path boundary. Strip trailing
+ * separators before lstat/GetFileAttributes so a path like "plugin-link/" cannot hide a link. */
+static int regular_directory_exists(const char* path) {
+    char checked[1024];
+    size_t length;
+    if (!path || (length = strlen(path)) == 0) return 0;
+    /* The following plugin.ini path check emits the precise shared buffer-limit error. */
+    if (length >= sizeof checked) return 1;
+    memcpy(checked, path, length + 1);
+    while (length > 1 && (checked[length - 1] == '/' || checked[length - 1] == '\\')) {
+#if defined(_WIN32)
+        if (length == 3 && checked[1] == ':') break;
+#endif
+        checked[--length] = '\0';
+    }
+#if defined(_WIN32)
+    {
+        const DWORD attributes = GetFileAttributesA(checked);
+        return attributes != INVALID_FILE_ATTRIBUTES &&
+               (attributes & FILE_ATTRIBUTE_DIRECTORY) && !(attributes & FILE_ATTRIBUTE_REPARSE_POINT);
+    }
+#else
+    {
+        struct stat st;
+        return lstat(checked, &st) == 0 && S_ISDIR(st.st_mode);
+    }
 #endif
 }
 
@@ -724,6 +758,200 @@ static int list_content(const char* dir, const char* sub, const char* ext, int d
     }
 #endif
     return count;
+}
+
+static int no_load_join_path(char* out, size_t cap, const char* left, const char* right) {
+    const int written = snprintf(out, cap, "%s/%s", left, right);
+    return written >= 0 && (size_t)written < cap;
+}
+
+static int mission_declaration_name(const char* relative) {
+    const size_t length = strlen(relative);
+    const char* id;
+    size_t id_length, i;
+    if (strncmp(relative, "missions/", 9) || length < 15 || strcmp(relative + length - 5, ".scom")) return 0;
+    id = relative + 9;
+    id_length = length - 14;
+    if (!id_length || id_length > 100) return 0;
+    for (i = 0; i < id_length; ++i)
+        if (!((id[i] >= 'a' && id[i] <= 'z') || (id[i] >= '0' && id[i] <= '9') || id[i] == '_')) return 0;
+    return 1;
+}
+
+static int no_load_scan_budget(unsigned* scanned) {
+    if (*scanned >= MAX_PACK_SCAN_ENTRIES) {
+        fail("data pack inventory exceeds scan limit of %u filesystem entries", MAX_PACK_SCAN_ENTRIES);
+        return 0;
+    }
+    ++*scanned;
+    return 1;
+}
+
+/* Static preflight inventory. Match the host's non-following symlink and script-depth rules,
+ * while bounding work for folders containing large numbers of irrelevant entries. */
+static int no_load_list_content(const char* dir, const char* sub, const char* ext, int deep,
+                                unsigned depth, int mission_declaration, unsigned* scanned) {
+    char path[MAX_PACK_SCAN_PATH_BYTES + 1u];
+    int count = 0;
+    if (!no_load_join_path(path, sizeof path, dir, sub)) {
+        fail("data pack path exceeds the %u-byte preflight path limit", MAX_PACK_SCAN_PATH_BYTES);
+        return -1;
+    }
+#if defined(_WIN32)
+    {
+        const DWORD attributes = GetFileAttributesA(path);
+        char pattern[MAX_PACK_SCAN_PATH_BYTES + 4u];
+        WIN32_FIND_DATAA fd;
+        HANDLE h;
+        DWORD error;
+        int written;
+        if (strlen(path) >= MAX_PATH) {
+            fail("data pack path exceeds the Windows path limit: %s", sub);
+            return -1;
+        }
+        if (attributes == INVALID_FILE_ATTRIBUTES) {
+            error = GetLastError();
+            if (error == ERROR_FILE_NOT_FOUND || error == ERROR_PATH_NOT_FOUND) return 0;
+            fail("cannot inspect data pack folder %s (Windows error %lu)", sub, (unsigned long)error);
+            return -1;
+        }
+        if ((attributes & FILE_ATTRIBUTE_REPARSE_POINT) || !(attributes & FILE_ATTRIBUTE_DIRECTORY)) return 0;
+        written = snprintf(pattern, sizeof pattern, "%s/*", path);
+        if (written < 0 || (size_t)written >= sizeof pattern || strlen(pattern) >= MAX_PATH) {
+            fail("data pack search path exceeds the Windows path limit: %s", sub);
+            return -1;
+        }
+        h = FindFirstFileA(pattern, &fd);
+        if (h == INVALID_HANDLE_VALUE) {
+            error = GetLastError();
+            if (error == ERROR_FILE_NOT_FOUND) return 0;
+            fail("cannot read data pack folder %s (Windows error %lu)", sub, (unsigned long)error);
+            return -1;
+        }
+        for (;;) {
+            char relative[MAX_PACK_SCAN_PATH_BYTES + 1u];
+            char full[MAX_PACK_SCAN_PATH_BYTES + 1u];
+            if (strcmp(fd.cFileName, ".") && strcmp(fd.cFileName, "..")) {
+                if (!no_load_scan_budget(scanned)) { FindClose(h); return -1; }
+                if (!no_load_join_path(relative, sizeof relative, sub, fd.cFileName) ||
+                    !no_load_join_path(full, sizeof full, dir, relative)) {
+                    fail("data pack relative path exceeds the %u-byte preflight path limit", MAX_PACK_SCAN_PATH_BYTES);
+                    FindClose(h);
+                    return -1;
+                }
+                if (strlen(full) >= MAX_PATH) {
+                    fail("data pack path exceeds the Windows path limit: %s", relative);
+                    FindClose(h);
+                    return -1;
+                }
+                if (!(fd.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT)) {
+                    if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
+                        if (deep && depth < MAX_PACK_SCRIPT_DEPTH) {
+                            const int child_count = no_load_list_content(dir, relative, ext, deep, depth + 1u,
+                                                                         mission_declaration, scanned);
+                            if (child_count < 0) { FindClose(h); return -1; }
+                            count += child_count;
+                        }
+                    } else if (!(fd.dwFileAttributes & FILE_ATTRIBUTE_DEVICE) &&
+                               ends_with_nocase(fd.cFileName, ext) &&
+                               (!mission_declaration || mission_declaration_name(relative))) {
+                        printf("  content %s\n", relative);
+                        ++count;
+                    }
+                }
+            }
+            if (!FindNextFileA(h, &fd)) {
+                error = GetLastError();
+                if (error != ERROR_NO_MORE_FILES) {
+                    fail("cannot finish reading data pack folder %s (Windows error %lu)", sub, (unsigned long)error);
+                    FindClose(h);
+                    return -1;
+                }
+                break;
+            }
+        }
+        FindClose(h);
+    }
+#else
+    {
+        struct stat root_stat;
+        DIR* d;
+        struct dirent* e;
+        if (lstat(path, &root_stat) != 0) {
+            if (errno == ENOENT || errno == ENOTDIR) return 0;
+            fail("cannot inspect data pack folder %s (errno %d)", sub, errno);
+            return -1;
+        }
+        if (S_ISLNK(root_stat.st_mode) || !S_ISDIR(root_stat.st_mode)) return 0;
+        d = opendir(path);
+        if (!d) {
+            fail("cannot read data pack folder %s (errno %d)", sub, errno);
+            return -1;
+        }
+        for (;;) {
+            errno = 0;
+            e = readdir(d);
+            if (!e) {
+                if (errno) {
+                    fail("cannot finish reading data pack folder %s (errno %d)", sub, errno);
+                    closedir(d);
+                    return -1;
+                }
+                break;
+            }
+            if (strcmp(e->d_name, ".") && strcmp(e->d_name, "..")) {
+                char relative[MAX_PACK_SCAN_PATH_BYTES + 1u];
+                char full[MAX_PACK_SCAN_PATH_BYTES + 1u];
+                struct stat st;
+                if (!no_load_scan_budget(scanned)) { closedir(d); return -1; }
+                if (!no_load_join_path(relative, sizeof relative, sub, e->d_name) ||
+                    !no_load_join_path(full, sizeof full, dir, relative)) {
+                    fail("data pack relative path exceeds the %u-byte preflight path limit", MAX_PACK_SCAN_PATH_BYTES);
+                    closedir(d);
+                    return -1;
+                }
+                if (lstat(full, &st) != 0) {
+                    fail("cannot inspect data pack path %s (errno %d)", relative, errno);
+                    closedir(d);
+                    return -1;
+                }
+                if (S_ISLNK(st.st_mode)) continue;
+                if (S_ISDIR(st.st_mode)) {
+                    if (deep && depth < MAX_PACK_SCRIPT_DEPTH) {
+                        const int child_count = no_load_list_content(dir, relative, ext, deep, depth + 1u,
+                                                                     mission_declaration, scanned);
+                        if (child_count < 0) { closedir(d); return -1; }
+                        count += child_count;
+                    }
+                } else if (S_ISREG(st.st_mode) && ends_with_nocase(e->d_name, ext) &&
+                           (!mission_declaration || mission_declaration_name(relative))) {
+                    printf("  content %s\n", relative);
+                    ++count;
+                }
+            }
+        }
+        closedir(d);
+    }
+#endif
+    return count;
+}
+
+static int no_load_data_inventory(const char* dir) {
+    unsigned scanned = 0;
+    int total = 0, count;
+#define ADD_NO_LOAD_CONTENT(sub, ext, deep, mission) do { \
+        count = no_load_list_content(dir, sub, ext, deep, 0, mission, &scanned); \
+        if (count < 0) return -1; \
+        total += count; \
+    } while (0)
+    ADD_NO_LOAD_CONTENT("missions", ".cwmission", 0, 0);
+    ADD_NO_LOAD_CONTENT("missions", ".scom", 0, 1);
+    ADD_NO_LOAD_CONTENT("rules", ".rules", 0, 0);
+    ADD_NO_LOAD_CONTENT("scripts", ".xml", 1, 0);
+    ADD_NO_LOAD_CONTENT("lists", ".txt", 0, 0);
+    ADD_NO_LOAD_CONTENT("datacore", ".toml", 0, 0);
+#undef ADD_NO_LOAD_CONTENT
+    return total;
 }
 
 /* ---- stand-in host ------------------------------------------------------ */
@@ -1901,6 +2129,7 @@ int main(int argc, char** argv) {
     char** invoke_args = NULL;
     int ninvoke_args = 0, i, no_load = 0;
     char path[1024], folder[256];
+    int path_written;
     manifest m;
 
     /* Static manifest mode for sco-plugin-verify. It consumes only bounded stdin text and returns
@@ -1943,8 +2172,16 @@ int main(int argc, char** argv) {
     for (i = (int)strlen(folder); i > 0 && (folder[i - 1] == '/' || folder[i - 1] == '\\'); --i) folder[i - 1] = 0;
     printf("%s\n", dir);
     if (no_load) printf("  mode    no-load; plugin code will not be loaded or executed\n");
-    snprintf(path, sizeof path, "%s/plugin.ini", dir);
-    if (read_manifest(path, &m)) {
+    if (no_load && !regular_directory_exists(dir))
+        fail("plugin folder is not a regular non-symlink directory");
+    path_written = snprintf(path, sizeof path, "%s/plugin.ini", dir);
+    if (no_load && failures) {
+        /* Do not follow a rejected plugin-root symlink to read its manifest. */
+    } else if (no_load && (path_written < 0 || (size_t)path_written >= sizeof path))
+        fail("plugin.ini path exceeds the checker path-buffer limit");
+    else if (no_load && !regular_file_exists(path))
+        fail("plugin.ini is not a regular non-symlink file or was not found");
+    else if (read_manifest(path, &m)) {
         snprintf(plugin_id, sizeof plugin_id, "%s", m.id);
         printf("  ini     id=%s kind=%s api=%s%s%s\n", m.id, m.kind, m.api, m.entry[0] ? " entry=" : "", m.entry);
         if (strcmp(folder, m.id)) fail("id '%s' does not match folder '%s'", m.id, folder);
@@ -1957,22 +2194,34 @@ int main(int argc, char** argv) {
         for (i = 0; i < m.nsettings; ++i)
             printf("  setting %s (%s)\n", m.settings[i].name, m.settings[i].type);
         if (m.entry[0]) {
-            snprintf(path, sizeof path, "%s/%s", dir, m.entry);
+            path_written = snprintf(path, sizeof path, "%s/%s", dir, m.entry);
             if (no_load) {
-                if (!regular_file_exists(path)) fail("entry '%s' is not a regular file or was not found", m.entry);
+                if (path_written < 0 || (size_t)path_written >= sizeof path)
+                    fail("entry '%s' path exceeds the checker path-buffer limit", m.entry);
+                else if (!regular_file_exists(path)) fail("entry '%s' is not a regular non-symlink file or was not found", m.entry);
                 else printf("  entry   %s present; not loaded or executed\n", m.entry);
             } else if (!file_exists(path)) fail("entry '%s' not found", m.entry);
         }
         if (!failures && !strcmp(m.kind, "data")) {
-            int n = list_content(dir, "missions", ".cwmission", 0) + list_content(dir, "rules", ".rules", 0) +
-                    list_content(dir, "scripts", ".xml", 1) + list_content(dir, "lists", ".txt", 0);
-            /* .toml files in datacore: indexed here; their syntax and names are checked by sco-dcb lint and check. */
-            int dcb = list_content(dir, "datacore", ".toml", 0);
-            if (dcb) printf("  datacore %d file(s) indexed; check them with sco-dcb lint (syntax) and sco-dcb check (against Game2.dcb)\n", dcb);
-            n += dcb;
-            if (n == 0) fail("data pack has no content (missions/*.cwmission, rules/*.rules, scripts/**.xml, lists/*.txt, datacore/*.toml)");
-            else if (n > MAX_PACK_FILES) fail("data pack has %d content files; the host refuses more than %d", n, MAX_PACK_FILES);
-            else printf("  pack    %d file(s)\n", n);
+            if (no_load) {
+                const int n = no_load_data_inventory(dir);
+                if (!failures) {
+                    if (n == 0) fail("data pack has no content (missions/*.cwmission, missions/<id>.scom, rules/*.rules, scripts/**.xml, lists/*.txt, datacore/*.toml)");
+                    else if (n > MAX_PACK_FILES) fail("data pack has %d content files; the host refuses more than %d", n, MAX_PACK_FILES);
+                    else printf("  pack    %d file(s); scan limit %u entries, scripts depth %u\n",
+                                n, MAX_PACK_SCAN_ENTRIES, MAX_PACK_SCRIPT_DEPTH);
+                }
+            } else {
+                int n = list_content(dir, "missions", ".cwmission", 0) + list_content(dir, "rules", ".rules", 0) +
+                        list_content(dir, "scripts", ".xml", 1) + list_content(dir, "lists", ".txt", 0);
+                /* .toml files in datacore: indexed here; their syntax and names are checked by sco-dcb lint and check. */
+                int dcb = list_content(dir, "datacore", ".toml", 0);
+                if (dcb) printf("  datacore %d file(s) indexed; check them with sco-dcb lint (syntax) and sco-dcb check (against Game2.dcb)\n", dcb);
+                n += dcb;
+                if (n == 0) fail("data pack has no content (missions/*.cwmission, rules/*.rules, scripts/**.xml, lists/*.txt, datacore/*.toml)");
+                else if (n > MAX_PACK_FILES) fail("data pack has %d content files; the host refuses more than %d", n, MAX_PACK_FILES);
+                else printf("  pack    %d file(s)\n", n);
+            }
         } else if (!failures && !no_load && !strcmp(m.kind, "native")) {
             check_native(dir, &m, invoke_name, invoke_args, ninvoke_args);
         }
