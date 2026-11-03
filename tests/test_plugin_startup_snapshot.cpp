@@ -79,6 +79,14 @@ static void TestProjection() {
     CHECK(json.find("\"id\":\"unknown_11\",\"manifest_valid\":false,\"version\":null,\"kind\":\"unknown\",\"state\":\"refused\",\"reason_code\":\"invalid_manifest\"") != std::string::npos);
     CHECK(json.find("private") == std::string::npos && json.find("../../") == std::string::npos && json.size() <= PS::kMaxBytes);
 
+    auto invalidOff = list;
+    invalidOff.back().state = P::State::Off;
+    PS::Record stateConsistent = PS::Project(invalidOff, true, session, started, completed);
+    CHECK(stateConsistent.plugins && stateConsistent.plugins->back().reasonCode == "plugins_off" &&
+          PS::Serialize(stateConsistent, json));
+    stateConsistent.plugins->back().reasonCode = "invalid_manifest";
+    CHECK(!PS::Serialize(stateConsistent, json));
+
     PS::Record starting = PS::StartingRecord(session, started, false);
     CHECK(PS::Serialize(starting, json) && json.find("\"record_state\":\"starting\"") != std::string::npos &&
           json.find("\"completed_at_utc\":null") != std::string::npos && json.ends_with("\"plugins\":null}"));
@@ -154,10 +162,71 @@ static void TestWriter(const fs::path& out) {
           failed.find("\"plugins_enabled_at_start\":false") != std::string::npos && failed.ends_with("\"plugins\":null}"));
 }
 
+static void TestUnsafeEntriesAndReplacementFailure(const fs::path& out) {
+    std::error_code ec;
+    const fs::path data = out / "plugin-startup-unsafe-entries";
+    fs::remove_all(data, ec);
+    fs::create_directories(data, ec);
+    CHECK(!ec);
+    const fs::path target = data / "plugin-startup.json";
+
+#ifndef _WIN32
+    // The lock path is opened without following a symlink; an unrelated sentinel stays untouched.
+    const fs::path sentinel = data / "sentinel.txt";
+    { std::ofstream file(sentinel, std::ios::binary); file << "keep"; }
+    fs::create_symlink(sentinel, data / "plugin-startup.lock", ec);
+    CHECK(!ec);
+    PS::Writer lockSymlink;
+    CHECK(!lockSymlink.Begin(target, true) && !fs::exists(target));
+    CHECK(ReadWholeFile(sentinel) == "keep");
+    fs::remove(data / "plugin-startup.lock", ec);
+    CHECK(!ec);
+
+    // A final-path symlink is atomically replaced as a directory entry, never followed.
+    fs::create_symlink(sentinel, target, ec);
+    CHECK(!ec);
+    // Writer accepts only the canonical output filename; target itself is already a symlink.
+    PS::Writer finalSymlink;
+    CHECK(finalSymlink.Begin(target, true));
+    CHECK(fs::is_regular_file(sentinel) && !fs::is_symlink(target));
+    CHECK(ReadWholeFile(sentinel) == "keep");
+    CHECK(finalSymlink.Complete({}));
+    fs::remove(target, ec);
+    CHECK(!ec);
+
+    // Temp cleanup skips reparse-like entries and cannot remove or modify their destination.
+    const fs::path symlinkTemp = data / "plugin-startup.json.0123456789abcdef0123456789abcdef.tmp";
+    fs::create_symlink(sentinel, symlinkTemp, ec);
+    CHECK(!ec);
+    PS::Writer tempWriter;
+    CHECK(tempWriter.Begin(target, true));
+    CHECK(fs::is_symlink(symlinkTemp) && ReadWholeFile(sentinel) == "keep");
+    CHECK(tempWriter.Complete({}));
+    fs::remove(symlinkTemp, ec);
+    CHECK(!ec);
+#else
+    (void)target;
+#endif
+
+    // If replacement cannot happen, startup remains independent and no partial temp is exposed.
+    const fs::path blocked = out / "plugin-startup-replacement-failure";
+    fs::remove_all(blocked, ec);
+    fs::create_directories(blocked / "plugin-startup.json", ec);
+    CHECK(!ec);
+    PS::Writer replacement;
+    CHECK(!replacement.Begin(blocked / "plugin-startup.json", true) && !replacement.Active());
+    size_t temps = 0;
+    for (const auto& item : fs::directory_iterator(blocked, ec)) {
+        if (item.path().filename().string().starts_with("plugin-startup.json.")) ++temps;
+    }
+    CHECK(!ec && temps == 0);
+}
+
 int main(int argc, char** argv) {
     if (argc != 2) { std::printf("usage: test_plugin_startup_snapshot <output-dir>\n"); return 2; }
     TestProjection();
     TestWriter(argv[1]);
+    TestUnsafeEntriesAndReplacementFailure(argv[1]);
     std::printf("plugin startup snapshot: %d checks, %d failures\n", checks, failures);
     return failures ? 1 : 0;
 }
