@@ -302,7 +302,9 @@ def linux_uapi_header_link(path, resolved, system, root, checkout):
     source_dir, target_dir = LINUX_UAPI_LINK_DIRS
     if path.parent != source_dir or not path.is_symlink() or resolved != target_dir / path.name:
         return False
-    if not any(path == p or p in path.parents for p in system):
+    if not any(p != Path(p.anchor) and
+               all(p != forbidden and forbidden not in p.parents for forbidden in (root, checkout)) and
+               (path == p or p in path.parents) for p in system):
         return False
     if any(resolved == p or p in resolved.parents for p in (root, checkout)):
         return False

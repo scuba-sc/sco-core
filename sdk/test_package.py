@@ -812,6 +812,8 @@ class RealManifest(unittest.TestCase):
                 with unittest.mock.patch.object(pkg, 'protected_system_path', return_value=True):
                     self.assertTrue(pkg.linux_uapi_header_link(link, target, system, root, checkout))
                     self.assertFalse(pkg.linux_uapi_header_link(link, target, [], root, checkout))
+                    self.assertFalse(pkg.linux_uapi_header_link(link, target, [Path('/')], root, checkout))
+                    self.assertFalse(pkg.linux_uapi_header_link(link, target, system, source_dir.parent, checkout))
                     self.assertFalse(pkg.linux_uapi_header_link(link, target, system, target_dir, checkout))
                     self.assertFalse(pkg.linux_uapi_header_link(link, target, system, root, target_dir))
                     self.assertFalse(pkg.linux_uapi_header_link(link, checkout / target.name, system, root, checkout))
