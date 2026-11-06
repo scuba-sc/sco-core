@@ -285,6 +285,16 @@ def check_example_headers(m, profile, text, source):
             raise ManifestError(f"{profile}: {source} includes unshipped public header {header}")
 
 
+def protected_system_path(path):
+    """A system-owned, non-shared-writable path that this process cannot modify."""
+    try:
+        info = path.stat()
+        return (info.st_uid == Path('/usr').stat().st_uid and not (info.st_mode & 0o022)
+                and not os.access(path, os.W_OK))
+    except OSError:
+        return False
+
+
 def linux_uapi_header_link(path, resolved, system, root, checkout):
     """Recognize the protected usr-merged x86 UAPI header layout, not arbitrary links."""
     if not sys.platform.startswith('linux'):
@@ -300,7 +310,7 @@ def linux_uapi_header_link(path, resolved, system, root, checkout):
     # containing directory may be writable by this process. No other target
     # directory becomes an approved compiler include root.
     protected = (path.parent, resolved, *path.parent.parents, *resolved.parents)
-    return all(not os.access(p, os.W_OK) for p in protected)
+    return all(protected_system_path(p) for p in protected)
 
 
 def check_installed_example_headers(m, profile, root, work):

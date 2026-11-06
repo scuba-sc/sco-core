@@ -16,6 +16,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+from types import SimpleNamespace
 import unittest
 import unittest.mock
 import zipfile
@@ -808,13 +809,23 @@ class RealManifest(unittest.TestCase):
             with unittest.mock.patch.object(pkg, 'LINUX_UAPI_LINK_DIRS', (source_dir, target_dir)):
                 # A user-writable layout cannot become trusted, even if the names match.
                 self.assertFalse(pkg.linux_uapi_header_link(link, target, system, root, checkout))
-                with unittest.mock.patch.object(pkg.os, 'access', return_value=False):
+                with unittest.mock.patch.object(pkg, 'protected_system_path', return_value=True):
                     self.assertTrue(pkg.linux_uapi_header_link(link, target, system, root, checkout))
                     self.assertFalse(pkg.linux_uapi_header_link(link, target, [], root, checkout))
                     self.assertFalse(pkg.linux_uapi_header_link(link, target, system, target_dir, checkout))
                     self.assertFalse(pkg.linux_uapi_header_link(link, target, system, root, target_dir))
                     self.assertFalse(pkg.linux_uapi_header_link(link, checkout / target.name, system, root, checkout))
                     self.assertFalse(pkg.linux_uapi_header_link(target, target, system, root, checkout))
+
+    def test_protected_system_path_rejects_foreign_or_shared_writable_paths(self):
+        def info(owner, mode):
+            return SimpleNamespace(st_uid=owner, st_mode=mode)
+        with unittest.mock.patch.object(pkg.os, 'access', return_value=False):
+            for owner, mode, expected in ((1, 0o755, True), (2, 0o755, False),
+                                          (1, 0o775, False), (1, 0o757, False)):
+                with self.subTest(owner=owner, mode=mode), \
+                     unittest.mock.patch.object(pkg.Path, 'stat', side_effect=[info(owner, mode), info(1, 0o755)]):
+                    self.assertEqual(pkg.protected_system_path(Path('/fixture')), expected)
 
     def test_compiler_refuses_hidden_checkout_source_include(self):
         with tempfile.TemporaryDirectory() as tmp:
