@@ -4,6 +4,8 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+- Refuse an invalid existing fleet slot count before staging a synthetic fleet transaction; native reconfiguration remains disabled.
+
 ## sdk-v2.4.0
 
 This release incorporates the development changes listed below. The previously

@@ -33,7 +33,7 @@ inline bool RebuildFleet(FleetTable& table,FleetBuffer& buffer,const char* const
                          FleetResolve resolve,void* context,FleetAllocate allocate,size_t* initialSkipped=nullptr,
                          FleetContinue proceed=nullptr) {
     size_t skipped=0;
-    if(count>kFleetCapacity || (count && !names) || !resolve || !allocate ||
+    if(table.count>kFleetCapacity || count>kFleetCapacity || (count && !names) || !resolve || !allocate ||
        (initialSkipped && (table.count || buffer.data))) return false;
     // Validate the complete input before resolving; even skipped names must be unique.
     for(size_t i=0;i<count;++i) {

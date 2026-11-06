@@ -40,6 +40,15 @@ static uint64_t idAt(const FleetBuffer& b,size_t row) {
 int main() {
     // FleetTable is large; keep snapshots off the default Windows thread stack.
     auto table=std::make_unique<FleetTable>(); FleetBuffer buffer{};
+    // A corrupt prior slot count must be rejected before the staging copy is indexed.
+    // Keep the empty buffer and supplied skip count unchanged on refusal.
+    table->count=kFleetCapacity+1;
+    size_t invalidSkipped=41;
+    assert(!RebuildFleet(*table,buffer,nullptr,0,resolve,nullptr,countAlloc));
+    assert(table->count==kFleetCapacity+1 && !buffer.data && buffer.count==0 && allocationCalls==0);
+    assert(!RebuildFleet(*table,buffer,nullptr,0,resolve,nullptr,countAlloc,&invalidSkipped));
+    assert(invalidSkipped==41 && table->count==kFleetCapacity+1);
+    table->count=0;
     auto empty=std::make_unique<FleetTable>(*table);
     const char* reverseFailure[]={"synthetic_alpha","reverse_unavailable"};
     size_t failedSkipped=99;
