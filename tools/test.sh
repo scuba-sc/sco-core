@@ -403,6 +403,8 @@ for mode in prebind drain reentry; do "$OUT/test_owned_admission" "$mode"; done
 "$CXX" "${FLAGS[@]}" -fsanitize=address,undefined "$ROOT/tests/test_input.cpp" \
   $(obj asan "$ROOT/src/game/services/input.cpp") "${HOST_ASAN[@]}" -o "$OUT/test_input"
 "$OUT/test_input"
+"$CXX" "${FLAGS[@]}" -fsanitize=address,undefined "$ROOT/tests/test_input_cpp.cpp" -o "$OUT/test_input_cpp"
+"$OUT/test_input_cpp"
 "$CXX" "${FLAGS[@]}" -fsanitize=address,undefined "$ROOT/tests/test_gamerules_params.cpp" \
   $(obj asan "$ROOT/src/game/services/gamerules.cpp") "${HOST_ASAN[@]}" -o "$OUT/test_gamerules_params"
 "$OUT/test_gamerules_params"

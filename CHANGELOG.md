@@ -4,6 +4,8 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+- Add a read-only C++ wrapper for the `game.input` action registry. It copies results and checks service availability; it does not dispatch input or establish in-game behavior.
+
 ## sdk-v2.4.0
 
 This release incorporates the development changes listed below. The previously
