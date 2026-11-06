@@ -54,7 +54,7 @@ class RealManifest(unittest.TestCase):
                  'tests/test_plugin_startup_snapshot.cpp'}
         for profile in ('core-source', 'host-source-sc'):
             with self.subTest(profile=profile):
-                self.assertTrue(paths <= {c['source'] for c in pkg.select(self.m, profile)})
+                self.assertLessEqual(paths, {c['source'] for c in pkg.select(self.m, profile)})
         self.assertFalse(paths & {c['source'] for c in pkg.select(self.m, 'core')})
 
     def test_packaging_preserves_pending_provenance_and_rejects_unknown_metadata(self):

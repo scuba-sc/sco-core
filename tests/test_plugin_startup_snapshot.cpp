@@ -8,7 +8,12 @@
 #include <utility>
 #include <vector>
 
-#ifndef _WIN32
+#ifdef _WIN32
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#else
 #include <fcntl.h>
 #include <sys/file.h>
 #include <sys/wait.h>
@@ -39,6 +44,16 @@ static std::string ReadWholeFile(const fs::path& path) {
     std::ifstream file(path, std::ios::binary);
     return std::string(std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>());
 }
+
+#ifdef _WIN32
+static bool CreateTestFileSymlink(const fs::path& link, const fs::path& target) {
+    constexpr DWORD allowUnprivileged = 0x2; // Supported on Windows 10 with Developer Mode.
+    if (CreateSymbolicLinkW(link.c_str(), target.c_str(), allowUnprivileged)) return true;
+    if (GetLastError() == ERROR_INVALID_PARAMETER)
+        return CreateSymbolicLinkW(link.c_str(), target.c_str(), 0) != 0;
+    return false;
+}
+#endif
 
 static void CheckNonCompleteContract(const PS::Record& record, const char* state) {
     std::string json;
@@ -216,8 +231,6 @@ static void TestUnsafeEntriesAndReplacementFailure(const fs::path& out) {
     CHECK(tempWriter.Complete({}));
     fs::remove(symlinkTemp, ec);
     CHECK(!ec);
-#else
-    (void)target;
 #endif
 
     // If replacement cannot happen, startup remains independent and no partial temp is exposed.
@@ -234,7 +247,70 @@ static void TestUnsafeEntriesAndReplacementFailure(const fs::path& out) {
     CHECK(!ec && temps == 0);
 }
 
+#ifdef _WIN32
+static bool TestWindowsReparseEntries(const fs::path& out) {
+    std::error_code ec;
+    const fs::path data = out / "plugin-startup-windows-reparse";
+    fs::remove_all(data, ec);
+    fs::create_directories(data, ec);
+    CHECK(!ec);
+    const fs::path target = data / "plugin-startup.json";
+    // File symlinks require Developer Mode or the symbolic-link privilege.
+    const fs::path sentinel = fs::absolute(data / "sentinel.txt");
+    { std::ofstream file(sentinel, std::ios::binary); file << "keep"; }
+    const fs::path lock = data / "plugin-startup.lock";
+    if (!CreateTestFileSymlink(lock, sentinel)) {
+        const DWORD error = GetLastError();
+        if (error != ERROR_PRIVILEGE_NOT_HELD && error != ERROR_ACCESS_DENIED && error != ERROR_NOT_SUPPORTED) {
+            CHECK(false);
+            return true;
+        }
+        std::printf("SKIP: Windows snapshot reparse fixtures unavailable (error %lu)\n", static_cast<unsigned long>(error));
+        return false;
+    } else {
+        PS::Writer lockSymlink;
+        CHECK(!lockSymlink.Begin(target, true) && !lockSymlink.Active());
+        CHECK(!fs::exists(target) && ReadWholeFile(sentinel) == "keep");
+        const DWORD lockAttributes = GetFileAttributesW(lock.c_str());
+        CHECK(lockAttributes != INVALID_FILE_ATTRIBUTES && (lockAttributes & FILE_ATTRIBUTE_REPARSE_POINT) != 0);
+        fs::remove(lock, ec);
+        CHECK(!ec);
+
+        // The Windows path rejects the final reparse entry before replacement.
+        if (CreateTestFileSymlink(target, sentinel)) {
+            PS::Writer finalSymlink;
+            CHECK(!finalSymlink.Begin(target, true) && !finalSymlink.Active());
+            const DWORD targetAttributes = GetFileAttributesW(target.c_str());
+            CHECK(targetAttributes != INVALID_FILE_ATTRIBUTES && (targetAttributes & FILE_ATTRIBUTE_REPARSE_POINT) != 0);
+            CHECK(ReadWholeFile(sentinel) == "keep");
+            fs::remove(target, ec);
+            CHECK(!ec);
+        } else CHECK(false);
+
+        // Abandoned-temp cleanup must not remove a reparse entry or touch its target.
+        const fs::path symlinkTemp = data / "plugin-startup.json.0123456789abcdef0123456789abcdef.tmp";
+        if (CreateTestFileSymlink(symlinkTemp, sentinel)) {
+            PS::Writer tempWriter;
+            CHECK(tempWriter.Begin(target, true));
+            const DWORD tempAttributes = GetFileAttributesW(symlinkTemp.c_str());
+            CHECK(tempAttributes != INVALID_FILE_ATTRIBUTES && (tempAttributes & FILE_ATTRIBUTE_REPARSE_POINT) != 0);
+            CHECK(ReadWholeFile(sentinel) == "keep" && tempWriter.Complete({}));
+            fs::remove(symlinkTemp, ec);
+            CHECK(!ec);
+        } else CHECK(false);
+    }
+    return true;
+}
+#endif
+
 int main(int argc, char** argv) {
+#ifdef _WIN32
+    if (argc == 3 && std::string(argv[1]) == "--windows-reparse") {
+        if (!TestWindowsReparseEntries(argv[2])) return 77;
+        std::printf("Windows snapshot reparse: %d checks, %d failures\n", checks, failures);
+        return failures ? 1 : 0;
+    }
+#endif
     if (argc != 2) { std::printf("usage: test_plugin_startup_snapshot <output-dir>\n"); return 2; }
     TestProjection();
     TestWriter(argv[1]);

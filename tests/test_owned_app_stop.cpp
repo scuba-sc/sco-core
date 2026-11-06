@@ -21,6 +21,7 @@
 #include <chrono>
 #include <atomic>
 #include <future>
+#include <filesystem>
 #include <stdexcept>
 #include <string>
 #include <thread>
@@ -148,6 +149,24 @@ int main(int argc, char** argv) {
     p.privateSession.enabled = false;
     p.shutdownOwner = domain;
     p.beforeDependentStop = Drain;
+    if (argc > 1 && std::string(argv[1]) == "snapshot-refusal") {
+        // All other owned-start features stay disabled; reach the snapshot guard
+        // with a valid owner, transition, reserved registry and bound runtime.
+        p.pluginStartupSnapshot = true;
+        p.dataRoot = std::filesystem::temp_directory_path() /
+            ("sco-owned-snapshot-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
+        CHECK(!std::filesystem::exists(p.dataRoot));
+        CHECK(sco::OwnedShutdownHostAccess::begin_startup(*domain));
+        auto transition = sco::OwnedShutdownHostAccess::transition(*domain);
+        CHECK(transition && sco::detail::ReserveEmptyHostRegistry(domain, transition));
+        CHECK(sco::detail::BindRuntimeStartup(domain, transition));
+        const sco::detail::StartupPublish cap(domain, transition);
+        CHECK(cap.valid() && sco::detail::HostRegistryReservedFor(domain));
+        CHECK(!sco::app::detail::StartOwned(p, transition));
+        CHECK(domain->closed() && !domain->ready() && !transition.valid_for(*domain));
+        CHECK(!std::filesystem::exists(p.dataRoot) && !sco::net::Started());
+        return 0;
+    }
     if (argc > 1 && std::string(argv[1]) == "observer-startup-seeded") {
         CHECK(sco::OwnedShutdownHostAccess::begin_startup(*domain));
         auto transition = sco::OwnedShutdownHostAccess::transition(*domain);

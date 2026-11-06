@@ -1409,6 +1409,7 @@ if(SCO_BUILD_TESTS)
   set_tests_properties(owned_app_ui_call_drain owned_app_storage_call_drain PROPERTIES TIMEOUT 10)
   add_test(NAME owned_app_startup_admission COMMAND test_owned_app_stop startup-admission)
   add_test(NAME owned_app_startup_publication COMMAND test_owned_app_stop startup-publication)
+  add_test(NAME owned_app_snapshot_refusal COMMAND test_owned_app_stop snapshot-refusal)
   add_test(NAME owned_app_provider_refusal COMMAND test_owned_app_stop provider-refusal)
   add_test(NAME owned_app_net_cached_table COMMAND test_owned_app_stop net-cached-table)
   add_test(NAME owned_app_net_call_drain COMMAND test_owned_app_stop net-call-drain)
@@ -2226,6 +2227,10 @@ if(SCO_BUILD_TESTS)
   target_link_libraries(test_plugin_startup_snapshot PRIVATE Threads::Threads)
   sco_project_target(test_plugin_startup_snapshot)
   add_test(NAME test_plugin_startup_snapshot COMMAND test_plugin_startup_snapshot "${SCO_TEST_OUT}/plugin-startup-contract")
+  if(WIN32)
+    add_test(NAME plugin_startup_windows_reparse COMMAND test_plugin_startup_snapshot --windows-reparse "${SCO_TEST_OUT}")
+    set_tests_properties(plugin_startup_windows_reparse PROPERTIES SKIP_RETURN_CODE 77)
+  endif()
 
   # sco-host-sim over the SDK examples, laid out like data/plugins: <out>/sim/plugins/
   # {hello/{hello.<ext>,plugin.ini}, cpp_hello/, counter_service/, counter_panel/, greeter/,
