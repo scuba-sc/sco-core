@@ -5,6 +5,7 @@ What each change means for plugin authors and for products built on sco-core (sc
 ## Unreleased
 
 - Add a read-only C++ wrapper for the `game.input` action registry. It copies results and checks service availability; it does not dispatch input or establish in-game behavior.
+- Add an opt-in historical plugin startup snapshot for the qualified host path. It records the load pass, not live status, and the owned startup path continues to refuse it.
 
 ## sdk-v2.4.0
 
