@@ -60,6 +60,7 @@ ORIGINS = {"project-authored", "third-party", "generated", "interoperability-der
 PROVENANCE_STATUSES = {"reviewed", "needs-review", "unresolved"}
 REQUIRED = ("id", "source", "destination", "profiles", "origin", "license")
 COMPONENT_KEYS = REQUIRED + ("public_header", "group", "note", "upstream")
+LINUX_UAPI_LINK_DIRS = (Path('/usr/include/x86_64-linux-gnu/asm'), Path('/usr/lib/linux/uapi/x86/asm'))
 
 
 class ManifestError(Exception):
@@ -284,6 +285,24 @@ def check_example_headers(m, profile, text, source):
             raise ManifestError(f"{profile}: {source} includes unshipped public header {header}")
 
 
+def linux_uapi_header_link(path, resolved, system, root, checkout):
+    """Recognize the protected usr-merged x86 UAPI header layout, not arbitrary links."""
+    if not sys.platform.startswith('linux'):
+        return False
+    source_dir, target_dir = LINUX_UAPI_LINK_DIRS
+    if path.parent != source_dir or not path.is_symlink() or resolved != target_dir / path.name:
+        return False
+    if not any(path == p or p in path.parents for p in system):
+        return False
+    if any(resolved == p or p in resolved.parents for p in (root, checkout)):
+        return False
+    # Refuse a mutable system layout: neither the links, their target, nor any
+    # containing directory may be writable by this process. No other target
+    # directory becomes an approved compiler include root.
+    protected = (path.parent, resolved, *path.parent.parents, *resolved.parents)
+    return all(not os.access(p, os.W_OK) for p in protected)
+
+
 def check_installed_example_headers(m, profile, root, work):
     """Compile external copies of installed C/C++ examples; police actual dependencies.
 
@@ -409,10 +428,12 @@ def check_installed_example_headers(m, profile, root, work):
         else:
             raise ManifestError(f"{profile}: compiler dependency output absent for {c['source']}")
         source = (work / destination(m, profile, c)).resolve()
-        resolved = {(build / p).resolve() for p in dependencies}
+        dependency_paths = {Path(os.path.abspath(build / p)) for p in dependencies}
+        resolved = {p.resolve() for p in dependency_paths}
         if source not in resolved or not resolved & set(public):
             raise ManifestError(f"{profile}: compiler dependency proof empty for {c['source']}")
-        for dep in sorted(resolved):
+        for source_path in sorted(dependency_paths):
+            dep = source_path.resolve()
             path = dep
             if dep in public:
                 seen_public.add(public[dep])
@@ -421,6 +442,8 @@ def check_installed_example_headers(m, profile, root, work):
             elif not beneath(path, root) and not beneath(path, checkout) and any(
                     p != Path(p.anchor) and not beneath(p, root) and not beneath(p, checkout)
                     and beneath(path, p) for p in system):
+                continue
+            elif linux_uapi_header_link(source_path, path, system, root, checkout):
                 continue
             else:
                 raise ManifestError(f"{profile}: {c['source']} resolved dependency {path.as_posix()} "
