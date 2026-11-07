@@ -124,6 +124,11 @@ struct Platform {
     // file until its first Reload (on Windows that file is locked until then). A product turns it on
     // for a developer switch. A failed copy logs and falls back to the original.
     bool loadFromCopies = false;
+    // Default-off historical plugin-load snapshot at <dataRoot>/plugin-startup.json. The ordinary
+    // qualified StartDetailed path writes `starting` immediately before its load pass and only
+    // publishes final rows after that pass returns. Writer failures never affect startup. The
+    // strict owned StartOwned path refuses this option; it does not run a plugin load pass.
+    bool pluginStartupSnapshot = false;
     // Default-off diagnostic sources; no channel/consent inferred from this config.
     diagnostics::SourceOptions diagnosticSources;
     diagnostics::InspectionOptions runtimeInspection; // independently default off

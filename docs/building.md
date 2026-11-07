@@ -157,6 +157,7 @@ add_subdirectory(external/sco-core EXCLUDE_FROM_ALL)
 | `test_plugins` | `plugin.ini`, discovery, the content index and the native loader against the fake plugins in `<build>/tests/out/plugins/` |
 | `test_lua` | sco-lua through the real loader and host table, including `sdk/examples/greeter`, and `sco.store` over a real `sco.storage` with `sdk/examples/notebook` |
 | `test_app` | The host kit (`sco::app`) and built-in plugins: load order, `game.ready`, tick, a faulting built-in contained, `game.exit` before unload, unload order, restart |
+| `test_plugin_startup_snapshot` | Synthetic version-1 projection, privacy/bounds, starting/complete/failed/incomplete serialization, partial-temp isolation, and process-shared writer locking; no game or native plugin execution |
 | `host_sim_examples` | `sco-host-sim <build>/tests/out/sim/plugins --ticks 3 --invoke hello.wave "Pilot One"` over `hello`, `cpp_hello` (built by CMake), `greeter` and `travel_pack`: exit 0 and the reply; then `--invoke counter_panel.bump` over the same folder, where `counter_panel` calls `counter_service`'s table and must answer `counter is 1` (`tests/host_sim.cmake`) |
 
 On Windows `test_plugins` loads real DLLs with `LoadLibraryExW` and runs the real `__try/__except` crash guard. The TSan runs and the `x86_64-pc-windows-msvc` cross-compile of the ABI pin stay in `tools/test.sh`.

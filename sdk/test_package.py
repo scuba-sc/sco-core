@@ -16,6 +16,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+from types import SimpleNamespace
 import unittest
 import unittest.mock
 import zipfile
@@ -47,6 +48,14 @@ class RealManifest(unittest.TestCase):
     @classmethod
     def tearDownClass(cls):
         shutil.rmtree(cls.tmp)
+
+    def test_startup_snapshot_sources_follow_app_into_source_kits(self):
+        paths = {'src/app/plugin_startup_snapshot.cpp', 'src/app/plugin_startup_snapshot.h',
+                 'tests/test_plugin_startup_snapshot.cpp'}
+        for profile in ('core-source', 'host-source-sc'):
+            with self.subTest(profile=profile):
+                self.assertLessEqual(paths, {c['source'] for c in pkg.select(self.m, profile)})
+        self.assertFalse(paths & {c['source'] for c in pkg.select(self.m, 'core')})
 
     def test_packaging_preserves_pending_provenance_and_rejects_unknown_metadata(self):
         provenance = json.loads(pkg.read("docs/legal/provenance.json"))
@@ -782,6 +791,43 @@ class RealManifest(unittest.TestCase):
                 cmake = (work / "CMakeLists.txt").read_text()
                 self.assertIn("VS_USER_PROPS", cmake)
                 self.assertIn(f"system-{lang}.props", cmake)
+
+    def test_linux_uapi_link_restrictions(self):
+        if not sys.platform.startswith('linux'):
+            self.skipTest('Linux UAPI layout only')
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            source_dir, target_dir = base / 'system/include/asm', base / 'system/uapi/asm'
+            source_dir.mkdir(parents=True)
+            target_dir.mkdir(parents=True)
+            target = target_dir / 'example.h'
+            target.write_text('/* system fixture */\n')
+            link = source_dir / target.name
+            link.symlink_to(target)
+            system = [source_dir.parent]
+            root, checkout = base / 'sdk', base / 'checkout'
+            with unittest.mock.patch.object(pkg, 'LINUX_UAPI_LINK_DIRS', (source_dir, target_dir)):
+                # A user-writable layout cannot become trusted, even if the names match.
+                self.assertFalse(pkg.linux_uapi_header_link(link, target, system, root, checkout))
+                with unittest.mock.patch.object(pkg, 'protected_system_path', return_value=True):
+                    self.assertTrue(pkg.linux_uapi_header_link(link, target, system, root, checkout))
+                    self.assertFalse(pkg.linux_uapi_header_link(link, target, [], root, checkout))
+                    self.assertFalse(pkg.linux_uapi_header_link(link, target, [Path('/')], root, checkout))
+                    self.assertFalse(pkg.linux_uapi_header_link(link, target, system, source_dir.parent, checkout))
+                    self.assertFalse(pkg.linux_uapi_header_link(link, target, system, target_dir, checkout))
+                    self.assertFalse(pkg.linux_uapi_header_link(link, target, system, root, target_dir))
+                    self.assertFalse(pkg.linux_uapi_header_link(link, checkout / target.name, system, root, checkout))
+                    self.assertFalse(pkg.linux_uapi_header_link(target, target, system, root, checkout))
+
+    def test_protected_system_path_rejects_foreign_or_shared_writable_paths(self):
+        def info(owner, mode):
+            return SimpleNamespace(st_uid=owner, st_mode=mode)
+        with unittest.mock.patch.object(pkg.os, 'access', return_value=False):
+            for owner, mode, expected in ((1, 0o755, True), (2, 0o755, False),
+                                          (1, 0o775, False), (1, 0o757, False)):
+                with self.subTest(owner=owner, mode=mode), \
+                     unittest.mock.patch.object(pkg.Path, 'stat', side_effect=[info(owner, mode), info(1, 0o755)]):
+                    self.assertEqual(pkg.protected_system_path(Path('/fixture')), expected)
 
     def test_compiler_refuses_hidden_checkout_source_include(self):
         with tempfile.TemporaryDirectory() as tmp:

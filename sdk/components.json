@@ -556,6 +556,18 @@
       "public_header": false
     },
     {
+      "id": "wave2.tests.test_input_cpp.cpp",
+      "source": "tests/test_input_cpp.cpp",
+      "destination": "tests/test_input_cpp.cpp",
+      "profiles": [
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc",
+      "public_header": false
+    },
+    {
       "id": "wave2.tests.abi_game_input.c",
       "source": "tests/abi_game_input.c",
       "destination": "tests/abi_game_input.c",
@@ -2693,6 +2705,18 @@
       "id": "include.scosdk.game.gamerules.hpp",
       "source": "include/scosdk/game/gamerules.hpp",
       "destination": "include/scosdk/game/gamerules.hpp",
+      "profiles": [
+        "game-sc",
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "public_header": true
+    },
+    {
+      "id": "include.scosdk.game.input.hpp",
+      "source": "include/scosdk/game/input.hpp",
+      "destination": "include/scosdk/game/input.hpp",
       "profiles": [
         "game-sc",
         "host-source-sc"
@@ -6013,6 +6037,9 @@
     {"id": "source.src.lifecycle_gate.h", "source": "src/lifecycle_gate.h", "destination": "src/lifecycle_gate.h", "profiles": ["core-source"], "origin": "project-authored", "license": "GPL-3.0-only", "public_header": false},
     {"id": "source.src.owned_shutdown_access.h", "source": "src/owned_shutdown_access.h", "destination": "src/owned_shutdown_access.h", "profiles": ["core-source"], "origin": "project-authored", "license": "GPL-3.0-only", "public_header": false},
     {"id": "source.src.app.owned_start.h", "source": "src/app/owned_start.h", "destination": "src/app/owned_start.h", "profiles": ["core-source"], "origin": "project-authored", "license": "GPL-3.0-only", "public_header": false},
+    {"id": "source.src.app.plugin_startup_snapshot.cpp", "source": "src/app/plugin_startup_snapshot.cpp", "destination": "src/app/plugin_startup_snapshot.cpp", "profiles": ["core-source"], "origin": "project-authored", "license": "GPL-3.0-only"},
+    {"id": "source.src.app.plugin_startup_snapshot.h", "source": "src/app/plugin_startup_snapshot.h", "destination": "src/app/plugin_startup_snapshot.h", "profiles": ["core-source"], "origin": "project-authored", "license": "GPL-3.0-only", "public_header": false},
+    {"id": "source.tests.test_plugin_startup_snapshot.cpp", "source": "tests/test_plugin_startup_snapshot.cpp", "destination": "tests/test_plugin_startup_snapshot.cpp", "profiles": ["core-source"], "origin": "project-authored", "license": "GPL-3.0-only"},
     {"id": "source.src.owned_registry_reservation.h", "source": "src/owned_registry_reservation.h", "destination": "src/owned_registry_reservation.h", "profiles": ["core-source"], "origin": "project-authored", "license": "GPL-3.0-only", "public_header": false},
     {"id": "source.src.api.owned_publication.h", "source": "src/api/owned_publication.h", "destination": "src/api/owned_publication.h", "profiles": ["core-source"], "origin": "project-authored", "license": "GPL-3.0-only", "public_header": false},
     {"id": "source.src.app.owned_subsystems.h", "source": "src/app/owned_subsystems.h", "destination": "src/app/owned_subsystems.h", "profiles": ["core-source"], "origin": "project-authored", "license": "GPL-3.0-only", "public_header": false},
