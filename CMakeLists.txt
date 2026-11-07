@@ -399,7 +399,7 @@ sco_project_target(sco_datacore_service)
 endif()
 
 # The host kit (sco/app.h): Start / Tick / Stop over the host table, caps, signatures and loader.
-add_library(sco_app STATIC src/app/sco_app.cpp)
+add_library(sco_app STATIC src/app/sco_app.cpp src/app/plugin_startup_snapshot.cpp)
 target_link_libraries(sco_app PUBLIC sco_host sco_plugins sco_core sco_storage sco_ui sco_widgets sco_settings sco_content sco_ipc sco_net_service sco_diagnostics_ipc)
 if(SCO_GAME_SC)
   # sco.datacore (Platform::dataCore) and the Star Citizen tables a product passes as
@@ -629,6 +629,10 @@ if(SCO_BUILD_TESTS)
     target_link_libraries(test_input PRIVATE sco_host)
     sco_project_target(test_input)
     add_test(NAME input_registry COMMAND test_input)
+    add_executable(test_input_cpp tests/test_input_cpp.cpp)
+    target_include_directories(test_input_cpp PRIVATE "${SCO_INCLUDE_DIR}")
+    sco_project_target(test_input_cpp)
+    add_test(NAME input_cpp_registry COMMAND test_input_cpp)
     add_executable(test_gamerules_params tests/test_gamerules_params.cpp src/game/services/gamerules.cpp)
     target_link_libraries(test_gamerules_params PRIVATE sco_host)
     sco_project_target(test_gamerules_params)
@@ -1405,6 +1409,7 @@ if(SCO_BUILD_TESTS)
   set_tests_properties(owned_app_ui_call_drain owned_app_storage_call_drain PROPERTIES TIMEOUT 10)
   add_test(NAME owned_app_startup_admission COMMAND test_owned_app_stop startup-admission)
   add_test(NAME owned_app_startup_publication COMMAND test_owned_app_stop startup-publication)
+  add_test(NAME owned_app_snapshot_refusal COMMAND test_owned_app_stop snapshot-refusal)
   add_test(NAME owned_app_provider_refusal COMMAND test_owned_app_stop provider-refusal)
   add_test(NAME owned_app_net_cached_table COMMAND test_owned_app_stop net-cached-table)
   add_test(NAME owned_app_net_call_drain COMMAND test_owned_app_stop net-call-drain)
@@ -2183,7 +2188,7 @@ if(SCO_BUILD_TESTS)
   # The host kit with built-ins, two fake plugins, greeter and travel_pack.
   if(SCO_GAME_SC AND NOT WIN32)
     # Exercise the actual app lifecycle against a synthetic game-service boundary on non-Windows.
-    add_executable(test_app_game_service_shutdown tests/test_app_game_service_shutdown.cpp src/app/sco_app.cpp)
+    add_executable(test_app_game_service_shutdown tests/test_app_game_service_shutdown.cpp src/app/sco_app.cpp src/app/plugin_startup_snapshot.cpp)
     target_compile_definitions(test_app_game_service_shutdown PRIVATE SCO_GAME_SERVICES=1 SCO_APP_TEST_SYNTHETIC_GAME_SERVICES=1)
     target_link_libraries(test_app_game_service_shutdown PRIVATE sco_host sco_plugins sco_core sco_storage
       sco_ui sco_widgets sco_settings sco_content sco_ipc sco_net_service sco_diagnostics_ipc
@@ -2194,7 +2199,7 @@ if(SCO_BUILD_TESTS)
     endforeach()
     set_tests_properties(app_game_service_phase-owner PROPERTIES TIMEOUT 10)
     # Same injected boundary, without the explicitly test-only lifecycle bypass.
-    add_executable(test_app_game_service_refusal tests/test_app_game_service_shutdown.cpp src/app/sco_app.cpp)
+    add_executable(test_app_game_service_refusal tests/test_app_game_service_shutdown.cpp src/app/sco_app.cpp src/app/plugin_startup_snapshot.cpp)
     target_compile_definitions(test_app_game_service_refusal PRIVATE SCO_GAME_SERVICES=1)
     target_link_libraries(test_app_game_service_refusal PRIVATE sco_host sco_plugins sco_core sco_storage
       sco_ui sco_widgets sco_settings sco_content sco_ipc sco_net_service sco_diagnostics_ipc
@@ -2216,6 +2221,16 @@ if(SCO_BUILD_TESTS)
   endforeach()
   add_test(NAME app_registry_stop_failure COMMAND test_app "${CMAKE_CURRENT_SOURCE_DIR}/sdk" "${SCO_TEST_OUT}/app-stop-failure" registry-stop-failure)
   add_test(NAME app_registry_owner_mismatch COMMAND test_app "${CMAKE_CURRENT_SOURCE_DIR}/sdk" "${SCO_TEST_OUT}/app-owner-mismatch" registry-owner-mismatch)
+
+  add_executable(test_plugin_startup_snapshot tests/test_plugin_startup_snapshot.cpp src/app/plugin_startup_snapshot.cpp)
+  target_include_directories(test_plugin_startup_snapshot PRIVATE "${SCO_INCLUDE_DIR}")
+  target_link_libraries(test_plugin_startup_snapshot PRIVATE Threads::Threads)
+  sco_project_target(test_plugin_startup_snapshot)
+  add_test(NAME test_plugin_startup_snapshot COMMAND test_plugin_startup_snapshot "${SCO_TEST_OUT}/plugin-startup-contract")
+  if(WIN32)
+    add_test(NAME plugin_startup_windows_reparse COMMAND test_plugin_startup_snapshot --windows-reparse "${SCO_TEST_OUT}")
+    set_tests_properties(plugin_startup_windows_reparse PROPERTIES SKIP_RETURN_CODE 77)
+  endif()
 
   # sco-host-sim over the SDK examples, laid out like data/plugins: <out>/sim/plugins/
   # {hello/{hello.<ext>,plugin.ini}, cpp_hello/, counter_service/, counter_panel/, greeter/,
