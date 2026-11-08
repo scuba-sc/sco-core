@@ -347,3 +347,15 @@ copy plugin.ini out\cs_hello\
 ## License
 
 GPL-3.0-only ([LICENSE](../LICENSE)), like sco-core. The project expects plugins that include its headers or compile its SDK sources to be distributed under GPL-3.0-compatible terms. Whether the GPL applies to a particular plugin depends on how it is built and on applicable law; this is not legal advice. No linking exception is granted. Third-party notices: [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md).
+
+## Private development packages
+
+For an unpublished source-bound package from a clean Git checkout, run
+`python3 sdk/package.py --development --profile host-source-sc --out <directory>`
+(or choose another declared profile). This opt-in mode uses the committed
+`sdk/DEVELOPMENT_VERSION` in archive names and generated SDK metadata, records the
+exact source commit, and does not imply a tag or release. The game-sc overlay
+keeps its actual game-pack version and adds the development SDK identifier to its
+archive name. The normal packaging mode and published 2.4.0 archive identities
+are unchanged. A successful package build does not authorize native activation
+or establish game or plugin runtime safety.

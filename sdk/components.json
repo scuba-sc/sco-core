@@ -51,6 +51,7 @@
     "site"
   ],
   "excluded": [
+    {"path":"sdk/DEVELOPMENT_VERSION","why":"Repository-only unpublished development packaging coordinate; generated VERSION carries the selected value."},
     {"path":"tools/synthetic_native_evidence.py","why":"Private synthetic-only development model; never included in SDK archives."},
     {"path":"tools/test_synthetic_native_evidence.py","why":"Private synthetic-only development test; never included in SDK archives."},
     {"path":"tests/fixtures/synthetic_native_evidence/","why":"Invented private synthetic-only development vectors; never included in SDK archives."},

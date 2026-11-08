@@ -1076,5 +1076,70 @@ class Cli(unittest.TestCase):
         self.assertIn("unknown profile nope", r.stderr)
 
 
+class DevelopmentPackage(unittest.TestCase):
+    def test_development_all_profiles_have_consistent_private_coordinates(self):
+        m = pkg.load_manifest()
+        dev = pkg.development_version()
+        commit = pkg.source_commit()
+        minimal = pkg.json_bytes({"sdk_version": pkg.sdk_version(), "source_sha": commit})
+        with unittest.mock.patch.object(pkg, "require_clean_development_source"), \
+             unittest.mock.patch.object(pkg, "developer_catalogue", side_effect=lambda p: minimal if p in ("game-sc", "legacy", "host-source-sc") else None), \
+             unittest.mock.patch.object(pkg, "developer_guides", side_effect=lambda p: minimal if p in ("game-sc", "legacy", "host-source-sc") else None):
+            core_top, core = pkg.archive_entries(m, "core", development=True)
+            core_sha = hashlib.sha256(pkg.archive_bytes(core_top, core)).hexdigest()
+            for profile in m["profiles"]:
+                with self.subTest(profile=profile):
+                    top, entries = pkg.archive_entries(m, profile, development=True)
+                    self.assertIn(dev, top)
+                    names = pkg.metadata_names(m, profile)
+                    desc = json.loads(entries[names[2]][0])
+                    self.assertEqual(desc["core_sdk_version"], dev)
+                    self.assertEqual(desc["source_commits"]["core"], commit)
+                    if profile == "game-sc":
+                        self.assertEqual(desc["game_overlay_version"], pkg.game_pack()[0])
+                        self.assertEqual(desc["base_core_sha256"], core_sha)
+                    else:
+                        version_path = "sdk/VERSION" if profile in ("core-source", "host-source-sc") else "VERSION"
+                        self.assertEqual(entries[version_path][0], (dev + "\n").encode())
+                    notice = entries[names[0]][0].decode("ascii")
+                    self.assertIn("UNPUBLISHED DEVELOPMENT SDK " + dev, notice)
+                    self.assertIn(commit, notice)
+                    self.assertIn("No release tag is implied", notice)
+                    self.assertNotIn("tag sdk-v" + dev, notice)
+                    for name in ("sdk-catalogue.json", "sdk-guides.json", "sdk-workflows.json"):
+                        if name in entries:
+                            metadata = json.loads(entries[name][0])
+                            self.assertEqual(metadata["sdk_version"], dev)
+                            self.assertEqual(metadata["source_sha"], commit)
+                    self.assertEqual(pkg.archive_bytes(top, entries), pkg.archive_bytes(top, entries))
+            self.assertEqual(pkg.sdk_version(), "2.4.0")
+            self.assertNotIn(dev, pkg.archive_entries(m, "core")[0])
+
+    def test_invalid_development_versions_refuse(self):
+        original = pkg.read
+        for value in ("2.4.0-dev.1", "2.4.1", "2.4.1-dev.0", "2.4.1-dev.01", "../2.5.0-dev.1"):
+            with self.subTest(value=value), unittest.mock.patch.object(pkg, "read", side_effect=lambda path: value if path == "sdk/DEVELOPMENT_VERSION" else original(path)):
+                with self.assertRaises(pkg.ManifestError):
+                    pkg.development_version()
+
+    def test_development_refuses_dirty_or_changed_source(self):
+        with unittest.mock.patch.object(pkg.subprocess, "run", return_value=SimpleNamespace(stdout=" M sdk/VERSION\n")):
+            with self.assertRaisesRegex(pkg.ManifestError, "clean Git checkout"):
+                pkg.require_clean_development_source()
+        with tempfile.TemporaryDirectory() as out, \
+             unittest.mock.patch.object(pkg, "source_commit", side_effect=["a" * 40, "b" * 40]), \
+             unittest.mock.patch.object(pkg, "require_clean_development_source"), \
+             unittest.mock.patch.object(pkg, "archive_entries", return_value=("candidate", {})):
+            with self.assertRaisesRegex(pkg.ManifestError, "changed while packaging"):
+                pkg.build({}, "core", out, development=True)
+            self.assertEqual(os.listdir(out), [])
+
+    def test_development_flag_cannot_modify_release_gates(self):
+        result = subprocess.run([sys.executable, os.path.join(HERE, "package.py"), "--development", "--check"],
+                                capture_output=True, text=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("only valid when building an archive", result.stderr)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=1)
