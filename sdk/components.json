@@ -144,6 +144,10 @@
       "why": "Repository test for tools/sco-new-plugin.py: builds generated plugins against sdk/ and runs sco-plugin-check."
     },
     {
+      "path": "sdk/test_plugin_verify.py",
+      "why": "Repository-only synthetic tests for tools/sco-plugin-verify.py and the folder --no-load checker mode; not part of an SDK archive."
+    },
+    {
       "path": "tools/ip_audit.py",
       "why": "Game-only test/tool or repository audit machinery; not needed to build the kernel source kit."
     },
@@ -3728,6 +3732,17 @@
       "id": "tools.sco-plugin-check.c",
       "source": "sdk/tools/sco-plugin-check.c",
       "destination": "tools/sco-plugin-check.c",
+      "profiles": [
+        "core",
+        "core-source"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only"
+    },
+    {
+      "id": "tools.sco-plugin-verify.py",
+      "source": "sdk/tools/sco-plugin-verify.py",
+      "destination": "tools/sco-plugin-verify.py",
       "profiles": [
         "core",
         "core-source"

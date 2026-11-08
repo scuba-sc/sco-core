@@ -212,12 +212,15 @@ cmake --install build --prefix out
 ## Check a plugin
 
 ```sh
+out/bin/sco-plugin-check out/data/plugins/hello --no-load
 out/bin/sco-plugin-check out/data/plugins/hello
 out/bin/sco-plugin-check out/data/plugins/hello --cap teleport --invoke hello.wave "Pilot One"
 lua5.4 tools/lua-check.lua examples/greeter --invoke greeter.greet "Pilot One" true
 ```
 
-`sco-plugin-check` reads `plugin.ini` with the host's rules. For a native plugin it then loads the DLL, calls `sco_plugin_query` and `sco_plugin_load` against a stand-in host that enforces the documented rules, fires `game.ready` and a few `tick`s, runs every command that takes no arguments (and the one you name with `--invoke`), and unloads. For a data pack it lists the files the host would index. `--cap NAME` makes `has(NAME)` answer 1; by default every capability is missing, as on a game build the mod doesn't support yet. Exit code 0 means every check passed.
+`--no-load` validates `plugin.ini` with the host's folder-check rules, the manifest id against the folder name, and a regular, non-symlink plugin folder, manifest and entry file. For a data pack it inventories recognized files in host-indexed locations, skips symlinks and non-regular files, and bounds work to 4,096 indexed files, 16,384 filesystem entries examined and 16 script-directory levels. Manifest/entry paths are limited by the checker's 1,023-byte buffer; data-scan paths are limited to 4,096 bytes, and Windows paths also obey the OS path limit. Displayed paths escape control, quote, backslash and non-ASCII bytes. This folder scan reads names and filesystem metadata; it does not inspect content syntax. The mode does not load or execute plugin code. A passing check does not establish code safety, binary ABI compatibility, provider availability or runtime compatibility. `--no-load` cannot be combined with dynamic-only `--cap`, `--short-tables` or `--invoke` options.
+
+Without `--no-load`, `sco-plugin-check` keeps its normal dynamic behavior: for a native plugin it loads the DLL, calls `sco_plugin_query` and `sco_plugin_load` against a stand-in host that enforces the documented rules, fires `game.ready` and a few `tick`s, runs every command that takes no arguments (and the one you name with `--invoke`), and unloads. This executes native plugin code with the checker's user rights. Every argument after `--invoke NAME` is passed to that command, even if it looks like an option such as `--no-load`. For a data pack it lists the files the host would index. `--cap NAME` makes `has(NAME)` answer 1; by default every capability is missing, as on a game build the mod doesn't support yet. Exit code 0 means every check passed.
 
 An automatic no-argument call may return `SCO_NOT_FOUND` when there is no current resource, such as an equip job. The checker prints that observation without counting it as a structural failure; it does not report the command as successful. An explicitly named `--invoke` still fails on `SCO_NOT_FOUND`, including a missing command name. `SCO_FAILED`, `SCO_BAD_ARG`, unknown results and API misuse remain failures.
 
@@ -228,6 +231,36 @@ An automatic no-argument call may return `SCO_NOT_FOUND` when there is no curren
 The stand-in serves `sco.widgets` 1.2 by default. It validates complete preorder trees, subtree updates/removals, 1.1 tooltip/severity/paging tails and 1.2 stable tags, including resulting-panel tag uniqueness. Each node is read only through its advertised size; capability readback reports features and limits. Under `--short-tables` the widgets table is its 1.0 extent (`size` 24), with extension tails ignored. Calling later table members without complete-member extent and non-null checks fails the checker. An unchecked `query_service` under that short root table also fails, while returning the stand-in table so subsequent unchecked calls can be diagnosed.
 
 The stand-in host is not the game: it has no game thread, no crash guard and no game features. A plugin that passes still needs a run in the game.
+
+## Verify a plugin archive
+
+Before sharing a plugin ZIP, run the read-only archive verifier. The ZIP must contain exactly one
+top-level folder named for the plugin id, with `plugin.ini` directly inside it. For native and Lua
+plugins, the manifest's `entry` must exactly match a regular file directly inside that folder.
+Archive paths must be safe and unique across case-insensitive and Unicode-normalized filesystems.
+Windows-invalid characters, alternate-data-stream syntax, reserved device names, trailing dots or
+spaces, symlinks, special files, encrypted entries, ZIP64 archives, and compression methods beyond
+stored/deflate are refused.
+
+```sh
+python3 tools/sco-plugin-verify.py ../pilot.zip --checker out/bin/sco-plugin-check
+python3 tools/sco-plugin-verify.py ../pilot.zip --checker out/bin/sco-plugin-check --json
+```
+
+It prints the archive SHA-256, a SHA-256 for each file, the parsed plugin id and kind, the API value
+declared in `plugin.ini`, and the dependency names declared by `requires`. The verifier streams
+archive contents for hashing and sends only bounded `plugin.ini` text to `sco-plugin-check`'s
+manifest-only parser. That mode parses stdin and returns before the checker's folder inspection or
+dynamic-loader paths. The verifier never writes archive entries to disk or opens an entry as code.
+It checks declared resource bounds before hashing archive bytes or opening members. Resource bounds are
+256 MiB compressed archive, 4,096 entries, 128 MiB per file, 512 MiB total uncompressed data, a
+200:1 maximum compression ratio, an 8 MiB central directory, a 16 KiB manifest, and 4,194,304
+aggregate Unicode characters of original/NFC-casefold/NFKC-casefold path-prefix material for collision checks.
+
+This establishes archive structure, manifest syntax, folder identity and declared-entry presence.
+The reported API and dependencies are not compared with a host or resolved. Passing does not test
+runtime compatibility or provider behavior, inspect native-code safety, or establish trust. It is
+separate from `sco-plugin-check`, which loads native plugins in its stand-in host.
 
 ## Install a plugin
 
