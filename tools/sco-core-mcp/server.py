@@ -2202,6 +2202,8 @@ class Server:
 
     def versioned_result(self, message, result):
         """Add the 2026 result envelope while leaving legacy bytes unchanged."""
+        if message.get("method") == "initialize":
+            return result  # initialize always negotiates the legacy era
         params = message.get("params")
         if not isinstance(params, dict) or not isinstance(params.get("_meta"), dict):
             return result
@@ -2395,13 +2397,19 @@ class Server:
         params = message.get("params", {})
         if not isinstance(params, dict):
             raise RpcError(-32602, "Parameters must be an object")
-        # 2026-07-28 has no initialize handshake: metadata travels with each
-        # request. Requiring it before tools/list or tools/call while new lets
-        # malformed modern requests fail as invalid params without changing the
-        # established initialized-state behavior of legacy clients.
-        if "_meta" in params or method == "server/discover" or (
-                method in {"tools/list", "tools/call"} and self.state == "new"):
-            metadata = params.get("_meta")
+        # Legacy requests may carry _meta (for example progressToken), including
+        # initialize itself. Only modern protocol-reserved keys select the 2026
+        # envelope after a legacy handshake; generic metadata does not. Before a
+        # handshake, tools requests without an envelope fail closed. A modern
+        # request lacking all its metadata after a legacy handshake is inherently
+        # indistinguishable from a legacy request on this stdio process.
+        metadata = params.get("_meta")
+        modern_keys = {"io.modelcontextprotocol/protocolVersion",
+                       "io.modelcontextprotocol/clientCapabilities",
+                       "io.modelcontextprotocol/clientInfo"}
+        modern_envelope = isinstance(metadata, dict) and bool(modern_keys.intersection(metadata))
+        if method != "initialize" and (method == "server/discover" or modern_envelope or (
+                method in {"tools/list", "tools/call"} and self.state == "new")):
             if not isinstance(metadata, dict):
                 raise RpcError(-32602, "Modern MCP requests require _meta protocolVersion and clientCapabilities")
             version = metadata.get("io.modelcontextprotocol/protocolVersion")

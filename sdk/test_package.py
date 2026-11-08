@@ -1139,6 +1139,8 @@ class DevelopmentPackage(unittest.TestCase):
                     check(bad, catalogue)
             with self.assertRaisesRegex(ValueError, "does not match catalogue"):
                 check(workflow, {**catalogue, "source_sha": "f" * 40})
+            with self.assertRaisesRegex(ValueError, "does not match catalogue"):
+                check(workflow, {**catalogue, "sdk_version": "2.4.1-dev.2"})
 
     def test_invalid_development_versions_refuse(self):
         original = pkg.read

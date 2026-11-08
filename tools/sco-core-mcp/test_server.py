@@ -399,6 +399,53 @@ class ProtocolTests(ServerCase):
         self.assertNotIn("resultType", called)
         self.assertNotIn("_meta", called)
 
+    def test_legacy_request_metadata_does_not_change_protocol_era(self):
+        client = self.start(ready=False)
+        metadata = {"progressToken": "legacy-progress", "example.com/trace": "x"}
+        initialized = client.request("initialize", {
+            "protocolVersion": PROTOCOL, "capabilities": {},
+            "clientInfo": {"name": "legacy-client", "version": "1"}, "_meta": metadata,
+        })["result"]
+        self.assertEqual(initialized["protocolVersion"], PROTOCOL)
+        client.send({"jsonrpc": "2.0", "method": "notifications/initialized"})
+        listed = client.request("tools/list", {"_meta": metadata})["result"]
+        self.assertEqual(set(listed), {"tools"})
+        called = client.request("tools/call", {
+            "_meta": metadata, "name": "list_services", "arguments": {},
+        })["result"]
+        self.assertFalse(called["isError"])
+        self.assertNotIn("resultType", called)
+        self.assertEqual(client.request("ping", {"_meta": metadata})["result"], {})
+
+    def test_modern_requests_validate_envelope_even_after_legacy_handshake(self):
+        client = self.start(ready=False)
+        client.initialize()
+        listed = client.request("tools/list", {"_meta": modern_meta()})["result"]
+        self.assertEqual(listed["resultType"], "complete")
+        for metadata in (
+            {"io.modelcontextprotocol/protocolVersion": MODERN_PROTOCOL},
+            {"io.modelcontextprotocol/clientCapabilities": {}},
+            {"io.modelcontextprotocol/protocolVersion": MODERN_PROTOCOL,
+             "io.modelcontextprotocol/clientCapabilities": []},
+        ):
+            with self.subTest(metadata=metadata):
+                self.rpc_error(client.request("tools/list", {"_meta": metadata}), -32602)
+        self.rpc_error(client.request("tools/call", {
+            "name": "list_services", "arguments": {},
+            "_meta": modern_meta("2099-01-01"),
+        }), -32022)
+
+    def test_initialize_remains_legacy_even_with_reserved_metadata(self):
+        client = self.start(ready=False)
+        initialized = client.request("initialize", {
+            "protocolVersion": PROTOCOL, "capabilities": {},
+            "clientInfo": {"name": "legacy-client", "version": "1"},
+            "_meta": modern_meta(),
+        })["result"]
+        self.assertEqual(initialized["protocolVersion"], PROTOCOL)
+        self.assertNotIn("resultType", initialized)
+        self.assertNotIn("_meta", initialized)
+
     def test_unknown_method_is_method_not_found(self):
         self.rpc_error(self.start().request("unknown/method"), -32601)
 
