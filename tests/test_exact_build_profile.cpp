@@ -73,6 +73,11 @@ int main(int argc, char** argv) {
     }
     CHECK(Digest(canonical) == "b455ec55c68f81715f74b6e1cec2f7b12a3c91970f49cdd5dcd02c5323d9d392");
     bad = p; bad.schema = 0; CHECK(!Canonical(bad, canonical) && canonical.empty());
+    // Profile views may alias the output. Canonicalization must finish all reads first.
+    std::string alias = "synthetic-a"; bad = p; bad.profile_id = alias;
+    CHECK(Canonical(bad, alias) && Digest(alias) == "b455ec55c68f81715f74b6e1cec2f7b12a3c91970f49cdd5dcd02c5323d9d392");
+    alias = "INVALID"; bad.profile_id = alias;
+    CHECK(!Canonical(bad, alias) && alias.empty());
     bad = p; bad.revision = std::numeric_limits<uint32_t>::max(); bad.executable.file_size = std::numeric_limits<uint64_t>::max();
     CHECK(Canonical(bad, canonical) && canonical.find("18446744073709551615") != std::string::npos);
     std::printf("exact build profile: %d passed, %d failed\n", passed, failed);

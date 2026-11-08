@@ -9,7 +9,7 @@ bool Token(std::string_view s) {
     for (char c : s) if (!first(c) && c != '.' && c != '_' && c != '-') return false;
     return true;
 }
-bool Hex(std::string_view s, size_t n) {
+bool Hex(std::string_view s, std::size_t n) {
     if (s.size() != n) return false;
     for (char c : s) if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f'))) return false;
     return true;
@@ -27,24 +27,24 @@ Selection Fail(Status status) { return {status, 0, 0}; }
 Selection Select(std::span<const Profile> profiles, std::span<const Binding> bindings,
                  const Observation& observed) {
     // Validate even unused entries. A malformed or ambiguous catalog must not select a prefix.
-    for (size_t i = 0; i < bindings.size(); ++i) {
+    for (std::size_t i = 0; i < bindings.size(); ++i) {
         if (!Token(bindings[i].table_set) || !bindings[i].id) return Fail(Status::InvalidCatalog);
-        for (size_t j = 0; j < i; ++j)
+        for (std::size_t j = 0; j < i; ++j)
             if (bindings[i].table_set == bindings[j].table_set || bindings[i].id == bindings[j].id)
                 return Fail(Status::InvalidCatalog);
     }
-    for (size_t i = 0; i < profiles.size(); ++i) {
+    for (std::size_t i = 0; i < profiles.size(); ++i) {
         const auto& p = profiles[i];
         if (!Valid(p)) return Fail(Status::InvalidCatalog);
         bool bound = false;
         for (const auto& b : bindings) if (p.table_set == b.table_set) bound = true;
         if (!bound) return Fail(Status::InvalidCatalog);
-        for (size_t j = 0; j < i; ++j)
+        for (std::size_t j = 0; j < i; ++j)
             if (p.profile_id == profiles[j].profile_id || p.executable.sha256 == profiles[j].executable.sha256)
                 return Fail(Status::InvalidCatalog);
     }
     if (!ValidExecutable(observed.executable)) return Fail(Status::InvalidObservation);
-    for (size_t i = 0; i < profiles.size(); ++i) {
+    for (std::size_t i = 0; i < profiles.size(); ++i) {
         const auto& p = profiles[i];
         if (p.executable.sha256 != observed.executable.sha256) continue;
         if (!(p.executable == observed.executable) || p.build != observed.build)
@@ -57,10 +57,9 @@ Selection Select(std::span<const Profile> profiles, std::span<const Binding> bin
 Selection SelectProduction(const Observation& observed) { return Select({}, {}, observed); }
 
 bool Canonical(const Profile& p, std::string& out) {
-    out.clear();
-    if (!Valid(p)) return false;
+    if (!Valid(p)) { out.clear(); return false; }
     // All text is constrained to unescaped ASCII by Valid(). Sorted keys, decimal integers.
-    out = "{\"executable\":{\"file_size\":" + std::to_string(p.executable.file_size) +
+    std::string canonical = "{\"executable\":{\"file_size\":" + std::to_string(p.executable.file_size) +
           ",\"machine\":" + std::to_string(p.executable.machine) +
           ",\"pe_timestamp\":" + std::to_string(p.executable.pe_timestamp) +
           ",\"sha256\":\"" + std::string(p.executable.sha256) +
@@ -71,6 +70,7 @@ bool Canonical(const Profile& p, std::string& out) {
           "\",\"profile_id\":\"" + std::string(p.profile_id) + "\",\"revision\":" +
           std::to_string(p.revision) + ",\"schema\":" + std::to_string(p.schema) +
           ",\"table_set\":\"" + std::string(p.table_set) + "\"}";
+    out.swap(canonical);
     return true;
 }
 }  // namespace sco::game::profile

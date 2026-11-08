@@ -3,6 +3,7 @@
 // The caller must supply trustworthy observations and keep catalog/binding storage immutable for
 // the whole call. Selection is not proof of the mapped image or authority to activate natives.
 #include <array>
+#include <cstddef>
 #include <cstdint>
 #include <span>
 #include <string>
@@ -28,7 +29,7 @@ struct Profile {
 struct Binding { std::string_view table_set; uint32_t id; };
 struct Observation { Executable executable; std::array<uint32_t, 4> build; };
 enum class Status { Selected, InvalidCatalog, InvalidObservation, UnknownExecutable, IdentityMismatch };
-struct Selection { Status status; size_t profile_index; uint32_t binding_id; };
+struct Selection { Status status; std::size_t profile_index; uint32_t binding_id; };
 
 // Validate the complete catalog and all bindings before selecting: no first-match ambiguity.
 Selection Select(std::span<const Profile> profiles, std::span<const Binding> bindings,
