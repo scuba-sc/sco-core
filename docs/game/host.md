@@ -25,8 +25,9 @@ lifetimes require independent proof before product activation.
 `Prepare`, `Activate`, and `Start` are separate host entries. Owner admission is
 closed across all three phases; an already-entered reader or worker start prevents
 startup. Each entry holds a host transition and publishes its phase under the
-owner lock. A concurrent close or fault prevents publication and retains partially
-created state. `Start` opens cooperative admission only with the Running phase.
+owner lock. A close or fault observed under that lock before publication prevents
+that publication and retains partially created state. A request that linearizes
+after successful publication does not retroactively cancel it. `Start` opens cooperative admission only with the Running phase.
 This is a synthetic lifecycle protocol, not evidence of a native barrier. Product
 native preparation and mutation must remain refused until the product supplies a
 real exclusion protocol and Windows synthetic-target proof.
@@ -150,8 +151,10 @@ the request closes admission. Do not use phase or `drain` to admit work or
 display cleanup as complete. `Drained` records successful completion of the
 owner's one drain attempt; it remains only a historical cooperative reader and
 worker observation even if the host later faults the owner and latches failure.
-A request during Prepare prevents the existing startup transition from
-publishing success and keeps partial state retained.
+If closure is observed under the owner lock before the Prepare transition
+publishes success, that publication is refused and partial state stays retained.
+A request that overlaps Prepare in wall-clock time but linearizes after successful
+publication does not retroactively cancel the completed publication.
 
 The offline consumer sequence is deliberately split across owners of work:
 
@@ -224,7 +227,10 @@ describe dependency exposure and cooperative drain progress on this game-host ro
 They do not call public `app::StartDetailed`
 instead of `app::detail::StartOwned`. The old `Result` function signatures remain
 available but cannot tell a product whether failed startup exposed dependencies.
-No frozen plugin table or existing `Options` layout changes.
+`HostReport` is a C++ value returned by value and its layout has changed; rebuild
+all host consumers and Core together. The `app::Platform` C++ layout also differs
+from the published 2.4.0 source. The frozen plugin C ABI and game.build v1 do not
+change in this increment.
 
 Construct a capsule privately using `HostCapsule(options, backingOwner)` before
 calling detailed Prepare. The capsule owns an Options copy, Image descriptor and

@@ -68,7 +68,9 @@ struct Options {
 };
 
 // Additive C++ host-source reporting, separate from the frozen plugin ABI.
-// These reports never authorize cleanup, unload, native activation or restart.
+// HostReport is returned by value and its layout changed: rebuild C++ consumers
+// with the same Core. These reports never authorize cleanup, unload, native
+// activation or restart. The frozen plugin C ABI is unchanged.
 enum class DependencyDisposition : uint32_t { NeverExposed, ProcessRetained };
 struct HostReport {
     Result result = Result::Unavailable;
