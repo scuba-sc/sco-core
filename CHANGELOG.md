@@ -4,6 +4,9 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+- Add a bounded, no-extraction plugin archive verifier and non-loading folder preflight. These checks do not establish plugin trust or runtime compatibility.
+- Support legacy initialized and modern metadata-based MCP stdio clients, preserving legacy request metadata and source-bound SDK workflow discovery.
+
 - Add a typed, fail-closed exact-build candidate selector and synthetic canonical fixture. The production catalog is empty; this neither changes game.build v1 nor authorizes native activation.
 
 - Refuse an invalid existing fleet slot count before staging a synthetic fleet transaction; native reconfiguration remains disabled.
