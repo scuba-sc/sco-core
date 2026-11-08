@@ -81,6 +81,9 @@ jobs:
           python3 tools/native_index.py --check
           python3 tools/test_native_index.py
 
+      - name: Private synthetic native evidence model
+        run: python3 tools/test_synthetic_native_evidence.py
+
       - name: Live-site checker unit tests (offline)
         run: python3 tools/test_check_live_site.py
 

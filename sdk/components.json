@@ -51,6 +51,9 @@
     "site"
   ],
   "excluded": [
+    {"path":"tools/synthetic_native_evidence.py","why":"Private synthetic-only development model; never included in SDK archives."},
+    {"path":"tools/test_synthetic_native_evidence.py","why":"Private synthetic-only development test; never included in SDK archives."},
+    {"path":"tests/fixtures/synthetic_native_evidence/","why":"Invented private synthetic-only development vectors; never included in SDK archives."},
     {"path":"tools/test_notebook.lua","why":"Repository-only synthetic failure tests for the notebook example."},
     {"path":"tools/test_sdk_workflows.py","why":"Repository workflow index, archive and MCP integration tests; not a runtime dependency."},
     {"path":"tools/test_sdk_mvp_host.mjs","why":"Repository cross-product native host MCP acceptance harness; requires separately built studio."},
