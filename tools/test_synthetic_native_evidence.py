@@ -20,6 +20,7 @@ class TestNativeEvidence(unittest.TestCase):
         with self.assertRaisesRegex(n.Invalid,match): n.catalogue(d,self.ids)
     def test_cross_profile_synthetic_fixture(self):
         raw=(HERE/'profile-fixture.canonical.json').read_bytes(); p=json.loads(raw)
+        self.assertEqual(raw, (HERE.parent/'exact_build_profile/fixture.synthetic.canonical.json').read_bytes())
         self.assertEqual(hashlib.sha256(raw).hexdigest(),self.d['profile']['definition_sha256'])
         self.assertEqual(p['profile_id'],self.d['profile']['profile_id'])
         self.assertEqual(p['revision'],self.d['profile']['revision'])
