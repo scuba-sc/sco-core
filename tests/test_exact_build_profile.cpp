@@ -76,6 +76,13 @@ int main(int argc, char** argv) {
     // Profile views may alias the output. Canonicalization must finish all reads first.
     std::string alias = "synthetic-a"; bad = p; bad.profile_id = alias;
     CHECK(Canonical(bad, alias) && Digest(alias) == "b455ec55c68f81715f74b6e1cec2f7b12a3c91970f49cdd5dcd02c5323d9d392");
+    alias = "fixture-a"; bad = p; bad.table_set = alias;
+    CHECK(Canonical(bad, alias) && Digest(alias) == "b455ec55c68f81715f74b6e1cec2f7b12a3c91970f49cdd5dcd02c5323d9d392");
+    alias = std::string(p.pack_source_sha); bad = p; bad.pack_source_sha = alias;
+    CHECK(Canonical(bad, alias) && Digest(alias) == "b455ec55c68f81715f74b6e1cec2f7b12a3c91970f49cdd5dcd02c5323d9d392");
+    alias = std::string(p.executable.sha256); bad = p; bad.executable.sha256 = alias;
+    CHECK(Canonical(bad, alias) && Digest(alias) == "b455ec55c68f81715f74b6e1cec2f7b12a3c91970f49cdd5dcd02c5323d9d392");
+    bad = p;
     alias = "INVALID"; bad.profile_id = alias;
     CHECK(!Canonical(bad, alias) && alias.empty());
     bad = p; bad.revision = std::numeric_limits<uint32_t>::max(); bad.executable.file_size = std::numeric_limits<uint64_t>::max();
