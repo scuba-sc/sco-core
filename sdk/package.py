@@ -508,6 +508,17 @@ def require_clean_development_source():
         raise ManifestError("development package requires a clean Git checkout") from e
     if status:
         raise ManifestError("development package requires a clean Git checkout")
+    # The catalogue globs these trees and the compiler can follow nested headers.
+    # Ignored files are absent from ordinary status but could contaminate the
+    # generated metadata while retaining an unrelated source commit identity.
+    try:
+        ignored_inputs = subprocess.run(
+            ["git", "-C", ROOT, "ls-files", "--others", "--ignored", "--exclude-standard", "-z", "--",
+             "include/", "sdk/contracts/"], capture_output=True, check=True).stdout
+    except (OSError, subprocess.CalledProcessError) as e:
+        raise ManifestError("cannot verify development catalogue inputs") from e
+    if ignored_inputs:
+        raise ManifestError("development package refuses ignored files under include/ or sdk/contracts/")
 
 
 def abi_version():
@@ -534,7 +545,7 @@ def versions_txt(profile, version, development=None):
     abi = abi_version()
     kernel = development or sdk_version()
     notice = (f"UNPUBLISHED DEVELOPMENT SDK {kernel}; source {source_commit()}. "
-              "No release tag is implied.\n\n") if development else ""
+              "No release tag is implied. Source links may not resolve publicly.\n\n") if development else ""
     if profile == "core-source":
         return (notice + f"sco SDK core source {version}\n\nplugin ABI (sco_api.h): {abi}\n"
                 "Configure with -DSCO_GAME_SC=OFF. Game implementation and contracts are not included.\n"
@@ -694,7 +705,7 @@ def attributions(m, profile):
     return records
 
 
-def sbom_document(top, version, entries, records, sbom_name, sums_name, commit):
+def sbom_document(top, version, entries, records, sbom_name, sums_name, commit, development=False):
     files = []
     for name, (data, _) in sorted(entries.items()):
         record = records[name]
@@ -712,7 +723,7 @@ def sbom_document(top, version, entries, records, sbom_name, sums_name, commit):
             "creationInfo": {"created": "2026-01-01T00:00:00Z", "creators": ["Tool: sco-core sdk/package.py"],
                              "comment": f"Source commit {commit}; fixed creation time for byte reproducibility."},
             "packages": [{"SPDXID": package_id, "name": top, "versionInfo": version,
-                          "downloadLocation": f"git+https://github.com/scuba-sc/sco-core@{commit}",
+                          "downloadLocation": "NOASSERTION" if development else f"git+https://github.com/scuba-sc/sco-core@{commit}",
                           "filesAnalyzed": True,
                           "packageVerificationCode": {"packageVerificationCodeValue": verification,
                                                       "packageVerificationCodeExcludedFiles": ["./" + sbom_name, "./" + sums_name]},
@@ -868,7 +879,7 @@ def archive_entries(m, profile, development=False):
     records = attributions(m, profile)
     entries[inventory_name] = (json_bytes({"schema_version": 1, "profile": profile,
                                          "files": [records[n] for n in sorted(records)]}), False)
-    sbom = sbom_document(top, version, entries, records, sbom_name, sums_name, commit)
+    sbom = sbom_document(top, version, entries, records, sbom_name, sums_name, commit, development=development)
     entries[sbom_name] = (json_bytes(sbom), False)
     sums = "".join(f"{hashlib.sha256(data).hexdigest()}  {name}\n" for name, (data, _) in sorted(entries.items()))
     entries[sums_name] = (sums.encode("ascii"), False)

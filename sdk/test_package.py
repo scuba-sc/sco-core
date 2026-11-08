@@ -1106,6 +1106,9 @@ class DevelopmentPackage(unittest.TestCase):
                     self.assertIn(commit, notice)
                     self.assertIn("No release tag is implied", notice)
                     self.assertNotIn("tag sdk-v" + dev, notice)
+                    sbom = json.loads(entries[names[4]][0])
+                    self.assertEqual(sbom["packages"][0]["downloadLocation"], "NOASSERTION")
+                    self.assertIn(commit, sbom["creationInfo"]["comment"])
                     for name in ("sdk-catalogue.json", "sdk-guides.json", "sdk-workflows.json"):
                         if name in entries:
                             metadata = json.loads(entries[name][0])
@@ -1114,6 +1117,28 @@ class DevelopmentPackage(unittest.TestCase):
                     self.assertEqual(pkg.archive_bytes(top, entries), pkg.archive_bytes(top, entries))
             self.assertEqual(pkg.sdk_version(), "2.4.0")
             self.assertNotIn(dev, pkg.archive_entries(m, "core")[0])
+
+    def test_development_workflows_are_accepted_by_shipped_mcp_reader(self):
+        spec = importlib.util.spec_from_file_location("development_mcp", os.path.join(pkg.ROOT, "tools/sco-core-mcp/server.py"))
+        server = importlib.util.module_from_spec(spec); spec.loader.exec_module(server)
+        with unittest.mock.patch.object(pkg, "require_clean_development_source"):
+            _, entries = pkg.archive_entries(pkg.load_manifest(), "core", development=True)
+        workflow = json.loads(entries["sdk-workflows.json"][0])
+        catalogue = {"sdk_version": pkg.development_version(), "source_sha": pkg.source_commit()}
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "sdk-workflows.json")
+            def check(index, cat):
+                with open(path, "wb") as f: f.write(pkg.json_bytes(index))
+                return server.load_workflows(path, cat)
+            result, _ = check(workflow, catalogue)
+            self.assertEqual(result["sdk_version"], catalogue["sdk_version"])
+            for field, value in (("sdk_version", "2.4.1-dev.0"), ("sdk_version", "2.4.1-rc.1"),
+                                 ("bundle_version", "1.0.0-dev.1"), ("baseline_sdk", "2.4.0-dev.1")):
+                bad = dict(workflow); bad[field] = value
+                with self.subTest(field=field, value=value), self.assertRaisesRegex(ValueError, "Invalid workflow version"):
+                    check(bad, catalogue)
+            with self.assertRaisesRegex(ValueError, "does not match catalogue"):
+                check(workflow, {**catalogue, "source_sha": "f" * 40})
 
     def test_invalid_development_versions_refuse(self):
         original = pkg.read
@@ -1133,6 +1158,28 @@ class DevelopmentPackage(unittest.TestCase):
             with self.assertRaisesRegex(pkg.ManifestError, "changed while packaging"):
                 pkg.build({}, "core", out, development=True)
             self.assertEqual(os.listdir(out), [])
+
+    def test_ignored_catalogue_input_is_refused_but_build_output_is_not(self):
+        with tempfile.TemporaryDirectory(prefix="development-inputs-") as root:
+            os.makedirs(os.path.join(root, "include"))
+            os.makedirs(os.path.join(root, "sdk", "contracts"))
+            subprocess.run(["git", "init", "-q", root], check=True)
+            with open(os.path.join(root, ".gitignore"), "w") as f:
+                f.write("*.generated.h\nsdk/contracts/*.generated.json\nbuild/\n")
+            subprocess.run(["git", "-C", root, "add", ".gitignore"], check=True)
+            subprocess.run(["git", "-C", root, "-c", "user.name=Test", "-c", "user.email=test@example.invalid",
+                            "commit", "-qm", "fixture"], check=True)
+            os.mkdir(os.path.join(root, "build"))
+            with open(os.path.join(root, "build", "output"), "w") as f: f.write("ignored")
+            with unittest.mock.patch.object(pkg, "ROOT", root):
+                pkg.require_clean_development_source()
+                for relative in ("include/hidden.generated.h", "sdk/contracts/hidden.generated.json"):
+                    path = os.path.join(root, relative)
+                    with open(path, "w") as f: f.write("ignored input")
+                    with self.assertRaisesRegex(pkg.ManifestError, "refuses ignored files"):
+                        pkg.require_clean_development_source()
+                    os.unlink(path)
+                pkg.require_clean_development_source()
 
     def test_development_flag_cannot_modify_release_gates(self):
         result = subprocess.run([sys.executable, os.path.join(HERE, "package.py"), "--development", "--check"],

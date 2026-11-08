@@ -1718,8 +1718,11 @@ def load_workflows(path, catalogue):
         "schema_version", "bundle_version", "baseline_sdk", "sdk_version", "source_sha",
         "manifest_path", "manifest_sha256", "workflows", "content_sha256"}, "Invalid workflow index keys")
     require(type(data["schema_version"]) is int and data["schema_version"] == 1, "Invalid workflow schema")
-    for key in ("bundle_version", "baseline_sdk", "sdk_version"):
+    for key in ("bundle_version", "baseline_sdk"):
         require(isinstance(data[key], str) and re.fullmatch(r"\d+\.\d+\.\d+", data[key]), "Invalid workflow version")
+    require(isinstance(data["sdk_version"], str) and
+            re.fullmatch(r"\d+\.\d+\.\d+(?:-dev\.[1-9]\d*)?", data["sdk_version"]),
+            "Invalid workflow version")
     require(data["sdk_version"] == catalogue["sdk_version"] and data["source_sha"] == catalogue["source_sha"],
             "Workflow SDK/source does not match catalogue")
     def safe_name(value):

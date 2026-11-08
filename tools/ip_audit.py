@@ -397,7 +397,7 @@ def load_package(root):
     return mod
 
 
-def audit_zip(archive, profile, root=ROOT, sbom_path=None, report_path=None):
+def audit_zip(archive, profile, root=ROOT, sbom_path=None, report_path=None, development=False):
     r = Report(f"zip {os.path.basename(archive)} ({profile})")
     pkg = load_package(root)
     try:
@@ -405,6 +405,15 @@ def audit_zip(archive, profile, root=ROOT, sbom_path=None, report_path=None):
         chosen = pkg.select(m, profile)
     except pkg.ManifestError as e:
         raise AuditError(f"{COMPONENTS}: {e}")
+    dev = None
+    dev_top = None
+    dev_entries = None
+    if development:
+        try:
+            dev = pkg.development_version()
+            dev_top, dev_entries = pkg.archive_entries(m, profile, development=True)
+        except (pkg.ManifestError, OSError, ValueError) as e:
+            raise AuditError(f"development package expectation: {e}") from e
     prov = load_json(root, PROVENANCE)
     entries = provenance_entries(prov)
     try:
@@ -418,6 +427,8 @@ def audit_zip(archive, profile, root=ROOT, sbom_path=None, report_path=None):
         if len(tops) != 1:
             fails.append(f"the archive must hold one top folder, holds {sorted(tops)}")
         top = sorted(tops)[0] if tops else ""
+        if development and top != dev_top:
+            fails.append(f"development archive root {top!r} does not match {dev_top!r}")
         # The source kit ships the 9+ MiB SQLite amalgamation. Keep existing plugin
         # profile limits unchanged; source-only bounds remain finite and checked.
         limits = (1024, 16 * 1024 * 1024, 64 * 1024 * 1024, 64) if profile in ("core-source", "host-source-sc") else None
@@ -463,6 +474,8 @@ def audit_zip(archive, profile, root=ROOT, sbom_path=None, report_path=None):
                 continue
             with open(os.path.join(root, c["source"]), "rb") as f:
                 want = pkg.fix_links(c["source"], dst, f.read(), zip_paths, dirs)
+            if development and c["source"] == "sdk/VERSION":
+                want = (dev + "\n").encode("ascii")
             selected_payload[dst] = (want, False)
             if want != content[dst]:
                 fails.append(f"{dst}: differs from {c['source']} at {git_head(root) or 'the working tree'}")
@@ -483,12 +496,35 @@ def audit_zip(archive, profile, root=ROOT, sbom_path=None, report_path=None):
                     raise AuditError("can't load the workflow index builder")
                 workflows = importlib.util.module_from_spec(spec)
                 spec.loader.exec_module(workflows)
-                want = workflows.encoded(workflows.build(root, git_head(root), zip_paths, selected_payload))
+                workflow_index = workflows.build(root, git_head(root), zip_paths, selected_payload)
+                if development:
+                    workflow_index["sdk_version"] = dev
+                want = workflows.encoded(workflow_index)
                 if content.get("sdk-workflows.json") != want:
                     fails.append("sdk-workflows.json: differs from the selected payload and source commit")
             except (AuditError, OSError, ValueError, TypeError, KeyError, AttributeError) as exc:
                 fails.append(f"sdk-workflows.json: could not verify the selected payload: {exc}")
             r.check("workflow index = selected payload", 1, fails)
+
+        if development:
+            # Rebuild every generated object from the exact clean source, rather than
+            # trusting self-consistent archive metadata or a release-labelled payload.
+            fails = []
+            for name in generated:
+                if name not in dev_entries or content.get(name) != dev_entries[name][0]:
+                    fails.append(f"{name}: differs from exact development source output")
+            versions_name, _, compatibility_name, _, _ = pkg.metadata_names(m, profile)
+            try:
+                desc = load_json_strict(content.get(compatibility_name, b""))
+                if desc.get("core_sdk_version") != dev or desc.get("source_commits", {}).get("core") != git_head(root):
+                    fails.append(f"{compatibility_name}: development version or source mismatch")
+                notice = content.get(versions_name, b"").decode("ascii")
+                if (f"UNPUBLISHED DEVELOPMENT SDK {dev}; source {git_head(root)}." not in notice or
+                        "No release tag is implied." not in notice or f"tag sdk-v{dev}" in notice):
+                    fails.append(f"{versions_name}: missing or misleading development identity")
+            except (AuditError, ValueError, TypeError, AttributeError, UnicodeError) as exc:
+                fails.append(f"development identity: {exc}")
+            r.check("development identity and generated metadata", len(generated), fails)
 
         # SHA256SUMS: every entry once, every hash right.
         fails = []
@@ -588,7 +624,7 @@ def audit_zip(archive, profile, root=ROOT, sbom_path=None, report_path=None):
             r.check("core isolation (Gate 3/A)", len(names), fails)
 
         if sbom_path:
-            write_sbom(sbom_path, archive, profile, top, names, content, expected, entries, root)
+            write_sbom(sbom_path, archive, profile, top, names, content, expected, entries, root, development=development)
             r.notes.append(f"SBOM written: {os.path.basename(sbom_path)}")   # a name, never a local path
     r.write(report_path)
     return r
@@ -599,7 +635,7 @@ def spdx_id(s):
     return "SPDXRef-" + s.encode("utf-8").hex()
 
 
-def write_sbom(path, archive, profile, top, names, content, expected, entries, root):
+def write_sbom(path, archive, profile, top, names, content, expected, entries, root, development=False):
     with open(archive, "rb") as f:
         zsha = sha256(f.read())
     commit = git_head(root) or "NOASSERTION"
@@ -627,7 +663,7 @@ def write_sbom(path, archive, profile, top, names, content, expected, entries, r
                          "comment": f"Built from commit {commit}. The fixed creation time keeps the SBOM reproducible; the commit and archive hash bind it."},
         "packages": [{"SPDXID": pkg_id, "name": top, "versionInfo": top.rsplit("-", 1)[-1],
                       "packageFileName": os.path.basename(archive), "supplier": "Organization: sco-core (scuba-sc)",
-                      "downloadLocation": f"git+https://github.com/scuba-sc/sco-core@{commit}",
+                      "downloadLocation": "NOASSERTION" if development else f"git+https://github.com/scuba-sc/sco-core@{commit}",
                       "filesAnalyzed": True, "packageVerificationCode": {"packageVerificationCodeValue": verification},
                       "checksums": [{"algorithm": "SHA256", "checksumValue": zsha}],
                       "licenseConcluded": "NOASSERTION", "licenseDeclared": "NOASSERTION", "copyrightText": "NOASSERTION",
@@ -885,6 +921,7 @@ def main(argv=None):
     b = sub.add_parser("zip")
     b.add_argument("archive")
     b.add_argument("--profile", required=True, choices=["core", "core-source", "game-sc", "host-source-sc", "legacy"])
+    b.add_argument("--development", action="store_true", help="verify a source-bound unpublished development archive")
     b.add_argument("--sbom")
     b.add_argument("--report")
     b.add_argument("--root", default=ROOT)
@@ -905,7 +942,7 @@ def main(argv=None):
         if args.cmd == "repo":
             r = audit_repo(args.root, args.report)
         elif args.cmd == "zip":
-            r = audit_zip(args.archive, args.profile, args.root, args.sbom, args.report)
+            r = audit_zip(args.archive, args.profile, args.root, args.sbom, args.report, development=args.development)
         else:
             r = audit_release(args.approval, args.tag, args.root, args.artifacts)
     except AuditError as e:

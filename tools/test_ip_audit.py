@@ -936,5 +936,34 @@ class Negative(unittest.TestCase):
         self.assertIn("changed since outside", out)
 
 
+class DevelopmentAudit(unittest.TestCase):
+    def test_explicit_development_audit_binds_source_and_rejects_tampering(self):
+        with tempfile.TemporaryDirectory(prefix="dev-audit-") as out, \
+             mock.patch.object(pkg, "require_clean_development_source"), \
+             mock.patch.object(audit, "load_package", return_value=pkg):
+            archive = pkg.build(pkg.load_manifest(), "core", out, development=True)
+            report = audit.audit_zip(archive, "core", development=True)
+            self.assertEqual(report.failures, [])
+            self.assertTrue(any(c["check"] == "development identity and generated metadata" for c in report.checks))
+            self.assertTrue(audit.audit_zip(archive, "core").failures, "release mode must not accept development VERSION")
+            bad = os.path.join(out, "altered.zip")
+            def mutate(entries):
+                top = next(iter(entries)).split("/", 1)[0]
+                name = top + "/COMPATIBILITY.json"
+                desc = json.loads(entries[name])
+                desc["source_commits"]["core"] = "f" * 40
+                entries[name] = pkg.json_bytes(desc)
+                refresh_generated_metadata(entries, "core")
+            rezip(archive, bad, mutate)
+            bad_report = audit.audit_zip(bad, "core", development=True)
+            self.assertTrue(any("development version or source mismatch" in f for f in bad_report.failures), bad_report.failures)
+
+    def test_development_audit_refuses_dirty_source(self):
+        with mock.patch.object(audit, "load_package", return_value=pkg), \
+             mock.patch.object(pkg, "require_clean_development_source", side_effect=pkg.ManifestError("dirty source")):
+            with self.assertRaisesRegex(audit.AuditError, "dirty source"):
+                audit.audit_zip("unused.zip", "core", development=True)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=1)

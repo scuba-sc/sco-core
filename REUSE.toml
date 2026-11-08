@@ -4033,3 +4033,15 @@ path = "sdk/package.py"
 precedence = "override"
 SPDX-FileCopyrightText = "2026 the sco-core contributors"
 SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "tools/test_ip_audit.py"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "tools/ip_audit.py"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
