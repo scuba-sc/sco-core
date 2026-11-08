@@ -1090,6 +1090,7 @@ class DevelopmentPackage(unittest.TestCase):
             for profile in m["profiles"]:
                 with self.subTest(profile=profile):
                     top, entries = pkg.archive_entries(m, profile, development=True)
+                    self.assertFalse(any("synthetic_native_evidence" in path for path in entries))
                     self.assertIn(dev, top)
                     names = pkg.metadata_names(m, profile)
                     desc = json.loads(entries[names[2]][0])
@@ -1114,7 +1115,9 @@ class DevelopmentPackage(unittest.TestCase):
                             metadata = json.loads(entries[name][0])
                             self.assertEqual(metadata["sdk_version"], dev)
                             self.assertEqual(metadata["source_sha"], commit)
-                    self.assertEqual(pkg.archive_bytes(top, entries), pkg.archive_bytes(top, entries))
+                    next_top, next_entries = pkg.archive_entries(m, profile, development=True)
+                    self.assertEqual((top, pkg.archive_bytes(top, entries)),
+                                     (next_top, pkg.archive_bytes(next_top, next_entries)))
             self.assertEqual(pkg.sdk_version(), "2.4.0")
             self.assertNotIn(dev, pkg.archive_entries(m, "core")[0])
 
