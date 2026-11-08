@@ -51,6 +51,165 @@ the host must keep retained resources valid. Timed waits do not guarantee a hard
 wall-clock deadline for mutex scheduling or thread creation. No fail-stop process
 termination is supplied.
 
+## Direct engine quit and dependent providers
+
+The direct engine path is `QuitDetour` → `ForwardQuit` → `BeforeQuit` → `Stop`
+→ `StopImpl`. On a running session, `StopImpl` closes fresh admission and calls
+the owner's one `drain_until` attempt synchronously on the quit hook's stack,
+using `drainTimeoutMs`; this can wait for enrolled reads and workers and has no
+hard wall-clock bound. It then retains the app and returns `Failed`. `ForwardQuit`
+logs that result but calls the original engine quit regardless. This path does
+not call `app::Stop`, dispatch `game.exit`, unload plugins, or run
+`game::services::Stop` / `WithdrawGameServices`.
+
+The ordering matters to dependent services. `app::Stop` dispatches `game.exit`
+while services remain published, then stops plugins and game services. A direct
+`BeforeQuit` does not run that sequence, so an ASOP `game.exit` subscriber cannot
+withdraw its provider here. The current owned `HostCapsule` also refuses game
+services, plugins and product host-service adapters; it cannot own or withdraw
+the offline product's ASOP composition.
+
+There is no safe ASOP completion API to add on this path with the present
+contract. Calling `app::Stop` inside the quit detour would run synchronous event,
+plugin and provider callbacks on the engine hook. Replacing the drain with
+`OwnedShutdown::request_stop()` would close only this owner's admissions; it
+would neither notify the product nor drain ASOP callbacks, and the original quit
+could terminate before another safe game-thread turn. The request itself takes
+the owner mutex and is not a hard-time-bounded or lock-free hook primitive.
+Neither option proves ASOP withdrawal or safe original-quit continuation.
+
+Product integration needs a shell-owned pre-quit notification or an
+engine-specific deferral mechanism, plus a completion receipt the detour can
+observe. On a safe game-thread path, the product must keep `game.exit` available
+until its callbacks return, close dependent-provider admission, establish that
+provider's own reader/callback and native-hook quiescence, and withdraw the
+provider only after that proof. The detour may forward the original quit exactly
+once only after observing that completed sequence; it must not repeat teardown
+or wait for completion on the hook. The current offline product has neither the
+pre-quit notification nor this completion receipt. If it cannot arrange the
+sequence before the engine may terminate, the dependent provider and its backing
+must remain retained and ASOP withdrawal on direct quit remains unresolved. A
+native ASOP hook adapter also needs its own hook-entry census and return barrier;
+`OwnedShutdown` and service-table withdrawal do not supply them.
+
+Deferred product acceptance must first exercise the shell/engine handshake:
+`game.exit` callbacks can still query the published ASOP provider; no provider
+withdrawal occurs until the callback and provider-owned readers have returned;
+the detour observes one completion receipt and forwards the original quit once;
+and missing/uncertain completion retains the provider and backing. Native ASOP
+activation additionally requires Windows evidence that hook admission closes and
+all entered hooks return before any hook target, table or backing is withdrawn.
+
+## Request closure before control-thread drainage
+
+The additive C++ host-source contract is:
+
+```cpp
+// include/sco/owned_shutdown.h
+void sco::OwnedShutdown::request_stop();
+
+// include/sco/game/host.h (link sco_game_host)
+sco::game::host::HostReport sco::game::host::RequestStopDetailed() noexcept;
+```
+
+`request_stop()` closes new read, worker-start and transition admission under the
+existing owner mutex and sets the existing cooperative worker stop predicate.
+It returns without waiting for admitted readers, reserved worker starts, worker
+bodies, callable destruction or TLS. A reader, worker, callable constructor or
+startup callback can request stop and then unwind normally. The request does
+not fault the owner, consume its one drain attempt, set readiness, invoke user
+code, or release dependencies. Repeating it preserves an existing fault or drain
+result. An already-reserved worker start may still enter its body with the stop
+predicate set; that start remains counted until handle publication or cancellation.
+
+This is a non-draining operation, not a lock-free one: mutex scheduling has no
+hard deadline, and mutex acquisition can throw. It is not an interface for
+`DllMain`, loader lock or signal handlers. If it throws, closure is unproven and
+the caller must retain the complete owner/backing closure. Every ordinary use
+must already hold the same owner's Read through its final output copy.
+
+`RequestStopDetailed()` obtains the owner from the immutable, process-retained
+capsule root. It does not acquire the host control gate or read mutable Options,
+so an admitted callback or the Prepare inspector can request closure without
+waiting for its own frame or inheriting publication authority. Its returned
+`drain` field snapshots cooperative owner progress after the request; drainage
+can advance concurrently, so later reports may show a later state. It runs no
+inspector, OS policy action, app Stop, cleanup callback or phase transition.
+The capsule and registry remain rooted on every outcome.
+
+| Request result | Meaning |
+| --- | --- |
+| `Ok`, adopted session ID, `ProcessRetained` | The rooted owner's admission is closed and enrolled workers see the stop request. No drain or cleanup is claimed. |
+| `Unavailable` | No root was observed, so the request was not delivered or queued for a later capsule. A concurrently observed retained report does not turn refusal into closure proof. |
+| `Failed`, adopted session ID, `ProcessRetained` | The close call threw. Closure is unproven; retain everything. |
+
+The report's `drain` field is a separate `DrainDisposition`: `NotAdopted`,
+`Open`, `Requested`, `InProgress`, `Drained`, `Retained` or `Unknown`. The
+reported phase is only the observed host phase; it may still be `Running` after
+the request closes admission. Do not use phase or `drain` to admit work or
+display cleanup as complete. `Drained` records successful completion of the
+owner's one drain attempt; it remains only a historical cooperative reader and
+worker observation even if the host later faults the owner and latches failure.
+A request during Prepare prevents the existing startup transition from
+publishing success and keeps partial state retained.
+
+The offline consumer sequence is deliberately split across owners of work:
+
+1. Before exposure, construct the actual dependency closure and retain the same
+   `std::shared_ptr<OwnedShutdown>` in the `HostCapsule` and all admitted product
+   readers/workers. Use `PrepareDetailed` to root an accepted capsule. A dummy
+   backing token cannot enroll foreign threads or pin native code.
+2. An admitted frame calls `RequestStopDetailed()` (or its own owner's
+   `request_stop()` for a private, not-yet-adopted composition), then releases
+   its read only after its final output copy and callback return obligations.
+3. A separate control thread, outside all that owner's reads, workers, worker
+   constructors/destructors and startup transitions, calls
+   `owner->drain_until(deadline)`. Serialize this once-only attempt in the
+   product; never run it inside the worker being joined or while retaining a
+   read on the controller. Retain the capsule, owner and transitive backing
+   through both closure and drainage.
+4. The host reports `Requested` before the owner drain, `InProgress` while it
+   runs, and `Drained` only when the owner's actual attempt completed. A later
+   `StopDetailed` reuses that completed proof and does not call the one-shot
+   drain again. Its `result` still reports retained failure and
+   `dependencies` remains `ProcessRetained`; `drain: Drained` is never app
+   cleanup authorization. If a drain is `InProgress`, failed or uncertain when
+   `StopDetailed` arrives, the host retains failure and refuses a second attempt.
+   Complete the product drain before calling game-thread Stop.
+5. A true drain result proves cooperative census completion and actual worker,
+   callable, TLS and helper joins. It does not prove application cleanup,
+   foreign callback return, native instruction exclusion, safe original-quit
+   continuation or module unload. A false/exceptional drain is retained failure;
+   use `reap_retained_until` only for the documented later handle maintenance.
+   The current adopted game-host remains `ProcessRetained` on either outcome.
+   `StopDetailed` remains a game-thread operation that returns retained failure;
+   it is not a control-thread cleanup method.
+
+This foundation adds no provider, plugin ABI, capability or positive native
+admission. `HostCapsule`'s restricted configuration, `StartOwned` refusal of
+plugins/native services, and product native preflight remain unchanged. In
+particular, an owned close/drain does not make the separately preserved startup
+snapshot writer eligible to run on this restricted path.
+
+### Deferred acceptance for this increment
+
+At the 2026-11-04 local checkpoint, no new cases have been built or executed. Authored cases in
+`tests/test_owned_shutdown.cpp` cover reader and worker self-request, actual TLS
+joins, blocked callable construction, startup publication cancellation, repeated
+requests and timeout followed by retained maintenance. The existing
+`game_host_report_*` fixture has three new cases: `request-stop-no-root`,
+`request-stop-prepare` and `request-stop-running`. They use the actual capsule
+root, inspector/control gate, admitted frame and independent controller. The
+last case drops caller capsule/backing roots before the request, asserts drainage
+cannot complete while the frame is leased, observes `Requested`, `InProgress`
+and `Drained`, and still expects retained app stop.
+
+Deferred Linux/Windows execution must confirm all existing owned shutdown and
+host report cases as well as these additions. Additional product acceptance
+must prove ownership of OS thread handles and callback code, exact full-frame
+and output-copy census, and original-quit lifetimes. Nothing here supplies native
+or game acceptance or authorizes enabling a previously refused consumer.
+
 The legacy `retireConsumer` and native barrier callbacks are not accepted as
 ownership proof. A future successful retirement needs a complete reader/worker
 census, owner-controlled cleanup, failure injection, and Windows native evidence;
@@ -60,8 +219,9 @@ evidence is required for native consumers, not for a bounded non-native fixture.
 ## Detailed exposure reports (local host-source increment)
 
 `HostCapsule` and the additive `PrepareDetailed`, `ActivateDetailed`,
-`StartDetailed`, `StopDetailed` and `StatusDetailed` entries describe dependency
-exposure on this game-host route. They do not call public `app::StartDetailed`
+`StartDetailed`, `StopDetailed`, `RequestStopDetailed` and `StatusDetailed` entries
+describe dependency exposure and cooperative drain progress on this game-host route.
+They do not call public `app::StartDetailed`
 instead of `app::detail::StartOwned`. The old `Result` function signatures remain
 available but cannot tell a product whether failed startup exposed dependencies.
 No frozen plugin table or existing `Options` layout changes.
@@ -112,7 +272,8 @@ Overlapping status calls may nevertheless return older observations after newer
 ones. There is no monotonicity guarantee in completion order. Only the completed
 PrepareDetailed report classifies adoption of that invocation's input.
 
-One nonblocking control gate covers old and detailed game-host controls. No
+One nonblocking control gate covers old and detailed game-host transitions. The
+separate close request uses only the already-rooted owner mutex. No
 mutex spans the inspector or other callouts; synchronous reentry refuses. Private
 internal transitions preserve Start-to-Activate and Tick-to-Stop behavior without
 granting an external callback ambient startup authority.

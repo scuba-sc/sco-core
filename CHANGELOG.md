@@ -10,6 +10,18 @@ What each change means for plugin authors and for products built on sco-core (sc
 - Recognize the protected Linux x86 UAPI system-header symlink layout in SDK installed-header checks while retaining checkout and unshipped-header refusals.
 - Add a read-only C++ wrapper for the `game.input` action registry. It copies results and checks service availability; it does not dispatch input or establish in-game behavior.
 - Add an opt-in historical plugin startup snapshot for the qualified host path. It records the load pass, not live status, and the owned startup path continues to refuse it.
+- Add a host-source stop-request phase: `OwnedShutdown::request_stop` closes
+  cooperative admission without draining, and `game::host::RequestStopDetailed`
+  applies it through the adopted capsule root. Detailed reports expose the
+  cooperative drain state, and Stop reuses completed proof without retrying
+  the one-shot drain. Control-thread drainage and all retained cleanup
+  obligations remain separate; native/plugin activation stays refused. New
+  coverage is synthetic and does not establish native safety.
+
+- Document the direct engine-quit limitation: `BeforeQuit` can synchronously
+  drain on the quit hook but does not dispatch `game.exit` or withdraw dependent
+  services. A product-owned pre-quit signal and completion receipt remain
+  necessary before ASOP withdrawal can be coordinated with direct quit.
 
 ## sdk-v2.4.0
 
