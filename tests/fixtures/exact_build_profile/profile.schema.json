@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/scuba-synthetic-profile-v1.schema.json",
+  "title": "Synthetic exact-build profile proposal v1",
+  "description": "Prototype only. Strict parser additionally rejects floats such as 1.0, duplicate keys and non-finite values.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "profile_id", "revision", "pack_source_sha", "executable", "manifest", "table_set"],
+  "properties": {
+    "schema": {"const": 1, "type": "integer"},
+    "profile_id": {"$ref": "#/$defs/token"},
+    "revision": {"$ref": "#/$defs/positive_u32"},
+    "pack_source_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "table_set": {"$ref": "#/$defs/token"},
+    "executable": {
+      "type": "object", "additionalProperties": false,
+      "required": ["sha256", "file_size", "machine", "pe_timestamp", "size_of_image"],
+      "properties": {
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "file_size": {"type": "integer", "minimum": 1, "maximum": 18446744073709551615},
+        "machine": {"const": 34404, "type": "integer"},
+        "pe_timestamp": {"$ref": "#/$defs/positive_u32"},
+        "size_of_image": {"$ref": "#/$defs/positive_u32"}
+      }
+    },
+    "manifest": {
+      "type": "object", "additionalProperties": false, "required": ["build"],
+      "properties": {"build": {"type": "array", "minItems": 4, "maxItems": 4,
+        "items": {"type": "integer", "minimum": 0, "maximum": 4294967295}}}
+    }
+  },
+  "$defs": {
+    "positive_u32": {"type": "integer", "minimum": 1, "maximum": 4294967295},
+    "token": {"type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$"}
+  }
+}
