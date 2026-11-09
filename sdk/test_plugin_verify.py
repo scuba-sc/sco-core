@@ -112,7 +112,7 @@ class PluginArchiveVerifierTests(unittest.TestCase):
         )
         self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
         self.assertNotIn(b"\x7f", completed.stdout + completed.stderr)
-        self.assertIn(b"entry\tpilot\\x7F.dll\n", completed.stdout)
+        self.assertIn(b"entry\tpilot\\x7F.dll", completed.stdout.splitlines())
 
     def test_archive_parser_diagnostics_escape_untrusted_setting_values(self):
         manifest = (b"id = pilot\nname = Pilot\nversion = 1.0\napi = 1.0\nkind = native\n"
@@ -175,7 +175,7 @@ class PluginArchiveVerifierTests(unittest.TestCase):
                          {"pilot/plugin.ini", "pilot/pilot.dll"})
 
     def test_rejects_unsafe_paths(self):
-        for bad_path in ("../escape", "pilot/../../escape", "/pilot/plugin.ini", "pilot\\escape", "C:/escape",
+        for bad_path in ("../escape", "pilot/../../escape", "/pilot/plugin.ini", "C:/escape",
                          "pilot/bad?.txt", "pilot/bad*.txt", 'pilot/bad".txt', "pilot/bad<.txt",
                          "pilot/bad>.txt", "pilot/bad|.txt", "pilot/CONIN$.txt", "pilot/CONOUT$"):
             with self.subTest(path=bad_path):
@@ -183,6 +183,26 @@ class PluginArchiveVerifierTests(unittest.TestCase):
                 with self.assertRaisesRegex(verifier.VerifyError,
                                             "unsafe archive path|portable to Windows|reserved Windows device"):
                     self.verify()
+
+    def test_rejects_backslash_in_raw_zip_member_name(self):
+        # zipfile normalizes backslashes when creating ZipInfo on Windows. First
+        # make a valid archive, then change both equal-length names in its bytes.
+        write_archive(self.archive_path, [
+            ("pilot/plugin.ini", native_manifest()), ("pilot/pilot.dll", b"opaque"),
+            ("pilot/escape", b"x"),
+        ])
+        self.assertEqual(self.verify()["status"], "archive-structure-and-manifest-verified")
+        archive_bytes = self.archive_path.read_bytes()
+        self.assertEqual(archive_bytes.count(b"pilot/escape"), 2)
+        archive_bytes = archive_bytes.replace(b"pilot/escape", b"pilot\\escape")
+        self.assertEqual(archive_bytes.count(b"pilot\\escape"), 2)
+        self.assertNotIn(b"pilot/escape", archive_bytes)
+        self.archive_path.write_bytes(archive_bytes)
+        with zipfile.ZipFile(self.archive_path) as archive:
+            self.assertEqual(archive.infolist()[-1].orig_filename, "pilot\\escape")
+        # Windows zipfile may normalize filename while retaining orig_filename.
+        with self.assertRaisesRegex(verifier.VerifyError, "unsafe archive path|otherwise truncated"):
+            self.verify()
 
     def test_rejects_nul_truncated_zip_member_name(self):
         manifest = b"id = pilot\nname = Pilot\nversion = 1.0\napi = 1.0\nkind = data\n"
