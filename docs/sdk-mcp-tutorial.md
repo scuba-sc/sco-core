@@ -26,8 +26,9 @@ metadata as described in the
 is not the published release asset or permission to distribute it. Do not pair
 RC1 or RC2 archive bytes with the site's changing mainline catalogue or a different index.
 
-Prerequisites for discovery: Python 3.9 or newer and a stdio MCP client supporting
-protocol `2025-11-25`. Building a scaffold additionally needs CMake 3.20+ and a
+Prerequisites for discovery: Python 3.9 or newer and a stdio MCP client. The
+published stable SDK 2.4.0 kit supports legacy protocol `2025-11-25`; a current
+source build also supports `2026-07-28`. Building a scaffold additionally needs CMake 3.20+ and a
 64-bit C/C++ compiler (for a `csharp` scaffold, the .NET 8 SDK and the NativeAOT
 toolchain; a `lua` scaffold builds only `sco-plugin-check`). Clang is required to produce a source catalogue, not to
 consume a bundled one.
@@ -357,8 +358,9 @@ python3 tools/sco-core-mcp/tutorial.py --catalogue dist/sdk-catalogue.json \
 ```
 
 The transcript contains real requests/responses to the existing `server.py`
-launcher over stdio, using protocol `2025-11-25`, without a runtime flag or
+launcher over stdio, deliberately using legacy protocol `2025-11-25`, without a runtime flag or
 repository-content sharing. Pass condition: `static MCP tutorial: PASS`.
+Current source also accepts modern `2026-07-28` requests with per-request metadata.
 `check_compatibility` compares the catalogue with the checkout's own `sdk/VERSION`
 and `SCO_GAME_PACK_VERSION` by default. To check the catalogue against the archive
 you will build with (section 2), pass that archive's `VERSION` as `--sdk-version`

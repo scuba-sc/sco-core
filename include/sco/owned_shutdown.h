@@ -63,6 +63,9 @@ class OwnedShutdown {
     };
 public:
     enum class ReapResult { ReapedRetained, PendingRetained, Refused };
+    // Read-only snapshot of cooperative stop/drain progress. Drained records
+    // worker/read drainage only; it is never cleanup or unload authorization.
+    enum class DrainState { Open, Requested, InProgress, Drained, Retained, Unknown };
     // Thread-bound host transition. Publication is linearized against close
     // and fault under the owner mutex; the lease remains counted until it is
     // released. No caller-provided code runs under that mutex.
@@ -259,6 +262,39 @@ private:
         return true;
     }
 public:
+    // Close admission and signal cooperative workers without draining. Safe to
+    // request from an admitted reader, worker, startup transition or callable
+    // constructor/destructor: it does not wait for that obligation to finish.
+    // After return, new reads/worker starts/transitions refuse. Already-admitted
+    // work remains counted and must return; an in-flight worker launch may still
+    // enter its body with the stop predicate set. This is idempotent, does not
+    // fault, consume the one drain attempt, or establish readiness/cleanup.
+    // Retain this owner AND its full dependency closure. An independent control
+    // thread must later drain_until; requesting from a frame is not a join.
+    // No allocation, callback, condition wait or join occurs here. The short
+    // mutex acquisition can be delayed or throw: this is not lock-free, a hard
+    // time bound, or a loader-lock/signal-handler interface.
+    void request_stop() {
+        std::lock_guard<std::mutex> lock(mutex_);
+        closed_ = true;
+        stop_.store(true);
+        cv_.notify_all();
+    }
+    DrainState drain_state() const noexcept {
+        try {
+            std::lock_guard<std::mutex> lock(mutex_);
+            if (ready_ && !faulted_) return DrainState::Drained;
+            if (faulted_) return DrainState::Retained;
+            // JoinControl reserves a drain before attempted_ is set. Expose
+            // that reservation as active so a second control path cannot
+            // mistake it for an untouched request and compete for the one try.
+            if (joinControlActive_) return DrainState::InProgress;
+            if (attempted_) return DrainState::Retained;
+            return closed_ ? DrainState::Requested : DrainState::Open;
+        } catch (...) {
+            return DrainState::Unknown;
+        }
+    }
     bool drain_until(std::chrono::steady_clock::time_point deadline) {
         JoinControl control(*this, JoinPurpose::Drain);
         if (!control) return false;

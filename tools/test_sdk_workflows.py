@@ -50,7 +50,9 @@ class Inputs(unittest.TestCase):
             ('SYMBOL = {"symbol_or_id":', 'SYMBOL = {"renamed_symbol":'),
             ('"with_menu": {"type": "boolean"', '"with_menu": {"type": "string"'),
             ('PROTOCOL_VERSION = "2025-11-25"', 'PROTOCOL_VERSION = "2099-01-01"'),
-            ('SERVER_VERSION = "1.0.0"', 'SERVER_VERSION = "9.0.0"'),
+            ('SUPPORTED_PROTOCOL_VERSIONS = (MODERN_PROTOCOL_VERSION, LEGACY_PROTOCOL_VERSION)',
+             'SUPPORTED_PROTOCOL_VERSIONS = ("2099-01-01", LEGACY_PROTOCOL_VERSION)'),
+            ('SERVER_VERSION = "1.1.0"', 'SERVER_VERSION = "9.0.0"'),
         ):
             with self.subTest(before=before):
                 self.assertIn(before, original)
@@ -226,6 +228,8 @@ class Inputs(unittest.TestCase):
             lambda d: d['skills'][0]['resources'].append('/private.md'),
             lambda d: d['skills'][0]['resources'].append('references/hidden.py'),
             lambda d: d.update(bundle_version='99.0.0'),
+            lambda d: d['mcp']['supported_protocols'].append('2026-07-28'),
+            lambda d: d['mcp']['supported_protocols'].__setitem__(0, 'not-a-version'),
             lambda d: d.update(extra='unexpected'),
         ):
             d = copy.deepcopy(original)
@@ -328,6 +332,64 @@ class ArchiveAndMCP(unittest.TestCase):
         self.assertFalse(any(c['source'].startswith('sdk/skills/') for c in overlay))
         self.assertNotIn('sdk-workflows.json', pkg.archive_entries(self.manifest, 'game-sc')[1])
 
+    def test_plugin_archive_verifier_guidance_and_dependencies_are_packaged(self):
+        for profile in ('core', 'legacy', 'core-source'):
+            with self.subTest(profile=profile):
+                top, entries = pkg.archive_entries(self.manifest, profile)
+                prefix = 'sdk/' if profile == 'core-source' else ''
+                skill_path = prefix + 'skills/sco-package-plugin/SKILL.md'
+                reference_path = prefix + 'skills/sco-package-plugin/references/sc-offline.md'
+                verifier_path = prefix + 'tools/sco-plugin-verify.py'
+                checker_path = prefix + 'tools/sco-plugin-check.c'
+                self.assertIn(skill_path, entries)
+                self.assertIn(reference_path, entries)
+                self.assertIn(verifier_path, entries)
+                self.assertIn(checker_path, entries)
+                self.assertIn('include/sco_api.h', entries)
+                self.assertIn('include/sco_widgets.h', entries)
+                workflow_guide = entries['docs/agent-workflows.md'][0].decode()
+                self.assertIn('Stage, statically verify, inventory and round-trip a distribution',
+                              workflow_guide)
+
+                index = json.loads(entries['sdk-workflows.json'][0])
+                workflow = next(item for item in index['workflows']
+                                if item['id'] == 'sco-package-plugin')
+                self.assertIn('statically verify', workflow['description'])
+                files = {item['path']: item['text'] for item in workflow['files']}
+                self.assertIn(skill_path, files)
+                self.assertIn(reference_path, files)
+                skill = files[skill_path]
+                reference = files[reference_path]
+                for required in ('tools/sco-plugin-verify.py', '--json >',
+                                 'archive-structure-and-manifest-verified',
+                                 'does not authenticate',
+                                 'guarantee host/runtime compatibility'):
+                    self.assertIn(required, skill)
+                    self.assertIn(required, reference)
+                self.assertIn('installing or executing archive entries', skill)
+                self.assertIn('does not install or execute archive entries', reference)
+                self.assertIn('pilot_probe/plugin.ini', reference)
+                self.assertIn('outer `data/plugins/` wrapper is not accepted', reference)
+                self.assertNotIn('data/plugins/pilot_probe/plugin.ini', reference)
+
+                build_workflow = next(item for item in index['workflows']
+                                      if item['id'] == 'sco-build-check-package')
+                build_files = {item['path']: item['text'] for item in build_workflow['files']}
+                build_skill = build_files[prefix + 'skills/sco-build-check-package/SKILL.md']
+                build_reference = build_files[prefix + 'skills/sco-build-check-package/references/build.md']
+                for text in (build_skill, build_reference):
+                    self.assertIn('--no-load', text)
+                    self.assertIn('provider availability', text)
+                    self.assertIn('runtime compatibility', text)
+                    self.assertIn('16,384 filesystem entries', text)
+                    self.assertIn('regular non-symlink', text)
+                readme_path = prefix + 'README.md'
+                sdk_readme = entries[readme_path][0].decode()
+                self.assertIn('--no-load', sdk_readme)
+                self.assertIn('does not establish code safety', sdk_readme)
+                self.assertIn('16,384 filesystem entries', sdk_readme)
+                self.assertIn('4,194,304', sdk_readme)
+
     def client(self, **kw):
         c = client_module.Client(self.cat, **kw)
         self.addCleanup(c.close)
@@ -352,6 +414,7 @@ class ArchiveAndMCP(unittest.TestCase):
             manifest = json.loads((kit / 'skills/manifest.json').read_bytes())
             self.assertEqual(init['protocolVersion'], manifest['mcp']['protocol'])
             self.assertEqual(init['serverInfo']['version'], manifest['mcp']['server_version'])
+            self.assertEqual(manifest['mcp']['supported_protocols'], ['2026-07-28', '2025-11-25'])
             tools = {t['name']: t['inputSchema'] for t in c.request('tools/list')['result']['tools']}
             self.assertLessEqual(set(manifest['mcp']['tools']), set(tools))
             for name, expected_hash in manifest['mcp']['tools'].items():

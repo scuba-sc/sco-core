@@ -483,6 +483,44 @@ def sdk_version():
     return v
 
 
+def development_version():
+    """Private development package coordinate, never a release tag."""
+    try:
+        v = read("sdk/DEVELOPMENT_VERSION").strip()
+    except OSError as e:
+        raise ManifestError("sdk/DEVELOPMENT_VERSION is unavailable") from e
+    match = re.fullmatch(r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)-dev\.([1-9][0-9]*)", v)
+    if not match:
+        raise ManifestError("sdk/DEVELOPMENT_VERSION must be X.Y.Z-dev.N")
+    baseline = re.fullmatch(r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)", sdk_version())
+    if not baseline:
+        raise ManifestError("development packaging requires a numeric stable source baseline")
+    if tuple(map(int, match.group(1, 2, 3))) <= tuple(map(int, baseline.groups())):
+        raise ManifestError("development version must exceed the stable source baseline")
+    return v
+
+
+def require_clean_development_source():
+    try:
+        status = subprocess.run(["git", "-C", ROOT, "status", "--porcelain", "--untracked-files=all"],
+                                capture_output=True, text=True, check=True).stdout
+    except (OSError, subprocess.CalledProcessError) as e:
+        raise ManifestError("development package requires a clean Git checkout") from e
+    if status:
+        raise ManifestError("development package requires a clean Git checkout")
+    # The catalogue globs these trees and the compiler can follow nested headers.
+    # Ignored files are absent from ordinary status but could contaminate the
+    # generated metadata while retaining an unrelated source commit identity.
+    try:
+        ignored_inputs = subprocess.run(
+            ["git", "-C", ROOT, "ls-files", "--others", "--ignored", "--exclude-standard", "-z", "--",
+             "include/", "sdk/contracts/"], capture_output=True, check=True).stdout
+    except (OSError, subprocess.CalledProcessError) as e:
+        raise ManifestError("cannot verify development catalogue inputs") from e
+    if ignored_inputs:
+        raise ManifestError("development package refuses ignored files under include/ or sdk/contracts/")
+
+
 def abi_version():
     api = read("include/sco_api.h")
     major = re.search(r"#define SCO_API_MAJOR ([0-9]+)", api)
@@ -502,21 +540,24 @@ def game_pack():
             define(pack, "SCO_GAME_PACK_VERIFICATION", r"[^\"]+", w))
 
 
-def versions_txt(profile, version):
+def versions_txt(profile, version, development=None):
     """VERSIONS.txt: versions from shipped headers and profile-specific build guidance."""
     abi = abi_version()
+    kernel = development or sdk_version()
+    notice = (f"UNPUBLISHED DEVELOPMENT SDK {kernel}; source {source_commit()}. "
+              "No release tag is implied. Source links may not resolve publicly.\n\n") if development else ""
     if profile == "core-source":
-        return (f"sco SDK core source {version}\n\nplugin ABI (sco_api.h): {abi}\n"
+        return (notice + f"sco SDK core source {version}\n\nplugin ABI (sco_api.h): {abi}\n"
                 "Configure with -DSCO_GAME_SC=OFF. Game implementation and contracts are not included.\n"
                 "Runtime MCP peer is separately packaged and excluded; build it from a full source checkout.\n"
                 "The frozen release header is hash-checked by tools/abi_snapshot.py.\n")
     if profile == "core":
-        return (f"sco SDK core {version}\n\nkernel (sdk/VERSION, tag sdk-v{version}): {version}\n"
+        return (notice + f"sco SDK core {version}\n\nkernel (sdk/VERSION{'' if development else ', tag sdk-v' + version}): {version}\n"
                 f"plugin ABI (sco_api.h): {abi}\n\nThe Star Citizen game services are a separate extension, "
                 f"sco-sdk-game-sc-<version>.zip.\n")
     gp, build, stamp, how = game_pack()
     if profile == "host-source-sc":
-        return (f"sco SDK Star Citizen host source {version}\n\n"
+        return (notice + f"sco SDK Star Citizen host source {version}\n\n"
                 f"kernel (sdk/VERSION): {version}\nplugin ABI (sco_api.h): {abi}\n"
                 f"game pack (SCO_GAME_PACK_VERSION): {gp}\n\n"
                 "Standalone source kit; configure with -DSCO_GAME_SC=ON. Do not overlay plugin SDK zips.\n"
@@ -524,10 +565,10 @@ def versions_txt(profile, version):
                 "Local synthetic packaging proof only; game runtime and release publication are not verified.\n"
                 f"signature metadata: {build} (PE timestamp {stamp}): {how}\n")
     if profile == "game-sc":
-        return (f"sco SDK Star Citizen extension {gp}\n\ngame pack (SCO_GAME_PACK_VERSION, Star Citizen): {gp}\n"
-                f"needs: sco SDK core {sdk_version()} (plugin ABI {abi}); unpack this over it\n\n"
+        return (notice + f"sco SDK Star Citizen extension {gp}\n\ngame pack (SCO_GAME_PACK_VERSION, Star Citizen): {gp}\n"
+                f"needs: sco SDK core {kernel} (plugin ABI {abi}); unpack this over it\n\n"
                 f"verified game builds:\n  {build} (StarCitizen.exe PE timestamp {stamp}): {how}\n")
-    return (f"sco SDK {version}\n\nkernel (sdk/VERSION, tag sdk-v{version}): {version}\n"
+    return (notice + f"sco SDK {version}\n\nkernel (sdk/VERSION{'' if development else ', tag sdk-v' + version}): {version}\n"
             f"plugin ABI (sco_api.h): {abi}\ngame pack (SCO_GAME_PACK_VERSION, Star Citizen): {gp}\n\n"
             f"verified game builds:\n  {build} (StarCitizen.exe PE timestamp {stamp}): {how}\n")
 
@@ -664,7 +705,7 @@ def attributions(m, profile):
     return records
 
 
-def sbom_document(top, version, entries, records, sbom_name, sums_name, commit):
+def sbom_document(top, version, entries, records, sbom_name, sums_name, commit, development=False):
     files = []
     for name, (data, _) in sorted(entries.items()):
         record = records[name]
@@ -682,7 +723,7 @@ def sbom_document(top, version, entries, records, sbom_name, sums_name, commit):
             "creationInfo": {"created": "2026-01-01T00:00:00Z", "creators": ["Tool: sco-core sdk/package.py"],
                              "comment": f"Source commit {commit}; fixed creation time for byte reproducibility."},
             "packages": [{"SPDXID": package_id, "name": top, "versionInfo": version,
-                          "downloadLocation": f"git+https://github.com/scuba-sc/sco-core@{commit}",
+                          "downloadLocation": "NOASSERTION" if development else f"git+https://github.com/scuba-sc/sco-core@{commit}",
                           "filesAnalyzed": True,
                           "packageVerificationCode": {"packageVerificationCodeValue": verification,
                                                       "packageVerificationCodeExcludedFiles": ["./" + sbom_name, "./" + sums_name]},
@@ -770,11 +811,16 @@ def validate_sbom(doc, content, sbom_name, sums_name):
     require(len(actual) == len(expected) and set(actual) == expected, "exact relationships")
 
 
-def archive_entries(m, profile):
+def archive_entries(m, profile, development=False):
+    dev = development_version() if development else None
+    if development:
+        require_clean_development_source()
     chosen = select(m, profile)
     p = m["profiles"][profile]
-    version = sdk_version() if p["version_from"] == "sdk/VERSION" else game_pack()[0]
+    version = (dev or sdk_version()) if p["version_from"] == "sdk/VERSION" else game_pack()[0]
     top = p["zip"].format(version=version, game_pack_version=version)
+    if dev and profile == "game-sc":
+        top += "-sdk-" + dev
     zip_paths = {c["source"]: destination(m, profile, c) for c in chosen}
     dirs = {}
     for src, dst in zip_paths.items():   # folders: the source folder maps to the destination folder
@@ -789,14 +835,21 @@ def archive_entries(m, profile):
         full = os.path.join(ROOT, c["source"])
         with open(full, "rb") as f:
             dst = destination(m, profile, c)
-            entries[dst] = (fix_links(c["source"], dst, f.read(), zip_paths, dirs),
-                                         os.access(full, os.X_OK))
+            data = f.read()
+            if dev and c["source"] == "sdk/VERSION":
+                data = (dev + "\n").encode("ascii")
+            entries[dst] = (fix_links(c["source"], dst, data, zip_paths, dirs),
+                            os.access(full, os.X_OK))
     versions_name, sums_name, compat_name, inventory_name, sbom_name = metadata_names(m, profile)
     catalogue = developer_catalogue(profile)
     if catalogue is not None:
+        if dev:
+            obj = json.loads(catalogue); obj["sdk_version"] = dev; catalogue = json_bytes(obj)
         entries["sdk-catalogue.json"] = (catalogue, False)
     guides = developer_guides(profile)
     if guides is not None:
+        if dev:
+            obj = json.loads(guides); obj["sdk_version"] = dev; guides = json_bytes(obj)
         entries["sdk-guides.json"] = (guides, False)
     if "sdk/skills/manifest.json" in zip_paths:
         sys.path.insert(0, os.path.join(ROOT, "tools"))
@@ -804,27 +857,29 @@ def archive_entries(m, profile):
             import sdk_workflows
             try:
                 workflows = sdk_workflows.build(Path(ROOT), source_commit(), zip_paths, entries)
+                if dev:
+                    workflows["sdk_version"] = dev
                 entries["sdk-workflows.json"] = (sdk_workflows.encoded(workflows), False)
             except (ValueError, KeyError, OSError) as error:
                 raise ManifestError(f"sdk-workflows.json: {error}") from error
         finally:
             sys.path.remove(os.path.join(ROOT, "tools"))
-    entries[versions_name] = (versions_txt(profile, version).encode("ascii"), False)
+    entries[versions_name] = (versions_txt(profile, version, dev).encode("ascii"), False)
     commit = source_commit()
-    desc = {"schema_version": 1, "profile": profile, "core_sdk_version": sdk_version(),
+    desc = {"schema_version": 1, "profile": profile, "core_sdk_version": dev or sdk_version(),
             "plugin_abi_version": abi_version(),
             "game_overlay_version": game_pack()[0] if profile in ("game-sc", "legacy", "host-source-sc") else None,
             "source_commits": {"core": commit}, "base_core_sha256": None}
     if profile in ("game-sc", "legacy", "host-source-sc"):
         desc["source_commits"]["game-sc"] = commit
     if profile == "game-sc":
-        core_top, core_entries = archive_entries(m, "core")
+        core_top, core_entries = archive_entries(m, "core", development=development)
         desc["base_core_sha256"] = hashlib.sha256(archive_bytes(core_top, core_entries)).hexdigest()
     entries[compat_name] = (json_bytes(desc), False)
     records = attributions(m, profile)
     entries[inventory_name] = (json_bytes({"schema_version": 1, "profile": profile,
                                          "files": [records[n] for n in sorted(records)]}), False)
-    sbom = sbom_document(top, version, entries, records, sbom_name, sums_name, commit)
+    sbom = sbom_document(top, version, entries, records, sbom_name, sums_name, commit, development=development)
     entries[sbom_name] = (json_bytes(sbom), False)
     sums = "".join(f"{hashlib.sha256(data).hexdigest()}  {name}\n" for name, (data, _) in sorted(entries.items()))
     entries[sums_name] = (sums.encode("ascii"), False)
@@ -852,9 +907,14 @@ def archive_bytes(top, entries):
     return buffer.getvalue()
 
 
-def build(m, profile, out):
-    top, entries = archive_entries(m, profile)
+def build(m, profile, out, development=False):
+    commit = source_commit() if development else None
+    top, entries = archive_entries(m, profile, development=development)
     data = archive_bytes(top, entries)
+    if development:
+        require_clean_development_source()
+        if source_commit() != commit:
+            raise ManifestError("development source changed while packaging")
     os.makedirs(out, exist_ok=True)
     zip_path = os.path.join(out, f"{top}.zip")
     with open(zip_path, "wb") as f:
@@ -867,12 +927,15 @@ def build(m, profile, out):
 def main():
     ap = argparse.ArgumentParser(description="Package the sco SDK from sdk/components.json.")
     ap.add_argument("--profile", default="legacy")
+    ap.add_argument("--development", action="store_true", help="build an unpublished, source-bound development SDK")
     ap.add_argument("--out", default=os.path.join(SDK, "out"))
     ap.add_argument("--check", action="store_true", help="validate the manifest and every profile; write nothing")
     ap.add_argument("--list-headers", metavar="PROFILES", help="comma list; print their public headers")
     ap.add_argument("--check-installed-headers", metavar="ROOT",
                     help="compile installed external examples and check exact public dependencies")
     args = ap.parse_args()
+    if args.development and (args.check or args.list_headers or args.check_installed_headers):
+        ap.error("--development is only valid when building an archive")
     try:
         m = load_manifest()
         if args.check_installed_headers:
@@ -889,7 +952,7 @@ def main():
                 print(f"{prof}: {len(select(m, prof))} components")
             print("sdk/components.json: ok")
             return
-        build(m, args.profile, args.out)
+        build(m, args.profile, args.out, development=args.development)
     except ManifestError as e:
         sys.exit(f"package.py: {e}")
 

@@ -24,6 +24,9 @@ enum class Phase : uint32_t { Idle, Preparing, Prepared, Activating, Activated, 
 enum class QuitPolicy : uint32_t { Required, External };
 enum class DataCoreHook : uint32_t { Required, External };
 enum class ConsumerRetirement : uint32_t { Quiesced, Retained };
+// Cooperative reader/worker progress, distinct from HostReport::result and
+// DependencyDisposition. Drained never means app cleanup or native retirement.
+enum class DrainDisposition : uint32_t { NotAdopted, Open, Requested, InProgress, Drained, Retained, Unknown };
 struct Snapshot {
     Phase phase = Phase::Idle;
     bool signaturesResolved = false;
@@ -65,13 +68,16 @@ struct Options {
 };
 
 // Additive C++ host-source reporting, separate from the frozen plugin ABI.
-// These reports never authorize cleanup, unload, native activation or restart.
+// HostReport is returned by value and its layout changed: rebuild C++ consumers
+// with the same Core. These reports never authorize cleanup, unload, native
+// activation or restart. The frozen plugin C ABI is unchanged.
 enum class DependencyDisposition : uint32_t { NeverExposed, ProcessRetained };
 struct HostReport {
     Result result = Result::Unavailable;
     Phase phase = Phase::Idle;
     uint64_t sessionId = 0; // process-scoped; nonzero only for an adopted capsule
     DependencyDisposition dependencies = DependencyDisposition::NeverExposed;
+    DrainDisposition drain = DrainDisposition::NotAdopted;
 };
 
 // Build privately before calling PrepareDetailed. Owns Options, its Image
@@ -114,6 +120,17 @@ HostReport PrepareDetailed(const std::shared_ptr<const HostCapsule>&) noexcept;
 HostReport ActivateDetailed() noexcept;
 HostReport StartDetailed() noexcept;
 HostReport StopDetailed() noexcept;
+// Close the already-adopted capsule's owner without waiting for admitted work.
+// Callable from a reader/worker/startup callout, including while the host control
+// gate is held. Does not run an inspector, cleanup, app Stop or phase transition.
+// Ok confirms admission closure and a cooperative stop request only; phase is an
+// observation and may still be Running. It never means drained or cleaned up.
+// Unavailable before adoption does not queue a request for a future capsule;
+// Failed means closure is unproven. Every adopted result stays ProcessRetained.
+// Later, outside every enrolled obligation, use the same capsule owner's
+// drain_until(deadline). The host's existing failed-retirement policy remains.
+// This takes the owner's short mutex; it is not lock-free or loader-lock safe.
+HostReport RequestStopDetailed() noexcept;
 // Busy status returns Unavailable with conservative retained data; it is not
 // a completed control result/adoption decision and does not latch exposure.
 // Busy means the initial gate observation was held. Overlapping status calls
@@ -146,8 +163,10 @@ Result Tick(uint32_t nowMs);
 // Failed and retains the app, registry, image, provider code and dependent backing.
 // A failure-atomic cleanup transaction is not yet established. No restart from Failed.
 Result Stop();
-// Synchronous game-thread quit admission: stop BEFORE the engine may terminate the process.
-// No fast-shutdown field/vtable reads; normal and fast quit share this entry.
+// Legacy synchronous game-thread stop request from the engine quit detour. It can
+// run the configured owner drain on that hook's stack and does not call app::Stop,
+// dispatch game.exit, or prove dependent-provider withdrawal. No fast-shutdown
+// field/vtable reads; normal and fast quit share this entry.
 Result BeforeQuit();
 // Immutable scalar observation; no provider/table callbacks. May read on any thread.
 Snapshot Status();

@@ -51,6 +51,10 @@
     "site"
   ],
   "excluded": [
+    {"path":"sdk/DEVELOPMENT_VERSION","why":"Repository-only unpublished development packaging coordinate; generated VERSION carries the selected value."},
+    {"path":"tools/synthetic_native_evidence.py","why":"Private synthetic-only development model; never included in SDK archives."},
+    {"path":"tools/test_synthetic_native_evidence.py","why":"Private synthetic-only development test; never included in SDK archives."},
+    {"path":"tests/fixtures/synthetic_native_evidence/","why":"Invented private synthetic-only development vectors; never included in SDK archives."},
     {"path":"tools/test_notebook.lua","why":"Repository-only synthetic failure tests for the notebook example."},
     {"path":"tools/test_sdk_workflows.py","why":"Repository workflow index, archive and MCP integration tests; not a runtime dependency."},
     {"path":"tools/test_sdk_mvp_host.mjs","why":"Repository cross-product native host MCP acceptance harness; requires separately built studio."},
@@ -140,6 +144,10 @@
       "why": "Repository test for tools/sco-new-plugin.py: builds generated plugins against sdk/ and runs sco-plugin-check."
     },
     {
+      "path": "sdk/test_plugin_verify.py",
+      "why": "Repository-only synthetic tests for tools/sco-plugin-verify.py and the folder --no-load checker mode; not part of an SDK archive."
+    },
+    {
       "path": "tools/ip_audit.py",
       "why": "Game-only test/tool or repository audit machinery; not needed to build the kernel source kit."
     },
@@ -225,6 +233,12 @@
     }
   ],
   "components": [
+    {"id": "host-source-sc-src-game-exact_build_profile.h", "source": "src/game/exact_build_profile.h", "destination": "src/game/exact_build_profile.h", "profiles": ["host-source-sc"], "origin": "project-authored", "license": "GPL-3.0-only", "group": "host-source-sc"},
+    {"id": "host-source-sc-src-game-exact_build_profile.cpp", "source": "src/game/exact_build_profile.cpp", "destination": "src/game/exact_build_profile.cpp", "profiles": ["host-source-sc"], "origin": "project-authored", "license": "GPL-3.0-only", "group": "host-source-sc"},
+    {"id": "host-source-sc-tests-test_exact_build_profile.cpp", "source": "tests/test_exact_build_profile.cpp", "destination": "tests/test_exact_build_profile.cpp", "profiles": ["host-source-sc"], "origin": "project-authored", "license": "GPL-3.0-only", "group": "host-source-sc"},
+    {"id": "host-source-sc-tests-fixtures-exact_build_profile-fixture.synthetic.canonical.json", "source": "tests/fixtures/exact_build_profile/fixture.synthetic.canonical.json", "destination": "tests/fixtures/exact_build_profile/fixture.synthetic.canonical.json", "profiles": ["host-source-sc"], "origin": "project-authored", "license": "GPL-3.0-only", "group": "host-source-sc"},
+    {"id": "host-source-sc-tests-fixtures-exact_build_profile-fixture.synthetic.sha256", "source": "tests/fixtures/exact_build_profile/fixture.synthetic.sha256", "destination": "tests/fixtures/exact_build_profile/fixture.synthetic.sha256", "profiles": ["host-source-sc"], "origin": "project-authored", "license": "GPL-3.0-only", "group": "host-source-sc"},
+    {"id": "host-source-sc-tests-fixtures-exact_build_profile-profile.schema.json", "source": "tests/fixtures/exact_build_profile/profile.schema.json", "destination": "tests/fixtures/exact_build_profile/profile.schema.json", "profiles": ["host-source-sc"], "origin": "project-authored", "license": "GPL-3.0-only", "group": "host-source-sc"},
     {"id":"issue302.tests.issue302_asop_bounds.cpp","source":"tests/issue302_asop_bounds.cpp","destination":"tests/issue302_asop_bounds.cpp","profiles":["host-source-sc"],"origin":"project-authored","license":"GPL-3.0-only","group":"host-source-sc","public_header":false},
     {"id":"issue302.tests.issue302_fixtures_custom.py","source":"tests/issue302_fixtures_custom.py","destination":"tests/issue302_fixtures_custom.py","profiles":["host-source-sc"],"origin":"project-authored","license":"GPL-3.0-only","group":"host-source-sc","public_header":false},
     {"id":"issue302.tests.issue302_fixtures_offline.py","source":"tests/issue302_fixtures_offline.py","destination":"tests/issue302_fixtures_offline.py","profiles":["host-source-sc"],"origin":"project-authored","license":"GPL-3.0-only","group":"host-source-sc","public_header":false},
@@ -3718,6 +3732,17 @@
       "id": "tools.sco-plugin-check.c",
       "source": "sdk/tools/sco-plugin-check.c",
       "destination": "tools/sco-plugin-check.c",
+      "profiles": [
+        "core",
+        "core-source"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only"
+    },
+    {
+      "id": "tools.sco-plugin-verify.py",
+      "source": "sdk/tools/sco-plugin-verify.py",
+      "destination": "tools/sco-plugin-verify.py",
       "profiles": [
         "core",
         "core-source"

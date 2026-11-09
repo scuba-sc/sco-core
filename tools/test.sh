@@ -11,6 +11,13 @@ fi
 CXX=${CXX:-$(command -v clang++ || command -v g++)}
 CC=${CC:-$(command -v clang || command -v gcc)}
 
+# Pure, synthetic exact-build selector: no game files or native activation.
+"$CC" -std=c11 -Wall -Wextra -Werror -I "$ROOT/include" -c "$ROOT/src/net/sha2.c" -o "$OUT/profile_sha2.o"
+"$CXX" -std=c++20 -Wall -Wextra -Werror -I "$ROOT/include" \
+  "$ROOT/tests/test_exact_build_profile.cpp" "$ROOT/src/game/exact_build_profile.cpp" \
+  "$OUT/profile_sha2.o" -o "$OUT/test_exact_build_profile"
+"$OUT/test_exact_build_profile" "$ROOT/tests/fixtures/exact_build_profile/fixture.synthetic.canonical.json"
+
 # Critical resolver boundaries also run under sanitizers in this standalone path.
 # The complete issue302 matrix is registered by CMake/CTest.
 RESOLVER_FLAGS=(-std=c++20 -O1 -g -Wall -Wextra -Werror -fsanitize=address,undefined -fno-omit-frame-pointer -I "$ROOT/include")

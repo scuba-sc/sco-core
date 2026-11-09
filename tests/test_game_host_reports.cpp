@@ -75,6 +75,7 @@ HOST_REPORT_NOINLINE void operator delete[](void* p) noexcept { ::operator delet
 HOST_REPORT_NOINLINE void operator delete(void* p, std::size_t) noexcept { ::operator delete(p); }
 HOST_REPORT_NOINLINE void operator delete[](void* p, std::size_t) noexcept { ::operator delete(p); }
 static bool reenter = false;
+static bool requestDuringInspect = false;
 static bool admitted = true;
 static std::weak_ptr<const gh::HostCapsule> reentryCapsule;
 struct Backing {
@@ -88,6 +89,14 @@ static gh::Admission Inspect() {
     ++inspections;
     const auto report = gh::StatusDetailed();
     CHECK(report.sessionId == 1 && report.dependencies == D::ProcessRetained);
+    if (requestDuringInspect) {
+        requestDuringInspect = false;
+        // Prepare owns the control gate and startup transition. Closing must
+        // not recursively acquire that gate or wait for the current transition.
+        const auto requested = gh::RequestStopDetailed();
+        CHECK(requested.result == R::Ok && requested.sessionId == 1);
+        CHECK(requested.dependencies == D::ProcessRetained);
+    }
     if (reenter) {
         reenter = false;
         auto capsule = reentryCapsule.lock(); CHECK(capsule);
@@ -152,6 +161,14 @@ int main(int argc, char** argv) {
     static_assert(std::is_same_v<decltype(&gh::Start), R (*)()>);
     static_assert(std::is_same_v<decltype(&gh::Stop), R (*)()>);
     CHECK(gh::StatusDetailed().dependencies == D::NeverExposed);
+    if (mode == "request-stop-no-root") {
+        const auto refused = gh::RequestStopDetailed();
+        CHECK(refused.result == R::Unavailable && refused.sessionId == 0);
+        CHECK(refused.dependencies == D::NeverExposed);
+        CHECK(refused.drain == gh::DrainDisposition::NotAdopted);
+        // Continue through normal Prepare/Start below: no deferred stop request
+        // or legacy exposure latch may poison a later adopted capsule.
+    }
     auto backing = std::make_shared<Backing>();
     auto configuration = Configuration(backing);
     if (mode == "drain-timeout") configuration.drainTimeoutMs = 5;
@@ -167,6 +184,64 @@ int main(int argc, char** argv) {
     backing->image = {}; backing->version = "discarded builder version";
     CHECK(capsule->configuration().image->base == backing->bytes.data());
     CHECK(std::strcmp(capsule->configuration().platform.hostVersion, "owned mock host") == 0);
+    if (mode == "request-stop-prepare" || mode == "request-stop-running") {
+        requestDuringInspect = mode == "request-stop-prepare";
+        const auto prepared = gh::PrepareDetailed(capsule); Retained(prepared);
+        auto owner = backing->owner;
+        configuration = gh::Options{}; capsule.reset(); backing.reset();
+        CHECK(!weakCapsule.expired() && !weakBacking.expired() && destroyed == 0);
+        if (mode == "request-stop-prepare") {
+            CHECK(prepared.result != R::Ok && prepared.phase == gh::Phase::Failed);
+            CHECK(prepared.drain == gh::DrainDisposition::Retained);
+            CHECK(owner->closed() && !owner->ready());
+            CHECK(!owner->drain_until(std::chrono::steady_clock::now() + 1s));
+        } else {
+            CHECK(prepared.result == R::Ok);
+            const auto started = gh::StartDetailed(); Retained(started);
+            CHECK(started.result == R::Ok);
+            std::promise<void> workerEntered;
+            std::atomic<bool> tlsDestroyed{false};
+            struct Tail {
+                std::atomic<bool>* destroyed;
+                ~Tail() { destroyed->store(true); }
+            };
+            CHECK(owner->start_worker([&](const auto& stop) {
+                thread_local Tail tail{&tlsDestroyed}; (void)tail;
+                workerEntered.set_value();
+                while (!stop()) std::this_thread::yield();
+            }));
+            CHECK(workerEntered.get_future().wait_for(2s) == std::future_status::ready);
+            std::future<bool> drained;
+            {
+                auto frame = owner->try_read(); CHECK(frame);
+                const auto requested = gh::RequestStopDetailed(); Retained(requested);
+                CHECK(requested.result == R::Ok && requested.phase == gh::Phase::Running);
+                CHECK(requested.drain == gh::DrainDisposition::Requested);
+                CHECK(owner->closed() && !owner->ready() && !owner->try_read());
+                drained = std::async(std::launch::async, [&] {
+                    return owner->drain_until(std::chrono::steady_clock::now() + 2s);
+                });
+                CHECK(sco::OwnedShutdownTestAccess::wait_for_join_control(*owner, std::chrono::steady_clock::now() + 1s));
+                CHECK(owner->drain_state() == sco::OwnedShutdown::DrainState::InProgress);
+                CHECK(!owner->ready()); // this frame still has its full-use lease
+                CHECK(gh::StatusDetailed().drain == gh::DrainDisposition::InProgress);
+            }
+            CHECK(drained.get() && owner->ready() && tlsDestroyed.load());
+            CHECK(gh::StatusDetailed().drain == gh::DrainDisposition::Drained);
+            CHECK(sco::OwnedShutdownTestAccess::handles_reaped(*owner));
+            const auto repeated = gh::RequestStopDetailed(); Retained(repeated);
+            CHECK(repeated.result == R::Ok && owner->ready());
+            const auto stopped = gh::StopDetailed(); Retained(stopped);
+            CHECK(stopped.result == R::Failed && stopped.drain == gh::DrainDisposition::Drained);
+            CHECK(stopped.dependencies == D::ProcessRetained);
+        }
+        Retained(gh::StatusDetailed());
+        CHECK(!weakCapsule.expired() && !weakBacking.expired() && destroyed == 0);
+        CHECK(gh::PrepareDetailed(weakCapsule.lock()).result == R::BadArg);
+        CHECK(gh::StartDetailed().result != R::Ok);
+        std::puts("stop request: rooted admission closure, separate drain, retained dependencies");
+        return 0;
+    }
     if (mode == "status-overlap") {
         gh::HostReport prepared, delayed;
         std::thread preparing([&] {

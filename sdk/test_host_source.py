@@ -25,6 +25,25 @@ ADAPTER_FILES = {"include/sco/game/host.h", "src/game/host.cpp",
                  "src/game/host_testing.h", "tests/game_host_data.cpp",
                  "tests/game_host.cpp", "docs/game/host.md"}
 
+# These private synthetic evidence inputs are deliberately excluded from every SDK archive.
+# List exact files so a new neighboring fixture remains subject to the ordinary census.
+PRIVATE_EVIDENCE_FIXTURES = {
+    "tests/fixtures/synthetic_native_evidence/README.md",
+    "tests/fixtures/synthetic_native_evidence/fixture.json",
+    "tests/fixtures/synthetic_native_evidence/generated-fixture.json",
+    "tests/fixtures/synthetic_native_evidence/index.json",
+    "tests/fixtures/synthetic_native_evidence/profile-fixture.canonical.json",
+}
+
+
+def required_source_dependencies(tracked):
+    required = {p for p in tracked if p.startswith(("src/", "include/", "tests/",
+                "third_party/tomlplusplus/", "docs/game/"))}
+    required.difference_update(PRIVATE_EVIDENCE_FIXTURES)
+    required.update(("plugins/lua/sco_lua_game.c", "plugins/lua/sco_lua_game.h",
+                     "tools/sco-dcb.cpp", "tools/sco-sigcheck.cpp"))
+    return required
+
 
 class HostSourceArchive(unittest.TestCase):
     def test_supplied_archive_requires_host_inventory(self):
@@ -50,6 +69,16 @@ class HostSourceArchive(unittest.TestCase):
         self.assertIn("missing real adapter files", result.stdout + result.stderr)
         self.assertEqual(before, (HERE / "components.json").read_bytes())
 
+    def test_private_evidence_census_exemption_is_narrow(self):
+        tracked = set(pkg.tracked_files(pkg.ROOT))
+        self.assertTrue(PRIVATE_EVIDENCE_FIXTURES <= tracked)
+        sources = {c["source"] for c in pkg.select(pkg.load_manifest(), "host-source-sc")}
+        self.assertFalse(PRIVATE_EVIDENCE_FIXTURES & sources)
+        neighbor = "tests/fixtures/synthetic_native_evidence/unlisted-new-fixture.json"
+        required = required_source_dependencies(tracked | {neighbor})
+        self.assertFalse(PRIVATE_EVIDENCE_FIXTURES & required)
+        self.assertIn(neighbor, required - sources)
+
     def test_standalone_game_source_archive(self):
         m = pkg.load_manifest()
         self.assertIn("host-source-sc", m["profiles"], "G16 host source profile is missing")
@@ -61,10 +90,11 @@ class HostSourceArchive(unittest.TestCase):
         sources = {c["source"] for c in chosen}
         neutral = {c["source"] for c in pkg.select(m, "core-source")}
         tracked = set(pkg.tracked_files(pkg.ROOT))
-        required = {p for p in tracked if p.startswith(("src/", "include/", "tests/",
-                    "third_party/tomlplusplus/", "docs/game/"))}
-        required.update(("plugins/lua/sco_lua_game.c", "plugins/lua/sco_lua_game.h",
-                         "tools/sco-dcb.cpp", "tools/sco-sigcheck.cpp"))
+        self.assertTrue(PRIVATE_EVIDENCE_FIXTURES <= tracked)
+        self.assertFalse(PRIVATE_EVIDENCE_FIXTURES & sources)
+        required = required_source_dependencies(tracked)
+        neighbor = "tests/fixtures/synthetic_native_evidence/unlisted-new-fixture.json"
+        self.assertIn(neighbor, required_source_dependencies(tracked | {neighbor}) - sources)
         self.assertFalse(required - sources, f"missing tracked source dependencies: {sorted(required - sources)}")
         self.assertTrue(neutral <= sources)
         self.assertTrue(all(pkg.destination(m, "host-source-sc", c) == c["source"] for c in chosen))
@@ -86,6 +116,7 @@ class HostSourceArchive(unittest.TestCase):
                 archive = pkg.build(m, "host-source-sc", str(Path(tmp, "dist")))
             with zipfile.ZipFile(archive) as z:
                 files = {n.split("/", 1)[1]: z.read(n) for n in z.namelist()}
+                self.assertFalse(PRIVATE_EVIDENCE_FIXTURES & files.keys())
                 self.assertEqual(set(files), sources | pkg.generated_metadata_names(m, "host-source-sc"))
                 self.assertEqual(json.loads(files["sdk-catalogue.json"])["source_sha"], pkg.source_commit())
                 self.assertEqual(json.loads(files["sdk-guides.json"])["source_sha"], pkg.source_commit())

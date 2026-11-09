@@ -26,10 +26,11 @@ build your own catalogue, go to
 [Maintainers: source checkout](#maintainers-source-checkout-and-your-own-catalogue).
 
 You need Python 3.9 or newer (check with `py -3 --version` on Windows or
-`python3 --version` on macOS and Linux) and an MCP client that supports stdio and
-protocol `2025-11-25`, the only version the server speaks; a client that cannot accept
-it disconnects when it initializes. The kit needs no compiler, Clang, network service
-or credentials.
+`python3 --version` on macOS and Linux) and an MCP client that supports stdio. The
+published SDK 2.4.0 kit speaks legacy protocol `2025-11-25`; a client must accept
+that version and complete its initialize handshake. A current source build also
+supports `2026-07-28` and advertises both versions through `server/discover`. The
+kit needs no compiler, Clang, network service or credentials.
 
 **Immutable archive guide snapshots.** The stable 2.4.0 and historical RC2 kits
 contain bundled guides (`sdk-guides.json`, served by `search_guides` and
@@ -573,7 +574,7 @@ Common failures:
 | A usage block that ends with `server.py: error: unrecognized arguments: ...`, `server.py: error: --catalogue or SCO_CORE_CATALOGUE is required` or `server.py: error: argument --repo-root: expected one argument`, exit code 2 | An argument is malformed: a flag and its value were joined in one `args` element (`"--catalogue C:/..."`), `--catalogue` is missing, or a flag has no value. Make every flag and every value its own element, in the order under [Register the server in your client](#register-the-server-in-your-client). |
 | `Unknown tool` (JSON-RPC `-32602`), or only six tools | Check whether `--minimal-tools` or the client allowlist restricts discovery, and whether this is an older published kit. Stable SDK 2.4.0 defaults to fifteen; historical RC2 has fourteen, and RC1 needs `--extended-tools` for its twelve supported names and has no workflow tools. |
 | The server does not start on Windows, or the Microsoft Store opens | `python3` is not a standard Windows command. Use `py` with `-3`, or an absolute `python.exe` (`py -3 -c "import sys; print(sys.executable)"` prints its path). |
-| The client disconnects while initializing | The client does not support protocol `2025-11-25`. Update the client. |
+| The client disconnects while initializing | The published SDK 2.4.0 server only supports legacy protocol `2025-11-25`. Use a client that supports it, or build the current source server, which also supports `2026-07-28`. |
 | `check_compatibility` says a `tag` does not match the advertised pattern | The current historical-record lookup accepts `sdk-vMAJOR.MINOR.PATCH` only, so RC1 and RC2 suffixes are refused. Compare `sdk_version`, `game_pack_version` and `source_sha`, and verify the archive digest separately; these checks do not prove publication. |
 | `search_guides` text says RC2 is latest or stable 2.4.0 is unpublished | The immutable stable and RC2 kits contain prepublication guide snapshots. This source guide corrects that text; the [stable release page](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0) and its checksums establish current publication status. |
 

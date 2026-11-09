@@ -199,10 +199,13 @@ A kit already contains its catalogue; build one yourself only from a source chec
    [checkout form in the integration guide](../../docs/agent-integration.md#maintainers-source-checkout-and-your-own-catalogue).
 
 The process reads MCP messages on stdin and writes protocol responses on stdout;
-it is not an interactive shell. Use a client that supports stdio MCP. The only
-supported protocol version is **2025-11-25**. Initialization may offer that version
-as a fallback when a client requests another version; the client must accept it or
-disconnect. This is not support for older protocol semantics.
+it is not an interactive shell. Use a client that supports stdio MCP. The current
+source supports **2026-07-28** and legacy **2025-11-25**. Modern clients can begin
+with `server/discover`, then include `io.modelcontextprotocol/protocolVersion` and
+`io.modelcontextprotocol/clientCapabilities` in each request's `_meta`; they do not
+send `initialize`. Legacy clients keep the `initialize` and
+`notifications/initialized` handshake. Published SDK 2.4.0 archives retain their
+original 2025-only server.
 
 `--catalogue` is required unless `SCO_CORE_CATALOGUE` supplies its path. Client
 configurations pass it explicitly to avoid dependence on inherited
@@ -770,7 +773,7 @@ tools. Consult the linked GitHub documentation for current UI and runner behavio
 | `can't open file '.../server.py'`, exit code 2 | Python could not find the launcher, so the path to `server.py` is wrong. Use the SDK folder, the one that directly contains `sdk-catalogue.json`, not the extract folder above it; check it with [Find the SDK folder](../../docs/agent-integration.md#find-the-sdk-folder), and quote a path that contains a space when you type it in a shell. |
 | `catalogue refused: FileNotFoundError`, exit code 1 | `server.py` started, but the `--catalogue` file does not exist. In a kit it is `SDK/sdk-catalogue.json` and there is no `dist/` folder; in a checkout, build `dist/sdk-catalogue.json` first. For other refusals check absolute paths, UTF-8, schema and source/version coordinates. |
 | Process waits without a prompt | Expected: it reads newline-delimited MCP JSON-RPC on stdin, not shell commands. Keep stdout protocol-only and inspect client logs. |
-| Initialization fails | Negotiate `2025-11-25`, then send `notifications/initialized` before tool calls. |
+| Protocol negotiation fails | The current source advertises `2026-07-28` and `2025-11-25` through `server/discover`. For legacy 2025 clients, negotiate that version and send `notifications/initialized` before tool calls; published SDK 2.4.0 archives support only that legacy version. |
 | Developer/workflow tool is unknown | Remove `--minimal-tools` and grant the fifteen exact stable SDK 2.4.0 names in the client. Historical RC2 has fourteen; RC1 needs `--extended-tools` for twelve tools and has no workflow tools. |
 | Development tool is unknown or refused | Configure an operator `--project-root`; current source offers execution tools automatically. Pass a folder inside that root; `unavailable` names the missing program or SDK folder. |
 | Scaffold/native metadata unavailable | `--repo-root` must be the SDK folder, not its parent folder: the server starts either way. Check trusted root, kit composition, file layout and containment. Unavailable is not an empty successful inventory. |
