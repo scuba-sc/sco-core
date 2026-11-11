@@ -4,6 +4,8 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+- Clarify that the first-plugin checker invokes commands synthetically and that product command routing and native startup require separate verification.
+
 - Direct the first-plugin quickstart to the published stable SDK 2.4.0 archive and its checksum; retain the RC1 example as history.
 
 - Preserve the exact native-index download bytes when generating the documentation site on Windows and Unix.
