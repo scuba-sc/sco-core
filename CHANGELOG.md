@@ -4,6 +4,10 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+- Retain every foreign-released read lease's origin for self-maintenance
+  refusal, including when nested reads or other origins later release. This
+  does not establish native lifetime safety or authorize native activation.
+
 - Fail closed if a host transition is destroyed on a different thread, retaining
   the original thread's maintenance refusal and all backing. This does not
   establish native lifetime safety or authorize native activation.

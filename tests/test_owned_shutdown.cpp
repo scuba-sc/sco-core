@@ -9,6 +9,7 @@
 #define CHECK(expr) do { if (!(expr)) { std::fprintf(stderr, "CHECK failed: %s:%d: %s\n", __FILE__, __LINE__, #expr); std::abort(); } } while (0)
 #include <chrono>
 #include <future>
+#include <optional>
 #include <stdexcept>
 using namespace std::chrono_literals;
 
@@ -195,7 +196,84 @@ static void TestStopRequest() {
     }
 }
 
+static void TestAbandonedReaders() {
+    using Reap = sco::OwnedShutdown::ReapResult;
+    {
+        sco::OwnedShutdown owner;
+        auto read = owner.try_read(); CHECK(read);
+        const auto deadline = std::chrono::steady_clock::now() + 5s;
+        auto draining = std::async(std::launch::async, [&] { return owner.drain_until(deadline); });
+        CHECK(owner.wait_until_closed(std::chrono::steady_clock::now() + 1s));
+        CHECK(draining.wait_for(0ms) == std::future_status::timeout);
+        std::thread foreign([lease = std::move(read)] { (void)lease; });
+        foreign.join();
+        CHECK(draining.wait_for(1s) == std::future_status::ready);
+        CHECK(std::chrono::steady_clock::now() < deadline && !draining.get());
+        CHECK(owner.closed() && !owner.ready());
+        CHECK(owner.reap_retained_until(std::chrono::steady_clock::now() + 1s) == Reap::Refused);
+        auto other = std::async(std::launch::async, [&] {
+            return owner.reap_retained_until(std::chrono::steady_clock::now() + 1s);
+        });
+        CHECK(other.get() == Reap::ReapedRetained && !owner.ready());
+    }
+    {
+        // Keep both origin threads alive and acquire every lease before the
+        // first foreign release closes admission. Each has a second active
+        // lease: releasing it must not erase the abandoned origin record.
+        sco::OwnedShutdown owner;
+        auto first = owner.try_read(); CHECK(first);
+        std::optional<sco::OwnedShutdown::Read> nested;
+        nested.emplace(owner.try_read()); CHECK(*nested);
+        std::promise<std::unique_ptr<sco::OwnedShutdown::Read>> otherLease;
+        auto otherLeaseFuture = otherLease.get_future();
+        std::promise<void> releaseNested, nestedReleased, testOrigin, finishOrigin;
+        std::promise<Reap> originResult;
+        auto nestedReleasedFuture = nestedReleased.get_future();
+        auto originResultFuture = originResult.get_future();
+        std::thread otherOrigin([&] {
+            auto firstOther = owner.try_read(); CHECK(firstOther);
+            std::optional<sco::OwnedShutdown::Read> otherNested;
+            otherNested.emplace(owner.try_read()); CHECK(*otherNested);
+            otherLease.set_value(std::make_unique<sco::OwnedShutdown::Read>(std::move(firstOther)));
+            releaseNested.get_future().wait();
+            otherNested.reset();
+            nestedReleased.set_value();
+            testOrigin.get_future().wait();
+            originResult.set_value(owner.reap_retained_until(std::chrono::steady_clock::now() + 1s));
+            finishOrigin.get_future().wait();
+        });
+        CHECK(otherLeaseFuture.wait_for(1s) == std::future_status::ready);
+        auto otherRead = otherLeaseFuture.get();
+        std::thread foreign([one = std::move(first), two = std::move(otherRead)] { (void)one; (void)two; });
+        foreign.join();
+        nested.reset();
+        releaseNested.set_value();
+        CHECK(nestedReleasedFuture.wait_for(1s) == std::future_status::ready);
+        auto draining = std::async(std::launch::async, [&] {
+            return owner.drain_until(std::chrono::steady_clock::now() + 2s);
+        });
+        CHECK(draining.wait_for(1s) == std::future_status::ready && !draining.get());
+        CHECK(!owner.ready());
+        CHECK(owner.reap_retained_until(std::chrono::steady_clock::now() + 1s) == Reap::Refused);
+        testOrigin.set_value();
+        CHECK(originResultFuture.wait_for(1s) == std::future_status::ready);
+        CHECK(originResultFuture.get() == Reap::Refused);
+        auto control = std::async(std::launch::async, [&] {
+            return owner.reap_retained_until(std::chrono::steady_clock::now() + 1s);
+        });
+        CHECK(control.get() == Reap::ReapedRetained && !owner.ready());
+        finishOrigin.set_value();
+        otherOrigin.join();
+    }
+    {
+        sco::OwnedShutdown owner;
+        { auto first = owner.try_read(); auto moved = std::move(first); CHECK(!first && moved); }
+        CHECK(owner.drain_until(std::chrono::steady_clock::now() + 1s) && owner.ready());
+    }
+}
+
 int main() {
+    TestAbandonedReaders();
     TestStopRequest();
     using Reap = sco::OwnedShutdown::ReapResult;
     {
