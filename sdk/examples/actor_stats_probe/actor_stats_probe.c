@@ -20,7 +20,7 @@
  *   actor_stats_probe.modes                      log what the game would do with a write, per stat
  * stat names: hunger thirst body_temp suit_temp stun distortion oxygen body_rad suit_rad
  *
- * Nothing here has been run in game. License: GPL-3.0 (built against sco_api.h).
+ * Nothing here has been run in game. This example is GPL-3.0-only; see LICENSE in the SDK.
  */
 #include <math.h>
 #include <stddef.h>
