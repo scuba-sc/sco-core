@@ -4,6 +4,8 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+- Correct the plugin guide's host-specific enablement defaults and disabled discovery logging.
+
 - Clarify kit identity for development archives and the prepublication README wording retained in the immutable stable SDK 2.4.0 archive.
 
 - Preserve Git executable modes in SDK archives across platforms and verify development ZIP modes against the source index.

@@ -69,9 +69,16 @@ Each line is `name = type [default V] [min N] [max N] [label "text"] [help "text
 
 ## What the host does with it
 
+External plugin enablement depends on the host and how it is started. The
+sc-offline launcher defaults to `plugins = on`; a direct injection without the
+launcher can use a different default. With `plugins = off`, external plugin
+discovery is skipped. If startup reaches its report, the summary says
+`plugins = off` and need not contain a row for each external plugin. Built-ins
+are separate. The setting alone does not guarantee startup or plugin
+availability in a particular host build.
+
 | Situation | State in `mod.log` |
 |---|---|
-| `plugins = off` in `sc-offline.ini` (the default) | `off` |
 | The folder holds a file named `disabled` | `disabled` |
 | A rule above is broken, the id clashes, `api` doesn't fit or the entry file is missing | `refused: <reason>` |
 | A name in `requires` with no dot (a capability or a plugin id) is missing | `refused: missing capability '<name>'` |
