@@ -2,7 +2,7 @@
 name: sco-debug-plugin
 description: "Diagnose an SCO extension that fails manifest validation, loading, service lookup, widget checks, command execution or unload. Use for SDK consumer failures and minimal public reproductions."
 metadata:
-  version: "0.2.8"
+  version: "0.2.9"
 ---
 
 # Debug an SCO extension

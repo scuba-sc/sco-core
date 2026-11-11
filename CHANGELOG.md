@@ -8,6 +8,7 @@ What each change means for plugin authors and for products built on sco-core (sc
 - Harden SDK packaging checks for Linux header links.
 - Preserve the C# build environment on Windows during SDK archive checks.
 - Clarify existing synthetic SDK test assertions and mock imports.
+- Add experimental Rust ABI bindings and a sample plugin with offline build and checker coverage.
 
 - Add a bounded, no-extraction plugin archive verifier and non-loading folder preflight. These checks do not establish plugin trust or runtime compatibility.
 - Support legacy initialized and modern metadata-based MCP stdio clients, preserving legacy request metadata and source-bound SDK workflow discovery.

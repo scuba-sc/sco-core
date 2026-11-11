@@ -360,6 +360,31 @@ else
   echo "C#: skipped (SCO_SDK_CSHARP=1 runs it)"
 fi
 
+# Optional experimental Rust ABI tests and native example, built solely from the extracted kit.
+if [ "${SCO_SDK_RUST:-0}" = 1 ]; then
+  export CARGO_TARGET_DIR="$WORK/rust-target"
+  cargo test --offline --locked --manifest-path "$ROOT/rust/sco-sdk/Cargo.toml"
+  cargo test --offline --locked --manifest-path "$ROOT/examples/rust_hello/Cargo.toml"
+  cargo build --offline --locked --release --manifest-path "$ROOT/examples/rust_hello/Cargo.toml"
+  case "$(uname -s)" in
+    MINGW*|MSYS*|CYGWIN*) RUST_LIB=rust_hello.dll ;;
+    Darwin*) RUST_LIB=librust_hello.dylib ;;
+    *) RUST_LIB=librust_hello.so ;;
+  esac
+  mkdir -p "$WORK/rust/rust_hello"
+  cp "$CARGO_TARGET_DIR/release/$RUST_LIB" "$WORK/rust/rust_hello/rust_hello.dll"
+  cp "$ROOT/examples/rust_hello/plugin.ini" "$WORK/rust/rust_hello/"
+  for mode in normal short; do
+    args=(--invoke rust_hello.ping)
+    [ "$mode" = normal ] || args=(--short-tables "${args[@]}")
+    "$CHECK" "$WORK/rust/rust_hello" "${args[@]}" | tee "$WORK/rust-$mode.txt"
+    grep -q 'invoke  rust_hello.ping -> ok "pong"' "$WORK/rust-$mode.txt"
+  done
+  echo "Rust: experimental rust_hello checked"
+else
+  echo "Rust: skipped (SCO_SDK_RUST=1 runs it)"
+fi
+
 # sco-plugin-check reads plugin.ini with the host's rules (src/plugins/manifest.cpp): it refuses
 # what the game refuses and accepts what the game accepts.
 CASES="$WORK/cases"

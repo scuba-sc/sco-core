@@ -9680,6 +9680,16 @@
       "origin": "project-authored",
       "license": "GPL-3.0-only",
       "public_header": false
-    }
+    },
+    {"id": "rust-rust-README-md", "source": "sdk/rust/README.md", "destination": "rust/README.md", "profiles": ["core"], "origin": "project-authored", "license": "GPL-3.0-only"},
+    {"id": "rust-rust-sco-sdk--gitignore", "source": "sdk/rust/sco-sdk/.gitignore", "destination": "rust/sco-sdk/.gitignore", "profiles": ["core"], "origin": "project-authored", "license": "GPL-3.0-only"},
+    {"id": "rust-rust-sco-sdk-Cargo-toml", "source": "sdk/rust/sco-sdk/Cargo.toml", "destination": "rust/sco-sdk/Cargo.toml", "profiles": ["core"], "origin": "project-authored", "license": "GPL-3.0-only"},
+    {"id": "rust-rust-sco-sdk-Cargo-lock", "source": "sdk/rust/sco-sdk/Cargo.lock", "destination": "rust/sco-sdk/Cargo.lock", "profiles": ["core"], "origin": "project-authored", "license": "GPL-3.0-only"},
+    {"id": "rust-rust-sco-sdk-src-lib-rs", "source": "sdk/rust/sco-sdk/src/lib.rs", "destination": "rust/sco-sdk/src/lib.rs", "profiles": ["core"], "origin": "project-authored", "license": "GPL-3.0-only"},
+    {"id": "rust-examples-rust_hello--gitignore", "source": "sdk/examples/rust_hello/.gitignore", "destination": "examples/rust_hello/.gitignore", "profiles": ["core"], "origin": "project-authored", "license": "GPL-3.0-only"},
+    {"id": "rust-examples-rust_hello-Cargo-toml", "source": "sdk/examples/rust_hello/Cargo.toml", "destination": "examples/rust_hello/Cargo.toml", "profiles": ["core"], "origin": "project-authored", "license": "GPL-3.0-only"},
+    {"id": "rust-examples-rust_hello-Cargo-lock", "source": "sdk/examples/rust_hello/Cargo.lock", "destination": "examples/rust_hello/Cargo.lock", "profiles": ["core"], "origin": "project-authored", "license": "GPL-3.0-only"},
+    {"id": "rust-examples-rust_hello-plugin-ini", "source": "sdk/examples/rust_hello/plugin.ini", "destination": "examples/rust_hello/plugin.ini", "profiles": ["core"], "origin": "project-authored", "license": "GPL-3.0-only"},
+    {"id": "rust-examples-rust_hello-src-lib-rs", "source": "sdk/examples/rust_hello/src/lib.rs", "destination": "examples/rust_hello/src/lib.rs", "profiles": ["core"], "origin": "project-authored", "license": "GPL-3.0-only"}
   ]
 }
