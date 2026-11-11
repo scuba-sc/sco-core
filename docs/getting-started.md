@@ -8,8 +8,9 @@ Stable SDK **2.4.0** uses Star Citizen game pack **0.8.0** and plugin ABI **1.1*
 was published on 2026-11-01 from source commit
 `6106fa3639cbcc28f78a1ded8de2707de019f4d3`; its five archive identities are in the
 [release notes](releases/sdk-v2.4.0.md#stable-archive-identity). Later `main` commits
-do not change the published archive bytes. RC1 and RC2 examples/checksums below are
-historical and apply only to those archives. Verify the selected archive against that
+do not change the published archive bytes. The RC1 examples/checksums below are
+historical and apply only to that archive; the release notes retain RC2 details.
+Verify the selected archive against that
 release's `SHA256SUMS` and check the kit and host identities separately. Nothing new
 in 2.4.0 has been run in game.
 
@@ -39,6 +40,14 @@ line) and `lua` (`plugin.ini` and `main.lua`; Lua has no service lookup, so
 language's folder holds and how to check it. A generated plugin that passes the
 checkers has not been run in game.
 
+### Stable SDK 2.4.0 assets
+
+Choose a profile from the [stable archive identities](releases/sdk-v2.4.0.md#stable-archive-identity).
+This walkthrough uses `sco-sdk-core-2.4.0.zip`; use the combined
+`sco-sdk-2.4.0.zip` if you need game services or the MCP catalogue. The stable
+release and its release candidates have different checksums even where asset
+names match.
+
 <a id="sdk-240-release-candidate-1-assets"></a>
 
 ### Historical SDK 2.4.0 release candidate 1 assets
@@ -49,7 +58,7 @@ repeats that release's `SHA256SUMS`.
 
 | Archive | Choose it when | SHA-256 |
 | --- | --- | --- |
-| `sco-sdk-core-2.4.0.zip` | You need the neutral ABI, host services, native template and generic examples. Used below. | `68ca5ef213fe9be162b974dcb798a6da2402583daf369e26b26634b23d869f7d` |
+| `sco-sdk-core-2.4.0.zip` | You need the neutral ABI, host services, native template and generic examples. | `68ca5ef213fe9be162b974dcb798a6da2402583daf369e26b26634b23d869f7d` |
 | `sco-sdk-2.4.0.zip` | You also need Star Citizen service headers, DataCore, or game data-pack examples. Simplest game-specific choice: combined core + game extension; it also bundles the MCP discovery catalogue. | `124751534277b89f0516af1897919c3485923811596e159a1f683bb80b1c243b` |
 | `sco-sdk-game-sc-0.8.0.zip` | Optional extension over its **exact matching** core archive (`sco-sdk-core-2.4.0.zip`), not a standalone SDK. Check `COMPATIBILITY.json.game-sc` and the required base digest before composing; equal version strings are insufficient. See [archive composition](../sdk/README.md#zips). | `fafd2d2d4d86cf479c25a4623e94c7004b45e527e94dceb8354293c6a6b5a8f9` |
 | `sco-sdk-core-source-2.4.0.zip` | You are embedding/building the host kernel, not following the plugin template path. See [source-kit instructions](../sdk/README.md#build-the-kernel-source-kit). Do not overlay it with a plugin SDK. | `f2f7c35591ed96090240466910e3db408953a9a4f6e0a16a36da83bc2a34ee62` |
@@ -84,24 +93,25 @@ the core archive, which has no catalogue, guides or server, and follow
 
 ## 3. Download, verify, extract
 
-Use an empty working directory. The verify, extract, build and check commands
-in sections 3 to 5, including the `gh release download` line, were executed on
-2026-10-21 on Windows x64 (Git Bash, Python 3, CMake, Visual Studio 2022)
-against the release candidate 1 core archive and its release `SHA256SUMS`.
-Earlier revisions of this page ran the same steps on macOS. On Windows, use a
-shell that supports these shell blocks (Git Bash works), or perform the
-download/extraction in the browser and use the linked Windows CMake recipe.
+Use an empty working directory. The stable download, verification, extraction,
+build and checker commands in sections 3 to 5 were executed on 2026-11-11 on
+Windows x64 (Git Bash, Python 3, CMake, Visual Studio 2022) against the published
+stable core archive and its release `SHA256SUMS`. The historical RC1 path was
+previously run on Windows on 2026-10-21; earlier revisions ran on macOS. On
+Windows, use a shell that supports these shell blocks (Git Bash works), or
+perform the download/extraction in the browser and use the linked Windows CMake
+recipe.
 
-### Download the published SDK 2.4.0 release candidate 2
+### Download the published stable SDK 2.4.0
 
 Run the following in an empty directory. The release API records
 `sco-sdk-core-2.4.0.zip` with SHA-256
-`052189fde7d3f1f7720e634a1480e6a8b86638b8f61607b45025ac317d0186ea`;
+`d2a8313ec5e3a7ae9ff95c253841b40e75454bec9799dccba5cbab9346432a7b`;
 the script compares that value with the checksum file from the same release.
 
 ```sh
-EXPECTED_SHA256=052189fde7d3f1f7720e634a1480e6a8b86638b8f61607b45025ac317d0186ea
-env -u GITHUB_TOKEN -u GH_TOKEN gh release download sdk-v2.4.0-rc.2 -R scuba-sc/sco-core -p 'sco-sdk-core-2.4.0.zip' -p SHA256SUMS
+EXPECTED_SHA256=d2a8313ec5e3a7ae9ff95c253841b40e75454bec9799dccba5cbab9346432a7b
+env -u GITHUB_TOKEN -u GH_TOKEN gh release download sdk-v2.4.0 -R scuba-sc/sco-core -p 'sco-sdk-core-2.4.0.zip' -p SHA256SUMS
 python3 - "$EXPECTED_SHA256" <<'PY'
 import hashlib
 import sys
@@ -119,9 +129,17 @@ print(archive.name + ": SHA256 OK")
 PY
 ```
 
+Expected: `sco-sdk-core-2.4.0.zip: SHA256 OK` for the stable digest above.
+In a browser, download both files from the [stable release](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0).
+The release-level `SHA256SUMS` checks archive bytes; the similarly named file
+**inside** the SDK covers extracted files. A checksum downloaded alongside an
+archive is an integrity check, not independent signer authentication. The
+[release checklist](legal/release-checklist.md) describes the release verification
+process. Only extract archives from the trusted project release.
+
 ### Historical RC1 download
 
-The following example and digest apply only to RC1. Choose this instead of the RC2
+The following example and digest apply only to RC1. Choose this instead of the stable
 block above when intentionally reproducing the historical RC1 path.
 
 ```sh
@@ -148,12 +166,7 @@ Expected: `sco-sdk-core-2.4.0.zip: SHA256 OK`, for the digest
 `68ca5ef213fe9be162b974dcb798a6da2402583daf369e26b26634b23d869f7d` listed above.
 In a browser, download both files from
 `https://github.com/scuba-sc/sco-core/releases/download/sdk-v2.4.0-rc.1/`
-(`SHA256SUMS` and `sco-sdk-core-2.4.0.zip`). The release-level `SHA256SUMS`
-checks archive bytes; the similarly named file **inside** the SDK covers
-extracted files. A checksum downloaded alongside an archive is an integrity
-check, not independent signer authentication. The release verification process is described in
-the [release checklist](legal/release-checklist.md).
-Only extract archives from the trusted project release.
+(`SHA256SUMS` and `sco-sdk-core-2.4.0.zip`).
 
 ## 4. Build the checker, copy and rename the template
 
