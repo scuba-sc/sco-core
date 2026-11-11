@@ -525,8 +525,8 @@ def hub_cards(groups):
 
 def native_index(root):
     """sdk/native_index.json, validated: symbolic names and readiness only, never patterns or addresses."""
-    text = (root / NATIVE_INDEX).read_text(encoding='utf-8')
-    data = json.loads(text)
+    raw = (root / NATIVE_INDEX).read_bytes()
+    data = json.loads(raw.decode('utf-8'))
     entries = data.get('entries') if isinstance(data, dict) else None
     tiers = data.get('tiers') if isinstance(data, dict) else None
     if (data.get('schema_version') != 1 or not isinstance(entries, list) or not entries
@@ -550,7 +550,7 @@ def native_index(root):
             raise ValueError('Duplicate native index hash or id: ' + entry['id'])
         hashes.add(entry['hash'])
         ids.add(entry['id'])
-    return data, text
+    return data, raw
 
 
 def tier_name(tiers, tier):
@@ -853,7 +853,7 @@ def generate(root, catalogue, output, release_tag=None):
     docs = inputs(root)
     hub_docs(docs)
     doc_routes = {name: guide_id(name) for name in docs}
-    natives, natives_text = native_index(root)
+    natives, natives_bytes = native_index(root)
     records = sorted(catalogue['records'], key=lambda item: item['id'])
     ids = [r['id'] for r in records]
     if not records or len(ids) != len(set(ids)) or any(not re.fullmatch(r'[a-z0-9-]+', id_) for id_ in ids):
@@ -953,7 +953,7 @@ def generate(root, catalogue, output, release_tag=None):
         release_metadata_path.unlink(missing_ok=True)
     (public / 'sdk-catalogue.json').write_text(json.dumps(catalogue, sort_keys=True, indent=2, ensure_ascii=False) + '\n', encoding='utf-8')
     # The validated index, byte for byte: the page and the download state the same rows.
-    (public / NATIVE_DOWNLOAD).write_text(natives_text, encoding='utf-8')
+    (public / NATIVE_DOWNLOAD).write_bytes(natives_bytes)
     return len(records), len(services), len(pages)
 
 

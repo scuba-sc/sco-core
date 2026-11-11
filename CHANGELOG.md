@@ -4,6 +4,12 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+- Correct the plugin guide's host-specific enablement defaults and disabled discovery logging.
+
+- Direct the first-plugin quickstart to the published stable SDK 2.4.0 archive and its checksum; retain the RC1 example as history.
+
+- Preserve the exact native-index download bytes when generating the documentation site on Windows and Unix.
+
 - Keep the content-name fixture shallow and report file-write failures directly; very long Windows build roots still require a shorter test root.
 
 - Retain every foreign-released read lease's origin for self-maintenance
