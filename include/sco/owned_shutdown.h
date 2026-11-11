@@ -29,6 +29,12 @@ class OwnedShutdown {
         bool finished = false, starting = true;
         std::thread::id starter;
     };
+    // Reserved at admission so foreign release can retain its origin without
+    // allocating while the destructor holds the owner mutex.
+    struct ReaderEntry {
+        std::thread::id thread;
+        bool abandoned = false;
+    };
     // Serialize joins even while the owner mutex is released for waits/join.
     // Declare before each operation's unique_lock so that lock is destroyed
     // before this guard reacquires it to release the control slot.
@@ -122,6 +128,9 @@ public:
     };
     // A read lease stays on the acquiring thread through destruction. Moving
     // it to another thread invalidates the domain and forces retained failure.
+    // An abandoned origin remains ineligible for retained maintenance, even
+    // after other same-thread reads finish. Thread-id reuse may conservatively
+    // refuse maintenance on an unrelated later thread.
     class Read {
     public:
         Read() = default;
@@ -131,14 +140,19 @@ public:
         ~Read() {
             if (!owner_) return;
             std::lock_guard<std::mutex> lock(owner_->mutex_);
-            if (thread_ != std::this_thread::get_id()) {
+            const bool foreign = thread_ != std::this_thread::get_id();
+            if (foreign) {
                 // Reads are thread-bound; transfer makes the proof invalid.
                 owner_->faulted_ = owner_->closed_ = true;
                 owner_->ready_ = false;
                 owner_->stop_.store(true);
             }
-            const auto it = std::find(owner_->readerThreads_.begin(), owner_->readerThreads_.end(), thread_);
-            if (it != owner_->readerThreads_.end()) owner_->readerThreads_.erase(it);
+            const auto it = std::find_if(owner_->readerThreads_.begin(), owner_->readerThreads_.end(),
+                [this](const ReaderEntry& entry) { return !entry.abandoned && entry.thread == thread_; });
+            if (it != owner_->readerThreads_.end()) {
+                if (foreign) it->abandoned = true;
+                else owner_->readerThreads_.erase(it);
+            }
             --owner_->readers_;
             owner_->cv_.notify_all();
         }
@@ -167,7 +181,7 @@ public:
     Read try_read() {
         std::lock_guard<std::mutex> lock(mutex_);
         if (closed_ || startup_ || transitioning_) return {};
-        try { readerThreads_.push_back(std::this_thread::get_id()); } catch (...) { return {}; }
+        try { readerThreads_.push_back({std::this_thread::get_id(), false}); } catch (...) { return {}; }
         ++readers_;
         return Read(this);
     }
@@ -345,7 +359,8 @@ private:
         const auto current = std::this_thread::get_id();
         if ((transitioning_ && transitionThread_ == current) ||
             abandonedTransitionThread_ == current || currentWorker_ == this ||
-            std::find(readerThreads_.begin(), readerThreads_.end(), current) != readerThreads_.end()) return true;
+            std::find_if(readerThreads_.begin(), readerThreads_.end(),
+                [current](const ReaderEntry& entry) { return entry.thread == current; }) != readerThreads_.end()) return true;
         for (const auto& w : workers_) if (w->starting && w->starter == current) return true;
         return false;
     }
@@ -460,7 +475,7 @@ private:
     inline static thread_local OwnedShutdown* currentWorker_ = nullptr;
     bool closed_ = false, attempted_ = false, ready_ = false, faulted_ = false, retired_ = false;
     size_t readers_ = 0;
-    std::vector<std::thread::id> readerThreads_;
+    std::vector<ReaderEntry> readerThreads_;
     size_t starting_ = 0;
     bool transitioning_ = false;
     bool startup_ = false;

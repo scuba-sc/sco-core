@@ -13,6 +13,10 @@ The owner and every borrowed image, resolver, context and backing resource must
 outlive all calls and remain retained after failed shutdown. An owner lease is
 cooperative: it cannot interpose on hidden native execution, cached tables or
 unmanaged threads. Read leases are thread-bound and cover the complete use.
+A read destroyed on a different thread faults and closes the owner. Its origin
+remains ineligible for retained maintenance even if other reads from that thread
+end; reuse of its thread ID may conservatively refuse a later thread as well.
+Another control thread may reap retained handles without authorizing retirement.
 
 The owned fixture binds the runtime before publishing DataCore and requires an
 explicit private startup capability for subsystem publication. Public runtime
