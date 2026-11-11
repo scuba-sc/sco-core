@@ -54,14 +54,25 @@ termination is supplied.
 
 ## Direct engine quit and dependent providers
 
-The direct engine path is `QuitDetour` → `ForwardQuit` → `BeforeQuit` → `Stop`
-→ `StopImpl`. On a running session, `StopImpl` closes fresh admission and calls
-the owner's one `drain_until` attempt synchronously on the quit hook's stack,
-using `drainTimeoutMs`; this can wait for enrolled reads and workers and has no
-hard wall-clock bound. It then retains the app and returns `Failed`. `ForwardQuit`
-logs that result but calls the original engine quit regardless. This path does
-not call `app::Stop`, dispatch `game.exit`, unload plugins, or run
-`game::services::Stop` / `WithdrawGameServices`.
+The direct detour requests non-draining closure of the process-retained legacy
+owner, then calls the original engine quit synchronously with the original
+arguments. The owner is published before legacy startup transitions. An actual
+detour call before owner publication marks the attempt terminal; a later
+publication refuses startup and attempts to close the supplied owner. The
+detour cannot itself close an owner it has not yet been given. A failed owner
+request leaves closure unproven; if notification returns, a non-null original
+runs once. The mutex may block, and structured exceptions remain unproved. The separate public
+`BeforeQuit` retains its synchronous `Stop` meaning. Neither operation proves
+engine-owned objects survive outstanding product reads. The detour does not call
+`app::Stop`, dispatch `game.exit`, unload plugins, or run `game::services::Stop`
+/ `WithdrawGameServices`. Current activation policy rejects the required-hook
+configuration before installation; synthetic detour tests do not alter this gate.
+The terminal marker affects only legacy required-hook preparation with an owner;
+it is not a process-wide barrier for external or detailed compositions. Published
+legacy owners remain retained after failed preparation, and a later owner cannot
+replace them. Once quit closes an owner during an already-entered inspector,
+preparation may still perform registry or image work before its transition fails.
+No check here proves that work is safe after the engine original has run.
 
 The ordering matters to dependent services. `app::Stop` dispatches `game.exit`
 while services remain published, then stops plugins and game services. A direct
@@ -72,9 +83,9 @@ the offline product's ASOP composition.
 
 There is no safe ASOP completion API to add on this path with the present
 contract. Calling `app::Stop` inside the quit detour would run synchronous event,
-plugin and provider callbacks on the engine hook. Replacing the drain with
-`OwnedShutdown::request_stop()` would close only this owner's admissions; it
-would neither notify the product nor drain ASOP callbacks, and the original quit
+plugin and provider callbacks on the engine hook. The detour's
+`OwnedShutdown::request_stop()` closes only this owner's admissions; it neither
+notifies the product controller nor drains ASOP callbacks, and the original quit
 could terminate before another safe game-thread turn. The request itself takes
 the owner mutex and is not a hard-time-bounded or lock-free hook primitive.
 Neither option proves ASOP withdrawal or safe original-quit continuation.

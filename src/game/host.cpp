@@ -14,6 +14,7 @@
 #include "sco/caps.h"
 #include "sco/datacore_service.h"
 #include "host_testing.h"
+#include "quit_owner_gate.h"
 #include "admission.h"
 #if defined(SCO_GAME_SERVICES)
 #include "services/datacore_live_engine.h"
@@ -64,12 +65,22 @@ struct RetainedHost {
     const uint64_t id = 1; // one terminal detailed session per process
 };
 std::atomic<RetainedHost*> retainedHost{nullptr};
+detail::QuitOwnerGate legacyQuitOwner;
 std::atomic<bool> legacyControlUsed{false};
 std::atomic_flag hostControl = ATOMIC_FLAG_INIT;
 #ifdef SCO_GAME_HOST_REPORT_TESTING
 std::atomic<testing::ReportFault> reportFault{testing::ReportFault::None};
 thread_local bool optionsAllocationArmed = false;
 std::atomic<testing::StatusPause*> statusPause{nullptr};
+std::atomic<testing::QuitOwnerPause*> quitOwnerPause{nullptr};
+std::atomic<bool> quitOwnerAllocationFault{false}, quitOwnerNotificationFault{false};
+void PauseQuitOwner(testing::QuitOwnerPauseStage stage) noexcept {
+    auto* pause = quitOwnerPause.load(std::memory_order_acquire);
+    if (!pause || pause->stage != stage ||
+        !quitOwnerPause.compare_exchange_strong(pause, nullptr, std::memory_order_acq_rel)) return;
+    pause->reached.store(true, std::memory_order_release);
+    while (!pause->release.load(std::memory_order_acquire)) std::this_thread::yield();
+}
 #endif
 struct ControlEntry {
     bool entered = !hostControl.test_and_set(std::memory_order_acquire);
@@ -198,7 +209,15 @@ bool NativeBarrierHeld() noexcept {
     } catch (...) { return false; }
 }
 void QuitDetour(void* system, void* info, int code) {
-    testing::ForwardQuit(quitOriginal, system, info, code);
+    // This is notification only: never take the control gate or drain an
+    // obligation on the callback stack. Original arguments and thread stay live
+    // on this stack; nothing here proves engine objects survive the original.
+#ifdef SCO_GAME_HOST_REPORT_TESTING
+    if (!quitOwnerNotificationFault.exchange(false)) (void)legacyQuitOwner.Notify();
+#else
+    (void)legacyQuitOwner.Notify();
+#endif
+    if (quitOriginal) quitOriginal(system, info, code);
 }
 Result InstallQuit() {
     QuitHook target;
@@ -291,6 +310,26 @@ static Result PrepareImpl(const Options& o) {
 #if !defined(SCO_GAME_SERVICES)
     if(o.nativeDataCoreReads) {phase=Phase::Idle;return Result::Unavailable;}
 #endif
+    // Publish the exact legacy owner before startup transitions or hook
+    // installation. An earlier actual quit notification cancels this attempt;
+    // explicit no-root RequestStopDetailed remains non-queuing. This retains
+    // no product module, other backing, or engine object.
+    if (!retainedHost.load(std::memory_order_acquire) && o.shutdownOwner && o.quit == QuitPolicy::Required) {
+#ifdef SCO_GAME_HOST_REPORT_TESTING
+        PauseQuitOwner(testing::QuitOwnerPauseStage::BeforePublication);
+        const bool failAllocation = quitOwnerAllocationFault.exchange(false);
+#else
+        constexpr bool failAllocation = false;
+#endif
+        const auto publication = legacyQuitOwner.Publish(o.shutdownOwner, failAllocation);
+        if (publication != detail::QuitOwnerGate::Publication::Published) {
+            phase = Phase::Failed;
+            return publication == detail::QuitOwnerGate::Publication::Cancelled ? Result::Unavailable : Result::Failed;
+        }
+#ifdef SCO_GAME_HOST_REPORT_TESTING
+        PauseQuitOwner(testing::QuitOwnerPauseStage::AfterPublication);
+#endif
+    }
     if (o.shutdownOwner && !OwnedShutdownHostAccess::begin_startup(*o.shutdownOwner)) {
         o.shutdownOwner->fault(); phase = Phase::Failed; return Result::Unavailable;
     }
@@ -326,6 +365,10 @@ static Result PrepareImpl(const Options& o) {
         if (o.shutdownOwner) return RetainTransitionFailure(Result::Unavailable);
         options.imageOwner.reset(); options.resolverOwner.reset(); phase = Phase::Idle; return Result::Unavailable;
     }
+    // Inspection is foreign code and may synchronously request shutdown.
+    // This is a cancellation check, not a barrier against a later close.
+    if (o.shutdownOwner && !transition.valid_for(*o.shutdownOwner))
+        return RetainTransitionFailure(Result::Unavailable);
     if (!o.imageOwner || !o.resolverOwner || !o.image || !o.image->base || !o.image->size || !o.image->text.base ||
         !o.image->text.size || !o.image->rdata.base || !o.image->rdata.size) {
         if (o.shutdownOwner) return RetainTransitionFailure(Result::BadArg);
@@ -659,6 +702,11 @@ namespace testing {
 void SetReportFault(ReportFault fault) noexcept { reportFault.store(fault); }
 bool ConsumeOptionsAllocationFault() noexcept { return std::exchange(optionsAllocationArmed, false); }
 void PauseNextStatus(StatusPause* pause) noexcept { statusPause.store(pause, std::memory_order_release); }
+void PauseNextQuitOwner(QuitOwnerPause* pause) noexcept { quitOwnerPause.store(pause, std::memory_order_release); }
+void FailNextQuitOwnerAllocation() noexcept { quitOwnerAllocationFault.store(true); }
+void FailNextQuitOwnerNotification() noexcept { quitOwnerNotificationFault.store(true); }
+void SetQuitOriginalForTest(QuitFn original) noexcept { quitOriginal = original; }
+void InvokeQuitDetourForTest(void* system, void* info, int code) { QuitDetour(system, info, code); }
 bool RetainedRegistrySurvivesStaticRelease() {
     std::weak_ptr<SignatureRegistry> weak = signatureRegistry;
     signatureRegistry.reset();

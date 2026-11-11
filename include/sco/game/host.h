@@ -163,10 +163,10 @@ Result Tick(uint32_t nowMs);
 // Failed and retains the app, registry, image, provider code and dependent backing.
 // A failure-atomic cleanup transaction is not yet established. No restart from Failed.
 Result Stop();
-// Legacy synchronous game-thread stop request from the engine quit detour. It can
-// run the configured owner drain on that hook's stack and does not call app::Stop,
-// dispatch game.exit, or prove dependent-provider withdrawal. No fast-shutdown
-// field/vtable reads; normal and fast quit share this entry.
+// Legacy synchronous game-thread stop request. It can run the configured owner
+// drain on the calling stack and does not call app::Stop, dispatch game.exit, or
+// prove dependent-provider withdrawal. The Core quit detour does not call this:
+// it requests non-draining legacy-owner closure before forwarding the original.
 Result BeforeQuit();
 // Immutable scalar observation; no provider/table callbacks. May read on any thread.
 Snapshot Status();

@@ -884,6 +884,6 @@ if [ -f "$ROOT/src/game/host.cpp" ]; then
   cmake -S "$ROOT" -B "$OUT/game-host-reports" -DCMAKE_BUILD_TYPE=Debug \
     -DCMAKE_C_COMPILER="$CC" -DCMAKE_CXX_COMPILER="$CXX" \
     -DSCO_GAME_SC=ON -DSCO_BUILD_TESTS=ON -DSCO_SANITIZE=address,undefined
-  cmake --build "$OUT/game-host-reports" --target test_game_host_reports --parallel 4
-  ctest --test-dir "$OUT/game-host-reports" --output-on-failure -R '^game_host_report_'
+  cmake --build "$OUT/game-host-reports" --target test_game_host_reports test_legacy_quit_owner --parallel 4
+  ctest --test-dir "$OUT/game-host-reports" --output-on-failure -R '^(game_host_report_|legacy_quit_owner_)'
 fi

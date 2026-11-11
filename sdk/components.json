@@ -8112,6 +8112,8 @@
       "group": "host-source-sc",
       "public_header": false
     },
+    {"id": "host-source-sc-src-game-quit_owner_gate.h", "source": "src/game/quit_owner_gate.h", "destination": "src/game/quit_owner_gate.h", "profiles": ["host-source-sc"], "origin": "project-authored", "license": "GPL-3.0-only", "group": "host-source-sc"},
+    {"id": "host-source-sc-tests-test_legacy_quit_owner.cpp", "source": "tests/test_legacy_quit_owner.cpp", "destination": "tests/test_legacy_quit_owner.cpp", "profiles": ["host-source-sc"], "origin": "project-authored", "license": "GPL-3.0-only", "group": "host-source-sc"},
     {"id": "host-source-sc-tests-test_game_host_reports.cpp", "source": "tests/test_game_host_reports.cpp", "destination": "tests/test_game_host_reports.cpp", "profiles": ["host-source-sc"], "origin": "project-authored", "license": "GPL-3.0-only", "group": "host-source-sc"},
     {
       "id": "host-source-sc-tests-game_host.cpp",
