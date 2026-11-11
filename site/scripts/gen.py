@@ -289,8 +289,11 @@ def banner(catalogue, release_tag, category):
     if not PUBLISHED_METADATA and not release_tag:
         stage = 'offline fixture; not current publication data'
     return ('<div data-pagefind-ignore="index">\n\n:::caution[Catalogue snapshot — ' + label + ']\n'
-            + 'SDK **' + catalogue['sdk_version'] + '** · game pack **' + catalogue['game_pack_version']
+            + 'Source catalogue SDK **' + catalogue['sdk_version'] + '** · game pack **' + catalogue['game_pack_version']
             + '** · source `' + catalogue['source_sha'] + '`\n'
+            + ('' if release_tag else 'Development archives may use a different SDK version for this source; '
+               'check `COMPATIBILITY.json` (or `COMPATIBILITY.json.game-sc` for the standalone game overlay), '
+               '`VERSION` or `sdk/VERSION` where present, and the archive checksum.\n')
             + release_label + ': [' + published + '](' + RELEASES + quote(published, safe='') + ')' + published_source
             + (' (' + stage + ').\n' if release_tag
                else ' (' + stage + '; this development preview is not an approved release).\n')
@@ -410,14 +413,16 @@ def release_portal(root, catalogue, release_tag, doc_routes):
         note = 'This site build was generated from the commit its release tag identifies.'
     else:
         label, title = 'Mainline development preview', 'This documentation build'
-        note = 'Not an approved release. Pages describe this source commit.'
+        note = ('Not an approved release. Pages describe this source commit. Development archive versions '
+                'may differ from the source catalogue; check COMPATIBILITY.json (COMPATIBILITY.json.game-sc '
+                'for the standalone game overlay), VERSION or sdk/VERSION where present, and the archive checksum.')
     preview = [
         '<section class="sco-track" data-od-id="release-build" data-track="' + ('release' if release_tag else 'preview')
         + '" data-source-sha="' + esc(sha) + '" aria-labelledby="track-build">',
         '<span class="sco-status sco-status--' + ('published' if release_tag else 'preview') + '">' + esc(label) + '</span>',
         '<h3 id="track-build">' + esc(title) + '</h3>',
         facts([('Source', '<a href="' + esc(COMMITS + sha) + '">' + esc(sha) + '</a>'),
-               ('SDK', esc(catalogue['sdk_version'])), ('Game pack', esc(catalogue['game_pack_version']))]),
+               ('Source catalogue SDK', esc(catalogue['sdk_version'])), ('Game pack', esc(catalogue['game_pack_version']))]),
         '<p class="sco-track__note">' + esc(note) + '</p>',
         '</section>']
     profile_source = PUBLISHED_METADATA['source_sha'] if PUBLISHED_METADATA else sha
