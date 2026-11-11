@@ -362,6 +362,31 @@ class RealManifest(unittest.TestCase):
         self.assertNotEqual(r.returncode, 0, "archive test silently used checkout include path")
         self.assertIn("archive-only include violation", r.stdout + r.stderr)
 
+    def test_archive_gnu_version_probe_consumes_output(self):
+        probe = subprocess.run(["bash", "-c", "sha256sum --version"],
+                               capture_output=True, text=True)
+        if probe.returncode or "GNU" not in probe.stdout:
+            self.skipTest("GNU sha256sum is required for the SIGPIPE regression")
+        archive = pkg.build(self.m, "core", os.path.join(self.tmp, "gnu-version"))
+        startup = Path(self.tmp, "gnu-version-env.sh")
+        # A version banner larger than a pipe makes an early reader close fail reliably.
+        # Checksum verification still delegates to the real sha256sum executable.
+        startup.write_text('''sha256sum() {
+  if [ "$1" = --version ]; then
+    "$PYTHON" -c 'import sys; sys.stdout.write("sha256sum (GNU coreutils) regression\\n"); sys.stdout.flush(); sys.stdout.write("version detail\\n" * 100000); sys.stdout.flush()'
+  else
+    command sha256sum "$@"
+  fi
+}
+shasum() { echo "unexpected shasum fallback" >&2; return 86; }
+''', encoding="utf-8")
+        env = dict(os.environ, CFLAGS="-I" + os.path.join(pkg.ROOT, "include"),
+                   SCO_SDK_NO_LUA="1", BASH_ENV=str(startup), PYTHON=sys.executable)
+        r = subprocess.run(["bash", os.path.join(HERE, "test-zip.sh"), archive],
+                           capture_output=True, text=True, env=env)
+        self.assertNotEqual(r.returncode, 0, "archive test silently used checkout include path")
+        self.assertIn("archive-only include violation", r.stdout + r.stderr)
+
     def test_core_has_no_game_file(self):
         z = zipfile.ZipFile(pkg.build(self.m, "core", os.path.join(self.tmp, "c")))
         bad = [n for n in z.namelist() if any(k in n for k in GAME_MARKERS)]
