@@ -8,7 +8,16 @@ namespace sco::game::host {
 namespace {
 std::atomic<Admission (*)()> inspector{nullptr};
 std::atomic<bool> enabled{false};
+// Keep all owner access atomic even on C++20 libraries without the specialization.
+#if defined(__cpp_lib_atomic_shared_ptr) && __cpp_lib_atomic_shared_ptr >= 201711L && !defined(SCO_TEST_ATOMIC_SHARED_PTR_FALLBACK)
 std::atomic<std::shared_ptr<OwnedShutdown>> shutdownOwner;
+std::shared_ptr<OwnedShutdown> LoadShutdownOwner() { return shutdownOwner.load(); }
+void StoreShutdownOwner(std::shared_ptr<OwnedShutdown> owner) { shutdownOwner.store(std::move(owner)); }
+#else
+std::shared_ptr<OwnedShutdown> shutdownOwner;
+std::shared_ptr<OwnedShutdown> LoadShutdownOwner() { return std::atomic_load(&shutdownOwner); }
+void StoreShutdownOwner(std::shared_ptr<OwnedShutdown> owner) { std::atomic_store(&shutdownOwner, std::move(owner)); }
+#endif
 thread_local bool cvarCleanup = false;
 #ifdef SCO_FRESH_ADMISSION_TESTING
 void (*beforeOwnerLoad)() = nullptr;
@@ -35,7 +44,7 @@ bool FreshAdmissionAllowed() noexcept {
 #ifdef SCO_FRESH_ADMISSION_TESTING
         if (beforeOwnerLoad) beforeOwnerLoad();
 #endif
-        const auto owner = shutdownOwner.load();
+        const auto owner = LoadShutdownOwner();
         auto read = owner ? owner->try_read() : OwnedShutdown::Read{};
         return enabled.load() && (!owner || read) && InspectAdmission() &&
                enabled.load() && (!owner || owner->open());
@@ -46,7 +55,7 @@ namespace detail {
 void SetBeforeOwnerLoadForTest(void (*hook)()) { beforeOwnerLoad = hook; }
 #endif
 void SetFreshInspector(Admission (*inspect)()) { inspector.store(inspect); }
-void SetFreshShutdownOwner(std::shared_ptr<OwnedShutdown> owner) { shutdownOwner.store(std::move(owner)); }
+void SetFreshShutdownOwner(std::shared_ptr<OwnedShutdown> owner) { StoreShutdownOwner(std::move(owner)); }
 void SetFreshAdmissionEnabled(bool on) { enabled.store(on); }
 void SetCvarCleanupEnabled(bool on) { if (OnGameThread()) cvarCleanup = on; }
 bool CvarCleanupAllowed() noexcept {
