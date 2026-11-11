@@ -4,6 +4,8 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+- Preserve Git executable modes in SDK archives across platforms and verify development ZIP modes against the source index.
+
 - Preserve canonical synthetic native-evidence output and fixtures across Windows and Unix checkouts; run invalid-JSON tests without reopening locked temporary files.
 
 - Reject any unresolved provenance rule that matches a distributed file, including rules hidden by earlier attribution matches.

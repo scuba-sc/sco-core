@@ -80,6 +80,51 @@ def tracked_files(root):
         return files
 
 
+def index_executable_modes(root, *, required=False):
+    """Return tracked file modes from this checkout, not a parent repository.
+
+    An unpacked source kit has no index; release packaging there retains its
+    filesystem-mode behavior. A checkout with an unreadable index and every
+    development package fail closed instead of guessing executable bits.
+    """
+    if not os.path.lexists(os.path.join(root, ".git")):
+        if required:
+            raise ManifestError("development package requires a Git checkout index")
+        return None
+    try:
+        top = os.fsdecode(subprocess.run(["git", "-C", root, "rev-parse", "--show-toplevel"],
+                                         capture_output=True, check=True).stdout).rstrip("\r\n")
+        if os.path.normcase(os.path.realpath(top)) != os.path.normcase(os.path.realpath(root)):
+            raise ManifestError("packaging root does not match the Git checkout root")
+        listing = subprocess.run(["git", "-C", root, "ls-files", "--stage", "-z"],
+                                 capture_output=True, check=True).stdout
+    except (OSError, subprocess.CalledProcessError, UnicodeError) as e:
+        raise ManifestError("cannot read packaging checkout index") from e
+    modes = {}
+    for entry in listing.split(b"\0"):
+        if not entry:
+            continue
+        try:
+            metadata, name = entry.split(b"\t", 1)
+            mode, _, stage = metadata.split(b" ")
+            path = os.fsdecode(name)
+        except ValueError as e:
+            raise ManifestError("invalid packaging checkout index entry") from e
+        if stage != b"0" or path in modes:
+            raise ManifestError(f"unmerged packaging checkout index entry: {path}")
+        modes[path] = mode
+    return modes
+
+
+def component_executable(full, component, index_modes):
+    if index_modes is None:
+        return os.access(full, os.X_OK)
+    mode = index_modes.get(component["source"])
+    if mode not in (b"100644", b"100755"):
+        raise ManifestError(f"component {component['id']}: source {component['source']} is missing or not a regular index file")
+    return mode == b"100755"
+
+
 def safe_rel(path):
     return (isinstance(path, str) and path and not path.startswith("/") and "\\" not in path and ":" not in path
             and all(part not in ("", ".", "..") for part in path.split("/")))
@@ -824,11 +869,16 @@ def validate_sbom(doc, content, sbom_name, sums_name):
     require(len(actual) == len(expected) and set(actual) == expected, "exact relationships")
 
 
-def archive_entries(m, profile, development=False):
+_INDEX_UNSET = object()
+
+
+def archive_entries(m, profile, development=False, *, _index_modes=_INDEX_UNSET):
     dev = development_version() if development else None
     if development:
         require_clean_development_source()
     chosen = select(m, profile)
+    index_modes = (index_executable_modes(ROOT, required=development)
+                   if _index_modes is _INDEX_UNSET else _index_modes)
     p = m["profiles"][profile]
     version = (dev or sdk_version()) if p["version_from"] == "sdk/VERSION" else game_pack()[0]
     top = p["zip"].format(version=version, game_pack_version=version)
@@ -843,16 +893,17 @@ def archive_entries(m, profile, development=False):
             s, d = os.path.dirname(s), os.path.dirname(d)
     entries = {}
     for c in chosen:
+        full = os.path.join(ROOT, c["source"])
+        executable = component_executable(full, c, index_modes)
         if c["source"].startswith(("sdk/examples/", "sdk/template/")) and c["source"].endswith((".c", ".cpp", ".h", ".hpp")):
             check_example_headers(m, profile, read(c["source"]), c["source"])
-        full = os.path.join(ROOT, c["source"])
         with open(full, "rb") as f:
             dst = destination(m, profile, c)
             data = f.read()
             if dev and c["source"] == "sdk/VERSION":
                 data = (dev + "\n").encode("ascii")
             entries[dst] = (fix_links(c["source"], dst, data, zip_paths, dirs),
-                            os.access(full, os.X_OK))
+                            executable)
     versions_name, sums_name, compat_name, inventory_name, sbom_name = metadata_names(m, profile)
     catalogue = developer_catalogue(profile)
     if catalogue is not None:
@@ -886,7 +937,7 @@ def archive_entries(m, profile, development=False):
     if profile in ("game-sc", "legacy", "host-source-sc"):
         desc["source_commits"]["game-sc"] = commit
     if profile == "game-sc":
-        core_top, core_entries = archive_entries(m, "core", development=development)
+        core_top, core_entries = archive_entries(m, "core", development=development, _index_modes=index_modes)
         desc["base_core_sha256"] = hashlib.sha256(archive_bytes(core_top, core_entries)).hexdigest()
     entries[compat_name] = (json_bytes(desc), False)
     records = attributions(m, profile)

@@ -49,6 +49,24 @@ class RealManifest(unittest.TestCase):
     def tearDownClass(cls):
         shutil.rmtree(cls.tmp)
 
+    def test_archive_executable_bits_follow_git_index_not_host_access(self):
+        modes = pkg.index_executable_modes(pkg.ROOT, required=True)
+        selected = pkg.select(self.m, "core")
+        ordinary = next(c for c in selected if modes[c["source"]] == b"100644")
+        with unittest.mock.patch.object(pkg.os, "access", return_value=True):
+            _, core = pkg.archive_entries(self.m, "core")
+        self.assertFalse(core[pkg.destination(self.m, "core", ordinary)][1])
+        executables = [c for c in selected if modes[c["source"]] == b"100755"]
+        for component in executables:
+            self.assertTrue(core[pkg.destination(self.m, "core", component)][1])
+
+    def test_overlay_binds_index_mode_core_archive(self):
+        with unittest.mock.patch.object(pkg.os, "access", return_value=True):
+            core_top, core = pkg.archive_entries(self.m, "core")
+            _, overlay = pkg.archive_entries(self.m, "game-sc")
+        descriptor = json.loads(overlay["COMPATIBILITY.json.game-sc"][0])
+        self.assertEqual(descriptor["base_core_sha256"], hashlib.sha256(pkg.archive_bytes(core_top, core)).hexdigest())
+
     def test_startup_snapshot_sources_follow_app_into_source_kits(self):
         paths = {'src/app/plugin_startup_snapshot.cpp', 'src/app/plugin_startup_snapshot.h',
                  'tests/test_plugin_startup_snapshot.cpp'}
@@ -1145,6 +1163,68 @@ class Cli(unittest.TestCase):
                                capture_output=True, text=True)
         self.assertNotEqual(r.returncode, 0)
         self.assertIn("unknown profile nope", r.stderr)
+
+
+class IndexModes(unittest.TestCase):
+    def test_exact_checkout_modes_and_no_git_fallback(self):
+        with tempfile.TemporaryDirectory() as root:
+            self.assertIsNone(pkg.index_executable_modes(root))
+            with self.assertRaisesRegex(pkg.ManifestError, "requires a Git checkout index"):
+                pkg.index_executable_modes(root, required=True)
+            subprocess.run(["git", "init", "-q", root], check=True)
+            for name in ("ordinary", "executable"):
+                Path(root, name).write_bytes(b"same bytes\n")
+            subprocess.run(["git", "-C", root, "add", "ordinary", "executable"], check=True)
+            subprocess.run(["git", "-C", root, "update-index", "--chmod=+x", "executable"], check=True)
+            modes = pkg.index_executable_modes(root, required=True)
+            self.assertEqual(modes["ordinary"], b"100644")
+            self.assertEqual(modes["executable"], b"100755")
+            with unittest.mock.patch.object(pkg.os, "access", return_value=False):
+                self.assertTrue(pkg.component_executable(str(Path(root, "executable")),
+                                                         {"id": "script", "source": "executable"}, modes))
+            # An unpacked source directory nested inside a checkout is not that checkout.
+            nested = Path(root, "unpacked"); nested.mkdir()
+            self.assertIsNone(pkg.index_executable_modes(str(nested)))
+
+    def test_index_failure_and_unmerged_entries_refuse(self):
+        with tempfile.TemporaryDirectory() as root:
+            Path(root, ".git").mkdir()
+            with unittest.mock.patch.object(pkg.subprocess, "run", side_effect=OSError("unavailable")):
+                with self.assertRaisesRegex(pkg.ManifestError, "cannot read packaging checkout index"):
+                    pkg.index_executable_modes(root)
+            replies = [SimpleNamespace(stdout=os.fsencode(root)),
+                       SimpleNamespace(stdout=b"100644 abc 1\tconflicted\0")]
+            with unittest.mock.patch.object(pkg.subprocess, "run", side_effect=replies):
+                with self.assertRaisesRegex(pkg.ManifestError, "unmerged"):
+                    pkg.index_executable_modes(root, required=True)
+
+    def test_git_root_line_ending_preserves_path_spaces(self):
+        root = "checkout with trailing space "
+        replies = [SimpleNamespace(stdout=(root + "\n").encode()), SimpleNamespace(stdout=b"")]
+        with unittest.mock.patch.object(pkg.os.path, "lexists", return_value=True), \
+             unittest.mock.patch.object(pkg.os.path, "realpath", side_effect=lambda path: path), \
+             unittest.mock.patch.object(pkg.subprocess, "run", side_effect=replies):
+            self.assertEqual(pkg.index_executable_modes(root, required=True), {})
+
+    def test_git_root_uses_filesystem_path_decoding(self):
+        root = "checkout"
+        replies = [SimpleNamespace(stdout=b"checkout-\xff\n"), SimpleNamespace(stdout=b"")]
+        with unittest.mock.patch.object(pkg.os.path, "lexists", return_value=True), \
+             unittest.mock.patch.object(pkg.os.path, "realpath", side_effect=lambda path: path), \
+             unittest.mock.patch.object(pkg.os, "fsdecode", return_value=root) as decode, \
+             unittest.mock.patch.object(pkg.subprocess, "run", side_effect=replies):
+            self.assertEqual(pkg.index_executable_modes(root, required=True), {})
+            decode.assert_called_once_with(b"checkout-\xff\n")
+
+    def test_selected_missing_or_nonregular_index_entry_refuses(self):
+        manifest = pkg.load_manifest()
+        component = pkg.select(manifest, "core")[0]
+        for mode in (None, b"120000", b"160000"):
+            with self.subTest(mode=mode), \
+                 unittest.mock.patch.object(pkg, "require_clean_development_source"), \
+                 unittest.mock.patch.object(pkg, "index_executable_modes", return_value={component["source"]: mode}):
+                with self.assertRaisesRegex(pkg.ManifestError, "missing or not a regular index file"):
+                    pkg.archive_entries(manifest, "core", development=True)
 
 
 class DevelopmentPackage(unittest.TestCase):

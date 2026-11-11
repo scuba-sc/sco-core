@@ -511,6 +511,13 @@ def audit_zip(archive, profile, root=ROOT, sbom_path=None, report_path=None, dev
         if development:
             # Rebuild every generated object from the exact clean source, rather than
             # trusting self-consistent archive metadata or a release-labelled payload.
+            mode_fails = []
+            for name, (_, executable) in dev_entries.items():
+                info = readable.get(name)
+                expected_mode = 0o100755 if executable else 0o100644
+                if info is not None and (info.create_system != 3 or info.external_attr >> 16 != expected_mode):
+                    mode_fails.append(f"{name}: ZIP mode differs from exact development source")
+            r.check("development ZIP modes", len(dev_entries), mode_fails)
             fails = []
             for name in generated:
                 if name not in dev_entries or content.get(name) != dev_entries[name][0]:
