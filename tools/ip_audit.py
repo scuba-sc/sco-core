@@ -330,12 +330,14 @@ def audit_repo(root=ROOT, report_path=None):
 
     # Gate 1: coverage and status.
     fails, need = [], 0
+    unresolved = [e for e in entries if e["status"] == "unresolved"]
     for f in files:
         e = match(entries, f)
+        dispute = match(unresolved, f)
         if e is None:
             fails.append(f"{f}: no entry in {PROVENANCE}; add its origin, licence and status")
-        elif e["status"] == "unresolved":
-            fails.append(f"{f}: provenance unresolved ({e.get('issue') or e.get('note') or 'no issue named'}); resolve, rewrite or remove it")
+        elif dispute is not None:
+            fails.append(f"{f}: provenance unresolved (rule {dispute['path']}: {dispute.get('issue') or dispute.get('note') or 'no issue named'}); resolve, rewrite or remove it")
         elif e["status"] == "needs-review":
             need += 1
     r.check("provenance coverage (Gate 1)", len(files), fails)
@@ -579,12 +581,15 @@ def audit_zip(archive, profile, root=ROOT, sbom_path=None, report_path=None, dev
 
         # Provenance and artifacts of what ships.
         fails = []
+        unresolved = [e for e in entries if e["status"] == "unresolved"]
         for dst, c in expected.items():
             e = match(entries, c["source"])
             if e is None:
                 fails.append(f"{dst} ({c['source']}): no provenance entry")
-            elif e["status"] == "unresolved":
-                fails.append(f"{dst} ({c['source']}): provenance unresolved; it may not ship")
+            else:
+                dispute = match(unresolved, c["source"])
+                if dispute is not None:
+                    fails.append(f"{dst} ({c['source']}): provenance unresolved (rule {dispute['path']}); it may not ship")
         r.check("shipped provenance (Gate 1/B)", len(expected), fails)
         check_artifacts(r, names, lambda f: content[f], prov.get("artifact_allowlist", {}).get("files", []))
 

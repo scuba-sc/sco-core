@@ -4,6 +4,8 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+- Reject any unresolved provenance rule that matches a distributed file, including rules hidden by earlier attribution matches.
+
 - Add a bounded, no-extraction plugin archive verifier and non-loading folder preflight. These checks do not establish plugin trust or runtime compatibility.
 - Support legacy initialized and modern metadata-based MCP stdio clients, preserving legacy request metadata and source-bound SDK workflow discovery.
 

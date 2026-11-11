@@ -663,16 +663,24 @@ def developer_guides(profile):
         sys.path.remove(tools)
 
 
+def provenance_matches(pattern, path):
+    """Match using the ledger's documented top-level and directory rules."""
+    return (path.startswith(pattern[:-2]) if pattern.endswith("/**") else
+            fnmatch.fnmatchcase(path, pattern) and ("/" in pattern or "/" not in path))
+
+
 def attributions(m, profile):
     provenance = json.loads(read("docs/legal/provenance.json"))["entries"]
+    unresolved = [e for e in provenance if e.get("status") == "unresolved"]
     records = {}
     for c in select(m, profile):
         src = c["source"]
-        e = next((e for e in provenance if
-                  (src.startswith(e["path"][:-2]) if e["path"].endswith("/**") else
-                   fnmatch.fnmatchcase(src, e["path"]) and ("/" in e["path"] or "/" not in src))), None)
+        e = next((e for e in provenance if provenance_matches(e["path"], src)), None)
         if e is None:
             raise ManifestError(f"{src}: missing or unresolved provenance")
+        dispute = next((e for e in unresolved if provenance_matches(e["path"], src)), None)
+        if dispute is not None:
+            raise ManifestError(f"{src}: missing or unresolved provenance (rule {dispute['path']})")
         for field in ("origin", "license", "copyright", "status"):
             if not isinstance(e.get(field), str) or not e[field].strip():
                 raise ManifestError(f"{src}: provenance lacks {field}")
