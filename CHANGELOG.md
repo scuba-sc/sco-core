@@ -4,6 +4,8 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+- Correct SDK template and actor-stats example licence comments without asserting a licence for other plugins.
+
 - Correct plugin discovery and SDK installation guidance to distinguish launcher setup checks from plugin startup reports.
 
 - Correct the plugin guide's host-specific enablement defaults and disabled discovery logging.
