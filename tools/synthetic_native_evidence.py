@@ -127,7 +127,7 @@ def main():
         output=json.dumps(catalogue(load(a.evidence), load(a.index)),indent=2,sort_keys=True)+'\n'
         if a.output:
             with open(a.output,'w',encoding='utf-8',newline='\n') as f: f.write(output)
-        else: print(output,end='')
+        else: sys.stdout.buffer.write(output.encode('utf-8'))
     except (Invalid, OSError, ValueError, TypeError) as e:
         print('native evidence: '+str(e),file=sys.stderr); return 1
     return 0

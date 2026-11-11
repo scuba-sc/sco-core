@@ -47,6 +47,21 @@ class TestNativeEvidence(unittest.TestCase):
         self.assertEqual(result.stdout, (HERE / 'generated-fixture.json').read_bytes())
         self.assertEqual(result.stderr, b'')
 
+    def test_cli_file_projection_matches_stdout_and_fixture(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp) / 'projection.json'
+            result = subprocess.run([sys.executable, str(Path(n.__file__)),
+                                     str(HERE / 'fixture.json'), str(HERE / 'index.json'),
+                                     '--output', str(output)], capture_output=True, check=True)
+            stdout = subprocess.run([sys.executable, str(Path(n.__file__)),
+                                     str(HERE / 'fixture.json'), str(HERE / 'index.json')],
+                                    capture_output=True, check=True)
+            self.assertEqual(result.stdout, b'')
+            self.assertEqual(result.stderr, b'')
+            self.assertEqual(stdout.stderr, b'')
+            self.assertEqual(output.read_bytes(), stdout.stdout)
+            self.assertEqual(output.read_bytes(), (HERE / 'generated-fixture.json').read_bytes())
+
     def test_all_sdk_archives_exclude_model_and_fixtures(self):
         root = HERE.parents[2]
         spec = importlib.util.spec_from_file_location('sco_sdk_package', root / 'sdk/package.py')
@@ -109,13 +124,15 @@ class TestNativeEvidence(unittest.TestCase):
     def test_unhashable_status(self): self.bad(lambda d:d['records'][0].update(status=[]),'unknown status')
     def test_unhashable_kind(self): self.bad(lambda d:d['evidence'][0].update(kind={}),'invalid evidence kind')
     def test_nonfinite_json(self):
-        with tempfile.NamedTemporaryFile(mode='w',encoding='utf8') as f:
-            f.write('{"x":NaN}'); f.flush()
-            with self.assertRaisesRegex(n.Invalid,'non-finite'): n.load(f.name)
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / 'nonfinite.json'
+            path.write_text('{"x":NaN}', encoding='utf8')
+            with self.assertRaisesRegex(n.Invalid,'non-finite'): n.load(path)
     def test_duplicate_json_keys(self):
-        with tempfile.NamedTemporaryFile(mode='w',encoding='utf8') as f:
-            f.write('{"x":1,"x":2}'); f.flush()
-            with self.assertRaisesRegex(n.Invalid,'duplicate JSON key'): n.load(f.name)
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / 'duplicate.json'
+            path.write_text('{"x":1,"x":2}', encoding='utf8')
+            with self.assertRaisesRegex(n.Invalid,'duplicate JSON key'): n.load(path)
     def test_duplicate_native_index(self):
         with self.assertRaisesRegex(n.Invalid,'unique'): n.catalogue(self.d,self.ids+self.ids)
 

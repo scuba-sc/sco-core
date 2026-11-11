@@ -4,6 +4,8 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+- Preserve canonical synthetic native-evidence output and fixtures across Windows and Unix checkouts; run invalid-JSON tests without reopening locked temporary files.
+
 - Reject any unresolved provenance rule that matches a distributed file, including rules hidden by earlier attribution matches.
 - Harden SDK packaging checks for Linux header links.
 - Preserve the C# build environment on Windows during SDK archive checks.

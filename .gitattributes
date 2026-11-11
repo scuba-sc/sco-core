@@ -10,3 +10,8 @@ tests/fixtures/plugins/tree/hello/hello.dll -text
 
 # Differential fixture Git-blob hashes require unchanged checkout bytes.
 tests/signature_differential/baseline/** -text
+
+# Canonical synthetic fixtures have byte-exact comparisons and digest pins.
+tests/fixtures/synthetic_native_evidence/profile-fixture.canonical.json -text
+tests/fixtures/synthetic_native_evidence/generated-fixture.json -text
+tests/fixtures/exact_build_profile/fixture.synthetic.canonical.json -text
