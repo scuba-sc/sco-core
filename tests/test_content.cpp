@@ -8,6 +8,7 @@
 #include "../src/api/internal.h"
 #include "abi_content.c" // C++ layout pins; also compiled separately as C11
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <fstream>
 #include <memory>
@@ -23,7 +24,17 @@ static void Sink(const char* line) {
 #define CHECK(x) do { if (x) ++pass; else { ++fail; std::printf("FAIL line %d: %s\n", __LINE__, #x); } } while (0)
 static void Write(const fs::path& p, const std::string& s) {
     fs::create_directories(p.parent_path());
-    std::ofstream out(p, std::ios::binary); out.write(s.data(), static_cast<std::streamsize>(s.size()));
+    std::ofstream out(p, std::ios::binary);
+    if (!out) {
+        std::fprintf(stderr, "FAIL: could not open content fixture file: %s\n", p.string().c_str());
+        std::exit(EXIT_FAILURE);
+    }
+    out.write(s.data(), static_cast<std::streamsize>(s.size()));
+    out.close();
+    if (!out) {
+        std::fprintf(stderr, "FAIL: could not write content fixture file: %s\n", p.string().c_str());
+        std::exit(EXIT_FAILURE);
+    }
 }
 static void Pack(const fs::path& root, const char* id) {
     Write(root / id / "plugin.ini", std::string("id = ") + id + "\nname = Synthetic fixture\nversion = 1.0.0\napi = 1.1\nkind = data\n");
@@ -127,7 +138,9 @@ int main(int argc, char** argv) {
     sco::SetLogSink(Sink);
     const fs::path base = fs::path(argv[1]) / "content-fixture";
     fs::remove_all(base); fs::create_directories(base);
-    MissionScripts(base / "mission-scripts");
+    // Keep the fixture shallow to reduce interference from the enclosing build
+    // path when testing the 100/101-character filename boundary.
+    MissionScripts(base / "m");
     const auto root = base / "plugins";
     Pack(root, "a_pack"); Pack(root, "b_pack"); Pack(root, "disabled_pack"); Pack(root, "broken_pack");
     Pack(root, "a_dependent");
