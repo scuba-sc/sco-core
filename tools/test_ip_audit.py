@@ -1016,6 +1016,27 @@ class Negative(unittest.TestCase):
 
 
 class DevelopmentAudit(unittest.TestCase):
+    def test_development_audit_rejects_mode_only_tampering(self):
+        with tempfile.TemporaryDirectory(prefix="dev-mode-audit-") as out, \
+             mock.patch.object(pkg, "require_clean_development_source"), \
+             mock.patch.object(audit, "load_package", return_value=pkg):
+            archive = pkg.build(pkg.load_manifest(), "core", out, development=True)
+            self.assertEqual(audit.audit_zip(archive, "core", development=True).failures, [])
+            bad = os.path.join(out, "wrong-mode.zip")
+            changed = False
+            with zipfile.ZipFile(archive) as src, zipfile.ZipFile(bad, "w") as dst:
+                for info in src.infolist():
+                    data = src.read(info)
+                    if info.filename.endswith("/include/sco_api.h"):
+                        self.assertEqual(info.external_attr >> 16, 0o100644)
+                        info.external_attr = 0o100755 << 16
+                        changed = True
+                    dst.writestr(info, data)
+            self.assertTrue(changed)
+            report = audit.audit_zip(bad, "core", development=True)
+            self.assertTrue(any("ZIP mode differs from exact development source" in failure
+                                for failure in report.failures), report.failures)
+
     def test_explicit_development_audit_binds_source_and_rejects_tampering(self):
         with tempfile.TemporaryDirectory(prefix="dev-audit-") as out, \
              mock.patch.object(pkg, "require_clean_development_source"), \
