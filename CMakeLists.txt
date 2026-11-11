@@ -553,6 +553,11 @@ if(SCO_GAME_SC)
     if(MSVC)
       target_compile_definitions(sco_runtime_atomic_fallback PRIVATE _SILENCE_CXX20_OLD_SHARED_PTR_ATOMIC_SUPPORT_DEPRECATION_WARNING=1)
       target_compile_definitions(test_owned_admission_atomic_fallback PRIVATE _SILENCE_CXX20_OLD_SHARED_PTR_ATOMIC_SUPPORT_DEPRECATION_WARNING=1)
+    elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
+      # This test intentionally exercises the deprecated fallback on libraries
+      # that have the preferred specialization. Keep other warnings enabled.
+      target_compile_options(sco_runtime_atomic_fallback PRIVATE -Wno-deprecated-declarations)
+      target_compile_options(test_owned_admission_atomic_fallback PRIVATE -Wno-deprecated-declarations)
     endif()
     target_link_libraries(test_owned_admission_atomic_fallback PRIVATE sco_runtime_atomic_fallback)
     sco_project_target(test_owned_admission_atomic_fallback)
