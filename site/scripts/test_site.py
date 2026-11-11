@@ -334,6 +334,38 @@ class SiteTests(unittest.TestCase):
         self.assertIn(notice + 'Indexed contract purpose', page)
         self.assertEqual(page.count('data-pagefind-ignore'), 1)
 
+    def test_preview_distinguishes_source_catalogue_from_archive_version(self):
+        catalogue = deepcopy(self.catalogue)
+        source_version = (ROOT / 'sdk/VERSION').read_text().strip()
+        archive_version = (ROOT / 'sdk/DEVELOPMENT_VERSION').read_text().strip()
+        self.assertNotEqual(source_version, archive_version)
+        catalogue['sdk_version'] = source_version
+        archive = {'core_sdk_version': archive_version,
+                   'source_commits': {'core': catalogue['source_sha']}}
+        self.assertEqual(archive['source_commits']['core'], catalogue['source_sha'])
+
+        notice = gen.banner(catalogue, None, 'Guides')
+        self.assertIn('Source catalogue SDK **' + source_version + '**', notice)
+        self.assertIn('Development archives may use a different SDK version for this source', notice)
+        self.assertIn('`COMPATIBILITY.json.game-sc`', notice)
+        self.assertIn('`sdk/VERSION`', notice)
+        self.assertNotIn(archive_version, notice)
+        routes = {name: gen.guide_id(name) for name in gen.inputs(ROOT)}
+        portal = gen.release_portal(ROOT, catalogue, None, routes)
+        preview = portal.split('data-od-id="release-build"', 1)[1].split('</section>', 1)[0]
+        published = portal.split('data-od-id="release-published"', 1)[1].split('</section>', 1)[0]
+        self.assertIn('<dt>Source catalogue SDK</dt><dd>' + source_version + '</dd>', preview)
+        self.assertIn('Development archive versions may differ from the source catalogue', preview)
+        self.assertIn('COMPATIBILITY.json.game-sc', preview)
+        self.assertIn('sdk/VERSION', preview)
+        self.assertIn('<dt>SDK</dt>', published)
+        self.assertNotIn('Source catalogue SDK', published)
+
+        release_notice = gen.banner(catalogue, 'sdk-v' + source_version, 'Guides')
+        self.assertNotIn('Development archives may use a different SDK version', release_notice)
+        release_portal = gen.release_portal(ROOT, catalogue, 'sdk-v' + source_version, routes)
+        self.assertNotIn('Development archive versions may differ', release_portal)
+
     def test_mapping_status_is_authoritative(self):
         record = deepcopy(self.catalogue['records'][0])
         for language in record['language_mappings']:

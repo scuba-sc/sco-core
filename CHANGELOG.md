@@ -4,6 +4,10 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+- Label the documentation site's source catalogue SDK version separately from the identity of a development archive.
+
+- Correct SDK template and actor-stats example licence comments without asserting a licence for other plugins.
+
 - Correct plugin discovery and SDK installation guidance to distinguish launcher setup checks from plugin startup reports.
 
 - Clarify that the first-plugin checker invokes commands synthetically and that product command routing and native startup require separate verification.

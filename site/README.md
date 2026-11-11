@@ -123,7 +123,11 @@ wrapper tokens alongside symbols and service names. Signatures and buffer prose
 are catalogue evidence, not inferred parameter semantics. Unspecified behavior
 remains unspecified; ABI tests do not prove runtime or in-game behavior.
 
-Every generated page identifies SDK version, game-pack version and source SHA.
+Every generated page identifies the source catalogue SDK version, game-pack version
+and source SHA. An unpublished development archive from that source can use a
+different SDK version. Check the archive's `COMPATIBILITY.json` and checksum,
+plus `VERSION` (or `sdk/VERSION` for a source-layout kit) where present. The
+standalone game overlay uses `COMPATIBILITY.json.game-sc`.
 By default it is a **development preview**. `gen.py --release-tag sdk-v<version>`
 accepts only an existing SDK tag resolving to the exact catalogue source SHA;
 passing a label alone cannot turn a preview into a release.

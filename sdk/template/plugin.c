@@ -6,8 +6,9 @@
  *      cmake -S . -B build -DSCO_SDK=/path/to/unpacked-sco-sdk && cmake --build build
  *      && cmake --install build --prefix out
  *
- * Reference: docs/api-v1.md in the SDK. License: GPL-3.0 (see LICENSE in the SDK); plugins
- * built against sco_api.h are GPL-3.0 too, with no linking exception.
+ * Reference: docs/api-v1.md in the SDK. This template is GPL-3.0-only; see LICENSE
+ * and docs/plugin-rules.md in the SDK for the project's plugin distribution policy.
+ * No linking exception is granted.
  */
 #include <stdio.h>
 #include <string.h>
