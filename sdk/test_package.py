@@ -677,7 +677,8 @@ class RealManifest(unittest.TestCase):
         selected = {c["source"] for c in pkg.select(self.m, "core-source")}
         self.assertFalse(selected & game, sorted(selected & game))
         for path in ("tests/abi_datacore.c", "tests/abi_game_actors.c",
-                     "tests/abi_spatial.c", "tests/abi_spawn.c", "tests/test_game_host_reports.cpp"):
+                     "tests/abi_spatial.c", "tests/abi_spawn.c", "tests/test_game_host_reports.cpp",
+                     "tests/test_legacy_quit_owner.cpp", "src/game/quit_owner_gate.h"):
             self.assertIn(path, game)
         with zipfile.ZipFile(pkg.build(self.m, "core-source", self.tmp)) as z:
             files = {n.split("/", 1)[1] for n in z.namelist()}
@@ -685,6 +686,8 @@ class RealManifest(unittest.TestCase):
         with zipfile.ZipFile(pkg.build(self.m, "host-source-sc", self.tmp)) as z:
             files = {n.split("/", 1)[1] for n in z.namelist()}
             self.assertIn("tests/test_game_host_reports.cpp", files)
+            self.assertIn("tests/test_legacy_quit_owner.cpp", files)
+            self.assertIn("src/game/quit_owner_gate.h", files)
 
     def test_core_source_builds_from_extracted_root(self):
         """CI and local runs exercise every neutral CTest, with no checkout include paths."""

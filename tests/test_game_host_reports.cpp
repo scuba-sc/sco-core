@@ -175,6 +175,9 @@ int main(int argc, char** argv) {
     if (mode == "allocation-copy") configuration.platform.pluginRoot = std::string(8192, 'x');
     if (mode == "native-refusal") configuration.platform.gameServices = true;
     if (mode == "invalid") configuration.inspect = nullptr;
+    // If registration is reached after the inspector closes startup, this
+    // tiny budget forces Failed rather than the expected cancellation.
+    if (mode == "request-stop-prepare") configuration.signatureRegistryBudgetBytes = 1;
     auto capsule = std::make_shared<const gh::HostCapsule>(configuration, backing);
     std::weak_ptr<const gh::HostCapsule> weakCapsule = capsule;
     std::weak_ptr<Backing> weakBacking = backing;
@@ -191,7 +194,7 @@ int main(int argc, char** argv) {
         configuration = gh::Options{}; capsule.reset(); backing.reset();
         CHECK(!weakCapsule.expired() && !weakBacking.expired() && destroyed == 0);
         if (mode == "request-stop-prepare") {
-            CHECK(prepared.result != R::Ok && prepared.phase == gh::Phase::Failed);
+            CHECK(prepared.result == R::Unavailable && prepared.phase == gh::Phase::Failed);
             CHECK(prepared.drain == gh::DrainDisposition::Retained);
             CHECK(owner->closed() && !owner->ready());
             CHECK(!owner->drain_until(std::chrono::steady_clock::now() + 1s));
