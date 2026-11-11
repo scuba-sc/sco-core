@@ -31,6 +31,16 @@ client_module = load('workflow_client', ROOT / 'tools/sco-core-mcp/test_server.p
 SHA = 'a' * 40
 
 
+class WindowsArchiveEnvironment(unittest.TestCase):
+    def test_csharp_artifact_name_preserves_msvc_library_search_paths(self):
+        script = (ROOT / 'sdk/test-zip.sh').read_text()
+        self.assertNotRegex(script, r'\bLIB=')
+        for artifact in ('cs_hello.dll', 'cs_hello.dylib', 'cs_hello.so'):
+            self.assertIn('CS_LIB=' + artifact, script)
+        self.assertIn('$WORK/cs_publish/$CS_LIB', script)
+        self.assertIn('${CS_LIB##*.}', script)
+
+
 class Inputs(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
