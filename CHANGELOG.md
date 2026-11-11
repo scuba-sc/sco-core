@@ -4,6 +4,8 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+- Keep the content-name fixture shallow and report file-write failures directly; very long Windows build roots still require a shorter test root.
+
 - Preserve Git executable modes in SDK archives across platforms and verify development ZIP modes against the source index.
 
 - Preserve canonical synthetic native-evidence output and fixtures across Windows and Unix checkouts; run invalid-JSON tests without reopening locked temporary files.
