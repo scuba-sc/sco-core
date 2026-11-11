@@ -71,7 +71,7 @@ class HostSourceArchive(unittest.TestCase):
 
     def test_private_evidence_census_exemption_is_narrow(self):
         tracked = set(pkg.tracked_files(pkg.ROOT))
-        self.assertTrue(PRIVATE_EVIDENCE_FIXTURES <= tracked)
+        self.assertLessEqual(PRIVATE_EVIDENCE_FIXTURES, tracked)
         sources = {c["source"] for c in pkg.select(pkg.load_manifest(), "host-source-sc")}
         self.assertFalse(PRIVATE_EVIDENCE_FIXTURES & sources)
         neighbor = "tests/fixtures/synthetic_native_evidence/unlisted-new-fixture.json"
@@ -90,7 +90,7 @@ class HostSourceArchive(unittest.TestCase):
         sources = {c["source"] for c in chosen}
         neutral = {c["source"] for c in pkg.select(m, "core-source")}
         tracked = set(pkg.tracked_files(pkg.ROOT))
-        self.assertTrue(PRIVATE_EVIDENCE_FIXTURES <= tracked)
+        self.assertLessEqual(PRIVATE_EVIDENCE_FIXTURES, tracked)
         self.assertFalse(PRIVATE_EVIDENCE_FIXTURES & sources)
         required = required_source_dependencies(tracked)
         neighbor = "tests/fixtures/synthetic_native_evidence/unlisted-new-fixture.json"

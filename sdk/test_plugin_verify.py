@@ -17,7 +17,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from unittest import mock
+import unittest.mock
 import warnings
 import zipfile
 
@@ -267,7 +267,7 @@ class PluginArchiveVerifierTests(unittest.TestCase):
         deep = "a/" * 480
         entries = [(f"p/{i:03}/{deep}f{i:03}.txt", b"") for i in range(8)]
         write_archive(self.archive_path, entries)
-        with mock.patch.object(verifier, "_archive_sha256", side_effect=AssertionError("hashed before prefix bound")):
+        with unittest.mock.patch.object(verifier, "_archive_sha256", side_effect=AssertionError("hashed before prefix bound")):
             with self.assertRaisesRegex(verifier.VerifyError, "collision checks exceed 4,194,304 aggregate prefix characters"):
                 self.verify()
 
@@ -296,14 +296,14 @@ class PluginArchiveVerifierTests(unittest.TestCase):
         bomb = b"0" * (1024 * 1024)
         write_archive(self.archive_path, [("pilot/plugin.ini", native_manifest()), ("pilot/pilot.dll", bomb)],
                       compression=zipfile.ZIP_DEFLATED)
-        with mock.patch.object(verifier, "_archive_sha256", side_effect=AssertionError("hashed before bounds")), \
-                mock.patch.object(zipfile.ZipFile, "open", side_effect=AssertionError("decompressed before bounds")):
+        with unittest.mock.patch.object(verifier, "_archive_sha256", side_effect=AssertionError("hashed before bounds")), \
+                unittest.mock.patch.object(zipfile.ZipFile, "open", side_effect=AssertionError("decompressed before bounds")):
             with self.assertRaisesRegex(verifier.VerifyError, "compression ratio"):
                 self.verify()
 
         entries = [(f"p{i}/x", b"") for i in range(verifier.MAX_ENTRIES + 1)]
         write_archive(self.archive_path, entries)
-        with mock.patch.object(verifier, "_archive_sha256", side_effect=AssertionError("hashed before bounds")):
+        with unittest.mock.patch.object(verifier, "_archive_sha256", side_effect=AssertionError("hashed before bounds")):
             with self.assertRaisesRegex(verifier.VerifyError, "entries; limit"):
                 self.verify()
 
@@ -312,16 +312,16 @@ class PluginArchiveVerifierTests(unittest.TestCase):
             ("pilot/plugin.ini", native_manifest()),
             ("pilot/pilot.dll", b"opaque"),
         ])
-        with mock.patch.object(verifier, "MAX_FILE_BYTES", 1), \
-                mock.patch.object(verifier, "_archive_sha256", side_effect=AssertionError("hashed before bounds")), \
-                mock.patch.object(zipfile.ZipFile, "open", side_effect=AssertionError("decompressed before bounds")):
+        with unittest.mock.patch.object(verifier, "MAX_FILE_BYTES", 1), \
+                unittest.mock.patch.object(verifier, "_archive_sha256", side_effect=AssertionError("hashed before bounds")), \
+                unittest.mock.patch.object(zipfile.ZipFile, "open", side_effect=AssertionError("decompressed before bounds")):
             with self.assertRaisesRegex(verifier.VerifyError, "file exceeds"):
                 self.verify()
 
     def test_archive_size_bound_is_checked_before_archive_hashing(self):
         write_archive(self.archive_path, [("pilot/plugin.ini", native_manifest())])
-        with mock.patch.object(verifier, "MAX_ARCHIVE_BYTES", 1), \
-                mock.patch.object(verifier, "_archive_sha256", side_effect=AssertionError("hashed before bounds")):
+        with unittest.mock.patch.object(verifier, "MAX_ARCHIVE_BYTES", 1), \
+                unittest.mock.patch.object(verifier, "_archive_sha256", side_effect=AssertionError("hashed before bounds")):
             with self.assertRaisesRegex(verifier.VerifyError, "archive exceeds"):
                 self.verify()
 

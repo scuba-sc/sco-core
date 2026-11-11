@@ -7,8 +7,8 @@ import tempfile
 import subprocess
 import sys
 import unittest
+import unittest.mock
 import zipfile
-from unittest import mock
 from pathlib import Path
 import synthetic_native_evidence as n
 HERE=Path(__file__).resolve().parent.parent / "tests/fixtures/synthetic_native_evidence"
@@ -57,8 +57,8 @@ class TestNativeEvidence(unittest.TestCase):
         # archive membership, not production catalogue generation or release.
         generated = lambda profile: (b'{}\n' if profile in
                                      ('game-sc', 'legacy', 'host-source-sc') else None)
-        with mock.patch.object(package, 'developer_catalogue', side_effect=generated), \
-             mock.patch.object(package, 'developer_guides', side_effect=generated):
+        with unittest.mock.patch.object(package, 'developer_catalogue', side_effect=generated), \
+             unittest.mock.patch.object(package, 'developer_guides', side_effect=generated):
             for profile in manifest['profiles']:
                 with self.subTest(profile=profile):
                     self.assertFalse(any('synthetic_native_evidence' in c['source']
