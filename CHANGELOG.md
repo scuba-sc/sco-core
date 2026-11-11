@@ -4,6 +4,8 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+- Preserve atomic shutdown-owner publication on C++20 standard libraries without atomic shared-pointer specialization, including Apple libc++.
+
 - Preserve Git executable modes in SDK archives across platforms and verify development ZIP modes against the source index.
 
 - Preserve canonical synthetic native-evidence output and fixtures across Windows and Unix checkouts; run invalid-JSON tests without reopening locked temporary files.

@@ -537,6 +537,29 @@ if(SCO_GAME_SC)
     add_test(NAME owned_admission_drain COMMAND test_owned_admission drain)
     add_test(NAME owned_admission_reentry COMMAND test_owned_admission reentry)
     set_tests_properties(owned_admission_prebind owned_admission_drain owned_admission_reentry PROPERTIES TIMEOUT 10)
+    # Exercise the fallback in both the runtime and admission even when the
+    # standard library provides the C++20 atomic<shared_ptr> specialization.
+    add_library(sco_runtime_atomic_fallback STATIC src/api/sco_tasks.cpp src/api/sco_events.cpp
+      src/api/sco_commands.cpp src/api/sco_services.cpp src/api/sco_raw.cpp)
+    target_include_directories(sco_runtime_atomic_fallback PUBLIC "${SCO_INCLUDE_DIR}")
+    target_link_libraries(sco_runtime_atomic_fallback PUBLIC sco_authority Threads::Threads)
+    target_compile_definitions(sco_runtime_atomic_fallback PRIVATE SCO_TEST_ATOMIC_SHARED_PTR_FALLBACK=1)
+    sco_project_target(sco_runtime_atomic_fallback)
+    add_executable(test_owned_admission_atomic_fallback tests/test_owned_admission.cpp src/game/admission.cpp)
+    target_compile_definitions(test_owned_admission_atomic_fallback PRIVATE
+      SCO_FRESH_ADMISSION_TESTING=1 SCO_TEST_ATOMIC_SHARED_PTR_FALLBACK=1)
+    # MSVC deprecates the fallback when its specialization exists, but this
+    # target deliberately tests the implementation used by libraries without it.
+    if(MSVC)
+      target_compile_definitions(sco_runtime_atomic_fallback PRIVATE _SILENCE_CXX20_OLD_SHARED_PTR_ATOMIC_SUPPORT_DEPRECATION_WARNING=1)
+      target_compile_definitions(test_owned_admission_atomic_fallback PRIVATE _SILENCE_CXX20_OLD_SHARED_PTR_ATOMIC_SUPPORT_DEPRECATION_WARNING=1)
+    endif()
+    target_link_libraries(test_owned_admission_atomic_fallback PRIVATE sco_runtime_atomic_fallback)
+    sco_project_target(test_owned_admission_atomic_fallback)
+    add_test(NAME owned_admission_fallback_prebind COMMAND test_owned_admission_atomic_fallback prebind)
+    add_test(NAME owned_admission_fallback_drain COMMAND test_owned_admission_atomic_fallback drain)
+    add_test(NAME owned_admission_fallback_reentry COMMAND test_owned_admission_atomic_fallback reentry)
+    set_tests_properties(owned_admission_fallback_prebind owned_admission_fallback_drain owned_admission_fallback_reentry PROPERTIES TIMEOUT 10)
     add_executable(test_mining tests/test_mining.cpp)
     target_link_libraries(test_mining PRIVATE sco_mining)
     sco_project_target(test_mining)

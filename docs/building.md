@@ -11,6 +11,8 @@ sco-core has two equivalent builds: the shell scripts in `tools/` (the reference
 | `tools/test-win.sh` | `x86_64-w64-mingw32-g++`, clang with the `x86_64-w64-mingw32` target, and Wine |
 | The SDK zip | Python 3, CMake, a C and C++20 compiler; Lua 5.4 for the Lua example check |
 
+The runtime supports C++20 standard libraries without `atomic<shared_ptr>` specialization by using the standard atomic shared-pointer operations.
+
 Windows x64 is the supported product platform. Linux x64 and macOS x64/ARM64 are
 development platforms for the neutral code and synthetic host tests, not product
 runtimes. On macOS ARM64 use `-DSCO_GAME_SC=OFF`; executable x86-64 detours are
