@@ -6,6 +6,8 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 - Direct the first-plugin quickstart to the published stable SDK 2.4.0 archive and its checksum; retain the RC1 example as history.
 
+- Preserve the exact native-index download bytes when generating the documentation site on Windows and Unix.
+
 - Clarify kit identity for development archives and the prepublication README wording retained in the immutable stable SDK 2.4.0 archive.
 
 - Preserve Git executable modes in SDK archives across platforms and verify development ZIP modes against the source index.
