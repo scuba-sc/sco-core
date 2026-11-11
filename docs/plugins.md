@@ -29,11 +29,11 @@ requires = teleport, spawn.ship   ; optional: capabilities, services, plugin ids
 
 ## Discovery
 
-`Discover(root, options)` lists every subfolder of `root` that holds a `plugin.ini`, in byte order of the folder name. It never runs plugin code and never opens the entry file. Symlinked folders are skipped. Each plugin ends in one state:
+`Discover(root, options)` lists every subfolder of `root` that holds a `plugin.ini`, in byte order of the folder name. It never runs plugin code and never opens the entry file. Symlinked folders are skipped. Each discovered plugin ends in one state. When external plugins are disabled, `sco::app` skips their discovery entirely; the host's plugin list does not represent every installed folder.
 
 | State | When |
 |---|---|
-| `off` | `plugins = off` in `sc-offline.ini` (the default). Listed so `status` can show it |
+| `off` | The caller invoked `Discover` with `options.enabled` false. A host that skips discovery has no external rows to show |
 | `disabled` | `data/plugins/<id>/disabled` exists (a file or a folder) |
 | `refused: <reason>` | `the folder name 'sco' is reserved for the host` (`sco` is the host's own id, under which it publishes [host-owned services](api-v1.md#host-owned-services); `host`, `menu` and `game` likewise; checked first, even for a disabled folder), `plugin.ini: <parse error>`, `id 'x' does not match folder 'y'`, `id 'x' belongs to a built-in plugin` (a folder whose id is one of the host's built-ins, whatever its kind; checked before the api and entry checks, so a folder that may not load at all never has its entry opened; a disabled folder stays `disabled` and appends the same reason to `disabled file`), `built for api M.m` (major differs or minor newer than the host), `entry 'x' not found`, `missing capability 'x'`, `requires service x.y: no plugin provides it`, `requires cycle: a -> b -> a`, `requires b: plugin 'b' is refused (<reason>)` (see [Load order](#load-order-and-requires)), `too many plugins` (over 128) |
 | `ready` | Passed; the loader, the Lua runtime or the content index takes it |
@@ -120,7 +120,7 @@ This is partial fault attribution and best-effort damage limitation, **not a pro
 
 The [service-table lifetime audit](design/service-table-lifetime.md) inventories table owners, query/accessor paths, thread rules and every unload/reload/withdrawal path, including shutdown and fault exceptions.
 
-`sco::app::Reload(id)` (the host command `sco.reload <id>`, [API](api.md#scoapph-the-host-kit), and the product's UI all use this entry point) reloads the target **and every transitively loaded dependent** while the game runs, on the game thread. It uses the `requires` edges resolved at discovery (`Plugin::after`): both `provider` and `provider.svc` identify dependencies, but a resolved host capability/service is not a plugin edge. Unrelated plugins and dependents that are not loaded stay unchanged.
+In a host that supports it, `sco::app::Reload(id)` can reload the target **and every transitively loaded dependent** on the game thread. A host may expose it as the `sco.reload <id>` command ([API](api.md#scoapph-the-host-kit)); the sc-offline launcher's Reload control displays a note and does not invoke it. Reload uses the `requires` edges resolved at discovery (`Plugin::after`): both `provider` and `provider.svc` identify dependencies, but a resolved host capability/service is not a plugin edge. Unrelated plugins and dependents that are not loaded stay unchanged.
 
 1. **Preflight the whole group:** every member must have reloadable code, idle callouts, loaded requirements and no handed-out service table. A built-in or data dependent refuses the entire cascade. The loader's atomic `BeginUnload` gate then reserves every owner together: either an earlier service query wins and the group is refused, or withdrawal wins and no query can obtain an old table. This happens before copies or teardown.
 2. **Prepare native copies:** every native entry DLL is copied to `<folder>/.reload-<n>-<entry>`. Copies sit next to the originals so dependencies still resolve from the plugin folder. (`Platform::loadFromCopies` also makes `Start` map natives from copies; otherwise originals are locked on Windows until the first reload.) If any copy fails, prepared copies are deleted and every reservation is cancelled; all group members keep running unchanged.
