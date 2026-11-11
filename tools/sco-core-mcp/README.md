@@ -50,14 +50,20 @@ optional and default-off; static discovery never certifies gameplay or performs 
 RC2 was published on 2026-10-28; its immutable archive identity is recorded in the
 [release notes](../../docs/releases/sdk-v2.4.0.md#published-rc2-archive-identity).
 Use matching source, archive, catalogue and workflow identities for any supplied kit.
+Check `COMPATIBILITY.json` for the kit's versions, profile and source revisions
+(`COMPATIBILITY.json.game-sc` for the standalone game overlay). Where present,
+the SDK version is also in `VERSION`, or `sdk/VERSION` in source-layout kits.
+A development archive may have different coordinates from the published stable
+release and is not itself a release asset.
 
 Stable SDK 2.4.0 is the current published release. The [stable release page](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0)
-provides the five profile archives and `SHA256SUMS`. Download `sco-sdk-2.4.0.zip`
-and check the downloaded file against that manifest; the [release notes](../../docs/releases/sdk-v2.4.0.md#stable-archive-identity)
+provides the five profile archives and `SHA256SUMS`. To use the published combined
+kit, download `sco-sdk-2.4.0.zip` and check it against that manifest; the [release notes](../../docs/releases/sdk-v2.4.0.md#stable-archive-identity)
 record the release source and all profile identities.
-The published bytes are immutable. The archived README and workflow index retain
-some prepublication wording; this current source page corrects its release status,
-but does not rewrite the packaged snapshot.
+The published bytes are immutable. The stable archive's root README describes RC2
+workflows, and its MCP README says the final release is not yet published. These
+are prepublication statements in the packaged snapshot; this source page does not
+rewrite it. The archived workflow index also retains some prepublication wording.
 The combined kit (`sco-sdk-2.4.0.zip`), matching `game-sc` overlay and
 `host-source-sc` kit include the discovery launcher,
 compiler-built `sdk-catalogue.json` and matching `sdk-guides.json`. Historical RC1
@@ -788,7 +794,8 @@ tools. Consult the linked GitHub documentation for current UI and runner behavio
 | Compatibility matches but service is absent | Catalogue equality is not runtime readiness. Check live capability, whole member extent, table size and non-null pointer in the plugin. |
 | Catalogue is stale | Rebuild matching reviewed source and restart. Root metadata/generator code are separate inputs, not authenticated by catalogue SHA. |
 | Guide sections are stale | A `sdk-guides.json` beside the catalogue (or from `--guides`) wins over `--repo-root`. Rebuild it with `tools/sdk_guides.py build`, or delete it to build from the tree, and restart. `guides.source_sha` says which commit the file came from. |
-| Guide text says 2.4.0 is not on the release page, or `check_compatibility` refuses the tag `sdk-v2.4.0-rc.1` | Known issues in release candidate 1: its guides and READMEs predate publication, and the tag pattern has no pre-release suffix. The docs site supersedes the kit's text; compare `sdk_version` and `game_pack_version`. |
+| A packaged README says stable 2.4.0 is not published, or describes RC2 workflows | The published stable archive retains prepublication README text. Use the [stable release page](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0) and verify the download against its `SHA256SUMS`; the [release notes](../../docs/releases/sdk-v2.4.0.md#stable-archive-identity) record the archive identities. Source documentation changes do not alter published bytes. RC1 and RC2 are separate historical releases. |
+| `check_compatibility` refuses `sdk-v2.4.0-rc.1` or `sdk-v2.4.0-rc.2` | The tag pattern does not accept pre-release suffixes. Compare `sdk_version`, `game_pack_version` and `source_sha` instead, and verify the archive digest separately. |
 
 Discovery cannot invoke commands, reload plugins or diagnose live game state.
 The project-root development tools build and check plugins on this machine only; they

@@ -384,6 +384,58 @@ int main() {
         CHECK(owner.try_read() && phase == 1);
     }
     {
+        // A same-thread move preserves the acquiring thread and normal release.
+        sco::OwnedShutdown owner;
+        {
+            auto first = sco::OwnedShutdownHostAccess::transition(owner);
+            auto moved = std::move(first);
+            CHECK(!first && moved && !owner.open());
+        }
+        CHECK(owner.open());
+        CHECK(owner.drain_until(std::chrono::steady_clock::now() + 1s));
+        CHECK(owner.ready());
+    }
+    {
+        // A waiting drain must not turn a foreign release into readiness.
+        sco::OwnedShutdown owner;
+        auto transition = sco::OwnedShutdownHostAccess::transition(owner);
+        CHECK(transition);
+        const auto deadline = std::chrono::steady_clock::now() + 5s;
+        auto draining = std::async(std::launch::async, [&] {
+            return owner.drain_until(deadline);
+        });
+        CHECK(owner.wait_until_closed(std::chrono::steady_clock::now() + 1s));
+        CHECK(draining.wait_for(0ms) == std::future_status::timeout);
+        std::thread transfer([lease = std::move(transition)] { (void)lease; });
+        transfer.join();
+        CHECK(draining.wait_for(1s) == std::future_status::ready);
+        CHECK(std::chrono::steady_clock::now() < deadline);
+        CHECK(!draining.get());
+        CHECK(owner.closed() && !owner.ready());
+        CHECK(owner.drain_state() == sco::OwnedShutdown::DrainState::Retained);
+        // The acquiring thread still cannot join its own obligation.
+        CHECK(owner.reap_retained_until(std::chrono::steady_clock::now() + 1s) ==
+              sco::OwnedShutdown::ReapResult::Refused);
+        auto maintenance = std::async(std::launch::async, [&] {
+            return owner.reap_retained_until(std::chrono::steady_clock::now() + 1s);
+        });
+        CHECK(maintenance.get() == sco::OwnedShutdown::ReapResult::ReapedRetained);
+        CHECK(!owner.ready());
+    }
+    {
+        // Destruction on a different thread invalidates the ownership proof.
+        sco::OwnedShutdown owner;
+        auto transition = sco::OwnedShutdownHostAccess::transition(owner);
+        CHECK(transition);
+        std::thread transfer([lease = std::move(transition)] { (void)lease; });
+        transfer.join();
+        CHECK(owner.closed() && !owner.open() && !owner.ready());
+        CHECK(owner.drain_state() == sco::OwnedShutdown::DrainState::Retained);
+        CHECK(!owner.try_read() && !owner.start_worker([](const auto&) {}));
+        CHECK(!owner.drain_until(std::chrono::steady_clock::now() + 20ms));
+        CHECK(!owner.ready());
+    }
+    {
         sco::OwnedShutdown owner;
         std::atomic<int> phase{0};
         auto transition = sco::OwnedShutdownHostAccess::transition(owner);
