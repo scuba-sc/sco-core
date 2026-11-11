@@ -10,6 +10,7 @@ What each change means for plugin authors and for products built on sco-core (sc
 - Clarify existing synthetic SDK test assertions and mock imports.
 - Add experimental Rust ABI bindings and a sample plugin with offline build and checker coverage.
 - Stop host startup before signature registration when inspection synchronously requests shutdown. Coverage is synthetic; this cancellation check does not establish native lifetime safety, and native activation remains refused.
+- **SDK archive verification:** consume the complete GNU checksum-tool version output so `pipefail` cannot mistake an early pipe close for an unavailable tool. A large-banner regression preserves the archive-only include rejection and real checksum verification.
 
 - Add a bounded, no-extraction plugin archive verifier and non-loading folder preflight. These checks do not establish plugin trust or runtime compatibility.
 - Support legacy initialized and modern metadata-based MCP stdio clients, preserving legacy request metadata and source-bound SDK workflow discovery.

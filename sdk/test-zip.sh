@@ -101,7 +101,8 @@ verify_zip() {   # verify_zip <zip>: unpack into its own folder; its SHA256SUMS 
   sums=$(cd "$top" && ls SHA256SUMS* 2>/dev/null || true)
   [ -n "$sums" ] && [ "$(printf '%s\n' "$sums" | wc -l)" -eq 1 ] \
     || { echo "$(basename "$2"): expected exactly one SHA256SUMS* file, found: ${sums:-none}"; exit 1; }
-  ( cd "$top" && if sha256sum --version 2>/dev/null | grep -q GNU; then sha256sum -c --quiet "$sums"; else shasum -a 256 -c --quiet "$sums"; fi )
+  # Consume the version output: grep -q can give sha256sum SIGPIPE under pipefail.
+  ( cd "$top" && if sha256sum --version 2>/dev/null | grep GNU >/dev/null; then sha256sum -c --quiet "$sums"; else shasum -a 256 -c --quiet "$sums"; fi )
   listed=$(wc -l < "$top/$sums")
   actual=$(cd "$top" && find . -type f ! -name 'SHA256SUMS*' | wc -l)
   [ "$listed" -eq "$actual" ] || { echo "$sums lists $listed files, $(basename "$2") has $actual"; exit 1; }
