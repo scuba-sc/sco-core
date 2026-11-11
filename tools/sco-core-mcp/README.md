@@ -451,6 +451,13 @@ these arguments:
 | `with_menu` | no | `true` adds a `sco.widgets` panel. Default `false`. |
 | `services` | no | Up to 16 `NAME` or `NAME@MAJOR.MINOR` strings, looked up as optional services on `game.ready`. Refused for `lua` (the sandbox has no service lookup), except `sco.widgets` with `with_menu`. |
 
+The current development core and combined plugin kits include an experimental
+raw Rust example; the standalone source kits and game overlay do not. Neither
+this scaffold tool nor the CLI generator creates Rust plugins. MCP
+language-filtered API and example searches advertise `c`, `cpp`, `csharp` and
+`lua`, not Rust. Read the development kit's `rust/README.md` and
+`examples/rust_hello` directly; the published stable SDK 2.4.0 lacks these files.
+
 The display name and author take the generator's defaults; there is no output
 path. Any other argument, or a value outside the schema, is refused as a tool
 error. A spec the generator itself refuses, such as a reserved id or a service

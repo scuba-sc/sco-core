@@ -23,6 +23,7 @@ The first command performs a folder-level static preflight without loading or ex
 | --- | --- |
 | C / C++ | Generator `c` / `cpp`; public headers and SDK CMake helpers; check/install as above. |
 | C# | Generator `csharp`; .NET 8 NativeAOT; follow generated publish commands with the actual target RID, then check the native module. CMake development MCP does not run dotnet publish. Preserve ABI layout checks and unmanaged lifetime rules. |
+| Rust (experimental) | Use a kit whose inventory contains `rust/sco-sdk` and `examples/rust_hello`; stable SDK 2.4.0 does not. The current source supplies them in unpublished development kits. Follow the kit's `rust/README.md` with Rust 1.99 or newer and the Windows MSVC x64 toolchain for the product target. The crate exposes raw root-ABI bindings, not safe wrappers or bindings for other service headers. The CLI/MCP scaffolder and MCP Rust language filters are not available; adapt the example manually and check the staged native module in full and short-table modes. |
 | Lua | Generator `lua`; no arbitrary `--services`. Native checker checks manifest/entry, not script execution. Run Lua 5.4 syntax plus kit `tools/lua-check.lua` stand-in checks, then an actual host for real behavior. Public Lua bindings do not expose arbitrary C service calls or game mutation. |
 | Data | Use a matching canonical example; `kind = data`, no entry/settings. Validate the actual feature's content format, including dedicated DataCore schema/lint checks where applicable. Content indexing is not import proof. |
 
