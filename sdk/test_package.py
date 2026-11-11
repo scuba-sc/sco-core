@@ -838,13 +838,29 @@ class RealManifest(unittest.TestCase):
                 self.assertFalse(pkg.linux_uapi_header_link(link, target, system, root, checkout))
                 with unittest.mock.patch.object(pkg, 'protected_system_path', return_value=True):
                     self.assertTrue(pkg.linux_uapi_header_link(link, target, system, root, checkout))
+                    # GCC may report the physical target instead of the include symlink.
+                    self.assertTrue(pkg.linux_uapi_header_link(target, target, system, root, checkout))
                     self.assertFalse(pkg.linux_uapi_header_link(link, target, [], root, checkout))
+                    self.assertFalse(pkg.linux_uapi_header_link(target, target, [], root, checkout))
                     self.assertFalse(pkg.linux_uapi_header_link(link, target, [Path('/')], root, checkout))
                     self.assertFalse(pkg.linux_uapi_header_link(link, target, system, source_dir.parent, checkout))
                     self.assertFalse(pkg.linux_uapi_header_link(link, target, system, target_dir, checkout))
+                    self.assertFalse(pkg.linux_uapi_header_link(target, target, system, target_dir, checkout))
                     self.assertFalse(pkg.linux_uapi_header_link(link, target, system, root, target_dir))
+                    self.assertFalse(pkg.linux_uapi_header_link(target, target, system, root, target_dir))
                     self.assertFalse(pkg.linux_uapi_header_link(link, checkout / target.name, system, root, checkout))
+                    for unsafe in (source_dir, target, target_dir):
+                        with self.subTest(unsafe=unsafe), unittest.mock.patch.object(
+                                pkg, 'protected_system_path', side_effect=lambda p: p != unsafe):
+                            self.assertFalse(pkg.linux_uapi_header_link(target, target, system, root, checkout))
+                    unlinked = target_dir / 'unlinked.h'
+                    unlinked.write_text('/* no corresponding include link */\n')
+                    self.assertFalse(pkg.linux_uapi_header_link(unlinked, unlinked, system, root, checkout))
+                    link.unlink()
                     self.assertFalse(pkg.linux_uapi_header_link(target, target, system, root, checkout))
+                    link.symlink_to(unlinked)
+                    self.assertFalse(pkg.linux_uapi_header_link(target, target, system, root, checkout))
+                    self.assertFalse(pkg.linux_uapi_header_link(link, unlinked, system, root, checkout))
 
     def test_protected_system_path_rejects_foreign_or_shared_writable_paths(self):
         def info(owner, mode):

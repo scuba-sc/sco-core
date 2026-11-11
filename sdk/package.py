@@ -300,18 +300,23 @@ def linux_uapi_header_link(path, resolved, system, root, checkout):
     if not sys.platform.startswith('linux'):
         return False
     source_dir, target_dir = LINUX_UAPI_LINK_DIRS
-    if path.parent != source_dir or not path.is_symlink() or resolved != target_dir / path.name:
+    # GCC can report the physical target in its depfile rather than the path
+    # searched by the compiler. Require the same protected include symlink in
+    # either case; the target directory itself is never a general trust root.
+    link = source_dir / path.name if path == resolved and path.parent == target_dir else path
+    if (link.parent != source_dir or not link.is_symlink() or
+            resolved != target_dir / link.name or link.resolve() != resolved):
         return False
     if not any(p != Path(p.anchor) and
                all(p != forbidden and forbidden not in p.parents for forbidden in (root, checkout)) and
-               (path == p or p in path.parents) for p in system):
+               (link == p or p in link.parents) for p in system):
         return False
     if any(resolved == p or p in resolved.parents for p in (root, checkout)):
         return False
     # Refuse a mutable system layout: neither the links, their target, nor any
     # containing directory may be writable by this process. No other target
     # directory becomes an approved compiler include root.
-    protected = (path.parent, resolved, *path.parent.parents, *resolved.parents)
+    protected = (link.parent, resolved, *link.parent.parents, *resolved.parents)
     return all(protected_system_path(p) for p in protected)
 
 
