@@ -306,10 +306,11 @@ if [ "${SCO_SDK_CSHARP:-0}" = 1 ]; then
   # The NativeAOT build finds Visual Studio with vswhere, which Git Bash may not have on PATH.
   VSW="/c/Program Files (x86)/Microsoft Visual Studio/Installer"
   if [ -d "$VSW" ]; then PATH="$PATH:$VSW"; fi
+  # LIB is exported by MSVC: keep its library search paths intact for NativeAOT.
   case "$(uname -s)" in
-    MINGW*|MSYS*|CYGWIN*) RID=win-x64; LIB=cs_hello.dll ;;
-    Darwin) RID=osx-$(uname -m | sed 's/x86_64/x64/'); LIB=cs_hello.dylib ;;
-    *) RID=linux-x64; LIB=cs_hello.so ;;
+    MINGW*|MSYS*|CYGWIN*) RID=win-x64; CS_LIB=cs_hello.dll ;;
+    Darwin) RID=osx-$(uname -m | sed 's/x86_64/x64/'); CS_LIB=cs_hello.dylib ;;
+    *) RID=linux-x64; CS_LIB=cs_hello.so ;;
   esac
   dotnet run -c Release --project "$ROOT/csharp/Sco.Sdk.Tests" | tee "$WORK/cs_tests.txt"
   grep -q '^Sco.Sdk.Tests: OK' "$WORK/cs_tests.txt"
@@ -334,7 +335,7 @@ PY
   fi
   dotnet publish "$ROOT/examples/cs_hello/cs_hello.csproj" -c Release -r "$RID" "${AOT_FLAGS[@]+"${AOT_FLAGS[@]}"}" -o "$WORK/cs_publish"
   mkdir -p "$WORK/cs/cs_hello"
-  cp "$WORK/cs_publish/$LIB" "$WORK/cs/cs_hello/cs_hello.dll"
+  cp "$WORK/cs_publish/$CS_LIB" "$WORK/cs/cs_hello/cs_hello.dll"
   cp "$ROOT/examples/cs_hello/plugin.ini" "$WORK/cs/cs_hello/"
   "$CHECK" "$WORK/cs/cs_hello" --invoke cs_hello.wave "Pilot One" | tee "$WORK/cs_hello.txt"
   grep -q 'invoke  cs_hello.wave -> ok "Hello, Pilot One"' "$WORK/cs_hello.txt"
@@ -347,7 +348,7 @@ PY
   dotnet publish "$WORK/scaf_cs/scaf_cs.csproj" -c Release -r "$RID" "${AOT_FLAGS[@]+"${AOT_FLAGS[@]}"}" -p:ScoSdk="$ROOT" \
     -o "$WORK/scaf_cs_publish"
   mkdir -p "$WORK/cs/scaf_cs"
-  cp "$WORK/scaf_cs_publish/scaf_cs.${LIB##*.}" "$WORK/cs/scaf_cs/scaf_cs.dll"
+  cp "$WORK/scaf_cs_publish/scaf_cs.${CS_LIB##*.}" "$WORK/cs/scaf_cs/scaf_cs.dll"
   cp "$WORK/scaf_cs_publish/plugin.ini" "$WORK/cs/scaf_cs/"
   "$CHECK" "$WORK/cs/scaf_cs" | tee "$WORK/scaf_cs.txt"
   grep -q 'invoke  scaf_cs.ping -> ok "pong (0 of 1 services)"' "$WORK/scaf_cs.txt"
