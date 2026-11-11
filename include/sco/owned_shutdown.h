@@ -68,7 +68,9 @@ public:
     enum class DrainState { Open, Requested, InProgress, Drained, Retained, Unknown };
     // Thread-bound host transition. Publication is linearized against close
     // and fault under the owner mutex; the lease remains counted until it is
-    // released. No caller-provided code runs under that mutex.
+    // released. It must be destroyed on its acquiring thread. Foreign-thread
+    // destruction closes and faults the owner, which must retain its backing.
+    // No caller-provided code runs under that mutex.
     class Transition {
     public:
         Transition() = default;
@@ -78,6 +80,14 @@ public:
         ~Transition() {
             if (!owner_) return;
             std::lock_guard<std::mutex> lock(owner_->mutex_);
+            if (owner_->transitionThread_ != std::this_thread::get_id()) {
+                // The origin may still be executing the transition's work.
+                // Retain its identity so maintenance cannot self-join there.
+                owner_->abandonedTransitionThread_ = owner_->transitionThread_;
+                owner_->faulted_ = owner_->closed_ = true;
+                owner_->ready_ = false;
+                owner_->stop_.store(true);
+            }
             owner_->transitioning_ = false;
             owner_->transitionThread_ = {};
             owner_->cv_.notify_all();
@@ -142,7 +152,9 @@ public:
     OwnedShutdown() = default;
     OwnedShutdown(const OwnedShutdown&) = delete;
     OwnedShutdown& operator=(const OwnedShutdown&) = delete;
-    // Destruction requires no concurrent public calls, starts or Read leases.
+    // Destruction requires no concurrent public calls, starts, Read leases or
+    // Transition leases. A foreign release requires retaining the owner and
+    // its backing while the acquiring thread's work may still be executing.
     // It joins, never detaches or terminates. A timed-out owner must retain this
     // and borrowed backing until all starts, workers and callers have ended;
     // Timed waits can refuse a stuck worker, but the overall call has no hard
@@ -331,7 +343,8 @@ public:
 private:
     bool on_obligation_thread_locked() const {
         const auto current = std::this_thread::get_id();
-        if ((transitioning_ && transitionThread_ == current) || currentWorker_ == this ||
+        if ((transitioning_ && transitionThread_ == current) ||
+            abandonedTransitionThread_ == current || currentWorker_ == this ||
             std::find(readerThreads_.begin(), readerThreads_.end(), current) != readerThreads_.end()) return true;
         for (const auto& w : workers_) if (w->starting && w->starter == current) return true;
         return false;
@@ -452,6 +465,9 @@ private:
     bool transitioning_ = false;
     bool startup_ = false;
     std::thread::id transitionThread_;
+    // Sticky after an invalid release; thread-id reuse can conservatively refuse
+    // maintenance, but cannot turn retained failure into retirement proof.
+    std::thread::id abandonedTransitionThread_;
     bool joined_ = false;
     bool joinControlActive_ = false;
     std::thread joiner_;

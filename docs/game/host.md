@@ -25,7 +25,11 @@ lifetimes require independent proof before product activation.
 `Prepare`, `Activate`, and `Start` are separate host entries. Owner admission is
 closed across all three phases; an already-entered reader or worker start prevents
 startup. Each entry holds a host transition and publishes its phase under the
-owner lock. A close or fault observed under that lock before publication prevents
+owner lock. A transition must be destroyed on its acquiring thread; a foreign
+release faults and closes the owner, retaining backing and refusing maintenance
+from the original thread. Other control threads may still reap retained handles;
+that does not authorize retirement. A close or fault observed under that lock
+before publication prevents
 that publication and retains partially created state. A request that linearizes
 after successful publication does not retroactively cancel it. `Start` opens cooperative admission only with the Running phase.
 This is a synthetic lifecycle protocol, not evidence of a native barrier. Product

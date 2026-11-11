@@ -4,6 +4,10 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+- Fail closed if a host transition is destroyed on a different thread, retaining
+  the original thread's maintenance refusal and all backing. This does not
+  establish native lifetime safety or authorize native activation.
+
 - Preserve Git executable modes in SDK archives across platforms and verify development ZIP modes against the source index.
 
 - Preserve canonical synthetic native-evidence output and fixtures across Windows and Unix checkouts; run invalid-JSON tests without reopening locked temporary files.
