@@ -269,7 +269,9 @@ separate from `sco-plugin-check`, which loads native plugins in its stand-in hos
 
 1. Copy the plugin's folder, for example `out\data\plugins\hello`, into sc-offline's `data\plugins\` folder, so you have `data\plugins\hello\plugin.ini`.
 2. In `sc-offline.ini` set `plugins = on`.
-3. Play. `data\mod.log` lists every plugin with its state: `loaded`, `off`, `disabled`, `crashed`, `faulted` or `refused: <reason>`. `sc-offline.exe status` shows the same list. `faulted` means a provider fault retained backing state and resources rather than releasing them: restart the game; cached service tables are not safe to call, and no recovery is guaranteed.
+3. Run `sc-offline.exe status` for installation and configuration checks; it does not report plugin load states. If sc-offline reaches host startup reporting, it may record discovered plugin states in `data\mod.log`. The log can be absent or from an earlier run. When plugins are off, `sco::app` skips external discovery, so its report is not an inventory of every installed folder. The launcher's optional last-startup snapshot can also be missing or stale; it is not a live host query. Enabling plugins does not guarantee that the host starts or loads a plugin.
+
+If a host report marks a plugin `faulted`, the host can retain backing state and resources after a fault. Cached service tables are not safe to call; restart the host before retrying, but recovery is not guaranteed.
 
 To switch one plugin off, create an empty file named `disabled` in its folder.
 
