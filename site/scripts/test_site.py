@@ -13,6 +13,7 @@ import shutil
 import subprocess
 import tempfile
 import unittest
+from unittest import mock
 from urllib.parse import unquote, urlsplit
 import zlib
 
@@ -890,6 +891,20 @@ class SiteTests(unittest.TestCase):
             body = text[text.index('Every signature row'):]
             self.assertNotRegex(body, r'https?://(?!github\.com/scuba-sc/sco-core/blob/[0-9a-f]{40}/)')
             self.assertIn('tableOfContents: false', text)
+
+    def test_native_index_download_preserves_input_newlines(self):
+        original = (ROOT / gen.NATIVE_INDEX).read_bytes().replace(b'\r\n', b'\n')
+        for ending in (b'\n', b'\r\n'):
+            with self.subTest(ending=ending), tempfile.TemporaryDirectory(prefix='site-native-bytes-') as work:
+                root = Path(work)
+                index = root / 'input.json'
+                expected = original.replace(b'\n', ending)
+                index.write_bytes(expected)
+                output = root / 'output'
+                with mock.patch.object(gen, 'NATIVE_INDEX', str(index)):
+                    self.generate(ROOT, output)
+                self.assertEqual((output / 'public' / gen.NATIVE_DOWNLOAD).read_bytes(), expected)
+                self.assertEqual(index.read_bytes(), expected)
 
     def test_native_index_fails_closed(self):
         good = json.loads((ROOT / gen.NATIVE_INDEX).read_text())
