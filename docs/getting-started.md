@@ -220,9 +220,14 @@ prove game functionality. It is not the game, not a sandbox or a crash guard,
 and passing it does not certify service behavior or gameplay. A module named
 `.dll` on macOS/Linux is still a local-platform binary, **not** a Windows DLL.
 
-## 6. Deploy on Windows and test in game (not executed here)
+## 6. Prepare a Windows deployment (not executed here)
 
-These are **Windows/in-game steps**, not part of the verification above:
+These are **Windows deployment steps**, not part of the checker verification
+above. Host startup and in-game behavior depend on the exact product build. The
+current sc-offline development candidate refuses native activation while its
+lifetime and shutdown safety are unverified; installation and configuration
+alone do not start the host. Consult the product's status for your build before
+any game verification.
 
 1. Rebuild and check the plugin on **Windows x64** using the Windows SDK
    recipe; carry over your renamed template, not the macOS build products.
@@ -230,10 +235,16 @@ These are **Windows/in-game steps**, not part of the verification above:
    from the install output into sc-offline's `data\plugins\`. Confirm that
    `data\plugins\first_plugin\plugin.ini` and its declared module are together.
 3. Check `plugins = on` in `sc-offline.ini` (the current product default); an owner can explicitly disable loading.
-4. Start the offline product and inspect `data\mod.log` for this plugin's state.
-   Invoke `first_plugin.ping` in the product's command UI; verify its `pong`
-   reply. Record the product/game build and result before claiming gameplay
-   acceptance. See [loader/status rules](plugins.md).
+4. If a compatible product build starts its plugin host, inspect `data\mod.log`,
+   if produced, for the plugin's load or refusal. A missing log does not prove
+   a load. See [loader/status rules](plugins.md).
+5. The template registers `first_plugin.ping` with the host command registry
+   when it loads successfully. The checker in section 5 supplies the **synthetic**
+   caller that produced `pong`. This guide does not establish a generic
+   sc-offline command-entry UI: product invocation needs a verified host-specific
+   caller or a plugin-defined surface, with command execution on the game thread.
+   Record the exact product/game build and actual result before claiming
+   gameplay acceptance.
 
 Install only trusted plugins: native code has the game's full rights and no
 native-fault recovery guarantee. Follow [plugin rules](../sdk/docs/plugin-rules.md),

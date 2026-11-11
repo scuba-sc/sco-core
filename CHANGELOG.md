@@ -4,6 +4,10 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+- Correct plugin discovery and SDK installation guidance to distinguish launcher setup checks from plugin startup reports.
+
+- Clarify that the first-plugin checker invokes commands synthetically and that product command routing and native startup require separate verification.
+
 - Correct the plugin guide's host-specific enablement defaults and disabled discovery logging.
 
 - Direct the first-plugin quickstart to the published stable SDK 2.4.0 archive and its checksum; retain the RC1 example as history.

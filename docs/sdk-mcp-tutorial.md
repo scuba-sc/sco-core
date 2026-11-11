@@ -478,18 +478,23 @@ marker only by explicit owner choice. Tutorial folders are not shipped defaults.
 Use only the existing offline launcher, never official connectivity or EAC
 manipulation. Unknown offline/admission state means no mutation.
 
-Through the host's game-thread command registry, the owner invokes
-`tutorial_npc.spawn <owner-chosen-archetype> 1`, `.observe`, `.remove <owned-id>`
-and `.clear`; `tutorial_inspector.read` is read-only. `synthetic_actor` belongs
-only to fixtures, not the game. Removal success means initiation, not disappearance;
+The command registry is not itself a console or UI. The inspected sc-offline
+development candidate does not establish a generic command-entry route and
+refuses native activation while lifetime safety is unverified. For a compatible
+build with a verified host-specific caller or plugin-defined surface, the
+example commands are `tutorial_npc.spawn <owner-chosen-archetype> 1`, `.observe`,
+`.remove <owned-id>` and `.clear`; `tutorial_inspector.read` is read-only.
+Commands execute on the game thread. `synthetic_actor` belongs only to fixtures,
+not the game. Removal success means initiation, not disappearance;
 `alive=0` is not death, removal or authority. Only actors-owned IDs may be removed
 through `game.actors`. Missing services have no private fallback; maximum health
 zero stays unknown.
 
-For a normal command-only external consumer, `sco.reload tutorial_inspector` or
-`sco.reload tutorial_npc` unloads/reloads through the existing host route. Check
-command withdrawal/re-registration and NPC owner cleanup with the exact host/game
-build. Rebuild/replace files only with the DLL unloaded or game closed. Folder
+If that running host provides a verified caller, `sco.reload tutorial_inspector`
+or `sco.reload tutorial_npc` requests reload through the host command registry;
+registration alone does not supply a product UI. Check command withdrawal and
+re-registration and NPC owner cleanup with the exact host/game build.
+Rebuild/replace files only with the DLL unloaded or game closed. Folder
 disable takes effect at next start; `plugins = off` blocks external features.
 Queried native **providers** can be session-lifetime/restart-only; DataCore changes
 need restart; built-ins cannot be hot-reloaded. A native fault is restart-required,

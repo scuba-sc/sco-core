@@ -194,7 +194,10 @@ typedef void (*sco_event_fn)(const char* event, const void* data, void* ctx);
 
 ## Commands
 
-Features expose actions as named commands, sc-offline's own and plugins' alike. The menu draws a control per argument and calls `invoke`; a plugin calls the same function. Three functions cover every feature.
+Features expose actions as named commands, sc-offline's own and plugins' alike.
+Plugins can call `invoke`; a host or plugin may provide controls that invoke
+commands, but registration alone does not create a product menu or command-entry
+UI. The host decides which user-facing surfaces it provides.
 
 ```c
 typedef enum sco_arg_type { SCO_ARG_INT = 0, SCO_ARG_FLOAT = 1, SCO_ARG_STRING = 2, SCO_ARG_BOOL = 3 } sco_arg_type;
@@ -227,7 +230,7 @@ typedef struct sco_command {
 |---|---|
 | `size` | `sizeof(sco_command)` |
 | `name` | `<owner>.<action>`: `"spawn.ship"`, `"teleport.save"`, `"hello.wave"`. A plugin may only register names that start with its own `name` and a dot |
-| `title` | The menu label, `"Spawn ship"` |
+| `title` | A human-readable label, `"Spawn ship"` |
 | `help` | One line of help, or NULL |
 | `capability` | The `has()` name this command needs, or NULL for always available |
 | `args`, `nargs` | The argument definitions, in order (at most 16) |
@@ -240,7 +243,7 @@ Behavior:
 - Commands run on the game thread. `invoke` from the game thread runs the command at once, calls `done` once before returning and returns the same result.
 - From any other thread `invoke` copies the name and arguments, queues the call and returns `SCO_OK`; `done` then runs exactly once, on the game thread. Any other return (`SCO_BAD_ARG`, or `SCO_TOO_MANY` when the queue is full or memory runs out) means nothing was queued and `done` is never called. A call still queued when the calling plugin unloads is dropped, and `done` isn't called.
 - Before calling `fn` the host checks the argument count and types (`SCO_BAD_ARG`) and the capability (`SCO_UNAVAILABLE`); `done` receives that result and `fn` isn't called.
-- `fn` writes a short human message into `reply`, at most `reply_size` bytes including the NUL: `"Spawned Cutlass Black"`. The menu shows it on the status line. `done` gets it as `reply`, valid only during the call.
+- `fn` writes a short human message into `reply`, at most `reply_size` bytes including the NUL: `"Spawned Cutlass Black"`. A product may show it on a status line; `done` gets it as `reply`, valid only during the call.
 - `done` may be NULL when the caller doesn't need the result.
 
 Not settled for 1.0: how the menu reads lists it shows today (ship classes, bookmarks, outfits, contract offers). It is decided at step 5 with the real menu; the candidates are commands that return a list in `reply`, or a `query` function added in 1.1.

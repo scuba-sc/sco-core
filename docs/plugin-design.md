@@ -52,10 +52,12 @@ feature with one owner for its state:
 
 - The plugin that owns a piece of state is the only one that writes it. Others ask the
   owner through its service or its commands.
-- Commands are the human-facing surface (`<id>.<action>`, shown in the product's menu,
-  callable with `invoke`); a service table is the plugin-facing surface. A feature
-  usually offers both: `counter_service` registers `counter_service.value` for people
-  and publishes `counter_service.counter` for plugins.
+- Commands expose named actions (`<id>.<action>`) through the host registry and are
+  callable with `invoke`. Whether a user can invoke them depends on the product or a
+  plugin providing a suitable control or hotkey; registration alone does not add a
+  menu entry. A service table is the plugin-facing surface. A feature can offer both:
+  `counter_service` registers `counter_service.value` and publishes
+  `counter_service.counter` for plugins.
 - If two parts of a plugin could sensibly be switched off independently, or one part
   is useful to other plugins without the rest, they are two plugins.
 
