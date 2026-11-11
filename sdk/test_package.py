@@ -81,6 +81,33 @@ class RealManifest(unittest.TestCase):
             with self.subTest(changes=changes), self.assertRaisesRegex(pkg.ManifestError, message):
                 records_with(**changes)
 
+    def test_shadowed_unresolved_blocks_but_pending_keeps_first_attribution(self):
+        provenance = json.loads(pkg.read("docs/legal/provenance.json"))
+        component = next(c for c in pkg.select(self.m, "core") if c["source"] == "include/sco_api.h")
+        original_read = pkg.read
+        def records_with(status, broad=False):
+            doc = copy.deepcopy(provenance)
+            if broad:
+                doc["entries"].insert(0, {"path": component["source"], "origin": component["origin"],
+                                          "license": component["license"], "copyright": "test holder",
+                                          "status": "reviewed"})
+            self.assertEqual(next(e for e in doc["entries"] if pkg.provenance_matches(
+                e["path"], component["source"]))["status"], "reviewed")
+            doc["entries"].append({"path": "include/**" if broad else component["source"],
+                                   "origin": component["origin"],
+                                   "license": component["license"], "copyright": "test holder",
+                                   "status": status, "issue": "synthetic dispute"})
+            def read(path):
+                return json.dumps(doc).encode() if path == "docs/legal/provenance.json" else original_read(path)
+            with unittest.mock.patch.object(pkg, "read", side_effect=read):
+                return pkg.attributions(self.m, "core")
+        record = records_with("needs-review")[pkg.destination(self.m, "core", component)]
+        self.assertEqual(record["status"], "reviewed")
+        with self.assertRaisesRegex(pkg.ManifestError, "unresolved provenance"):
+            records_with("unresolved")
+        with self.assertRaisesRegex(pkg.ManifestError, "unresolved provenance"):
+            records_with("unresolved", broad=True)
+
     def test_rc2_discovery_metadata_profile_selection(self):
         # The RC2 scope decision retains both files in the game-bearing kits only.
         expected = {"game-sc", "legacy", "host-source-sc"}
