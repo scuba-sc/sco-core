@@ -4,6 +4,10 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+- Prepare game pack 0.8.1 for build 4.10.200.58746 in the 2.4.1 candidate.
+  Updated ATC, impound, quantum and hauling locators scan on both 197 and 200;
+  hauling semantics, native activation and in-game behavior remain unverified.
+
 - Advance the local unpublished development SDK coordinate to `2.4.1-dev.2` and
   qualify supplied host-source metadata against the exact current stable or
   development version, source and profile before compilation. Preserve stable

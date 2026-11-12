@@ -7,21 +7,21 @@
 #ifndef SC_GAME_PACK_H
 #define SC_GAME_PACK_H
 
-#define SCO_GAME_PACK_VERSION "0.8.0"
+#define SCO_GAME_PACK_VERSION "0.8.1"
 /* Numeric mirrors of the strings below; keep the pairs in step (game.build refuses to
  * start when they disagree). */
 #define SCO_GAME_PACK_VERSION_MAJOR 0
 #define SCO_GAME_PACK_VERSION_MINOR 8
-#define SCO_GAME_PACK_VERSION_PATCH 0
+#define SCO_GAME_PACK_VERSION_PATCH 1
 
 /* The newest game build every row was checked on with sco-sigcheck (all rows OK). */
-#define SCO_GAME_PACK_VERIFIED_BUILD "4.10.197.2878"
+#define SCO_GAME_PACK_VERIFIED_BUILD "4.10.200.58746"
 #define SCO_GAME_PACK_VERIFIED_BUILD_PARTS_0 4
 #define SCO_GAME_PACK_VERIFIED_BUILD_PARTS_1 10
-#define SCO_GAME_PACK_VERIFIED_BUILD_PARTS_2 197
-#define SCO_GAME_PACK_VERIFIED_BUILD_PARTS_3 2878
+#define SCO_GAME_PACK_VERIFIED_BUILD_PARTS_2 200
+#define SCO_GAME_PACK_VERIFIED_BUILD_PARTS_3 58746
 /* That build's StarCitizen.exe PE timestamp (the file's identity: sco-sigcheck prints it). */
-#define SCO_GAME_PACK_VERIFIED_PE_TIMESTAMP "0x6accbae3"
+#define SCO_GAME_PACK_VERIFIED_PE_TIMESTAMP "0x6af4861d"
 /* What "verified" means for this release. Rows are checked by sco-sigcheck against the exe file; the
  * services built on them have not been run in game yet (docs/game/status.md says per table). */
 #define SCO_GAME_PACK_VERIFICATION "rows verified by sigcheck; in-game verification pending"
