@@ -17,6 +17,7 @@
 #include "sco/runtime.h"
 #include "sco/scan.h"
 #include "sco/settings.h"
+#include "sco/storage.h"
 #include "sco/ui.h"
 #include "sco_api.h"
 #include "sco_lua.h"
@@ -27,6 +28,7 @@
 #include <algorithm>
 #include <csetjmp>
 #include <csignal>
+#include <chrono>
 #include <cstdio>
 #include <cstring>
 #include <fstream>
@@ -1567,10 +1569,111 @@ static void TestPluginStartupSnapshotApp(const fs::path& out) {
     CHECK(sco::app::Stop() == sco::Result::Ok);
 }
 
+static void TestDiagnosticMetadataApp(const fs::path& out) {
+    sco::app::Platform platform;
+    platform.pluginsEnabled = false;
+    platform.pluginRoot = out / "diagnostic-metadata-plugins";
+    platform.dataRoot = out / "diagnostic-metadata";
+    std::error_code ec;
+    fs::create_directories(platform.pluginRoot, ec);
+    CHECK(!ec && sco::app::Start(platform));
+    for (uint32_t i = 0; i < 16; ++i) sco::app::Tick(i);
+    auto ordinary = sco::app::DiagnosticSnapshot();
+    CHECK(ordinary && !ordinary->sources.profile && !ordinary->sources.storage);
+    CHECK(sco::app::Stop() == sco::Result::Ok);
+    CHECK(!sco::app::DiagnosticSnapshot());
+
+    sco::diagnostics::ProfileMetadata profile;
+    profile.profileId = "qa_profile";
+    profile.generation = 5;
+    profile.pluginCount = 999; // the app replaces this with its observed roster
+    platform.diagnosticSources.profile = profile;
+    platform.diagnosticSources.storage = true;
+    CHECK(sco::app::Start(platform));
+    for (uint32_t i = 0; i < 16; ++i) sco::app::Tick(i);
+    auto observed = sco::app::DiagnosticSnapshot();
+    CHECK(observed && observed->sources.profile && observed->sources.storage);
+    uint64_t storageGeneration = 0;
+    if (observed && observed->sources.profile && observed->sources.storage) {
+        const auto& actual = *observed->sources.profile;
+        CHECK(actual.profileId == "qa_profile" && actual.generation == 5);
+        CHECK(actual.pluginCount && *actual.pluginCount == 0);
+        CHECK(actual.loadedPluginCount && *actual.loadedPluginCount == 0);
+        CHECK(actual.observedMs && *actual.observedMs <= observed->observedMs);
+        storageGeneration = observed->sources.storage->generation;
+        CHECK(storageGeneration != 0);
+        CHECK(observed->sources.storage->owners.empty());
+    }
+
+    // Exercise the app's copy path with a real existing storage owner, rather
+    // than only an empty inventory or a manually supplied snapshot section.
+    const auto* storage = sco::storage::Table();
+    sco_plugin* owner = sco::host::NewPlugin("snapshot_owner");
+    CHECK(storage && owner);
+    const fs::path database = sco::storage::DatabasePath("snapshot_owner");
+    uint32_t errorSize = 0;
+    if (storage && owner) CHECK(storage->last_error(owner, nullptr, &errorSize) == SCO_TOO_MANY);
+    const bool existedBeforeCopy = fs::exists(database);
+    // Tick's argument is frame dt, not the diagnostic clock. Wait for the
+    // rate-limited collector to publish a newer immutable generation.
+    auto nextSnapshot = [](uint64_t previousGeneration) {
+        const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(3);
+        std::shared_ptr<const sco::diagnostics::Snapshot> snapshot;
+        do {
+            sco::app::Tick(0);
+            snapshot = sco::app::DiagnosticSnapshot();
+            if (snapshot && snapshot->generation > previousGeneration) break;
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        } while (std::chrono::steady_clock::now() < deadline);
+        CHECK(snapshot && snapshot->generation > previousGeneration);
+        return snapshot;
+    };
+    const auto populated = nextSnapshot(observed ? observed->generation : 0);
+    CHECK(populated && populated->sources.storage && populated->sources.storage->owners.size() == 1);
+    if (populated && populated->sources.storage && populated->sources.storage->owners.size() == 1) {
+        const auto& metadata = *populated->sources.storage;
+        const auto& actual = metadata.owners[0];
+        CHECK(metadata.generation == storageGeneration && metadata.observedMs &&
+              *metadata.observedMs <= populated->observedMs);
+        CHECK(actual.ownerId == "snapshot_owner" && actual.quotaBytes && *actual.quotaBytes != 0);
+        CHECK(!actual.tableCount && !actual.rowCount && !actual.usedBytes);
+    }
+    // last_error creates an unopened owner; collecting diagnostics must not
+    // create its file, even if a previous test run left a database on disk.
+    CHECK(fs::exists(database) == existedBeforeCopy);
+    const sco_api* api = sco::host::BuildApi({ "diagnostic-metadata-test" });
+    const void* rawMetadata = nullptr;
+    CHECK(api->query_service(SCO_STORAGE_V2_NAME, SCO_STORAGE_V2_VERSION_2_0, &rawMetadata) == SCO_OK);
+    if (rawMetadata && owner) {
+        sco_storage_owner_info info{}; info.size = sizeof(info);
+        CHECK(static_cast<const sco_storage_v2*>(rawMetadata)->owner_info(owner, &info) == SCO_UNAVAILABLE);
+    }
+    if (owner) CHECK(sco::Release(owner) == sco::Result::Ok);
+    const auto released = nextSnapshot(populated ? populated->generation : 0);
+    CHECK(released && released->sources.storage && released->sources.storage->owners.empty());
+    CHECK(populated && populated->sources.storage && populated->sources.storage->owners.size() == 1);
+    CHECK(observed && observed->sources.storage && observed->sources.storage->owners.empty());
+    CHECK(sco::app::Stop() == sco::Result::Ok);
+    CHECK(!sco::app::DiagnosticSnapshot());
+    CHECK(sco::app::Start(platform));
+    for (uint32_t i = 0; i < 16; ++i) sco::app::Tick(i);
+    auto restarted = sco::app::DiagnosticSnapshot();
+    CHECK(restarted && restarted->sources.storage &&
+          restarted->sources.storage->generation > storageGeneration);
+    CHECK(sco::app::Stop() == sco::Result::Ok);
+    // A retained immutable snapshot is historical; Stop only revokes discovery.
+    CHECK(observed && observed->sources.profile && observed->sources.profile->generation == 5);
+}
+
 int main(int argc, char** argv) {
     if (argc < 3) { std::printf("usage: test_app <sdk dir> <out dir>\n"); return 2; }
     sco::SetLogSink(Sink);
     sco::SetGameThread();   // Start sets it too; the loader tests below need it either way
+    if (argc > 3 && std::strcmp(argv[3], "diagnostics-metadata-only") == 0) {
+        TestDiagnosticMetadataApp(argv[2]);
+        std::printf("diagnostic metadata app tests: %d passed, %d failed\n", g_pass, g_fail);
+        return g_fail ? 1 : 0;
+    }
 #ifndef SCO_KERNEL_ONLY
 #include "game_contracts/app_register_adapter.inc"
 #endif

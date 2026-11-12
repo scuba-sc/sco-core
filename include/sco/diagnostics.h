@@ -52,12 +52,35 @@ struct LifecycleMetadata {
     std::vector<CapabilityMetadata> capabilities;
     bool capabilitiesTruncated = false, restartRequired = false;
 };
+// Host-only copied observations. IDs use the same <=31 lowercase ASCII token
+// grammar as plugin owners. Unknown counts stay absent; zero is a known fact.
+// Generations are nonzero uint64 identities; optional numeric facts are <=2^53-1.
+struct ProfileMetadata {
+    std::string profileId;
+    uint64_t generation = 0;
+    std::optional<uint64_t> observedMs = std::nullopt;
+    std::optional<uint64_t> pluginCount = std::nullopt, loadedPluginCount = std::nullopt;
+    bool truncated = false;
+};
+struct StorageOwnerMetadata {
+    std::string ownerId;
+    std::optional<uint64_t> tableCount = std::nullopt, rowCount = std::nullopt;
+    std::optional<uint64_t> usedBytes = std::nullopt, quotaBytes = std::nullopt;
+};
+struct StorageMetadata {
+    uint64_t generation = 0;
+    std::optional<uint64_t> observedMs = std::nullopt;
+    std::vector<StorageOwnerMetadata> owners{};
+    bool truncated = false;
+};
 // Host-source options never authorize an endpoint. Positive offline admission and
 // explicit source opt-ins are independent of plugin/game-service enablement.
 struct SourceOptions {
     bool gamePack = false, diagnosticsPlugin = false, offlineAuthorized = false;
     std::string diagnosticsPluginId; // trusted host selection, never serialized
     std::optional<std::string> gameBuild; // actual host-observed build, not verified-build pin
+    std::optional<ProfileMetadata> profile; // explicit host identity/generation; default absent
+    bool storage = false;
 };
 // Metadata only, never game types. Extra source fields are NOT runtime JSON v1.
 struct GamePackMetadata {
@@ -78,6 +101,8 @@ const sco_diagnostics_publisher_v1* PublisherTable(); // internal host/test seam
 struct OptionalSources {
     std::optional<GamePackMetadata> gamePack;
     std::optional<DiagnosticsPluginMetadata> diagnosticsPlugin;
+    std::optional<ProfileMetadata> profile;
+    std::optional<StorageMetadata> storage;
 };
 struct Snapshot {
     uint64_t generation = 0, observedMs = 0;

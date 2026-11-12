@@ -4,6 +4,20 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+- Advance the local unpublished development SDK coordinate to `2.4.1-dev.2` and
+  qualify supplied host-source metadata against the exact current stable or
+  development version, source and profile before compilation. Preserve stable
+  SDK `2.4.0`; this is not a release or native activation acceptance.
+
+- Add widgets 1.4 copied canonical event tags with size-gated callback tails,
+  guarded tagged operations and C++/C#/Lua routes; preserve legacy event prefixes
+  and native activation refusal. Headless synthetic tests; not run in game.
+
+- Add the separate read-only `sco.storage.metadata` 2.0 interface for an owner's
+  existing database schema/counts and SQLite quota accounting; keep storage 1.1
+  unchanged. Add default-off copied Profile/Storage host diagnostic observations
+  without expanding runtime JSON v1. Synthetic evidence only; not run in game.
+
 - Label the documentation site's source catalogue SDK version separately from the identity of a development archive.
 
 - Correct SDK template and actor-stats example licence comments without asserting a licence for other plugins.

@@ -1,5 +1,9 @@
 # Storage: the `sco.storage` service
 
+Read-only owner/table/row/quota observations are provided by the separate
+[`sco.storage.metadata` 2.0 service](storage-metadata.md). The original 1.x
+service below remains unchanged.
+
 Per-plugin persistent storage: a key-value store and SQL, over SQLite, in place of the loose text files plugins and features keep under `data/` today. Each plugin gets its own database file, which no other plugin can open; a crash at any moment leaves the last committed state.
 
 It is a **host-owned service** (the reserved id `sco`, [API v1 § Host-owned services](api-v1.md#host-owned-services)) named `sco.storage`, version 1.1, found with the ordinary `query_service` of sco_api 1.1. The 128-byte 1.0 prefix is unchanged; the 144-byte table adds schema introspection at its tail. `sco_api.h` is unchanged; the table is declared in [`include/sco_storage.h`](../include/sco_storage.h) (plain C) and pinned by [`tests/abi_storage.c`](../tests/abi_storage.c).

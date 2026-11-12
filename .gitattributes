@@ -15,3 +15,7 @@ tests/signature_differential/baseline/** -text
 tests/fixtures/synthetic_native_evidence/profile-fixture.canonical.json -text
 tests/fixtures/synthetic_native_evidence/generated-fixture.json -text
 tests/fixtures/exact_build_profile/fixture.synthetic.canonical.json -text
+
+# Pinned upstream site source and licence must retain their exact bytes.
+site/public/starlight-LICENSE.txt -text
+site/src/components/Search.astro -text

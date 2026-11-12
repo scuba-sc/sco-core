@@ -203,6 +203,7 @@ specified in the [lifetime audit](design/service-table-lifetime.md).
 | `sc_missions_v1` | 7 | 64 | 1.0 |
 | `sco_api` | 15 | 128 | 1.1 |
 | `sco_storage_v1` | 17 | 144 | 1.1 |
+| `sco_storage_v2` | 4 | 40 | 2.0 |
 | `sco_datacore_v1` | 10 | 88 | 1.1 |
 | `sco_ipc_v1` | 9 | 80 | 1.0 |
 | `sco_net_v1` | 7 | 64 | 1.0 |
@@ -210,7 +211,7 @@ specified in the [lifetime audit](design/service-table-lifetime.md).
 | `sco_content_v1` | 2 | 24 | 1.0 |
 | `sco_ui_v1` | 9 | 80 | 1.0 |
 | `sco_ui_surfaces_v1` | 4 | 40 | 1.0 |
-| `sco_widgets_v1` | 5 | 48 | 1.3 |
+| `sco_widgets_v1` | 5 | 48 | 1.4 |
 | `sco_diagnostics_publisher_v1` | 1 | 16 | 1.0 |
 | `sc_relocation_v1` | 3 | 32 | 1.1 |
 | `sc_relocation_v1_1` | 4 | 40 | 1.1 |
@@ -463,7 +464,7 @@ the value, for every plugin's changes. See [settings](api-v1.md#scosettings-10).
 
 ## sco.widgets: `sco_widgets_v1`
 
-Renderer-neutral retained panels, host-owned service 1.3. Source: `include/sco_widgets.h`,
+Renderer-neutral retained panels, host-owned service 1.4. Source: `include/sco_widgets.h`,
 `src/widgets/widgets.cpp`; design: [widgets](design/widgets.md). This does not change
 the frozen sco_api ABI or the legacy sco.ui draw-context/hotkey route. Limits:
 64 panels, 256 nodes/panel, 4096 live nodes, 256 items/node, 16 table columns.
@@ -482,7 +483,7 @@ adds opt-in `sco_widget_node_1_1` (104 bytes: tooltip, severity, LIST/TABLE pagi
 1.0 strides and size checks stay valid; a node below 104 bytes is a 1.0 node. Panels that
 hold a 1.1 node receive 1.1 events, including `SCO_WIDGET_EVENT_PAGE`; other panels keep
 32-byte events. Render snapshots are rebuilt at most once per panel render pass, after a
-change. C++20, C# and Lua expose the guarded sco.widgets 1.1 tail routes. C#/Lua negotiate optional 1.1/1.2/1.3 presentation fields and refuse unsupported semantics; copied events expose row/PAGE after checking the extended event extent. Pins: `tests/abi_widgets.c`; host tests:
+change. C++20, C# and Lua expose the guarded sco.widgets 1.1 tail routes. C#/Lua negotiate optional 1.1/1.2/1.3 presentation fields and 1.4 event tags and refuse unsupported semantics; copied events expose row/PAGE after checking the extended event extent. Pins: `tests/abi_widgets.c`; host tests:
 `tests/test_widgets11.cpp`.
 
 1.2 adds a node extension, not a table member: `sco_widget_node_1_2` is 128 bytes,
@@ -490,7 +491,8 @@ with `const char* tag` at offset 104 and zero reserved words at offset 112.
 The host copies panel-unique ASCII tags matching `[A-Za-z0-9._-]{1..63}`.
 Check the complete `capabilities` member and `SCO_WIDGETS_FEATURE_STABLE_TAGS`
 before relying on tags. The table remains 48 bytes; 80/104-byte nodes stay valid.
-C# and Lua support tags through their typed routes when the provider advertises them.
+C# and Lua tagged inputs additionally require version 1.4 and EVENT_TAG; they
+refuse older providers before mutation. Untagged routes keep older-version fallback.
 
 1.3 adds `sco_widget_node_1_3` (144 bytes) with numeric presentation for
 NUMBER, INTEGER and INTEGER_PERCENT. Integer values and bounds must be integral
@@ -499,6 +501,15 @@ and within the signed 32-bit range. Check the complete capabilities member and
 The table stays 48 bytes and earlier node sizes remain valid. C++, C# and Lua
 provide guarded submission paths; integer slider rendering rounds ties away from
 zero and clamps to the declared bounds. Headless tests do not prove GPU rendering.
+
+1.4 adds the size-gated 48-byte `sco_widget_event_1_4` with a borrowed canonical
+ASCII tag at offset 40 and EVENT_TAG capability bit. Tagged mode stays enabled
+through subtree changes/removal until a tag-free full replacement; an untagged
+target in this mode has a null tag. Callbacks copy the tag before user code,
+including across reentrant changes. Legacy tag-free panels keep exact 32/40-byte
+events. Require the version and both tag feature bits for the new guarantee;
+legacy raw calls can still ignore tails on old hosts. See the widget design
+guide for the guarded C++/C#/Lua routes and callback lifetime.
 
 | Method | Size / since | Inputs, outputs and buffer contract | Ownership / allocation | Thread / reentrancy | Errors / absent capability | Cancellation / cleanup |
 |---|---|---|---|---|---|---|
@@ -1177,3 +1188,21 @@ Candidate host-owned file editing only; native publication and game validation r
 | `sc_asop_selection_v1.rows` | `size >= 32`; 1.0 | `sco_result (*rows)(sco_plugin* self, const sc_asop_selection_read* read, sc_asop_selection_row* out, uint32_t stride, uint32_t capacity, uint32_t* out_count, uint32_t* out_more);`<br>Copy one bounded page of file or catalogue rows against an exact session and revision. Rows may carry SC_ASOP_SELECTION_ROW_BUSY (0x01) when the host reports the class as in play this session. | Host owns file snapshots; lease and receipts belong to the live caller. Buffers are copied. | Game thread only. | OK on success; BAD_ARG for invalid input, WRONG_THREAD, UNAVAILABLE when stopped or busy, NOT_FOUND for stale tokens, TOO_MANY for limits, FAILED for I/O. Outputs untouched on error. | Owner release revokes the editor and pre-commit work; a post-permit outcome remains host-owned. Stop withdraws the service. |
 | `sc_asop_selection_v1.state` | `size >= 16`; 1.0 | `sco_result (*state)(sco_plugin* self, sc_asop_selection_state* out);`<br>Copy the current file status and revision token; known flags distinguish errors and absent files. | Host owns file snapshots; lease and receipts belong to the live caller. Buffers are copied. | Game thread only. | OK on success; BAD_ARG for invalid input, WRONG_THREAD, UNAVAILABLE when stopped or busy, NOT_FOUND for stale tokens, TOO_MANY for limits, FAILED for I/O. Outputs untouched on error. | Owner release revokes the editor and pre-commit work; a post-permit outcome remains host-owned. Stop withdraws the service. |
 | `sc_asop_selection_v1.status` | `size >= 64`; 1.0 | `sco_result (*status)(sco_plugin* self, uint64_t lease, uint64_t request_id, sc_asop_selection_receipt* out);`<br>Copy the current receipt for a request owned by the caller lease. | Host owns file snapshots; lease and receipts belong to the live caller. Buffers are copied. | Game thread only. | OK on success; BAD_ARG for invalid input, WRONG_THREAD, UNAVAILABLE when stopped or busy, NOT_FOUND for stale tokens, TOO_MANY for limits, FAILED for I/O. Outputs untouched on error. | Owner release revokes the editor and pre-commit work; a post-permit outcome remains host-owned. Stop withdraws the service. |
+
+## sco.storage.metadata: `sco_storage_v2`
+
+Read-only owner metadata is a separate major-version route; the storage 1.1 table stays unchanged.
+See [storage metadata](storage-metadata.md) for bounds and [copied observations](diagnostics-sources.md) for host snapshot opt-ins.
+
+| Symbol | Since | Buffer contract | Ownership | Thread affinity | Results | Cleanup |
+|---|---|---|---|---|---|---|
+| `sco_storage_v2.owner_info` | `size >= 16`; 2.0 | `sco_result (*owner_info)(sco_plugin* self, sco_storage_owner_info* out);`<br>Copy the current storage session generation, ordinary own table count and open cursor count into a size-prefixed record. | Caller-owned copied metadata only; self selects its existing database. No paths, stored values, raw handles or other-owner selector. Output records require full declared size; trailing bytes preserved. | Any thread; serialize per owner with ordinary storage operations. SQL progress budget applies; mutex scheduling has no hard deadline. | Absent service: NOT_FOUND; incompatible version: UNAVAILABLE. Unopened/stopped storage: UNAVAILABLE; invalid/released self or malformed/short records: BAD_ARG. Missing/excluded table: NOT_FOUND. Allocation: TOO_MANY; SQL failure/interruption: FAILED. Failure leaves outputs untouched except next_table short-name TOO_MANY writes required size only. | No metadata resource or cursor ownership escapes. Ordinary storage owner release/Stop invalidates access; storage generations distinguish successful restarts. Retained faults do not authorize cleanup. |
+| `sco_storage_v2.next_table` | `size >= 24`; 2.0 | `sco_result (*next_table)(sco_plugin* self, const char* after, char* out, uint32_t* inout_size, sco_storage_table_info* info);`<br>Copy the next ordinary own main-schema table name in binary order and its declared column count; NULL after starts, and the name-size handshake includes NUL. | Caller-owned copied metadata only; self selects its existing database. No paths, stored values, raw handles or other-owner selector. Output records require full declared size; trailing bytes preserved. | Any thread; serialize per owner with ordinary storage operations. SQL progress budget applies; mutex scheduling has no hard deadline. | Absent service: NOT_FOUND; incompatible version: UNAVAILABLE. Unopened/stopped storage: UNAVAILABLE; invalid/released self or malformed/short records: BAD_ARG. Missing/excluded table: NOT_FOUND. Allocation: TOO_MANY; SQL failure/interruption: FAILED. Failure leaves outputs untouched except next_table short-name TOO_MANY writes required size only. | No metadata resource or cursor ownership escapes. Ordinary storage owner release/Stop invalidates access; storage generations distinguish successful restarts. Retained faults do not authorize cleanup. |
+| `sco_storage_v2.row_count` | `size >= 32`; 2.0 | `sco_result (*row_count)(sco_plugin* self, const char* table, uint64_t* out_count);`<br>Count rows of a validated ordinary own table within the SQL progress budget; do not execute views or virtual tables. | Caller-owned copied metadata only; self selects its existing database. No paths, stored values, raw handles or other-owner selector. Output records require full declared size; trailing bytes preserved. | Any thread; serialize per owner with ordinary storage operations. SQL progress budget applies; mutex scheduling has no hard deadline. | Absent service: NOT_FOUND; incompatible version: UNAVAILABLE. Unopened/stopped storage: UNAVAILABLE; invalid/released self or malformed/short records: BAD_ARG. Missing/excluded table: NOT_FOUND. Allocation: TOO_MANY; SQL failure/interruption: FAILED. Failure leaves outputs untouched except next_table short-name TOO_MANY writes required size only. | No metadata resource or cursor ownership escapes. Ordinary storage owner release/Stop invalidates access; storage generations distinguish successful restarts. Retained faults do not authorize cleanup. |
+| `sco_storage_v2.quota_info` | `size >= 40`; 2.0 | `sco_result (*quota_info)(sco_plugin* self, sco_storage_quota_info* out);`<br>Copy configured quota, effective SQLite page quota, allocated database bytes and remaining quota capacity; WAL and filesystem sizes are excluded. | Caller-owned copied metadata only; self selects its existing database. No paths, stored values, raw handles or other-owner selector. Output records require full declared size; trailing bytes preserved. | Any thread; serialize per owner with ordinary storage operations. SQL progress budget applies; mutex scheduling has no hard deadline. | Absent service: NOT_FOUND; incompatible version: UNAVAILABLE. Unopened/stopped storage: UNAVAILABLE; invalid/released self or malformed/short records: BAD_ARG. Missing/excluded table: NOT_FOUND. Allocation: TOO_MANY; SQL failure/interruption: FAILED. Failure leaves outputs untouched except next_table short-name TOO_MANY writes required size only. | No metadata resource or cursor ownership escapes. Ordinary storage owner release/Stop invalidates access; storage generations distinguish successful restarts. Retained faults do not authorize cleanup. |
+
+Widget event tags are a guarded widgets 1.4 callback extension. The event-1.4
+record preserves the earlier event prefixes; C/C++/C#/Lua routes require the
+new version/feature before promising tags. Legacy raw submissions can still
+ignore unsupported tails on old providers. See [widget event and compatibility
+semantics](design/widgets.md#tagged-events-and-old-provider-refusal-14).

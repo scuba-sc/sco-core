@@ -32,6 +32,7 @@ namespace Sco.Sdk.Tests
             Types["sco_widget_node_1_3"] = typeof(ScoWidgetNode13);
             Types["sco_widget_event"] = typeof(ScoWidgetEvent);
             Types["sco_widget_event_1_1"] = typeof(ScoWidgetEvent11);
+            Types["sco_widget_event_1_4"] = typeof(ScoWidgetEvent14);
             Types["sco_widgets_v1"] = typeof(ScoWidgetsV1);
             Strings["SCO_WIDGETS_NAME"] = Abi.WidgetsName;
             Constants["SCO_WIDGETS_VERSION_1_1"] = Abi.WidgetsVersion1_1;
@@ -66,6 +67,8 @@ namespace Sco.Sdk.Tests
             Constants["SCO_WIDGETS_VERSION_1_0"] = Abi.WidgetsVersion1_0;
             Constants["SCO_WIDGETS_VERSION_1_2"] = Abi.WidgetsVersion1_2;
             Constants["SCO_WIDGETS_VERSION_1_3"] = Abi.WidgetsVersion1_3;
+            Constants["SCO_WIDGETS_VERSION_1_4"] = Abi.WidgetsVersion1_4;
+            Constants["SCO_WIDGETS_FEATURE_EVENT_TAG"] = Abi.WidgetsFeatureEventTag;
             Constants["SCO_WIDGETS_FEATURE_NUMERIC_PRESENTATION"] = Abi.WidgetsFeatureNumericPresentation;
             Constants["SCO_WIDGET_NUMERIC_NUMBER"] = (uint)WidgetNumericPresentation.Number;
             Constants["SCO_WIDGET_NUMERIC_INTEGER"] = (uint)WidgetNumericPresentation.Integer;
@@ -108,6 +111,11 @@ namespace Sco.Sdk.Tests
             ["sco_plugin_info"] = typeof(ScoPluginInfo),
             ["sco_sql_value"] = typeof(ScoSqlValue),
             ["sco_storage_v1"] = typeof(ScoStorageV1),
+            ["void*"] = typeof(nint),
+            ["sco_storage_owner_info"] = typeof(ScoStorageOwnerInfo),
+            ["sco_storage_table_info"] = typeof(ScoStorageTableInfo),
+            ["sco_storage_quota_info"] = typeof(ScoStorageQuotaInfo),
+            ["sco_storage_v2"] = typeof(ScoStorageV2),
             ["sco_ui_v1"] = typeof(ScoUiV1),
             ["sco_settings_changed"] = typeof(ScoSettingsChanged),
             ["sco_settings_v1"] = typeof(ScoSettingsV1),
@@ -136,6 +144,8 @@ namespace Sco.Sdk.Tests
             ["SCO_ARG_BOOL"] = (long)ScoArgType.Bool,
             ["SCO_ARG_FORCE32"] = (long)ScoArgType.Force32,
             ["SCO_STORAGE_VERSION_1_0"] = Abi.StorageVersion1_0,
+            ["SCO_STORAGE_V2_VERSION_2_0"] = StorageMetadata.ServiceVersion,
+            ["SCO_STORAGE_OWNER_OPENED"] = StorageMetadata.OwnerOpened,
             ["SCO_STORAGE_MAX_KEY"] = Abi.StorageMaxKey,
             ["SCO_STORAGE_MAX_VALUE"] = Abi.StorageMaxValue,
             ["SCO_STORAGE_MAX_CURSORS"] = Abi.StorageMaxCursors,
@@ -160,12 +170,13 @@ namespace Sco.Sdk.Tests
         private static readonly Dictionary<string, string> Strings = new()
         {
             ["SCO_STORAGE_NAME"] = Abi.StorageName,
+            ["SCO_STORAGE_V2_NAME"] = StorageMetadata.ServiceName,
             ["SCO_UI_NAME"] = Abi.UiName,
             ["SCO_SETTINGS_NAME"] = Abi.SettingsName,
             ["SCO_SETTINGS_CHANGED_EVENT"] = Abi.SettingsChangedEvent,
         };
 
-        private static readonly Regex Size = new(@"^SIZE\((\w+),\s*(\d+)\);");
+        private static readonly Regex Size = new(@"^SIZE\((\w+|void\*),\s*(\d+)\);");
         private static readonly Regex At = new(@"^AT\((\w+),\s*([\w.]+),\s*(\d+)\);");
         private static readonly Regex Pin = new(@"^PIN\((.*)\);");
         private static readonly Regex PinSizeofString = new(@"^sizeof\((\w+)\) == (\d+)$");
@@ -204,7 +215,9 @@ namespace Sco.Sdk.Tests
                 string e = m.Groups[1].Value.Trim();
                 if (e == "sizeof(void*) == 8") return IntPtr.Size == 8 ? null : "not 64-bit";
                 if (e == "sizeof(void (*)(void)) == 8") return sizeof_fnptr() == 8 ? null : "function pointers aren't 8 bytes";
-                Match structure = Regex.Match(e, @"^(sizeof|ALIGN)\((sco_widget_node|sco_widget_node_1_1|sco_widget_node_1_2|sco_widget_node_1_3|sco_widget_event|sco_widget_event_1_1|sco_widgets_v1)\) == (\d+)$");
+                if (e == "(SCO_WIDGETS_FEATURE_EVENT_TAG & SCO_WIDGETS_FEATURE_STABLE_TAGS) == 0")
+                    return (Abi.WidgetsFeatureEventTag & Abi.WidgetsFeatureStableTags) == 0 ? null : "event tag feature overlaps stable tags";
+                Match structure = Regex.Match(e, @"^(sizeof|ALIGN)\((sco_widget_node|sco_widget_node_1_1|sco_widget_node_1_2|sco_widget_node_1_3|sco_widget_event|sco_widget_event_1_1|sco_widget_event_1_4|sco_widgets_v1)\) == (\d+)$");
                 if (structure.Success)
                 {
                     Type t = Types[structure.Groups[2].Value];
@@ -235,6 +248,7 @@ namespace Sco.Sdk.Tests
 
         [StructLayout(LayoutKind.Sequential)] private struct NodeAlignment { public byte prefix; public ScoWidgetNode value; }
         [StructLayout(LayoutKind.Sequential)] private struct Node11Alignment { public byte prefix; public ScoWidgetNode11 value; }
+        [StructLayout(LayoutKind.Sequential)] private struct Event14Alignment { public byte prefix; public ScoWidgetEvent14 value; }
         [StructLayout(LayoutKind.Sequential)] private struct Event11Alignment { public byte prefix; public ScoWidgetEvent11 value; }
         [StructLayout(LayoutKind.Sequential)] private struct Node12Alignment { public byte prefix; public ScoWidgetNode12 value; }
         [StructLayout(LayoutKind.Sequential)] private struct Node13Alignment { public byte prefix; public ScoWidgetNode13 value; }
@@ -242,6 +256,7 @@ namespace Sco.Sdk.Tests
         [StructLayout(LayoutKind.Sequential)] private struct TableAlignment { public byte prefix; public ScoWidgetsV1 value; }
         private static int WidgetAlignment(Type t) => t == typeof(ScoWidgetNode) ? (int)Marshal.OffsetOf<NodeAlignment>("value")
             : t == typeof(ScoWidgetNode11) ? (int)Marshal.OffsetOf<Node11Alignment>("value")
+            : t == typeof(ScoWidgetEvent14) ? (int)Marshal.OffsetOf<Event14Alignment>("value")
             : t == typeof(ScoWidgetEvent11) ? (int)Marshal.OffsetOf<Event11Alignment>("value")
             : t == typeof(ScoWidgetNode12) ? (int)Marshal.OffsetOf<Node12Alignment>("value")
             : t == typeof(ScoWidgetNode13) ? (int)Marshal.OffsetOf<Node13Alignment>("value")
@@ -256,9 +271,15 @@ namespace Sco.Sdk.Tests
             if (t == typeof(ScoPluginInfo)) return Unsafe.SizeOf<ScoPluginInfo>();
             if (t == typeof(ScoSqlValue)) return Unsafe.SizeOf<ScoSqlValue>();
             if (t == typeof(ScoStorageV1)) return Unsafe.SizeOf<ScoStorageV1>();
+            if (t == typeof(nint)) return Unsafe.SizeOf<nint>();
+            if (t == typeof(ScoStorageOwnerInfo)) return Unsafe.SizeOf<ScoStorageOwnerInfo>();
+            if (t == typeof(ScoStorageTableInfo)) return Unsafe.SizeOf<ScoStorageTableInfo>();
+            if (t == typeof(ScoStorageQuotaInfo)) return Unsafe.SizeOf<ScoStorageQuotaInfo>();
+            if (t == typeof(ScoStorageV2)) return Unsafe.SizeOf<ScoStorageV2>();
             if (t == typeof(ScoUiV1)) return Unsafe.SizeOf<ScoUiV1>();
             if (t == typeof(ScoWidgetNode)) return Unsafe.SizeOf<ScoWidgetNode>();
             if (t == typeof(ScoWidgetNode11)) return Unsafe.SizeOf<ScoWidgetNode11>();
+            if (t == typeof(ScoWidgetEvent14)) return Unsafe.SizeOf<ScoWidgetEvent14>();
             if (t == typeof(ScoWidgetEvent11)) return Unsafe.SizeOf<ScoWidgetEvent11>();
             if (t == typeof(ScoWidgetNode12)) return Unsafe.SizeOf<ScoWidgetNode12>();
             if (t == typeof(ScoWidgetNode13)) return Unsafe.SizeOf<ScoWidgetNode13>();

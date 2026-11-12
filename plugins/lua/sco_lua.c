@@ -16,6 +16,7 @@
 #include "sco_lua_ext.h"
 #include "sco_settings.h"
 #include "sco_storage.h"
+#include "sco_storage_v2.h"
 #include "sco_ui.h"
 #include "sco_widgets.h"
 #include "sco_panel_builder.h"
@@ -39,7 +40,7 @@ typedef struct Script Script;
 typedef struct EventSub { Script* s; int live; char name[NAME_MAX_]; } EventSub;
 typedef struct CmdCtx   { Script* s; int ref; char name[NAME_MAX_]; } CmdCtx;
 typedef struct Task     { Script* s; int ref; struct Task* prev; struct Task* next; } Task;
-typedef struct WidgetCtx { Script* s; int ref; uintptr_t cookie; char id[SCO_WIDGETS_MAX_ID + 1]; } WidgetCtx;
+typedef struct WidgetCtx { Script* s; int ref; uintptr_t cookie; int tagged; char id[SCO_WIDGETS_MAX_ID + 1]; } WidgetCtx;
 
 struct Script {
     int used, alive;
@@ -896,6 +897,103 @@ static int StoreSchemaString(const char* buf, uint32_t size, uint32_t cap) {
     return size && size <= cap && buf[size - 1] == '\0' && !memchr(buf, '\0', size - 1);
 }
 
+/* Separate metadata service. Each result is copied into Lua; errors never expose SQL or paths. */
+static const sco_storage_v2* MetadataCall(lua_State* L, Script** script) {
+    const void* table = NULL;
+    *script = Of(L);
+    sco_lua_step(L, STORE_STEPS);
+    const sco_api* api = (*script)->api;
+    if (api->size < offsetof(sco_api, query_service) + sizeof(api->query_service) || !api->query_service) return NULL;
+    if (api->query_service(SCO_STORAGE_V2_NAME, SCO_STORAGE_V2_VERSION_2_0, &table) != SCO_OK) return NULL;
+    return (const sco_storage_v2*)table;
+}
+#define METADATA_HAS(t, slot) ((t) && (t)->size >= offsetof(sco_storage_v2, slot) + sizeof((t)->slot) && (t)->slot)
+static int MetadataFail(lua_State* L, sco_result result) {
+    lua_pushnil(L);
+    lua_pushstring(L, ResultName(result));
+    lua_pushliteral(L, "storage metadata request failed");
+    return 3;
+}
+static int MetadataInteger(uint64_t value) { return value <= (uint64_t)LUA_MAXINTEGER; }
+static void MetadataField(lua_State* L, const char* name, uint64_t value) {
+    lua_pushinteger(L, (lua_Integer)value); lua_setfield(L, -2, name);
+}
+static int L_metadata_owner_info(lua_State* L) {
+    Script* s;
+    const sco_storage_v2* table = MetadataCall(L, &s);
+    if (!METADATA_HAS(table, owner_info)) return MetadataFail(L, SCO_UNAVAILABLE);
+    sco_storage_owner_info info = {0}; info.size = sizeof(info);
+    const sco_result r = table->owner_info(s->self, &info);
+    if (r != SCO_OK) return MetadataFail(L, r);
+    if (info.size != sizeof(info) || info.flags != SCO_STORAGE_OWNER_OPENED || !info.session_generation)
+        return MetadataFail(L, SCO_FAILED);
+    if (!MetadataInteger(info.session_generation) || !MetadataInteger(info.table_count) || !MetadataInteger(info.cursor_count))
+        return MetadataFail(L, SCO_TOO_MANY);
+    lua_createtable(L, 0, 4);
+    MetadataField(L, "flags", info.flags); MetadataField(L, "session_generation", info.session_generation);
+    MetadataField(L, "table_count", info.table_count); MetadataField(L, "cursor_count", info.cursor_count);
+    return 1;
+}
+/* next_table([after]): { name, flags, column_count }, or nil, err, message (including not_found). */
+static int L_metadata_next_table(lua_State* L) {
+    Script* s;
+    const sco_storage_v2* table = MetadataCall(L, &s);
+    if (!METADATA_HAS(table, next_table)) return MetadataFail(L, SCO_UNAVAILABLE);
+    const char* after = lua_isnoneornil(L, 1) ? NULL : CString(L, 1);
+    if ((!lua_isnoneornil(L, 1) && !after) || (after && strlen(after) >= STORE_SCHEMA_MAX)) return MetadataFail(L, SCO_BAD_ARG);
+    uint32_t capacity = 256;
+    char* name = (char*)lua_newuserdatauv(L, capacity, 0); const int slot = lua_gettop(L);
+    for (int attempt = 0; attempt < STORE_SCHEMA_TRIES; ++attempt) {
+        if (attempt) sco_lua_step(L, STORE_STEPS);
+        uint32_t size = capacity;
+        sco_storage_table_info info = {0}; info.size = sizeof(info);
+        const sco_result r = table->next_table(s->self, after, name, &size, &info);
+        if (r == SCO_OK) {
+            if (info.size != sizeof(info) || info.flags || !StoreSchemaString(name, size, capacity) ||
+                (after && strcmp(name, after) <= 0)) return MetadataFail(L, SCO_FAILED);
+            if (!MetadataInteger(info.column_count)) return MetadataFail(L, SCO_TOO_MANY);
+            lua_createtable(L, 0, 3);
+            lua_pushlstring(L, name, size - 1); lua_setfield(L, -2, "name");
+            MetadataField(L, "flags", info.flags); MetadataField(L, "column_count", info.column_count);
+            return 1;
+        }
+        if (r != SCO_TOO_MANY) return MetadataFail(L, r);
+        if (attempt + 1 == STORE_SCHEMA_TRIES || !StoreSchemaGrow(L, slot, &name, &capacity, size)) return MetadataFail(L, SCO_TOO_MANY);
+    }
+    return MetadataFail(L, SCO_TOO_MANY);
+}
+static int L_metadata_row_count(lua_State* L) {
+    Script* s;
+    const sco_storage_v2* table = MetadataCall(L, &s);
+    if (!METADATA_HAS(table, row_count)) return MetadataFail(L, SCO_UNAVAILABLE);
+    const char* name = CString(L, 1);
+    if (!name || strlen(name) >= STORE_SCHEMA_MAX) return MetadataFail(L, SCO_BAD_ARG);
+    uint64_t count = 0;
+    const sco_result r = table->row_count(s->self, name, &count);
+    if (r != SCO_OK) return MetadataFail(L, r);
+    if (!MetadataInteger(count)) return MetadataFail(L, SCO_TOO_MANY);
+    lua_pushinteger(L, (lua_Integer)count);
+    return 1;
+}
+static int L_metadata_quota_info(lua_State* L) {
+    Script* s;
+    const sco_storage_v2* table = MetadataCall(L, &s);
+    if (!METADATA_HAS(table, quota_info)) return MetadataFail(L, SCO_UNAVAILABLE);
+    sco_storage_quota_info info = {0}; info.size = sizeof(info);
+    const sco_result r = table->quota_info(s->self, &info);
+    if (r != SCO_OK) return MetadataFail(L, r);
+    if (info.size != sizeof(info) || info.flags || info.allocated_bytes > info.effective_bytes ||
+        info.free_bytes != info.effective_bytes - info.allocated_bytes) return MetadataFail(L, SCO_FAILED);
+    if (!MetadataInteger(info.configured_bytes) || !MetadataInteger(info.effective_bytes) ||
+        !MetadataInteger(info.allocated_bytes) || !MetadataInteger(info.free_bytes)) return MetadataFail(L, SCO_TOO_MANY);
+    lua_createtable(L, 0, 5);
+    MetadataField(L, "flags", info.flags); MetadataField(L, "configured_bytes", info.configured_bytes);
+    MetadataField(L, "effective_bytes", info.effective_bytes); MetadataField(L, "allocated_bytes", info.allocated_bytes);
+    MetadataField(L, "free_bytes", info.free_bytes);
+    return 1;
+}
+#undef METADATA_HAS
+
 /* tables([limit]): a list of this plugin's own table/view names in byte order, and a parallel
  * list of kinds (1 = table, 2 = view); the host bookkeeping table sco_kv and sqlite_% objects
  * are never listed. Or nil, err, message. */
@@ -1278,7 +1376,7 @@ static WidgetsService WidgetsTable(const Script* s) {
     WidgetsService out = { NULL, 0, SCO_UNAVAILABLE };
     if (!s->alive || s->api->size < offsetof(sco_api, query_service) + sizeof(s->api->query_service) ||
         !s->api->query_service) return out;
-    static const uint32_t versions[] = { SCO_WIDGETS_VERSION_1_3, SCO_WIDGETS_VERSION_1_2, SCO_WIDGETS_VERSION_1_1, SCO_WIDGETS_VERSION_1_0 };
+    static const uint32_t versions[] = { SCO_WIDGETS_VERSION_1_4, SCO_WIDGETS_VERSION_1_3, SCO_WIDGETS_VERSION_1_2, SCO_WIDGETS_VERSION_1_1, SCO_WIDGETS_VERSION_1_0 };
     for (size_t i = 0; i < sizeof(versions) / sizeof(versions[0]); ++i) {
         const void* t = NULL;
         out.result = s->api->query_service(SCO_WIDGETS_NAME, versions[i], &t);
@@ -1302,7 +1400,8 @@ static sco_result WidgetCapabilities(Script* s, WidgetsService service, uint32_t
     return caps[0] >= 2 && caps[0] <= SCO_WIDGETS_CAPS_1_2 ? SCO_OK : SCO_FAILED;
 }
 
-static sco_result WidgetFeatures(Script* s, WidgetsService service, uint32_t version, uint32_t features) {
+static sco_result WidgetFeatures(Script* s, WidgetsService service, uint32_t version, uint32_t features,
+                                 const sco_widget_node_1_3* nodes, uint32_t count) {
     if (service.result != SCO_OK) return service.result;
     if (service.version < version) return SCO_UNAVAILABLE;
     if (!features) return SCO_OK;
@@ -1312,6 +1411,9 @@ static sco_result WidgetFeatures(Script* s, WidgetsService service, uint32_t ver
     if ((caps[SCO_WIDGETS_CAP_FEATURES] & features) != features) return SCO_UNAVAILABLE;
     if ((features & SCO_WIDGETS_FEATURE_STABLE_TAGS) &&
         (caps[0] <= SCO_WIDGETS_CAP_MAX_TAG || !caps[SCO_WIDGETS_CAP_MAX_TAG])) return SCO_UNAVAILABLE;
+    if (features & SCO_WIDGETS_FEATURE_STABLE_TAGS)
+        for (uint32_t i = 0; i < count; ++i)
+            if (nodes[i].base.tag && strlen(nodes[i].base.tag) > caps[SCO_WIDGETS_CAP_MAX_TAG]) return SCO_TOO_MANY;
     return SCO_OK;
 }
 
@@ -1525,6 +1627,10 @@ static sco_result WidgetNode(lua_State* L, int node, int roots, sco_widget_node_
         if (r == SCO_OK) WidgetRoot(L, roots);
         n->size = sizeof(*tail); if (*version < SCO_WIDGETS_VERSION_1_2) *version = SCO_WIDGETS_VERSION_1_2;
         *features |= SCO_WIDGETS_FEATURE_STABLE_TAGS;
+        if (r == SCO_OK && tail->tag[0]) {
+            *version = SCO_WIDGETS_VERSION_1_4;
+            *features |= SCO_WIDGETS_FEATURE_EVENT_TAG;
+        }
     }
     lua_pop(L, 1);
     if (r != SCO_OK) return r;
@@ -1538,7 +1644,7 @@ static sco_result WidgetNode(lua_State* L, int node, int roots, sco_widget_node_
             else if (!strcmp(mode, "integer_percent")) ext->presentation = SCO_WIDGET_NUMERIC_INTEGER_PERCENT;
             else r = SCO_BAD_ARG;
         }
-        n->size = sizeof(*ext); *version = SCO_WIDGETS_VERSION_1_3;
+        n->size = sizeof(*ext); if (*version < SCO_WIDGETS_VERSION_1_3) *version = SCO_WIDGETS_VERSION_1_3;
         *features |= SCO_WIDGETS_FEATURE_NUMERIC_PRESENTATION;
     }
     lua_pop(L, 1);
@@ -1584,6 +1690,7 @@ static void WidgetForget(lua_State* L, WidgetCtx* ctx) {
 typedef struct WidgetCall {
     int ref;
     char panel[SCO_WIDGETS_MAX_ID + 1], text[SCO_WIDGETS_MAX_TEXT + 1];
+    char tag[SCO_WIDGETS_MAX_TAG + 1];
     sco_widget_event event;
     int extended;
     int32_t row;
@@ -1597,6 +1704,7 @@ static int WidgetBody(lua_State* L) {
     lua_createtable(L, 0, 5);
     lua_pushinteger(L, e->node_id); lua_setfield(L, -2, "node_id");
     lua_pushstring(L, e->kind == SCO_WIDGET_EVENT_PAGE ? "page" : kWidgetKinds[e->kind - 1]); lua_setfield(L, -2, "kind");
+    if (call->tag[0]) { lua_pushstring(L, call->tag); lua_setfield(L, -2, "tag"); }
     if (call->extended) { lua_pushinteger(L, call->row); lua_setfield(L, -2, "row"); }
     switch (e->kind) {
         case SCO_WIDGET_TOGGLE: lua_pushboolean(L, e->value != 0); lua_setfield(L, -2, "value"); break;
@@ -1630,6 +1738,20 @@ static void WidgetThunk(const char* panel, const sco_widget_event* e, void* user
     call.ref = ctx->ref; call.event = *e;
     if (!isfinite(e->value)) return;
     if (e->size > sizeof(*e) && e->size < sizeof(sco_widget_event_1_1)) return;
+    if ((e->size > sizeof(sco_widget_event_1_1) && e->size < sizeof(sco_widget_event_1_4)) ||
+        (ctx->tagged && e->size < sizeof(sco_widget_event_1_4))) return;
+    if (e->size >= sizeof(sco_widget_event_1_4)) {
+        const char* tag = ((const sco_widget_event_1_4*)e)->tag;
+        if (tag) {
+            for (length = 0; length <= SCO_WIDGETS_MAX_TAG && tag[length]; ++length) {
+                const unsigned char c = (unsigned char)tag[length];
+                if (!((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') ||
+                    (c >= '0' && c <= '9') || c == '.' || c == '_' || c == '-')) return;
+            }
+            if (!length || length > SCO_WIDGETS_MAX_TAG) return;
+            memcpy(call.tag, tag, length + 1);
+        }
+    }
     if (e->size >= sizeof(sco_widget_event_1_1)) {
         const sco_widget_event_1_1* extended = (const sco_widget_event_1_1*)e;
         call.extended = 1; call.row = extended->row;
@@ -1671,7 +1793,7 @@ static int L_widgets_set_panel(lua_State* L) {
     sco_widget_node_1_3* nodes = NULL;
     uint32_t count = 0, version = 0, features = 0;
     r = WidgetNodes(L, 3, &nodes, &count, &version, &features);
-    if (r == SCO_OK) r = WidgetFeatures(s, service, version, features);
+    if (r == SCO_OK) r = WidgetFeatures(s, service, version, features, nodes, count);
     if (r != SCO_OK) return PushResult(L, r);
     WidgetCtx* old = WidgetFind(s, id);
     WidgetCtx* ctx = old;
@@ -1686,7 +1808,11 @@ static int L_widgets_set_panel(lua_State* L) {
                      callback ? WidgetThunk : NULL, callback ? (void*)cookie : NULL);
     if (r == SCO_OK) {
         WidgetForget(L, old);
-        if (callback) { ctx->s = s; ctx->ref = ref; ctx->cookie = cookie; Copy(ctx->id, sizeof(ctx->id), id); }
+        if (callback) {
+            ctx->s = s; ctx->ref = ref; ctx->cookie = cookie;
+            ctx->tagged = (features & SCO_WIDGETS_FEATURE_EVENT_TAG) != 0;
+            Copy(ctx->id, sizeof(ctx->id), id);
+        }
     } else if (callback) luaL_unref(L, LUA_REGISTRYINDEX, ref);
     CheckBudget(L);
     return PushResult(L, r);
@@ -1716,9 +1842,15 @@ static int L_widgets_update_nodes(lua_State* L) {
     sco_widget_node_1_3* nodes = NULL;
     uint32_t count = 0, version = 0, features = 0;
     r = WidgetNodes(L, 2, &nodes, &count, &version, &features);
+    WidgetCtx* ctx = WidgetFind(s, id);
+    if (ctx && ctx->tagged) {
+        version = SCO_WIDGETS_VERSION_1_4;
+        features |= SCO_WIDGETS_FEATURE_STABLE_TAGS | SCO_WIDGETS_FEATURE_EVENT_TAG;
+    }
     if (r == SCO_OK) r = WidgetFeatures(s, service, version < SCO_WIDGETS_VERSION_1_1 ? SCO_WIDGETS_VERSION_1_1 : version,
-                                        features | SCO_WIDGETS_FEATURE_UPDATE_NODES);
+                                        features | SCO_WIDGETS_FEATURE_UPDATE_NODES, nodes, count);
     if (r == SCO_OK) r = service.table->update_nodes(s->self, id, &nodes[0].base.base.base, count, sizeof(*nodes));
+    if (r == SCO_OK && ctx && (features & SCO_WIDGETS_FEATURE_EVENT_TAG)) ctx->tagged = 1;
     CheckBudget(L);
     return PushResult(L, r);
 }
@@ -1739,7 +1871,10 @@ static int L_widgets_remove_nodes(lua_State* L) {
         if (!lua_isinteger(L, -1) || lua_tointeger(L, -1) <= 0 || (uint64_t)lua_tointeger(L, -1) > UINT32_MAX) return PushResult(L, SCO_BAD_ARG);
         ids[i] = (uint32_t)lua_tointeger(L, -1); lua_pop(L, 1);
     }
-    r = WidgetFeatures(s, service, SCO_WIDGETS_VERSION_1_1, SCO_WIDGETS_FEATURE_REMOVE_NODES);
+    WidgetCtx* ctx = WidgetFind(s, id);
+    r = WidgetFeatures(s, service, ctx && ctx->tagged ? SCO_WIDGETS_VERSION_1_4 : SCO_WIDGETS_VERSION_1_1,
+                       SCO_WIDGETS_FEATURE_REMOVE_NODES | (ctx && ctx->tagged ?
+                       SCO_WIDGETS_FEATURE_STABLE_TAGS | SCO_WIDGETS_FEATURE_EVENT_TAG : 0), NULL, 0);
     if (r == SCO_OK) r = service.table->remove_nodes(s->self, id, ids, (uint32_t)count);
     CheckBudget(L);
     return PushResult(L, r);
@@ -1832,6 +1967,13 @@ static int SetupBody(lua_State* L) {
             { "sql", L_store_sql }, { "tables", L_store_tables }, { "columns", L_store_columns },
             { NULL, NULL } };
         luaL_newlib(L, stfns);
+        {
+            static const luaL_Reg metadata[] = {
+                { "owner_info", L_metadata_owner_info }, { "next_table", L_metadata_next_table },
+                { "row_count", L_metadata_row_count }, { "quota_info", L_metadata_quota_info }, { NULL, NULL } };
+            luaL_newlib(L, metadata);
+            lua_setfield(L, -2, "metadata");
+        }
         lua_setfield(L, -2, "store");
     }
     {                                                 /* sco.settings: always there; unavailable without the service */

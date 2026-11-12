@@ -1,8 +1,9 @@
 # Renderer-neutral retained widgets
 
-Status: C/C++ and Lua implementation; C# route deferred. Follow-up to
+Status: C11, C++20, C# and Lua implementations with headless synthetic tests. Follow-up to
 [SDK gap #139](https://github.com/scuba-sc/sco-core/issues/139). This is a new
-host-owned `sco.widgets` **1.0** service, not a change to frozen `sco_api` 1.1.
+host-owned `sco.widgets` service, currently **1.4**, with the 1.0 prefixes retained;
+frozen `sco_api` 1.1 is unchanged.
 Plugins include `sco_widgets.h` or `scosdk/widgets.hpp`; neither includes renderer
 headers. The legacy `sco.ui` draw-context route remains supported separately.
 
@@ -18,11 +19,12 @@ enters plugin code merely to draw, and can render the same data on any backend.
 Atomic replacement bounds ownership, makes failure rollback explicit, and
 keeps the first version small. Hosts apply validated interaction state before
 sending guarded events back to plugin code; callbacks may invoke registered
-commands. Diff/patch updates and richer styling are future service tails.
+commands. Version 1.1 adds atomic subtree updates/removal and bounded capabilities;
+version 1.3 adds numeric slider presentation.
 
 ## Versioning
 
-The new service has independent major/minor version 1.0 and a size-prefixed
+The service starts at independent major/minor version 1.0 and has a size-prefixed
 function table. Future compatible operations append at the table tail; existing
 field order, widths, discriminants and meanings never change. Nodes/events are
 size-prefixed too; node arrays carry a stride so larger tails can be ignored
@@ -152,3 +154,50 @@ production thread scheduler or native crash guard. `sdk/test-zip.sh` checks the
 example from extracted archives; `SCO_SDK_WIDGETS_ONLY=1` narrows that check to
 the widget plugin and checker. No ImGui, GPU, game image or new dependency is
 required for this native example.
+
+## Tagged events and old-provider refusal (1.4)
+
+Version 1.2 adds stable ASCII node tags, `[A-Za-z0-9._-]{1..63}`, unique within
+the panel. Version 1.4 adds `SCO_WIDGETS_FEATURE_EVENT_TAG` (`0x200`), distinct
+from the existing `STABLE_TAGS` bit. Its `sco_widget_event_1_4` is 48 bytes:
+the unchanged 40-byte event-1.1 prefix followed by `const char* tag` at offset 40.
+The 32-byte base event and 48-byte service table retain their layouts.
+
+A successful set/update containing a nonempty tag enables tagged events for
+that panel. This mode remains enabled through subtree updates and removals,
+even after the last tag disappears. A full `set_panel` replacement without
+nonempty tags resets it. Every callback in tagged mode carries the full 1.4
+event; an untagged target has a null tag. Tag-free legacy panels retain their
+existing 32/40-byte events. Numeric node IDs still validate and route renderer
+candidates; the callback tag is copied from the resolved canonical host node,
+never supplied by the renderer. Tags are not rendered as labels.
+
+Check `event->size >= sizeof(sco_widget_event_1_4)` before casting and then
+read `((const sco_widget_event_1_4*)event)->tag`. The event, tag, text and panel
+ID are borrowed only during the callback. Copy anything retained after return.
+Replacement, updates, removal or ordinary unload during a callback cannot
+invalidate that callback's copied tag; generation changes drop remaining stale
+events. Malformed renderer candidates do not dispatch an event.
+
+C callers requiring tagged events query `SCO_WIDGETS_VERSION_1_4`, guard every
+table member used, and require both `STABLE_TAGS` and `EVENT_TAG` plus a usable
+maximum tag length from capabilities. C++ offers `SetPanelTagged` and
+`UpdateNodesTagged` for node-1.2 trees; those helpers negotiate/check support
+before mutation. C# and Lua require the same 1.4 capability guarantee whenever
+an input contains a nonempty tag. Their callbacks copy the tag into
+`WidgetEvent.Tag` and `event.tag`, respectively. Untagged routes keep their
+older-version fallback behavior. The managed bridge additionally checks that
+the delivered tag matches the retained target; Lua validates the copied tag
+and callback identity without maintaining a second full node tree.
+
+An older provider cannot satisfy the new version/capability requirement, and
+the guarded tagged routes return Unavailable before submitting a tree. Missing
+services can return NotFound during discovery. Raw legacy `SetPanel` calls
+remain unchecked for feature support: older providers may accept them while
+ignoring unknown node tails. Such success is not a tagged-event guarantee.
+
+The headless checker advertises 1.4 and exercises canonical copied tags,
+reentrant mutation, sticky null tags, legacy-size reset and short-table refusal.
+ABI, real-host, C++ fake-provider, managed and Lua fixtures cover these paths.
+These are synthetic results; not run in game. NativeAOT/archive-consumer and
+product-host qualification remain separate from source fixture results.

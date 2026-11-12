@@ -165,12 +165,14 @@ static void TestTable(const sco_api* api) {
     CHECK(table->size == sizeof(sco_widgets_v1) && table->size == 48);
     CHECK(table->update_nodes && table->remove_nodes && table->capabilities);
     CHECK(api->query_service(SCO_WIDGETS_NAME, SCO_WIDGETS_VERSION_1_2, &out) == SCO_OK && out == W::Table());
+    CHECK(api->query_service(SCO_WIDGETS_NAME, SCO_WIDGETS_VERSION_1_4, &out) == SCO_OK && out == W::Table());
 }
 static void TestCapabilities() {
     uint32_t caps[12]{};
     caps[SCO_WIDGETS_CAP_COUNT] = 12;
     CHECK(table->capabilities(alpha, caps) == SCO_OK && caps[SCO_WIDGETS_CAP_COUNT] == SCO_WIDGETS_CAPS_1_2);
     CHECK((caps[SCO_WIDGETS_CAP_FEATURES] & 0xffu) == 0xffu);
+    CHECK((caps[SCO_WIDGETS_CAP_FEATURES] & SCO_WIDGETS_FEATURE_EVENT_TAG) != 0);
     CHECK(caps[SCO_WIDGETS_CAP_MAX_PANELS] == SCO_WIDGETS_MAX_PANELS && caps[SCO_WIDGETS_CAP_MAX_NODES] == SCO_WIDGETS_MAX_NODES);
     CHECK(caps[SCO_WIDGETS_CAP_MAX_TOTAL_NODES] == SCO_WIDGETS_MAX_TOTAL_NODES && caps[SCO_WIDGETS_CAP_MAX_ITEMS] == SCO_WIDGETS_MAX_ITEMS);
     CHECK(caps[SCO_WIDGETS_CAP_MAX_COLUMNS] == SCO_WIDGETS_MAX_COLUMNS && caps[SCO_WIDGETS_CAP_MAX_TEXT] == SCO_WIDGETS_MAX_TEXT);
@@ -399,6 +401,158 @@ static void TestCoalescing() {
     CHECK(W::RenderPanel("alpha.main", m) == Result::Ok && m.recorded.back().nodes.size() == 21);
     CHECK(W::RenderPanel("alpha.main", m) == Result::NotFound);
 }
+
+struct TaggedEvent {
+    uint32_t size = 0, node = 0, kind = 0;
+    int32_t row = -2, index = 0;
+    double value = 0;
+    std::string tag, text;
+    bool hasTag = false;
+};
+struct TaggedGot {
+    std::vector<TaggedEvent> events;
+    std::function<void()> action;
+};
+static void OnTagged(const char* panel, const sco_widget_event* event, void* ctx) {
+    CHECK(std::strcmp(panel, "alpha.main") == 0);
+    auto& got = *static_cast<TaggedGot*>(ctx);
+    TaggedEvent copied;
+    copied.size = event->size; copied.node = event->node_id; copied.kind = event->kind;
+    copied.index = event->index; copied.value = event->value;
+    copied.text = event->text ? event->text : "";
+    if (event->size >= sizeof(sco_widget_event_1_1)) {
+        const auto* prefix = reinterpret_cast<const sco_widget_event_1_1*>(event);
+        copied.row = prefix->row;
+        CHECK(prefix->_reserved == 0);
+    }
+    const char* borrowed = nullptr;
+    if (event->size >= sizeof(sco_widget_event_1_4)) {
+        const auto* full = reinterpret_cast<const sco_widget_event_1_4*>(event);
+        borrowed = full->tag;
+        copied.hasTag = borrowed != nullptr;
+        copied.tag = borrowed ? borrowed : "";
+    }
+    got.events.push_back(copied);
+    if (got.action) got.action();
+    // The host must own callback-local storage even when action destroys the live panel.
+    if (borrowed) CHECK(std::strcmp(borrowed, copied.tag.c_str()) == 0);
+}
+
+static void TestTaggedEvents() {
+    TaggedGot got;
+    HeadlessRenderer renderer;
+    const auto set = [&](const std::vector<sco_widget_node_1_2>& nodes) {
+        return table->set_panel(alpha, "alpha.main", "Tagged", reinterpret_cast<const sco_widget_node*>(nodes.data()),
+                                static_cast<uint32_t>(nodes.size()), sizeof(sco_widget_node_1_2), OnTagged, &got);
+    };
+    const auto update = [&](const sco_widget_node_1_2& node) {
+        return table->update_nodes(alpha, "alpha.main", &node.base.base, 1, sizeof(node));
+    };
+    char submittedTag[] = "open.bay";
+    const char* items[]{"r0", "r1", "r2", "r3"};
+    std::vector<sco_widget_node_1_2> nodes{
+        Node12(SCO_WIDGET_ROW, 1), Node12(SCO_WIDGET_BUTTON, 2, submittedTag, 1),
+        Node12(SCO_WIDGET_LIST, 3, "pick.row", 1), Node12(SCO_WIDGET_TABLE, 4, "page.grid", 1),
+        Node12(SCO_WIDGET_TOGGLE, 5, nullptr, 1), Node12(SCO_WIDGET_TEXT_INPUT, 6, "input.name", 1)};
+    nodes[2].base.base.items = items; nodes[2].base.base.item_count = 4;
+    nodes[2].base.base.index = -1; nodes[2].base.visible_rows = 2;
+    nodes[3].base.base.items = items; nodes[3].base.base.item_count = 4;
+    nodes[3].base.base.columns = 2; nodes[3].base.visible_rows = 1;
+    CHECK(set(nodes) == SCO_OK);
+    submittedTag[0] = 'X'; // authoritative tag was copied at submission
+    renderer.candidates = {W::Event{2, SCO_WIDGET_BUTTON}, W::Event{3, SCO_WIDGET_LIST, 2},
+        W::Event{3, SCO_WIDGET_EVENT_PAGE, 0, 0, {}, 1}, W::Event{4, SCO_WIDGET_EVENT_PAGE, 0, 0, {}, 1},
+        W::Event{5, SCO_WIDGET_TOGGLE, 0, 1}, W::Event{6, SCO_WIDGET_TEXT_INPUT, 0, 0, "Copied input"}};
+    CHECK(W::RenderPanel("alpha.main", renderer) == Result::Ok && got.events.size() == 6);
+    for (const auto& e : got.events) CHECK(e.size == sizeof(sco_widget_event_1_4));
+    if (got.events.size() == 6) {
+        CHECK(got.events[0].node == 2 && got.events[0].tag == "open.bay" && got.events[0].row == -1);
+        CHECK(got.events[1].tag == "pick.row" && got.events[1].index == 2 && got.events[1].row == 2);
+        CHECK(got.events[2].tag == "pick.row" && got.events[2].kind == SCO_WIDGET_EVENT_PAGE && got.events[2].row == 1);
+        CHECK(got.events[3].tag == "page.grid" && got.events[3].row == 1);
+        CHECK(!got.events[4].hasTag && got.events[4].tag.empty() && got.events[4].value == 1);
+        CHECK(got.events[5].tag == "input.name" && got.events[5].text == "Copied input");
+    }
+    CHECK(renderer.recorded.back().nodes[1].tag == "open.bay");
+    got.events.clear();
+    renderer.candidates = {W::Event{999, SCO_WIDGET_BUTTON}, W::Event{2, SCO_WIDGET_TOGGLE, 0, 1},
+        W::Event{2, SCO_WIDGET_BUTTON, 1}, W::Event{3, SCO_WIDGET_EVENT_PAGE, 0, 0, {}, 4},
+        W::Event{6, SCO_WIDGET_TEXT_INPUT, 0, 0, "\xff"}};
+    CHECK(W::RenderPanel("alpha.main", renderer) == Result::Ok && got.events.empty());
+    auto bad = Node12(SCO_WIDGET_BUTTON, 2, "pick.row", 1);
+    CHECK(update(bad) == SCO_BAD_ARG); // duplicate must preserve both canonical tag and callback
+    bad.tag = "bad tag";
+    CHECK(update(bad) == SCO_BAD_ARG);
+    bad.tag = "valid.tag"; bad._reserved[0] = 1;
+    CHECK(update(bad) == SCO_BAD_ARG);
+    auto disabled = Node12(SCO_WIDGET_BUTTON, 2, "disabled.action", 1);
+    disabled.base.base.flags = SCO_WIDGET_DISABLED;
+    CHECK(update(disabled) == SCO_OK);
+    renderer.candidates = {W::Event{2, SCO_WIDGET_BUTTON}};
+    CHECK(W::RenderPanel("alpha.main", renderer) == Result::Ok && got.events.empty());
+    CHECK(update(Node12(SCO_WIDGET_BUTTON, 2, "close.bay", 1)) == SCO_OK);
+    CHECK(W::RenderPanel("alpha.main", renderer) == Result::Ok && got.events.size() == 1 && got.events[0].tag == "close.bay");
+
+    // A tag pointer remains readable after replacing/removing the live panel inside fn.
+    got.events.clear();
+    got.action = [&] { CHECK(set({Node12(SCO_WIDGET_BUTTON, 2, "next.action")}) == SCO_OK); };
+    renderer.candidates = {W::Event{2, SCO_WIDGET_BUTTON}, W::Event{2, SCO_WIDGET_BUTTON}};
+    CHECK(W::RenderPanel("alpha.main", renderer) == Result::Ok && got.events.size() == 1 && got.events[0].tag == "close.bay");
+    got.action = {}; got.events.clear();
+    renderer.candidates.resize(1);
+    CHECK(W::RenderPanel("alpha.main", renderer) == Result::Ok && got.events.size() == 1 && got.events[0].tag == "next.action");
+    got.events.clear();
+    got.action = [&] { CHECK(table->remove_panel(alpha, "alpha.main") == SCO_OK); };
+    renderer.candidates.resize(2, W::Event{2, SCO_WIDGET_BUTTON});
+    CHECK(W::RenderPanel("alpha.main", renderer) == Result::Ok && got.events.size() == 1 && got.events[0].tag == "next.action");
+    CHECK(W::RenderPanel("alpha.main", renderer) == Result::NotFound);
+    got.action = {}; got.events.clear();
+
+    // Replacing the source while the adapter renders drops all stale candidates, even if
+    // numeric node IDs are reused; no new callback can receive the previous generation's tag.
+    CHECK(set({Node12(SCO_WIDGET_BUTTON, 2, "before.render")}) == SCO_OK);
+    struct Mutating : HeadlessRenderer {
+        std::function<void()> action;
+        void Render(const W::Panel& p, std::vector<W::Event>& e) override {
+            HeadlessRenderer::Render(p, e); if (action) action();
+        }
+    } mutating;
+    mutating.candidates = {W::Event{2, SCO_WIDGET_BUTTON}};
+    mutating.action = [&] { CHECK(set({Node12(SCO_WIDGET_BUTTON, 2, "after.render")}) == SCO_OK); };
+    CHECK(W::RenderPanel("alpha.main", mutating) == Result::Ok && got.events.empty());
+    renderer.candidates.resize(1);
+    CHECK(W::RenderPanel("alpha.main", renderer) == Result::Ok && got.events.size() == 1 && got.events[0].tag == "after.render");
+
+    // Tag mode begins on update as well as set and persists after the last tagged node is
+    // removed or replaced by a frozen 1.0 record. Only a full replacement resets the mode.
+    const auto legacySet = [&] {
+        const sco_widget_node old[]{Node(SCO_WIDGET_ROW, 1), Node(SCO_WIDGET_BUTTON, 2, 1), Node(SCO_WIDGET_BUTTON, 3, 1)};
+        return table->set_panel(alpha, "alpha.main", "Legacy", old, 3, sizeof(old[0]), OnTagged, &got);
+    };
+    CHECK(legacySet() == SCO_OK);
+    got.events.clear();
+    CHECK(W::RenderPanel("alpha.main", renderer) == Result::Ok && got.events.size() == 1 && got.events[0].size == sizeof(sco_widget_event));
+    CHECK(update(Node12(SCO_WIDGET_BUTTON, 2, "sticky.action", 1)) == SCO_OK);
+    got.events.clear();
+    CHECK(W::RenderPanel("alpha.main", renderer) == Result::Ok && got.events.size() == 1 && got.events[0].tag == "sticky.action");
+    CHECK(Update({Node(SCO_WIDGET_BUTTON, 2, 1)}) == SCO_OK);
+    got.events.clear();
+    CHECK(W::RenderPanel("alpha.main", renderer) == Result::Ok && got.events.size() == 1);
+    CHECK(got.events[0].size == sizeof(sco_widget_event_1_4) && !got.events[0].hasTag && got.events[0].row == -1);
+    CHECK(update(Node12(SCO_WIDGET_BUTTON, 2, "sticky.removed", 1)) == SCO_OK);
+    const uint32_t removed[]{2};
+    CHECK(table->remove_nodes(alpha, "alpha.main", removed, 1) == SCO_OK);
+    renderer.candidates = {W::Event{3, SCO_WIDGET_BUTTON}}; got.events.clear();
+    auto invalidReplacement = Node(SCO_WIDGET_BUTTON, 3); invalidReplacement.flags = 0x8000;
+    CHECK(table->set_panel(alpha, "alpha.main", "Bad", &invalidReplacement, 1, sizeof(invalidReplacement), OnTagged, &got) == SCO_BAD_ARG);
+    CHECK(W::RenderPanel("alpha.main", renderer) == Result::Ok && got.events.size() == 1);
+    CHECK(got.events[0].size == sizeof(sco_widget_event_1_4) && !got.events[0].hasTag);
+    CHECK(legacySet() == SCO_OK); got.events.clear();
+    CHECK(W::RenderPanel("alpha.main", renderer) == Result::Ok && got.events.size() == 1 && got.events[0].size == sizeof(sco_widget_event));
+    CHECK(set({Node12(SCO_WIDGET_BUTTON, 3, "")}) == SCO_OK); got.events.clear();
+    CHECK(W::RenderPanel("alpha.main", renderer) == Result::Ok && got.events.size() == 1 && got.events[0].size == sizeof(sco_widget_event_1_1));
+    CHECK(table->remove_panel(alpha, "alpha.main") == SCO_OK);
+}
 int main() {
     sco::SetGameThread();
     const sco_api* api = sco::host::BuildApi({"test-widgets11 1.0"});
@@ -412,6 +566,7 @@ int main() {
     TestNodeExtension();
     TestStableTags();
     TestEventsAndPaging();
+    TestTaggedEvents();
     TestCoalescing();
     W::Stop();
     CHECK(table->update_nodes(alpha, "alpha.main", nullptr, 0, 0) == SCO_UNAVAILABLE);

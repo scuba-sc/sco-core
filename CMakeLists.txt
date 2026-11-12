@@ -779,6 +779,28 @@ if(SCO_BUILD_TESTS)
   add_test(NAME abi_storage
            COMMAND "${CMAKE_COMMAND}" --build "${CMAKE_BINARY_DIR}" ${_abi_config} --target ${_abi_storage_targets})
 
+  # The separate storage metadata table pin (tests/abi_storage_v2.c), the same three ways.
+  set(_abi_storage_v2_cxx "${CMAKE_CURRENT_BINARY_DIR}/abi_storage_v2.cpp")
+  file(CONFIGURE OUTPUT "${_abi_storage_v2_cxx}"
+       CONTENT "#include \"${CMAKE_CURRENT_SOURCE_DIR}/tests/abi_storage_v2.c\"\n")
+  add_library(sco_abi_storage_v2_c OBJECT tests/abi_storage_v2.c)
+  add_library(sco_abi_storage_v2_cxx OBJECT "${_abi_storage_v2_cxx}")
+  set(_abi_storage_v2_targets sco_abi_storage_v2_c sco_abi_storage_v2_cxx)
+  if(NOT MSVC)
+    add_library(sco_abi_storage_v2_short_enums OBJECT tests/abi_storage_v2.c)
+    target_compile_options(sco_abi_storage_v2_short_enums PRIVATE -fshort-enums)
+    list(APPEND _abi_storage_v2_targets sco_abi_storage_v2_short_enums)
+  endif()
+  foreach(t IN LISTS _abi_storage_v2_targets)
+    target_include_directories(${t} PRIVATE "${SCO_INCLUDE_DIR}")
+    sco_warnings(${t})
+    if(NOT MSVC)
+      target_compile_options(${t} PRIVATE -Wpedantic)
+    endif()
+  endforeach()
+  add_test(NAME abi_storage_v2
+           COMMAND "${CMAKE_COMMAND}" --build "${CMAKE_BINARY_DIR}" ${_abi_config} --target ${_abi_storage_v2_targets})
+
   # The sco.settings table pin (tests/abi_settings.c), the same three ways.
   set(_abi_settings_cxx "${CMAKE_CURRENT_BINARY_DIR}/abi_settings.cpp")
   file(CONFIGURE OUTPUT "${_abi_settings_cxx}"
@@ -1728,6 +1750,12 @@ if(SCO_BUILD_TESTS)
   target_link_libraries(test_storage PRIVATE sco_storage)
   sco_project_target(test_storage)
   add_test(NAME test_storage COMMAND test_storage "${SCO_TEST_OUT}")
+
+  add_executable(test_storage_metadata_sdk tests/test_storage_metadata_sdk.cpp)
+  target_link_libraries(test_storage_metadata_sdk PRIVATE sco_storage)
+  sco_project_target(test_storage_metadata_sdk)
+  add_test(NAME test_storage_metadata_sdk COMMAND test_storage_metadata_sdk)
+  add_test(NAME app_diagnostics_metadata COMMAND test_app "${CMAKE_CURRENT_SOURCE_DIR}/sdk" "${SCO_TEST_OUT}" diagnostics-metadata-only)
 
   # sco.settings: the declarations' values, the service over the real host table and storage,
   # persistence across a restart, settings.changed. Host build, no game.

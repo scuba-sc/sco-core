@@ -233,6 +233,16 @@
     }
   ],
   "components": [
+    {"id":"storage-metadata.include.sco_storage_v2.h","source":"include/sco_storage_v2.h","destination":"include/sco_storage_v2.h","profiles":["core","core-source"],"origin":"project-authored","license":"GPL-3.0-only","public_header":true},
+    {"id":"storage-metadata.include.scosdk.storage_metadata.hpp","source":"include/scosdk/storage_metadata.hpp","destination":"include/scosdk/storage_metadata.hpp","profiles":["core","core-source"],"origin":"project-authored","license":"GPL-3.0-only","public_header":true},
+    {"id":"storage-metadata.sdk.csharp.Sco.Sdk.StorageMetadata.cs","source":"sdk/csharp/Sco.Sdk/StorageMetadata.cs","destination":"csharp/Sco.Sdk/StorageMetadata.cs","profiles":["core"],"origin":"project-authored","license":"GPL-3.0-only"},
+    {"id":"storage-metadata.sdk.csharp.Sco.Sdk.Tests.StorageMetadataTests.cs","source":"sdk/csharp/Sco.Sdk.Tests/StorageMetadataTests.cs","destination":"csharp/Sco.Sdk.Tests/StorageMetadataTests.cs","profiles":["core"],"origin":"project-authored","license":"GPL-3.0-only"},
+    {"id":"storage-metadata.tests.abi_storage_v2.c","source":"tests/abi_storage_v2.c","destination":"tests/abi_storage_v2.c","profiles":["core-source"],"origin":"project-authored","license":"GPL-3.0-only"},
+    {"id":"storage-metadata.tests.test_storage_metadata_sdk.cpp","source":"tests/test_storage_metadata_sdk.cpp","destination":"tests/test_storage_metadata_sdk.cpp","profiles":["core-source"],"origin":"project-authored","license":"GPL-3.0-only"},
+    {"id":"storage-metadata.sdk.contracts.sco_storage_v2.json","source":"sdk/contracts/sco_storage_v2.json","destination":"contracts/sco_storage_v2.json","profiles":["core","core-source"],"origin":"project-authored","license":"GPL-3.0-only"},
+    {"id":"storage-metadata.docs.storage-metadata.md","source":"docs/storage-metadata.md","destination":"docs/storage-metadata.md","profiles":["core","core-source"],"origin":"project-authored","license":"GPL-3.0-only"},
+    {"id":"storage-metadata.docs.diagnostics-sources.md","source":"docs/diagnostics-sources.md","destination":"docs/diagnostics-sources.md","profiles":["core","core-source"],"origin":"project-authored","license":"GPL-3.0-only"},
+
     {"id": "host-source-sc-src-game-exact_build_profile.h", "source": "src/game/exact_build_profile.h", "destination": "src/game/exact_build_profile.h", "profiles": ["host-source-sc"], "origin": "project-authored", "license": "GPL-3.0-only", "group": "host-source-sc"},
     {"id": "host-source-sc-src-game-exact_build_profile.cpp", "source": "src/game/exact_build_profile.cpp", "destination": "src/game/exact_build_profile.cpp", "profiles": ["host-source-sc"], "origin": "project-authored", "license": "GPL-3.0-only", "group": "host-source-sc"},
     {"id": "host-source-sc-tests-test_exact_build_profile.cpp", "source": "tests/test_exact_build_profile.cpp", "destination": "tests/test_exact_build_profile.cpp", "profiles": ["host-source-sc"], "origin": "project-authored", "license": "GPL-3.0-only", "group": "host-source-sc"},

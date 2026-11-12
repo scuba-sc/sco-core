@@ -17,9 +17,11 @@ static int pass = 0, fail = 0;
 #define CHECK(...) do { if (__VA_ARGS__) ++pass; else { ++fail; std::printf("FAIL %d: %s\n", __LINE__, #__VA_ARGS__); } } while (0)
 static const void* service = nullptr;
 static sco_result answer = SCO_OK;
+static uint32_t provider_version = SCO_WIDGETS_VERSION_1_4;
 static sco_result Query(const char* name, uint32_t version, const void** out) {
     CHECK(std::strcmp(name, SCO_WIDGETS_NAME) == 0);
-    CHECK(version == SCO_WIDGETS_VERSION_1_0);
+    CHECK(version == SCO_WIDGETS_VERSION_1_0 || version == SCO_WIDGETS_VERSION_1_4);
+    if (version > provider_version) return SCO_UNAVAILABLE;
     *out = service;
     return answer;
 }
@@ -28,9 +30,13 @@ static sco_widget_event_fn saved_fn = nullptr;
 static void* saved_ctx = nullptr;
 static uint32_t expected_stride = sizeof(sco_widget_node);
 static uint32_t reported_features = SCO_WIDGETS_FEATURE_STABLE_TAGS;
+static uint32_t reported_count = 2, reported_max_tag = SCO_WIDGETS_MAX_TAG;
+static sco_result caps_result = SCO_OK;
+static int set_calls = 0, update_calls = 0;
 static sco_result Set(sco_plugin* self, const char* id, const char* title,
                       const sco_widget_node* nodes, uint32_t count, uint32_t stride,
                       sco_widget_event_fn fn, void* ctx) {
+    ++set_calls;
     CHECK(self == expected_self);
     CHECK(std::strcmp(id, "test.main") == 0);
     CHECK(std::strcmp(title, "Panel") == 0);
@@ -44,6 +50,7 @@ static sco_result Remove(sco_plugin* self, const char* id) {
     return SCO_NOT_FOUND;
 }
 static sco_result Update(sco_plugin* self, const char* id, const sco_widget_node* nodes, uint32_t count, uint32_t stride) {
+    ++update_calls;
     CHECK(self == expected_self && std::strcmp(id, "test.main") == 0);
     CHECK(nodes && count == 1 && stride == sizeof(sco_widget_node_1_2) && nodes->size == stride);
     return SCO_WRONG_THREAD;
@@ -54,8 +61,9 @@ static sco_result RemoveNodes(sco_plugin* self, const char* id, const uint32_t* 
 }
 static sco_result Caps(sco_plugin* self, uint32_t* caps) {
     CHECK(self == expected_self && caps && caps[0] == SCO_WIDGETS_CAPS_1_2);
-    caps[0] = 2; caps[1] = reported_features;
-    return SCO_OK;
+    caps[0] = reported_count; caps[1] = reported_features;
+    if (reported_count == SCO_WIDGETS_CAPS_1_2) caps[SCO_WIDGETS_CAP_MAX_TAG] = reported_max_tag;
+    return caps_result;
 }
 struct Receiver {
     int calls = 0;
@@ -63,6 +71,16 @@ struct Receiver {
         CHECK(std::strcmp(panel, "test.main") == 0 && event.node_id == 7);
         ++calls;
         throw 42; // Must not cross the C boundary.
+    }
+};
+struct TaggedReceiver {
+    int calls = 0;
+    std::string tag;
+    void OnEvent(const char*, const sco_widget_event& event) {
+        if (event.size < sizeof(sco_widget_event_1_4)) return;
+        const char* borrowed = reinterpret_cast<const sco_widget_event_1_4&>(event).tag;
+        tag = borrowed ? borrowed : "";
+        ++calls;
     }
 };
 #ifdef SCO_TEST_IMGUI_ADAPTER
@@ -408,6 +426,44 @@ int main() {
     reported_features |= SCO_WIDGETS_FEATURE_NUMERIC_PRESENTATION;
     expected_stride = sizeof(numeric);
     CHECK(widgets.SetPanel13("test.main", "Panel", &numeric, 1) == SCO_TOO_MANY);
+    expected_stride = sizeof(extended);
+    auto refused = [&](sco_result result) {
+        const int sets = set_calls, updates = update_calls;
+        CHECK(widgets.SetPanelTagged("test.main", "Panel", &extended, 1) == result);
+        CHECK(widgets.UpdateNodesTagged("test.main", &extended, 1) == result);
+        CHECK(set_calls == sets && update_calls == updates);
+    };
+    refused(SCO_UNAVAILABLE); // short capabilities result cannot advertise max_tag
+    reported_count = SCO_WIDGETS_CAPS_1_2;
+    reported_features = SCO_WIDGETS_FEATURE_STABLE_TAGS;
+    refused(SCO_UNAVAILABLE);
+    reported_features = SCO_WIDGETS_FEATURE_EVENT_TAG;
+    refused(SCO_UNAVAILABLE);
+    reported_features |= SCO_WIDGETS_FEATURE_STABLE_TAGS;
+    for (uint32_t old : {SCO_WIDGETS_VERSION_1_0, SCO_WIDGETS_VERSION_1_2, SCO_WIDGETS_VERSION_1_3}) {
+        provider_version = old; refused(SCO_UNAVAILABLE);
+    }
+    provider_version = SCO_WIDGETS_VERSION_1_4;
+    reported_count = 11; refused(SCO_UNAVAILABLE); reported_count = SCO_WIDGETS_CAPS_1_2;
+    reported_max_tag = 0; refused(SCO_UNAVAILABLE);
+    reported_max_tag = 5; refused(SCO_TOO_MANY); reported_max_tag = SCO_WIDGETS_MAX_TAG;
+    caps_result = SCO_WRONG_THREAD; refused(SCO_WRONG_THREAD); caps_result = SCO_OK;
+    table.capabilities = nullptr; refused(SCO_UNAVAILABLE); table.capabilities = Caps;
+    table.set_panel = nullptr;
+    CHECK(widgets.SetPanelTagged("test.main", "Panel", &extended, 1) == SCO_UNAVAILABLE); table.set_panel = Set;
+    table.update_nodes = nullptr;
+    CHECK(widgets.UpdateNodesTagged("test.main", &extended, 1) == SCO_UNAVAILABLE); table.update_nodes = Update;
+    TaggedReceiver tagged_receiver;
+    CHECK(widgets.SetPanelTagged("test.main", "Panel", &extended, 1, tagged_receiver) == SCO_TOO_MANY);
+    CHECK(widgets.UpdateNodesTagged("test.main", &extended, 1) == SCO_WRONG_THREAD);
+    sco_widget_event_1_1 old_event{{sizeof(old_event), 7, SCO_WIDGET_BUTTON, 0, 0, nullptr}, -1, 0};
+    saved_fn("test.main", &old_event.base, saved_ctx);
+    CHECK(tagged_receiver.calls == 0);
+    char tag[] = "action.apply";
+    sco_widget_event_1_4 tagged_event{{{sizeof(tagged_event), 7, SCO_WIDGET_BUTTON, 0, 0, nullptr}, -1, 0}, tag};
+    saved_fn("test.main", &tagged_event.base.base, saved_ctx); tag[0] = 'x';
+    CHECK(tagged_receiver.calls == 1 && tagged_receiver.tag == "action.apply");
+    reported_count = 2;
     expected_stride = sizeof(sco_widget_node);
     // Exact allocations make an accidental partial function-pointer read observable under ASan.
     for (uint32_t extent = 4; extent < sizeof(table); ++extent) {
@@ -420,6 +476,10 @@ int main() {
             (extent >= 32 ? SCO_WRONG_THREAD : SCO_UNAVAILABLE));
         CHECK(widgets.RemoveNodes("test.main", ids, 1) == (extent >= 40 ? SCO_NOT_FOUND : SCO_UNAVAILABLE));
         CHECK(widgets.Capabilities(caps) == SCO_UNAVAILABLE);
+        const int sets = set_calls, updates = update_calls;
+        CHECK(widgets.SetPanelTagged("test.main", "Panel", &extended, 1) == SCO_UNAVAILABLE);
+        CHECK(widgets.UpdateNodesTagged("test.main", &extended, 1) == SCO_UNAVAILABLE);
+        CHECK(set_calls == sets && update_calls == updates);
     }
     answer = SCO_NOT_FOUND;
     CHECK(widgets.Open(&api, self) == SCO_NOT_FOUND);

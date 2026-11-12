@@ -25,7 +25,7 @@
  * --short-tables serves sco_api at its 1.0 extent (size = offsetof(sco_api, provide_service), minor 0),
  * as a 1.0 host does: calling a 1.1 member (provide_service .. register_raw) without first checking
  * size >= offsetof(sco_api, member) + sizeof(member) fails the check (docs/contracts.md, size / since).
- * sco.widgets is served at 1.1 by default (update_nodes, remove_nodes, capabilities, 1.1 node tails)
+ * sco.widgets is served at 1.4 by default (updates, capabilities, numeric nodes and tagged events)
  * and at its 1.0 extent (size 24, tails ignored) under --short-tables, where calling a 1.1 member
  * without checking the widgets table's size fails the same way. An unchecked query_service under
  * --short-tables fails the check but still answers, so later unchecked widgets calls are reported too.
@@ -1096,6 +1096,7 @@ typedef struct widget_panel_copy {
     uint64_t generation;
     sco_widget_event_fn fn;
     void* ctx;
+    int tagged_events; /* sticky until a successful full panel replacement */
 } widget_panel_copy;
 
 static widget_panel_copy* widget_panels[SCO_WIDGETS_MAX_PANELS];
@@ -1336,6 +1337,12 @@ static int widget_extended(const widget_panel_copy* panel) {
     return 0;
 }
 
+static int widget_tagged(const widget_panel_copy* panel) {
+    uint32_t i;
+    for (i = 0; i < panel->count; ++i) if (panel->nodes[i].tag[0]) return 1;
+    return 0;
+}
+
 static sco_result widget_set_panel(sco_plugin* self, const char* id, const char* title,
                                    const sco_widget_node* nodes, uint32_t count, uint32_t stride,
                                    sco_widget_event_fn fn, void* ctx) {
@@ -1371,6 +1378,7 @@ static sco_result widget_set_panel(sco_plugin* self, const char* id, const char*
     r = widget_parse(nodes, count, stride, 0, 0, NULL, 0, 0, panel->nodes);
     if (r != SCO_OK) { widget_free(panel); return r; }
     widget_inherit(panel->nodes, count);
+    panel->tagged_events = widget_tagged(panel);
     /* Publish only after every validation/allocation has succeeded. */
     old = widget_panels[slot];
     panel->generation = ++widget_generation;
@@ -1476,6 +1484,7 @@ static sco_result widget_update_nodes(sco_plugin* self, const char* panel_id, co
     widget_total_nodes = widget_total_nodes - panel->count + total;
     panel->nodes = tree;
     panel->count = total;
+    panel->tagged_events |= widget_tagged(panel);
     panel->generation = ++widget_generation;
     printf("  widgets update %s root=%u nodes=%u total=%u generation=%llu\n", panel->id, (unsigned)nodes->id,
            (unsigned)count, (unsigned)total, (unsigned long long)panel->generation);
@@ -1521,7 +1530,7 @@ static sco_result widget_remove_nodes(sco_plugin* self, const char* panel_id, co
 #define WIDGET_FEATURES (SCO_WIDGETS_FEATURE_UPDATE_NODES | SCO_WIDGETS_FEATURE_REMOVE_NODES | \
     SCO_WIDGETS_FEATURE_SEVERITY | SCO_WIDGETS_FEATURE_TOOLTIP | SCO_WIDGETS_FEATURE_PAGING | \
     SCO_WIDGETS_FEATURE_EVENT_ROW | SCO_WIDGETS_FEATURE_COALESCED_RENDER | SCO_WIDGETS_FEATURE_STABLE_TAGS | \
-    SCO_WIDGETS_FEATURE_NUMERIC_PRESENTATION)
+    SCO_WIDGETS_FEATURE_NUMERIC_PRESENTATION | SCO_WIDGETS_FEATURE_EVENT_TAG)
 
 /* Advertises what the real host does (src/widgets/widgets.cpp), with the 1.0 limit macros. */
 static sco_result widget_capabilities(sco_plugin* self, uint32_t* out) {
@@ -1570,7 +1579,7 @@ static sco_result short_capabilities(sco_plugin* self, uint32_t* out) {
     return SCO_UNAVAILABLE;
 }
 
-/* sco.widgets 1.1 by default; under --short-tables the 1.0 extent (size 24), as a 1.0 host serves. */
+/* sco.widgets 1.4 by default; under --short-tables the 1.0 extent (size 24), as a 1.0 host serves. */
 static const sco_widgets_v1 widget_api = {
     (uint32_t)sizeof(sco_widgets_v1), 0, widget_set_panel, widget_remove_panel,
     widget_update_nodes, widget_remove_nodes, widget_capabilities
@@ -1784,7 +1793,7 @@ static sco_result provide_service(sco_plugin* self, const char* name, uint32_t v
 }
 
 static sco_result widgets_lookup(const char* name, uint32_t min_version, const void** out) {
-    const uint32_t served = short_tables ? SCO_WIDGETS_VERSION_1_0 : SCO_WIDGETS_VERSION_1_3;
+    const uint32_t served = short_tables ? SCO_WIDGETS_VERSION_1_0 : SCO_WIDGETS_VERSION_1_4;
     if (!name || !out) return SCO_BAD_ARG;
     remember_name(queried, &nqueried, name);
     if (strcmp(name, SCO_WIDGETS_NAME)) return SCO_NOT_FOUND;
@@ -1916,8 +1925,10 @@ typedef struct widget_pending_event {
     uint64_t generation;
     char panel_id[SCO_WIDGETS_MAX_ID + 1u];
     char text[SCO_WIDGETS_MAX_TEXT + 1u];
+    char tag[SCO_WIDGETS_MAX_TAG + 1u];
     sco_widget_event event;
     int extended;   /* the panel holds a 1.1 node: deliver a sco_widget_event_1_1 */
+    int tagged_events;
     int32_t row;
 } widget_pending_event;
 
@@ -1958,6 +1969,8 @@ static void widget_simulate(void) {
             p->event.size = sizeof p->event;
             p->event.node_id = n->id; p->event.kind = n->kind;
             p->extended = widget_extended(panel);
+            p->tagged_events = panel->tagged_events;
+            memcpy(p->tag, node->tag, sizeof p->tag);
             p->row = -1;
             switch (n->kind) {
                 case SCO_WIDGET_TOGGLE: p->event.value = n->value == 0 ? 1 : 0; break;
@@ -1991,7 +2004,7 @@ static void widget_simulate(void) {
         widget_node_copy* node;
         sco_widget_event_fn fn;
         void* ctx;
-        sco_widget_event_1_1 wire;
+        sco_widget_event_1_4 wire;
         char row_text[48] = "";
         int before_failures = failures;
         uint32_t before_logs = widget_callback_logs, before_invokes = widget_callback_invokes;
@@ -2002,18 +2015,23 @@ static void widget_simulate(void) {
         if (p->event.kind == SCO_WIDGET_TEXT_INPUT) strcpy(node->text, p->text);
         fn = panel->fn; ctx = panel->ctx;
         memset(&wire, 0, sizeof wire);
-        wire.base = p->event;
-        if (p->extended) {
-            wire.base.size = sizeof wire;
-            wire.row = p->row;
-            snprintf(row_text, sizeof row_text, " size=%u row=%d", (unsigned)wire.base.size, (int)wire.row);
+        wire.base.base = p->event;
+        if (p->extended || p->tagged_events) {
+            wire.base.base.size = sizeof wire.base;
+            wire.base.row = p->row;
         }
+        if (p->tagged_events) {
+            wire.base.base.size = sizeof wire;
+            wire.tag = p->tag[0] ? p->tag : NULL;
+        }
+        if (p->extended || p->tagged_events)
+            snprintf(row_text, sizeof row_text, " size=%u row=%d", (unsigned)wire.base.base.size, (int)wire.base.row);
         printf("  widgets event %s node=%u kind=%u(%s) value=%.17g index=%d text=\"%s\"%s\n",
                p->panel_id, (unsigned)p->event.node_id, (unsigned)p->event.kind,
                widget_kind_name(p->event.kind), p->event.value, (int)p->event.index, p->event.text ? p->event.text : "",
                row_text);
         widget_dispatching = 1;
-        fn(p->panel_id, &wire.base, ctx);
+        fn(p->panel_id, &wire.base.base, ctx);
         widget_dispatching = 0;
         ++delivered;
         /* Never dereference panel/node/fn/ctx after the plugin callout: the

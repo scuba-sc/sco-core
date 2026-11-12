@@ -22,9 +22,9 @@ expect(chk_tail_checked 0 "1\\.0 host: no services" --short-tables)
 expect(chk_tail_checked 0 "widgets found")
 # sco.widgets 1.1: served by default, validated as the host does (the probe fails its load on a wrong
 # answer); --short-tables serves the 1.0 extent (size 24), where an unchecked 1.1 call fails.
-expect(chk_w11_unchecked 0 "widgets 1\\.1 ok features=0x1ff")
+expect(chk_w11_unchecked 0 "widgets 1\\.1 ok features=0x3ff")
 expect(chk_w11_unchecked 1 "FAIL plugin called sco_widgets_v1\\.update_nodes, but this host's sco\\.widgets table size is 24" --short-tables)
-expect(chk_w11_checked 0 "widgets 1\\.1 ok features=0x1ff.*tag=\"probe.child\".*event kind=6 size=40 row=1.*event kind=2 size=40 row=-1")
+expect(chk_w11_checked 0 "widgets 1\\.1 ok features=0x3ff.*tag=\"probe.child\".*event kind=6 size=40 row=1.*event kind=2 size=40 row=-1.*tagged event size=48 tag=probe.rows reentrant preserved.*tagged update retained null tag.*tagged removal retained null tag.*tagged event probes 5/5")
 expect(chk_w11_checked 0 "1\\.0 host: no services" --short-tables)
 # Automatic zero-argument smoke calls may observe an absent resource. An explicit
 # requested command still fails on NOT_FOUND; invalid and failed handlers stay failures.

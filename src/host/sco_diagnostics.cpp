@@ -44,6 +44,29 @@ bool Id(std::string_view s, size_t max, bool dotted = false) {
     }
     return previous != '.';
 }
+bool NumericFact(const std::optional<uint64_t>& value) {
+    return !value || *value <= kMaxMonotonicMs;
+}
+bool SourceTime(const std::optional<uint64_t>& observed, uint64_t now) {
+    return !observed || (*observed <= now && *observed <= kMaxMonotonicMs);
+}
+bool ValidProfile(const ProfileMetadata& source, uint64_t now) {
+    return Id(source.profileId, 31) && source.generation != 0 &&
+        SourceTime(source.observedMs, now) && NumericFact(source.pluginCount) &&
+        NumericFact(source.loadedPluginCount) &&
+        (!source.pluginCount || !source.loadedPluginCount || *source.loadedPluginCount <= *source.pluginCount);
+}
+bool ValidStorage(const StorageMetadata& source, uint64_t now) {
+    if (!source.generation || !SourceTime(source.observedMs, now) || source.owners.size() > kInventoryLimit) return false;
+    for (size_t i = 0; i < source.owners.size(); ++i) {
+        const auto& owner = source.owners[i];
+        if (!Id(owner.ownerId, 31) || !NumericFact(owner.tableCount) || !NumericFact(owner.rowCount) ||
+            !NumericFact(owner.usedBytes) || !NumericFact(owner.quotaBytes)) return false;
+        for (size_t previous = 0; previous < i; ++previous)
+            if (source.owners[previous].ownerId == owner.ownerId) return false;
+    }
+    return true;
+}
 std::optional<std::string> Label(const std::optional<std::string>& s, size_t max) {
     if (!s || s->empty() || s->size() > max) return {};
     // Deliberately narrow: no prose, personal identifiers, paths, addresses or controls.
@@ -130,6 +153,10 @@ bool SnapshotStore::Begin(const std::vector<plugins::Plugin>& list, HostMetadata
             (source.health != SCO_DIAGNOSTICS_HEALTH_UNKNOWN && source.health != SCO_DIAGNOSTICS_HEALTH_READY &&
              source.health != SCO_DIAGNOSTICS_HEALTH_DEGRADED)) sources.diagnosticsPlugin.reset();
     }
+    // Validate copied facts only. Malformed sections are unavailable as a whole;
+    // capture never fills missing values by querying a provider or plugin table.
+    if (sources.profile && !ValidProfile(*sources.profile, now)) sources.profile.reset();
+    if (sources.storage && !ValidStorage(*sources.storage, now)) sources.storage.reset();
     next->host = std::move(host); next->game = std::move(game); next->sources = std::move(sources);
     next->generation = generation_ + 1;
     pluginCount_ = std::min(list.size(), kInventoryLimit);

@@ -145,6 +145,16 @@ class CatalogueTests(unittest.TestCase):
         with self.assertRaisesRegex(catalogue.CatalogueError, 'leading size'):
             catalogue.header_inventory(self.root)
 
+    def test_separate_storage_metadata_major_keeps_legacy_route(self):
+        inventory = catalogue.header_inventory(self.root)
+        legacy = inventory['tables']['sco_storage_v1']
+        metadata = inventory['tables']['sco_storage_v2']
+        self.assertEqual((legacy['service'], legacy['version_macro'], legacy['size']),
+                         ('sco.storage', 'SCO_STORAGE_VERSION_1_1', 144))
+        self.assertEqual((metadata['service'], metadata['version_macro'], metadata['size']),
+                         ('sco.storage.metadata', 'SCO_STORAGE_V2_VERSION_2_0', 40))
+        self.assertEqual(metadata['members'], ['owner_info', 'next_table', 'row_count', 'quota_info'])
+
     def test_nested_prefix_must_be_a_real_callback_table(self):
         self.header_change('sc_inventory.h', 'typedef struct sc_inventory_v1_2 {',
                            'typedef struct fake_inventory_prefix { uint32_t size; uint32_t pad; } fake_inventory_prefix;\n'
@@ -157,9 +167,9 @@ class CatalogueTests(unittest.TestCase):
     def test_baseline_matches_header_count(self):
         records, extracted = catalogue.validate(self.root)
         self.assertEqual(len(records), len(extracted['methods']))
-        self.assertEqual(len(records), 231)
-        self.assertEqual(len(extracted['tables']), 48)
-        self.assertEqual(sum(len(t['members']) for t in extracted['tables'].values()), 228)
+        self.assertEqual(len(records), 235)
+        self.assertEqual(len(extracted['tables']), 49)
+        self.assertEqual(sum(len(t['members']) for t in extracted['tables'].values()), 232)
         self.assertEqual(extracted['tables']['sc_relocation_v1']['size'], 32)
         self.assertEqual(extracted['tables']['sc_relocation_v1_1']['size'], 40)
         self.assertEqual(extracted['tables']['sc_relocation_v1_1']['members'],

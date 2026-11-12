@@ -7,7 +7,7 @@
       "symbol": "sco_widgets_v1.set_panel",
       "table": "sco_widgets_v1",
       "service": "sco.widgets",
-      "version_macro": "SCO_WIDGETS_VERSION_1_3",
+      "version_macro": "SCO_WIDGETS_VERSION_1_4",
       "source_header": "include/sco_widgets.h",
       "signature": "sco_result (*)(sco_plugin *, const char *, const char *, const sco_widget_node *, uint32_t, uint32_t, sco_widget_event_fn, void *)",
       "member_extent": 16,
@@ -17,10 +17,10 @@
       "buffer_contract": "`sco_result (*set_panel)(sco_plugin* self, const char* id, const char* title, const sco_widget_node* nodes, uint32_t count, uint32_t node_stride, sco_widget_event_fn fn, void* ctx);`<br>Atomically adds/replaces an owned complete preorder tree. ID/title <=63 bytes; 1..256 nodes, aligned stride >=80 and node size within stride. Unique nonzero node IDs, parent 0 or preceding active ROW/COLUMN; all subtrees contiguous. Copies valid UTF-8 labels/text/items <=255 bytes; 256 items/node and 16 table columns. Zero unused fields; finite/ranged numeric values and valid selections. Failure preserves old tree/callback.",
       "ownership": "Host deep-copies tree/strings on success; fn/ctx borrowed until successful replacement/removal or ordinary owner release. No allocation transfer.",
       "thread_affinity": "Game thread only; WRONG_THREAD elsewhere. Callbacks game thread under owner callout guard.",
-      "callback_context": "Event, text and panel ID borrowed during callback only; callback ctx is plugin-owned.",
+      "callback_context": "Event, text and panel ID borrowed during callback only; callback ctx is plugin-owned. Tagged panels in 1.4 carry sco_widget_event_1_4 (48 bytes, tag at40) with a borrowed canonical tag; copy during callback. Sticky mode survives subtree edits/removal and resets on tag-free full replacement.",
       "reentrancy": "Callbacks may invoke commands or replace/remove own panel; generation change drops remaining stale events, new tree renders next pass. Registry lock not held during plugin code.",
       "results": "OK; WRONG_THREAD off game thread; UNAVAILABLE stopped service/host; BAD_ARG malformed owner/ID/title/tree/size/stride/data; TOO_MANY limits or allocation failure. Failure atomic.",
-      "absent_capability": "query_service NOT_FOUND absent service; UNAVAILABLE incompatible version. No game capability or renderer requirement.",
+      "absent_capability": "query_service NOT_FOUND absent service; UNAVAILABLE incompatible version. No game capability or renderer requirement. Tagged guarantees require query1.4 plus STABLE_TAGS|EVENT_TAG and a usable max-tag limit. Guarded C++/C#/Lua tagged inputs refuse old/short/null providers before mutation; legacy raw calls do not promise this feature.",
       "cleanup": "Successful replacement/removal and ordinary owner release discard stale-generation events and end borrowed callbacks. Fault guard stops delivery; retained-provider faults skip ordinary resource release until restart. No separate cancel token.",
       "language_mappings": {
         "c": {
@@ -99,12 +99,16 @@
         "sdk/csharp/Sco.Sdk.Tests/WidgetsTests.cs",
         "sdk/csharp/Sco.Sdk.Tests/WidgetsPins.cs",
         "sdk/test-zip.sh",
-        "sdk/csharp/Sco.Sdk.Tests/WidgetsTailTests.cs"
+        "sdk/csharp/Sco.Sdk.Tests/WidgetsTailTests.cs",
+        "tests/test_widgets11.cpp",
+        "tests/fixtures/plugins/native/checker_probe.c",
+        "tests/plugin_check.cmake"
       ],
       "limitations": [
         "C# provides bounded copied UTF-8 trees and registry-rooted callbacks; Windows NativeAOT host loading remains unverified locally.",
         "Lua uses bounded declarative tables, registry-rooted callbacks and shared sandbox budgets; no native FFI or draw callbacks.",
-        "Host adapter controls appearance/placement; native plugins are not sandboxed. Headless tests do not verify GPU rendering or gameplay."
+        "Host adapter controls appearance/placement; native plugins are not sandboxed. Headless tests do not verify GPU rendering or gameplay.",
+        "Tag-free legacy events retain32/40-byte prefixes. C#/Lua copy event tags; C# validates against the retained node, Lua validates bounded tag/callback identity without a second node tree. Not run in game."
       ]
     },
     {
@@ -113,7 +117,7 @@
       "symbol": "sco_widgets_v1.remove_panel",
       "table": "sco_widgets_v1",
       "service": "sco.widgets",
-      "version_macro": "SCO_WIDGETS_VERSION_1_3",
+      "version_macro": "SCO_WIDGETS_VERSION_1_4",
       "source_header": "include/sco_widgets.h",
       "signature": "sco_result (*)(sco_plugin *, const char *)",
       "member_extent": 24,
@@ -219,7 +223,7 @@
       "symbol": "sco_widgets_v1.update_nodes",
       "table": "sco_widgets_v1",
       "service": "sco.widgets",
-      "version_macro": "SCO_WIDGETS_VERSION_1_3",
+      "version_macro": "SCO_WIDGETS_VERSION_1_4",
       "source_header": "include/sco_widgets.h",
       "signature": "sco_result (*)(sco_plugin *, const char *, const sco_widget_node *, uint32_t, uint32_t)",
       "member_extent": 32,
@@ -229,10 +233,10 @@
       "buffer_contract": "`sco_result (*update_nodes)(sco_plugin* self, const char* panel_id, const sco_widget_node* nodes, uint32_t count, uint32_t node_stride);`<br>Atomically replaces or inserts one subtree of an owned panel. nodes[0] is the root and every later node descends from it; node, stride and string rules as set_panel, with 1.0, 1.1, 1.2 or 1.3 node sizes. An existing root ID is replaced in place and keeps its parent; a new root ID becomes the last child of parent 0 or an existing ROW/COLUMN. IDs must not collide with nodes outside the replaced subtree; 256 nodes/panel and 4096 live nodes after the change. Failure preserves the tree.",
       "ownership": "Host deep-copies the subtree on success; the panel's fn/ctx stay unchanged and borrowed. No allocation transfer.",
       "thread_affinity": "Game thread only; WRONG_THREAD elsewhere. Callbacks game thread under owner callout guard.",
-      "callback_context": "Event, text and panel ID borrowed during callback only; callback ctx is plugin-owned.",
+      "callback_context": "Event, text and panel ID borrowed during callback only; callback ctx is plugin-owned. Tagged panels in 1.4 carry sco_widget_event_1_4 (48 bytes, tag at40) with a borrowed canonical tag; copy during callback. Sticky mode survives subtree edits/removal and resets on tag-free full replacement.",
       "reentrancy": "Callable from the panel's own event callback; generation change drops remaining stale events, new tree renders next pass. Registry lock not held during plugin code.",
       "results": "OK; WRONG_THREAD off game thread; UNAVAILABLE stopped service/host; BAD_ARG malformed owner/ID/tree/size/stride/data or a moved root; NOT_FOUND absent owned panel; TOO_MANY limits or allocation failure. Failure atomic.",
-      "absent_capability": "Check the table size covers the member and the pointer is non-NULL: a 1.0 table (24 bytes) has no 1.1 members. query_service answers UNAVAILABLE for 1.1 against a 1.0 host.",
+      "absent_capability": "Check the table size covers the member and the pointer is non-NULL: a 1.0 table (24 bytes) has no 1.1 members. query_service answers UNAVAILABLE for 1.1 against a 1.0 host. Tagged guarantees require query1.4 plus STABLE_TAGS|EVENT_TAG and a usable max-tag limit. Guarded C++/C#/Lua tagged inputs refuse old/short/null providers before mutation; legacy raw calls do not promise this feature.",
       "cleanup": "Success starts a new generation: remaining events of the current pass drop and the change renders next pass. Owner release and fault rules as set_panel. No separate cancel token.",
       "language_mappings": {
         "c": {
@@ -293,7 +297,8 @@
         "tests/test_lua.cpp"
       ],
       "limitations": [
-        "Headless host tests only; not run in game. Renderer presentation of severity, tooltips and paging is the host adapter's."
+        "Headless host tests only; not run in game. Renderer presentation of severity, tooltips and paging is the host adapter's.",
+        "Tag-free legacy events retain32/40-byte prefixes. C#/Lua copy event tags; C# validates against the retained node, Lua validates bounded tag/callback identity without a second node tree. Not run in game."
       ]
     },
     {
@@ -302,7 +307,7 @@
       "symbol": "sco_widgets_v1.remove_nodes",
       "table": "sco_widgets_v1",
       "service": "sco.widgets",
-      "version_macro": "SCO_WIDGETS_VERSION_1_3",
+      "version_macro": "SCO_WIDGETS_VERSION_1_4",
       "source_header": "include/sco_widgets.h",
       "signature": "sco_result (*)(sco_plugin *, const char *, const uint32_t *, uint32_t)",
       "member_extent": 40,
@@ -385,7 +390,7 @@
       "symbol": "sco_widgets_v1.capabilities",
       "table": "sco_widgets_v1",
       "service": "sco.widgets",
-      "version_macro": "SCO_WIDGETS_VERSION_1_3",
+      "version_macro": "SCO_WIDGETS_VERSION_1_4",
       "source_header": "include/sco_widgets.h",
       "signature": "sco_result (*)(sco_plugin *, uint32_t *)",
       "member_extent": 48,

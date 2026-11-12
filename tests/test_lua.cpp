@@ -13,6 +13,7 @@
 #include "sco/settings.h"
 #include "sco/status.h"
 #include "sco/storage.h"
+#include "sco_storage_v2.h"
 #include "sco/ui.h"
 #include "sco/widgets.h"
 #include "../plugins/lua/sco_lua.h"
@@ -219,10 +220,14 @@ static sco_result g_widgetsMissingResult = SCO_NOT_FOUND;
 static std::vector<uint32_t> g_widgetsVersions;
 static uint32_t g_widgetsFeatureMask = UINT32_MAX;
 static uint32_t g_widgetsCapsCount = 0;
+static uint32_t g_widgetsMaxTag = SCO_WIDGETS_MAX_TAG;
+static unsigned g_widgetsCapsCalls = 0;
 static sco_result WidgetFixtureCapabilities(sco_plugin* self, uint32_t* caps) {
+    ++g_widgetsCapsCalls;
     const auto r = sco::widgets::Table()->capabilities(self, caps);
     if (r == SCO_OK) {
         caps[SCO_WIDGETS_CAP_FEATURES] &= g_widgetsFeatureMask;
+        caps[SCO_WIDGETS_CAP_MAX_TAG] = g_widgetsMaxTag;
         if (g_widgetsCapsCount) caps[0] = g_widgetsCapsCount;
     }
     return r;
@@ -398,7 +403,7 @@ static void TestPanelBuilder() {
 }
 
 static sco_result WidgetsFixtureQuery(const char* name, uint32_t version, const void** out) {
-    CHECK(strcmp(name, SCO_WIDGETS_NAME) == 0 && version >= SCO_WIDGETS_VERSION_1_0 && version <= SCO_WIDGETS_VERSION_1_3);
+    CHECK(strcmp(name, SCO_WIDGETS_NAME) == 0 && version >= SCO_WIDGETS_VERSION_1_0 && version <= SCO_WIDGETS_VERSION_1_4);
     g_widgetsVersions.push_back(version);
     *out = nullptr;
     if (g_widgetsQueryError != SCO_OK) return g_widgetsQueryError;
@@ -599,12 +604,19 @@ static sco_widget_event_fn g_widgetCallback = nullptr;
 static void* g_widgetContext = nullptr;
 static bool g_failWidgetRemove = false;
 static bool g_collectWidgetSet = false;
+static unsigned g_widgetSetCalls = 0, g_widgetUpdateCalls = 0;
 static sco_result WidgetCaptureSet(sco_plugin* self,const char* id,const char* title,
     const sco_widget_node* nodes,uint32_t count,uint32_t stride,sco_widget_event_fn fn,void* ctx) {
+    ++g_widgetSetCalls;
     if (g_collectWidgetSet) lua_gc(g_widgetState,LUA_GCCOLLECT);
     const auto r=sco::widgets::Table()->set_panel(self,id,title,nodes,count,stride,fn,ctx);
     if (r==SCO_OK) { g_widgetCallback=fn; g_widgetContext=ctx; }
     return r;
+}
+static sco_result WidgetCaptureUpdate(sco_plugin* self,const char* id,
+    const sco_widget_node* nodes,uint32_t count,uint32_t stride) {
+    ++g_widgetUpdateCalls;
+    return sco::widgets::Table()->update_nodes(self,id,nodes,count,stride);
 }
 static sco_result WidgetCaptureRemove(sco_plugin* self,const char* id) {
     return g_failWidgetRemove ? SCO_WRONG_THREAD : sco::widgets::Table()->remove_panel(self,id);
@@ -663,7 +675,7 @@ static void TestWidgetsTails() {
     Write("widgetstails", R"lua(
       local w, seen = sco.widgets, {}
       local caps = assert(w.capabilities())
-      assert(caps.version == 0x10003 and caps.count == 10 and caps.max_tag == 63)
+      assert(caps.version == 0x10004 and caps.count == 10 and caps.max_tag == 63)
       assert(w.set_panel("widgetstails.numeric","Numeric",{
         {kind="slider",id=1,label="Darkness",minimum=20,maximum=95,value=74,presentation="integer_percent"},
         {kind="label",id=2,label="Later tag",tag="later"}}))
@@ -682,9 +694,9 @@ static void TestWidgetsTails() {
         {kind="button",id=3,parent=1,label="Keep",tag="keep"},
       }
       assert(w.set_panel("widgetstails.main","Tails",nodes,function(_,e)
-        if e.kind=="page" then assert(e.node_id==2 and e.row==2);seen[#seen+1]="page"
-        elseif e.kind=="list" then assert(e.row==3 and e.index==3);seen[#seen+1]="list"
-        else assert(e.kind=="button" and e.row==-1);seen[#seen+1]="button" end
+        if e.kind=="page" then assert(e.node_id==2 and e.row==2 and e.tag=="pick.rows");seen[#seen+1]="page"
+        elseif e.kind=="list" then assert(e.row==3 and e.index==3 and e.tag=="pick.rows");seen[#seen+1]="list"
+        else assert(e.kind=="button" and e.row==-1 and e.tag=="keep");seen[#seen+1]="button" end
       end))
       -- A conflicting resulting tag, or a malformed subtree, leaves the prior tree.
       assert(select(2,w.update_nodes("widgetstails.main",{{kind="button",id=3,parent=1,label="Bad",tag="pick.rows"}}))=="bad_arg")
@@ -734,13 +746,13 @@ static void TestWidgetsTails() {
       assert(select(2,w.set_panel("widgetstailguards.main","x",{{kind="label",id=1,tooltip="tip"}}))=="unavailable")
     )lua";
     g_widgetsMaxVersion=SCO_WIDGETS_VERSION_1_0;g_widgetsVersions.clear();load(noTail);
-    CHECK(g_widgetsVersions.size()==12 && g_widgetsVersions[0]==SCO_WIDGETS_VERSION_1_3 && g_widgetsVersions[1]==SCO_WIDGETS_VERSION_1_2 && g_widgetsVersions[2]==SCO_WIDGETS_VERSION_1_1 && g_widgetsVersions[3]==SCO_WIDGETS_VERSION_1_0);
+    CHECK(g_widgetsVersions.size()==15 && g_widgetsVersions[0]==SCO_WIDGETS_VERSION_1_4 && g_widgetsVersions[1]==SCO_WIDGETS_VERSION_1_3 && g_widgetsVersions[2]==SCO_WIDGETS_VERSION_1_2 && g_widgetsVersions[3]==SCO_WIDGETS_VERSION_1_1 && g_widgetsVersions[4]==SCO_WIDGETS_VERSION_1_0);
     load(R"lua(
       assert(select(2,sco.widgets.capabilities())=="unavailable")
       assert(sco.widgets.set_panel("widgetstailguards.main","Base",{{kind="label",id=1,label="base"}}))
     )lua");
     g_widgetsMissingResult=SCO_UNAVAILABLE;g_widgetsVersions.clear();load(noTail);
-    CHECK(g_widgetsVersions.size()==12 && g_widgetsVersions[3]==SCO_WIDGETS_VERSION_1_0);g_widgetsMissingResult=SCO_NOT_FOUND;
+    CHECK(g_widgetsVersions.size()==15 && g_widgetsVersions[4]==SCO_WIDGETS_VERSION_1_0);g_widgetsMissingResult=SCO_NOT_FOUND;
     g_widgetsMaxVersion=SCO_WIDGETS_VERSION_1_1;
     load(R"lua(
       assert(sco.widgets.set_panel("widgetstailguards.main","Tip",{{kind="label",id=1,label="base",tooltip="tip"}}))
@@ -754,10 +766,10 @@ static void TestWidgetsTails() {
     load(R"lua(assert(select(2,sco.widgets.set_panel("widgetstailguards.main","Tag",{{kind="label",id=1,tag="x"}}))=="unavailable"))lua");
     g_widgetsFeatureMask=UINT32_MAX;
     g_widgetsFixture=nullptr;g_widgetsVersions.clear();load(R"lua(assert(select(2,sco.widgets.capabilities())=="unavailable"))lua");
-    CHECK(g_widgetsVersions.size()==2);g_widgetsFixture=&table;
+    CHECK(g_widgetsVersions.size()==3);g_widgetsFixture=&table;
     g_widgetsQueryError=SCO_CRASHED;g_widgetsVersions.clear();
     load(R"lua(assert(select(2,sco.widgets.capabilities())=="crashed"))lua");
-    CHECK(g_widgetsVersions.size()==1 && g_widgetsVersions[0]==SCO_WIDGETS_VERSION_1_3);g_widgetsQueryError=SCO_OK;
+    CHECK(g_widgetsVersions.size()==1 && g_widgetsVersions[0]==SCO_WIDGETS_VERSION_1_4);g_widgetsQueryError=SCO_OK;
     for(uint32_t count:{1u,11u}) {g_widgetsCapsCount=count;load(R"lua(assert(select(2,sco.widgets.capabilities())=="failed"))lua");}g_widgetsCapsCount=0;
     const char* missing=R"lua(
       assert(select(2,sco.widgets.capabilities())=="unavailable")
@@ -770,6 +782,141 @@ static void TestWidgetsTails() {
     }
     table=*sco::widgets::Table();table.capabilities=nullptr;table.update_nodes=nullptr;table.remove_nodes=nullptr;g_widgetsFixture=&table;load(missing);
     g_widgetsFixture=nullptr;sco::widgets::Stop();
+}
+
+static void TestWidgetsTaggedEvents() {
+    CHECK(sco::widgets::Start()==Result::Ok);
+    Write("widgettags",R"lua(
+      local w, phase, seen, retained = sco.widgets, 0, {}, nil
+      assert(w.set_panel("widgettags.main","Tags",{
+        {kind="column",id=1},{kind="button",id=2,parent=1,label="Tagged",tag="first"},
+        {kind="button",id=3,parent=1,label="Plain"}},function(panel,e)
+        if phase==0 then
+          assert(e.node_id==2 and e.tag=="first" and e.row==-1)
+          retained=e
+          assert(w.update_nodes(panel,{{kind="button",id=2,parent=1,label="Changed",tag="second"}}))
+          assert(e.tag=="first")
+        elseif phase==1 then
+          assert(e.node_id==2 and e.tag=="second")
+          assert(w.update_nodes(panel,{{kind="button",id=2,parent=1,label="Plain",tag=""}}))
+        elseif phase==2 then
+          assert(e.node_id==2 and e.tag==nil and e.row==-1)
+          assert(w.remove_nodes(panel,{2}))
+        else assert(phase==3 and e.node_id==3 and e.tag==nil and e.row==-1) end
+        seen[#seen+1]=e.tag or "nil";phase=phase+1
+      end))
+      assert(sco.register_command{name="widgettags.seen",title="Seen",fn=function()
+        return table.concat(seen,",").." "..(retained and retained.tag or "none") end})
+      assert(sco.register_command{name="widgettags.replace",title="Replace",fn=function()
+        assert(w.set_panel("widgettags.main","Base",{{kind="button",id=1,label="Reset"}},function(_,e)
+          assert(e.node_id==1 and e.tag==nil and e.row==nil);seen[#seen+1]="reset" end))
+        return "replaced" end})
+    )lua");
+    Loaded live=Load("widgettags");CHECK(live.p && live.p->state==State::Loaded);
+    if(live.p && live.p->state!=State::Loaded) std::printf("  widgettags: %s\n",live.p->reason.c_str());
+    LuaWidgetRenderer renderer;renderer.events={{2,SCO_WIDGET_BUTTON},{2,SCO_WIDGET_BUTTON}};
+    CHECK(sco::widgets::RenderPanel("widgettags.main",renderer)==Result::Ok);
+    CHECK(Invoke(g_caller,"widgettags.seen").text=="first first");
+    CHECK(sco::widgets::RenderPanel("widgettags.main",renderer)==Result::Ok);
+    CHECK(Invoke(g_caller,"widgettags.seen").text=="first,second first");
+    CHECK(sco::widgets::RenderPanel("widgettags.main",renderer)==Result::Ok);
+    renderer.events={{3,SCO_WIDGET_BUTTON}};
+    CHECK(sco::widgets::RenderPanel("widgettags.main",renderer)==Result::Ok);
+    CHECK(Invoke(g_caller,"widgettags.seen").text=="first,second,nil,nil first");
+    CHECK(Invoke(g_caller,"widgettags.replace").text=="replaced");
+    renderer.events={{1,SCO_WIDGET_BUTTON}};
+    CHECK(sco::widgets::RenderPanel("widgettags.main",renderer)==Result::Ok);
+    CHECK(Invoke(g_caller,"widgettags.seen").text=="first,second,nil,nil,reset first");
+    Unload(live);
+
+    sco_api api=*g_api;api.query_service=WidgetsFixtureQuery;
+    sco_widgets_v1 table=*sco::widgets::Table();table.set_panel=WidgetCaptureSet;
+    table.update_nodes=WidgetCaptureUpdate;table.capabilities=WidgetFixtureCapabilities;
+    g_widgetsFixture=&table;g_widgetsMaxVersion=SCO_WIDGETS_VERSION_1_4;
+    const auto refused=[&] {
+        g_widgetSetCalls=g_widgetUpdateCalls=0;
+        Write("widgettagold",R"lua(
+          local w=sco.widgets
+          assert(select(2,w.set_panel("widgettagold.main","Tag",{{kind="button",id=1,label="x",tag="x"}}))=="unavailable")
+          assert(select(2,w.update_nodes("widgettagold.main",{{kind="button",id=1,label="x",tag="x"}}))=="unavailable")
+        )lua");
+        Loaded old=Load("widgettagold",&api);CHECK(old.p && old.p->state==State::Loaded);
+        CHECK(g_widgetSetCalls==0 && g_widgetUpdateCalls==0);Unload(old);
+    };
+    for(uint32_t version:{SCO_WIDGETS_VERSION_1_2,SCO_WIDGETS_VERSION_1_3}) {
+        g_widgetsMaxVersion=version;refused();
+    }
+    g_widgetsMaxVersion=SCO_WIDGETS_VERSION_1_4;
+    for(uint32_t feature:{SCO_WIDGETS_FEATURE_STABLE_TAGS,SCO_WIDGETS_FEATURE_EVENT_TAG}) {
+        g_widgetsFeatureMask=feature;refused();
+    }
+    g_widgetsFeatureMask=UINT32_MAX;
+    g_widgetsMaxTag=0;refused();g_widgetsMaxTag=SCO_WIDGETS_MAX_TAG;
+    for(uint32_t count:{2u,9u}) {g_widgetsCapsCount=count;refused();}g_widgetsCapsCount=0;
+    table.capabilities=nullptr;refused();table.capabilities=WidgetFixtureCapabilities;
+    table.size=static_cast<uint32_t>(offsetof(sco_widgets_v1,capabilities)+sizeof(table.capabilities)-1);
+    void* partialTable=std::malloc(table.size);std::memcpy(partialTable,&table,table.size);
+    g_widgetsFixture=static_cast<sco_widgets_v1*>(partialTable);refused();std::free(partialTable);
+    table.size=sizeof(table);g_widgetsFixture=&table;
+    g_widgetsMaxTag=2;g_widgetSetCalls=g_widgetUpdateCalls=g_widgetsCapsCalls=0;
+    Write("widgettaglimit",R"lua(
+      local w=sco.widgets
+      local too_long={{kind="column",id=1,tag="x"},
+        {kind="button",id=2,parent=1,label="x",tag="wire.good"}}
+      assert(select(2,w.set_panel("widgettaglimit.main","Tags",too_long))=="too_many")
+      assert(select(2,w.update_nodes("widgettaglimit.main",too_long))=="too_many")
+    )lua");
+    Loaded limit=Load("widgettaglimit",&api);CHECK(limit.p && limit.p->state==State::Loaded);
+    CHECK(g_widgetSetCalls==0 && g_widgetUpdateCalls==0 && g_widgetsCapsCalls==2);Unload(limit);
+    g_widgetsCapsCalls=0;
+    Write("widgettaglimit",R"lua(
+      local w=sco.widgets
+      assert(w.set_panel("widgettaglimit.main","Tags",{{kind="column",id=1},
+        {kind="button",id=2,parent=1,label="x",tag="ok"}}))
+      assert(w.update_nodes("widgettaglimit.main",{{kind="button",id=2,parent=1,label="x",tag="xy"}}))
+    )lua");
+    limit=Load("widgettaglimit",&api);CHECK(limit.p && limit.p->state==State::Loaded);
+    CHECK(g_widgetSetCalls==1 && g_widgetUpdateCalls==1 && g_widgetsCapsCalls==2);Unload(limit);
+    g_widgetsMaxTag=SCO_WIDGETS_MAX_TAG;
+    Write("widgettagwire",R"lua(
+      local seen={}
+      assert(sco.widgets.set_panel("widgettagwire.main","Wire",{
+        {kind="button",id=1,label="Tagged",tag="wire.good"},{kind="button",id=2,label="Plain"}},function(_,e)
+        assert(e.kind=="button" and e.row==-1 and (e.node_id==1 or e.node_id==2))
+        seen[#seen+1]=e.tag or "nil"
+      end))
+      assert(sco.register_command{name="widgettagwire.seen",title="Seen",fn=function() return table.concat(seen,",") end})
+    )lua");
+    Loaded wire=Load("widgettagwire",&api);CHECK(wire.p && wire.p->state==State::Loaded);
+    CHECK(g_widgetCallback && g_widgetContext);
+    if(g_widgetCallback) {
+        sco_widget_event_1_4 event{{{sizeof(event),1,SCO_WIDGET_BUTTON,0,0,nullptr},-1,0},"wire.good"};
+        for(uint32_t size:{32u,40u,41u,47u}) {
+            event.base.base.size=size;void* partial=std::malloc(size);std::memcpy(partial,&event,size);
+            g_widgetCallback("widgettagwire.main",static_cast<sco_widget_event*>(partial),g_widgetContext);std::free(partial);
+        }
+        event.base.base.size=sizeof(event);
+        for(const char* tag:{"", "bad tag", "bad/tag", "\xc3\xa9"}) {
+            event.tag=tag;g_widgetCallback("widgettagwire.main",&event.base.base,g_widgetContext);
+        }
+        std::string overlong(SCO_WIDGETS_MAX_TAG+1,'a');event.tag=overlong.c_str();
+        g_widgetCallback("widgettagwire.main",&event.base.base,g_widgetContext);
+        event.tag="wire.good";
+        g_widgetCallback("widgettagwire.other",&event.base.base,g_widgetContext);
+        g_widgetCallback("widgettagwire.main",&event.base.base,nullptr);
+        CHECK(Invoke(g_caller,"widgettagwire.seen").text.empty());
+        CHECK(!Logged("[widgettagwire] error: widget event:"));
+        char borrowed[]="wire.good";event.tag=borrowed;
+        g_widgetCallback("widgettagwire.main",&event.base.base,g_widgetContext);
+        std::memset(borrowed,'x',sizeof(borrowed)-1);
+        CHECK(Invoke(g_caller,"widgettagwire.seen").text=="wire.good");
+        event.base.base.node_id=2;event.tag=nullptr;
+        g_widgetCallback("widgettagwire.main",&event.base.base,g_widgetContext);
+        CHECK(Invoke(g_caller,"widgettagwire.seen").text=="wire.good,nil");
+    }
+    Unload(wire);
+    g_widgetCallback=nullptr;g_widgetContext=nullptr;g_widgetsFixture=nullptr;
+    g_widgetsMaxVersion=SCO_WIDGETS_VERSION_1_2;sco::widgets::Stop();
 }
 
 static void TestWidgetsStaleCookies() {
@@ -1637,6 +1784,170 @@ static void TestStoreSchema() {
     Unload(budget);
 }
 
+static const sco_storage_v2* g_metadataFixture = nullptr;
+static int g_metadataMode = 0, g_metadataCalls = 0;
+static sco_plugin* g_metadataReleased = nullptr;
+static sco_result MetadataQuery(const char* name, uint32_t version, const void** out) {
+    if (std::strcmp(name, SCO_STORAGE_V2_NAME) == 0) {
+        CHECK(version == SCO_STORAGE_V2_VERSION_2_0);
+        *out = g_metadataFixture; return SCO_OK;
+    }
+    return g_api->query_service(name, version, out);
+}
+static sco_result MetadataOwner(sco_plugin*, sco_storage_owner_info* out) {
+    ++g_metadataCalls; CHECK(out->size == sizeof(*out));
+    if (g_metadataMode == 8) {
+        const void* table = nullptr;
+        const sco_result r = g_api->query_service(SCO_STORAGE_V2_NAME, SCO_STORAGE_V2_VERSION_2_0, &table);
+        return r == SCO_OK ? static_cast<const sco_storage_v2*>(table)->owner_info(g_metadataReleased, out) : r;
+    }
+    *out = {sizeof(*out), SCO_STORAGE_OWNER_OPENED, 7, 3, 2};
+    if (g_metadataMode == 1) --out->size;
+    if (g_metadataMode == 2) ++out->size;
+    if (g_metadataMode == 3) out->flags = 8;
+    if (g_metadataMode == 4) out->session_generation = 0;
+    if (g_metadataMode == 9) out->table_count = UINT64_MAX;
+    return SCO_OK;
+}
+static sco_result MetadataNext(sco_plugin*, const char*, char* out, uint32_t* size, sco_storage_table_info* info) {
+    ++g_metadataCalls; CHECK(info->size == sizeof(*info));
+    *info = {sizeof(*info), 0, 4};
+    if (g_metadataMode == 5) return SCO_TOO_MANY;
+    if (g_metadataMode == 6) { *size = (16u << 20) + 2; return SCO_TOO_MANY; }
+    std::memcpy(out, "visits", 7); *size = 7;
+    if (g_metadataMode == 1) --info->size;
+    if (g_metadataMode == 2) ++info->size;
+    if (g_metadataMode == 3) info->flags = 1;
+    if (g_metadataMode == 4) *size = 0;
+    if (g_metadataMode == 7) out[6] = 'x';
+    if (g_metadataMode == 9) info->column_count = UINT64_MAX;
+    return SCO_OK;
+}
+static sco_result MetadataRows(sco_plugin*, const char*, uint64_t* count) {
+    ++g_metadataCalls; *count = 42;
+    if (g_metadataMode == 8) return SCO_BAD_ARG;
+    if (g_metadataMode == 9) *count = UINT64_MAX;
+    return SCO_OK;
+}
+static sco_result MetadataQuota(sco_plugin*, sco_storage_quota_info* out) {
+    ++g_metadataCalls; CHECK(out->size == sizeof(*out));
+    *out = {sizeof(*out), 0, 10001, 12288, 4096, 8192};
+    if (g_metadataMode == 1) --out->size;
+    if (g_metadataMode == 2) ++out->size;
+    if (g_metadataMode == 3) out->flags = 8;
+    if (g_metadataMode == 4) out->free_bytes = 0;
+    if (g_metadataMode == 9) out->configured_bytes = UINT64_MAX;
+    return SCO_OK;
+}
+static void TestStoreMetadata() {
+    Write("metareal", R"lua(
+        local m, st = sco.store.metadata, sco.store
+        assert(select(2, m.owner_info()) == "unavailable")
+        assert(select(2, m.next_table()) == "unavailable")
+        assert(select(2, m.row_count("visits")) == "unavailable")
+        assert(select(2, m.quota_info()) == "unavailable")
+        assert(st.exec('CREATE TABLE "" (empty TEXT)'))
+        assert(st.exec('CREATE TABLE visits(place TEXT, n INTEGER)'))
+        assert(st.exec("INSERT INTO visits VALUES ('local', 1), ('own', 2)"))
+        assert(st.exec('CREATE VIEW hidden AS SELECT * FROM visits'))
+        local owner = assert(m.owner_info())
+        assert(owner.flags == 1 and owner.session_generation > 0 and owner.table_count == 2 and owner.cursor_count == 0)
+        assert(owner.path == nil and owner.value == nil)
+        local first = assert(m.next_table())
+        assert(first.name == "" and first.column_count == 1 and first.flags == 0)
+        local second = assert(m.next_table(first.name))
+        assert(second.name == "visits" and second.column_count == 2)
+        assert(select(2, m.next_table(second.name)) == "not_found")
+        assert(m.row_count("visits") == 2 and m.row_count("") == 0)
+        assert(select(2, m.row_count("hidden")) == "not_found")
+        assert(select(2, m.row_count("sco_kv")) == "not_found")
+        assert(select(2, m.row_count("foreign")) == "not_found")
+        assert(select(2, m.row_count("visits\0bad")) == "bad_arg")
+        assert(select(2, m.next_table("visits\0bad")) == "bad_arg")
+        local quota = assert(m.quota_info())
+        assert(quota.flags == 0 and quota.configured_bytes == 67108864)
+        assert(quota.effective_bytes >= quota.allocated_bytes and quota.free_bytes == quota.effective_bytes - quota.allocated_bytes)
+        assert(st.exec('CREATE TABLE later (n INTEGER)'))
+        assert(owner.table_count == 2 and m.owner_info().table_count == 3)
+        sco.log("info", "metadata real: clean")
+    )lua");
+    Loaded real = Load("metareal");
+    CHECK(real.p && real.p->state == State::Loaded && Logged("[metareal] metadata real: clean"));
+    if (real.p && real.p->state != State::Loaded) std::printf("  metareal: %s\n", real.p->reason.c_str());
+    Write("metaother", R"lua(
+        local m = sco.store.metadata
+        assert(select(2, m.owner_info()) == "unavailable")
+        assert(sco.store.exec("CREATE TABLE visits(n INTEGER)"))
+        assert(m.row_count("visits") == 0 and m.owner_info().table_count == 1)
+        assert(select(2, m.row_count("later")) == "not_found")
+        assert(select(2, m.row_count("metareal.visits")) == "not_found")
+        sco.log("info", "metadata owner: clean")
+    )lua");
+    Loaded other = Load("metaother");
+    CHECK(other.p && other.p->state == State::Loaded && Logged("[metaother] metadata owner: clean"));
+    Unload(other); Unload(real);
+
+    const char* unavailable = R"lua(
+        local m = sco.store.metadata
+        assert(select(2, m.owner_info()) == "unavailable")
+        assert(select(2, m.next_table()) == "unavailable")
+        assert(select(2, m.row_count("visits")) == "unavailable")
+        assert(select(2, m.quota_info()) == "unavailable")
+    )lua";
+    sco_api api = *g_api; api.query_service = MetadataQuery;
+    Write("metanone", unavailable);
+    for (uint32_t size = 4; size <= sizeof(sco_storage_v2); ++size) {
+        void* memory = std::calloc(1, size); CHECK(memory != nullptr);
+        if (!memory) continue;
+        std::memcpy(memory, &size, sizeof(size));
+        g_metadataFixture = static_cast<sco_storage_v2*>(memory); g_metadataCalls = 0;
+        Loaded probe = Load("metanone", &api);
+        CHECK(probe.p && probe.p->state == State::Loaded && g_metadataCalls == 0);
+        Unload(probe); std::free(memory);
+    }
+    g_metadataFixture = nullptr;
+    Loaded noTable = Load("metanone", &api);
+    CHECK(noTable.p && noTable.p->state == State::Loaded); Unload(noTable);
+    for (uint32_t size = static_cast<uint32_t>(offsetof(sco_api, query_service)); size < offsetof(sco_api, query_service) + sizeof(api.query_service); ++size) {
+        api.size = size;
+        Loaded old = Load("metanone", &api); CHECK(old.p && old.p->state == State::Loaded); Unload(old);
+    }
+    api.size = sizeof(api); api.query_service = nullptr;
+    noTable = Load("metanone", &api); CHECK(noTable.p && noTable.p->state == State::Loaded); Unload(noTable);
+    api.query_service = MetadataQuery;
+    sco_storage_v2 fixture{sizeof(fixture), 0, MetadataOwner, MetadataNext, MetadataRows, MetadataQuota};
+    g_metadataFixture = &fixture;
+    for (g_metadataMode = 1; g_metadataMode <= 4; ++g_metadataMode) {
+        Write("metabad", R"lua(
+            local m = sco.store.metadata
+            assert(select(2, m.owner_info()) == "failed")
+            assert(select(2, m.next_table()) == "failed")
+            assert(select(2, m.quota_info()) == "failed")
+        )lua");
+        Loaded bad = Load("metabad", &api); CHECK(bad.p && bad.p->state == State::Loaded); Unload(bad);
+    }
+    for (g_metadataMode = 5; g_metadataMode <= 7; ++g_metadataMode) {
+        Write("metabad", std::string("assert(select(2, sco.store.metadata.next_table()) == '") + (g_metadataMode == 7 ? "failed" : "too_many") + "')");
+        Loaded bad = Load("metabad", &api); CHECK(bad.p && bad.p->state == State::Loaded); Unload(bad);
+    }
+    g_metadataReleased = sco::host::NewPlugin("metadata_released");
+    CHECK(g_metadataReleased != nullptr);
+    CHECK(sco::Release(g_metadataReleased) == Result::Ok);
+    g_metadataMode = 8;
+    Write("metabad", "assert(select(2, sco.store.metadata.owner_info()) == 'bad_arg'); assert(select(2, sco.store.metadata.row_count('visits')) == 'bad_arg')");
+    Loaded bad = Load("metabad", &api); CHECK(bad.p && bad.p->state == State::Loaded); Unload(bad);
+    g_metadataMode = 9;
+    Write("metabad", R"lua(
+        local m = sco.store.metadata
+        assert(select(2, m.owner_info()) == "too_many")
+        assert(select(2, m.next_table()) == "too_many")
+        assert(select(2, m.row_count("visits")) == "too_many")
+        assert(select(2, m.quota_info()) == "too_many")
+    )lua");
+    bad = Load("metabad", &api); CHECK(bad.p && bad.p->state == State::Loaded); Unload(bad);
+    g_metadataMode = 0; g_metadataFixture = nullptr;
+}
+
 static void TestStore(const fs::path& sdk) {
     // A host without the service: sco.store is there, every call answers unavailable.
     static const char* const kNone = R"lua(
@@ -1646,6 +1957,10 @@ static void TestStore(const fs::path& sdk) {
         assert(select(2, sco.store.put("a", "b")) == "unavailable")
         assert(select(2, sco.store.sql("SELECT 1")) == "unavailable")
         assert(select(2, sco.store.begin()) == "unavailable")
+        assert(select(2, sco.store.metadata.owner_info()) == "unavailable")
+        assert(select(2, sco.store.metadata.next_table()) == "unavailable")
+        assert(select(2, sco.store.metadata.row_count("visits")) == "unavailable")
+        assert(select(2, sco.store.metadata.quota_info()) == "unavailable")
         sco.log("info", "no storage: clean")
     )lua";
     Write("stnone", kNone);
@@ -1669,6 +1984,7 @@ static void TestStore(const fs::path& sdk) {
     Unload(oldl);
 
     TestStoreSchema();
+    TestStoreMetadata();
 
     // Exercise Lua's retries and continuation against the real portable storage provider.
     Write("stschema", R"lua(
@@ -1860,6 +2176,7 @@ int main(int argc, char** argv) {
         TestWidgetsLifetime();
         TestWidgetsCallbackBoundary();
         TestWidgetsTails();
+        TestWidgetsTaggedEvents();
         TestWidgetsStaleCookies();
         TestWidgetsBounds();
         TestWidgetsExample(argv[1]);

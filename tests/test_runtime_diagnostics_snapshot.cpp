@@ -171,6 +171,117 @@ void LifecycleStates() {
     CHECK(store.Begin(plugins, {}, {}, now)); Finish(store, now);
     CHECK(store.Latest()->game.capabilities.size() == 50 && store.Latest()->game.capabilitiesTruncated);
 }
+void OptionalCopiedMetadata() {
+    const uint64_t queryCalls = FixtureQueryServiceCalls();
+    const auto callbackCalls = callbacks, resolutionCalls = resolutions;
+    static const char serviceOwner = 0;
+    // A real metadata-service name with a physically short table catches both
+    // illicit queries (exposure/counter) and provider-table reads (under ASan).
+    const auto shortTable = std::make_unique<unsigned char[]>(1); shortTable[0] = 0xff;
+    CHECK(sco::ProvideService(&serviceOwner, nullptr, "sco.storage.metadata", 0x20000, shortTable.get()) == sco::Result::Ok);
+    CHECK(!sco::ServiceTableHandedOut(&serviceOwner));
+    SourceOptions options;
+    CHECK(!options.profile && !options.storage);
+    std::vector<sco::plugins::Plugin> plugins(2);
+    for (size_t i = 0; i < plugins.size(); ++i) {
+        plugins[i].manifestOk = true; plugins[i].manifest.id = "metadata_" + std::to_string(i);
+        plugins[i].exports = {Query, Load, Unload};
+    }
+    auto copy = [&](OptionalSources sources) {
+        SnapshotStore store;
+        CHECK(store.Begin(plugins, {}, {}, 100, std::move(sources)));
+        Finish(store, 100);
+        return store.Latest();
+    };
+    auto absent = copy({});
+    CHECK(!absent->sources.profile && !absent->sources.storage);
+    OptionalSources sources;
+    sources.profile = ProfileMetadata{"fixture_profile", 3};
+    sources.storage = StorageMetadata{4};
+    auto empty = copy(sources);
+    CHECK(empty->sources.profile && !empty->sources.profile->pluginCount && !empty->sources.profile->loadedPluginCount);
+    CHECK(!empty->sources.profile->observedMs && !empty->sources.profile->truncated);
+    CHECK(empty->sources.storage && empty->sources.storage->owners.empty());
+    CHECK(!empty->sources.storage->observedMs && !empty->sources.storage->truncated);
+    sources.profile->observedMs = 90; sources.profile->pluginCount = 0; sources.profile->loadedPluginCount = 0;
+    sources.storage->observedMs = 80;
+    sources.storage->owners.push_back({"fixture_owner", 0, 0, 0, 0});
+    sources.storage->owners.push_back({"unknown_owner"});
+    SnapshotStore store;
+    CHECK(store.Begin(plugins, {}, {}, 100, sources));
+    sources.profile->profileId = "changed_profile"; sources.profile->pluginCount = 42;
+    sources.storage->owners[0].ownerId = "changed_owner"; sources.storage->owners[0].usedBytes = 42;
+    sources.storage->owners.clear(); sources.storage.reset();
+    Finish(store, 120);
+    const auto historical = store.Latest();
+    CHECK(historical->sources.profile->profileId == "fixture_profile" && historical->sources.profile->generation == 3);
+    CHECK(historical->sources.profile->pluginCount == 0 && historical->sources.profile->loadedPluginCount == 0);
+    CHECK(historical->sources.profile->observedMs == 90);
+    const auto& storage = *historical->sources.storage;
+    CHECK(storage.generation == 4 && storage.observedMs == 80 && storage.owners.size() == 2);
+    const auto& known = storage.owners[0]; const auto& unknown = storage.owners[1];
+    CHECK(known.ownerId == "fixture_owner" && known.tableCount == 0 && known.rowCount == 0 && known.usedBytes == 0 && known.quotaBytes == 0);
+    CHECK(unknown.ownerId == "unknown_owner" && !unknown.tableCount && !unknown.rowCount && !unknown.usedBytes && !unknown.quotaBytes);
+    auto page = store.ReadPage(ListKind::Plugins, "", "", 1, 120); CHECK(page.nextCursor);
+    const auto cursor = *page.nextCursor;
+    store.Reset(); CHECK(!store.Latest());
+    CHECK(store.ReadPage(ListKind::Plugins, "", cursor, 1, 120).error == "snapshot_changed");
+    CHECK(historical->sources.storage->owners[0].usedBytes == 0);
+    CHECK(store.Begin(plugins, {}, {}, 0)); Finish(store, 0);
+    CHECK(store.Latest()->generation > historical->generation);
+    CHECK(!store.Latest()->sources.profile && !store.Latest()->sources.storage);
+    CHECK(store.ReadPage(ListKind::Plugins, "", cursor, 1, 0).error == "snapshot_changed");
+    // A reset also discards an in-progress source copy without mutating history.
+    CHECK(store.Begin(plugins, {}, {}, 1000, sources)); store.Reset();
+    CHECK(!store.Latest() && store.Advance(1000));
+    CHECK(historical->sources.profile->profileId == "fixture_profile");
+
+    OptionalSources valid;
+    valid.profile = ProfileMetadata{std::string(31, 'p'), UINT64_MAX, 100, 2, 1, true};
+    valid.storage = StorageMetadata{UINT64_MAX, 100, {{std::string(31, 's'), kMaxMonotonicMs, kMaxMonotonicMs, kMaxMonotonicMs, kMaxMonotonicMs}}, true};
+    auto limits = copy(valid);
+    CHECK(limits->sources.profile && limits->sources.profile->truncated && limits->sources.profile->generation == UINT64_MAX);
+    CHECK(limits->sources.storage && limits->sources.storage->truncated && limits->sources.storage->generation == UINT64_MAX);
+    for (const auto& id : {std::string{}, std::string(32, 'a'), std::string("bad.id"), std::string("bad/id"),
+                           std::string("Upper"), std::string("bad-id"), std::string("bad\n"), std::string("\xff")}) {
+        auto bad = valid; bad.profile->profileId = id;
+        auto result = copy(bad); CHECK(!result->sources.profile && result->sources.storage);
+        bad = valid; bad.storage->owners[0].ownerId = id;
+        result = copy(bad); CHECK(result->sources.profile && !result->sources.storage);
+    }
+    for (const uint64_t observed : {uint64_t{101}, kMaxMonotonicMs + 1, UINT64_MAX}) {
+        auto bad = valid; bad.profile->observedMs = observed; bad.storage->observedMs = observed;
+        auto result = copy(bad); CHECK(!result->sources.profile && !result->sources.storage);
+    }
+    auto bad = valid; bad.profile->generation = 0; bad.storage->generation = 0;
+    auto result = copy(bad); CHECK(!result->sources.profile && !result->sources.storage);
+    bad = valid; bad.profile->loadedPluginCount = 3;
+    CHECK(!copy(bad)->sources.profile);
+    for (auto member : {&ProfileMetadata::pluginCount, &ProfileMetadata::loadedPluginCount}) {
+        bad = valid; (*bad.profile).*member = kMaxMonotonicMs + 1;
+        CHECK(!copy(bad)->sources.profile);
+    }
+    // Each count remains independently unknown; no inferred zero or roster fact.
+    bad = valid; bad.profile->pluginCount.reset(); bad.profile->loadedPluginCount = 5;
+    result = copy(bad); CHECK(result->sources.profile && !result->sources.profile->pluginCount && result->sources.profile->loadedPluginCount == 5);
+    bad = valid; bad.profile->loadedPluginCount.reset();
+    CHECK(copy(bad)->sources.profile && !copy(bad)->sources.profile->loadedPluginCount);
+    for (auto member : {&StorageOwnerMetadata::tableCount, &StorageOwnerMetadata::rowCount,
+                        &StorageOwnerMetadata::usedBytes, &StorageOwnerMetadata::quotaBytes}) {
+        bad = valid; bad.storage->owners[0].*member = kMaxMonotonicMs + 1;
+        CHECK(!copy(bad)->sources.storage);
+    }
+    bad = valid; bad.storage->owners.push_back(bad.storage->owners[0]);
+    CHECK(!copy(bad)->sources.storage);
+    valid.storage->owners.clear();
+    for (size_t i = 0; i < kInventoryLimit; ++i) valid.storage->owners.push_back({"owner_" + std::to_string(i)});
+    CHECK(copy(valid)->sources.storage->owners.size() == kInventoryLimit);
+    valid.storage->owners.push_back({"one_too_many"});
+    CHECK(!copy(valid)->sources.storage);
+    CHECK(!sco::ServiceTableHandedOut(&serviceOwner));
+    CHECK(sco::ReleaseService(&serviceOwner, "sco.storage.metadata") == sco::Result::Ok);
+    CHECK(FixtureQueryServiceCalls() == queryCalls && callbacks == callbackCalls && resolutions == resolutionCalls);
+}
 void GenerationPages() {
     SnapshotStore store;
     std::vector<sco::plugins::Plugin> plugins(3);
@@ -264,7 +375,7 @@ void KeyedCaptureAndGaps() {
 }
 int main() {
     sco::SetGameThread();
-    CopiesAndStates(); LifecycleStates(); GenerationPages(); KeyedCaptureAndGaps();
+    CopiesAndStates(); LifecycleStates(); OptionalCopiedMetadata(); GenerationPages(); KeyedCaptureAndGaps();
     CHECK(FixtureQueryServiceCalls() == 0 && callbacks == 0);
     std::puts("capture counters: QueryService=0; plugin callbacks=0; table probes/methods=0 (physically short tables)");
     RunServiceDiagnosticsTests(); AppBoundaries();

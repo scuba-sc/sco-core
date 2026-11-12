@@ -1,5 +1,5 @@
 // Pins.cs: the SIZE / AT / PIN lines of tests/abi_v1.c, tests/abi_storage.c, tests/abi_ui.c and
-// tests/abi_settings.c, copied so the test runs from the SDK zip, where tests/ isn't shipped
+// tests/abi_storage_v2.c and tests/abi_settings.c, copied so the test runs from the SDK zip, where tests/ isn't shipped
 // (GamePins.cs, in the Star Citizen extension, holds the DataCore and game ones). Given
 // those files on the command line, the test also fails unless this copy equals them line for line.
 //
@@ -135,6 +135,35 @@ namespace Sco.Sdk.Tests
             ("tests/abi_storage.c", "AT(sco_storage_v1, column_name, 104);"),
             ("tests/abi_storage.c", "AT(sco_storage_v1, close, 112);"),
             ("tests/abi_storage.c", "AT(sco_storage_v1, last_error, 120);"),
+            ("tests/abi_storage_v2.c", "SIZE(void*, 8);"),
+            ("tests/abi_storage_v2.c", "SIZE(sco_result, 4);"),
+            ("tests/abi_storage_v2.c", "PIN(SCO_STORAGE_V2_VERSION_2_0 == 0x00020000u);"),
+            ("tests/abi_storage_v2.c", "PIN(sizeof(SCO_STORAGE_V2_NAME) == 21);"),
+            ("tests/abi_storage_v2.c", "PIN(SCO_STORAGE_OWNER_OPENED == 1u);"),
+            ("tests/abi_storage_v2.c", "SIZE(sco_storage_owner_info, 32);"),
+            ("tests/abi_storage_v2.c", "AT(sco_storage_owner_info, size, 0);"),
+            ("tests/abi_storage_v2.c", "AT(sco_storage_owner_info, flags, 4);"),
+            ("tests/abi_storage_v2.c", "AT(sco_storage_owner_info, session_generation, 8);"),
+            ("tests/abi_storage_v2.c", "AT(sco_storage_owner_info, table_count, 16);"),
+            ("tests/abi_storage_v2.c", "AT(sco_storage_owner_info, cursor_count, 24);"),
+            ("tests/abi_storage_v2.c", "SIZE(sco_storage_table_info, 16);"),
+            ("tests/abi_storage_v2.c", "AT(sco_storage_table_info, size, 0);"),
+            ("tests/abi_storage_v2.c", "AT(sco_storage_table_info, flags, 4);"),
+            ("tests/abi_storage_v2.c", "AT(sco_storage_table_info, column_count, 8);"),
+            ("tests/abi_storage_v2.c", "SIZE(sco_storage_quota_info, 40);"),
+            ("tests/abi_storage_v2.c", "AT(sco_storage_quota_info, size, 0);"),
+            ("tests/abi_storage_v2.c", "AT(sco_storage_quota_info, flags, 4);"),
+            ("tests/abi_storage_v2.c", "AT(sco_storage_quota_info, configured_bytes, 8);"),
+            ("tests/abi_storage_v2.c", "AT(sco_storage_quota_info, effective_bytes, 16);"),
+            ("tests/abi_storage_v2.c", "AT(sco_storage_quota_info, allocated_bytes, 24);"),
+            ("tests/abi_storage_v2.c", "AT(sco_storage_quota_info, free_bytes, 32);"),
+            ("tests/abi_storage_v2.c", "SIZE(sco_storage_v2, 40);"),
+            ("tests/abi_storage_v2.c", "AT(sco_storage_v2, size, 0);"),
+            ("tests/abi_storage_v2.c", "AT(sco_storage_v2, _pad, 4);"),
+            ("tests/abi_storage_v2.c", "AT(sco_storage_v2, owner_info, 8);"),
+            ("tests/abi_storage_v2.c", "AT(sco_storage_v2, next_table, 16);"),
+            ("tests/abi_storage_v2.c", "AT(sco_storage_v2, row_count, 24);"),
+            ("tests/abi_storage_v2.c", "AT(sco_storage_v2, quota_info, 32);"),
             ("tests/abi_ui.c", "PIN(sizeof(void*) == 8);"),
             ("tests/abi_ui.c", "PIN(SCO_UI_VERSION_1_0 == 0x00010000u);"),
             ("tests/abi_ui.c", "PIN(sizeof(SCO_UI_NAME) == 7); /* \"sco.ui\" */"),

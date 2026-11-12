@@ -54,6 +54,14 @@ PYTHON=${PYTHON:-python3}
 clang   --target=x86_64-pc-windows-msvc -ffreestanding -std=c11   "${ABI[@]}" "$ROOT/tests/abi_storage.c"
 clang++ --target=x86_64-pc-windows-msvc -ffreestanding -std=c++20 "${ABI[@]}" -x c++ "$ROOT/tests/abi_storage.c"
 echo "abi_storage: layout pinned (C11, C++20, -fshort-enums, x86_64-pc-windows-msvc)"
+
+# The separate storage metadata table (tests/abi_storage_v2.c), the same five ways.
+"$CC"  -std=c11   "${ABI[@]}" "$ROOT/tests/abi_storage_v2.c"
+"$CXX" -std=c++20 "${ABI[@]}" -x c++ "$ROOT/tests/abi_storage_v2.c"
+"$CC"  -std=c11   "${ABI[@]}" -fshort-enums "$ROOT/tests/abi_storage_v2.c"
+clang   --target=x86_64-pc-windows-msvc -ffreestanding -std=c11   "${ABI[@]}" "$ROOT/tests/abi_storage_v2.c"
+clang++ --target=x86_64-pc-windows-msvc -ffreestanding -std=c++20 "${ABI[@]}" -x c++ "$ROOT/tests/abi_storage_v2.c"
+echo "abi_storage_v2: layout pinned (C11, C++20, -fshort-enums, x86_64-pc-windows-msvc)"
 # The sco.ui table (tests/abi_ui.c), the same five ways.
 "$CC"  -std=c11   "${ABI[@]}" "$ROOT/tests/abi_ui.c"
 "$CXX" -std=c++20 "${ABI[@]}" -x c++ "$ROOT/tests/abi_ui.c"
@@ -551,6 +559,8 @@ SQLITE_TSAN=$OUT/sqlite3_tsan.o
 "$CC" -std=gnu11 -O1 -g0 -w -fsanitize=thread "${SQLITE_DEFS[@]}" -c "$ROOT/third_party/sqlite/sqlite3.c" -o "$SQLITE_TSAN"
 "$CXX" "${FLAGS[@]}" -fsanitize=address,undefined "$ROOT/tests/test_storage.cpp" $(obj asan "$ROOT/src/storage/storage.cpp") "${HOST_ASAN[@]}" "$SQLITE_ASAN" -lm -o "$OUT/test_storage"
 "$OUT/test_storage" "$OUT"
+"$CXX" "${FLAGS[@]}" -fsanitize=address,undefined "$ROOT/tests/test_storage_metadata_sdk.cpp" "${HOST_ASAN[@]}" -lm -o "$OUT/test_storage_metadata_sdk"
+"$OUT/test_storage_metadata_sdk"
 "$CXX" "${FLAGS[@]}" -fsanitize=thread "$ROOT/tests/test_storage.cpp" $(obj tsan "$ROOT/src/storage/storage.cpp") "${HOST_TSAN[@]}" "$SQLITE_TSAN" -lm -o "$OUT/test_storage_tsan"
 "$OUT/test_storage_tsan" "$OUT"
 

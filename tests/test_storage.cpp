@@ -9,6 +9,7 @@
 #include "sco_api.h"
 #include "sco_storage.h"
 #include "scosdk/storage.hpp"
+#include <sqlite3.h>
 #include <atomic>
 #include <chrono>
 #include <cstdio>
@@ -640,6 +641,257 @@ static void TestUnload() {
     CHECK(sco::Release(d2) == Result::Ok);
 }
 
+// ---- separate metadata service: real SQLite, no opening on observation ------------------------
+
+template <class T> static T MetadataSentinel() {
+    T value;
+    std::memset(&value, 0xa5, sizeof(value));
+    value.size = sizeof(value);
+    return value;
+}
+
+static const sco_storage_v2* QueryMetadata(sco_result* result = nullptr) {
+    const void* table = nullptr;
+    const auto r = g_api->query_service(SCO_STORAGE_V2_NAME, SCO_STORAGE_V2_VERSION_2_0, &table);
+    if (result) *result = r;
+    return static_cast<const sco_storage_v2*>(table);
+}
+
+static void TestMetadata() {
+    sco::storage::Stop();
+    CHECK(!sco::storage::CopyMetadata());
+    static const struct { uint32_t size; } collision = { 4 };
+    // If legacy publication fails, withdraw only the metadata table this attempt published.
+    CHECK(sco::host::ProvideHostService(SCO_STORAGE_NAME, SCO_STORAGE_VERSION_1_1, &collision) == Result::Ok);
+    CHECK(sco::storage::Start(Opts()) == Result::BadArg && !sco::storage::Started());
+    sco_result r = SCO_OK;
+    CHECK(QueryMetadata(&r) == nullptr && r == SCO_NOT_FOUND);
+    CHECK(reinterpret_cast<const void*>(QueryStorage()) == &collision);
+    CHECK(!sco::storage::CopyMetadata());
+    CHECK(sco::host::WithdrawHostService(SCO_STORAGE_NAME) == Result::Ok);
+    CHECK(sco::host::ProvideHostService(SCO_STORAGE_V2_NAME, SCO_STORAGE_V2_VERSION_2_0, &collision) == Result::Ok);
+    CHECK(sco::storage::Start(Opts()) == Result::BadArg && !sco::storage::Started());
+    CHECK(reinterpret_cast<const void*>(QueryMetadata()) == &collision);
+    CHECK(QueryStorage() == nullptr);
+    CHECK(sco::host::WithdrawHostService(SCO_STORAGE_V2_NAME) == Result::Ok);
+
+    auto opts = Opts();
+    opts.dataRoot /= "metadata";
+    opts.quotaBytes = (1ull << 20) + 123; // exercise page rounding separately from configuration
+    CHECK(sco::storage::Start(opts) == Result::Ok);
+    const auto* m = QueryMetadata();
+    CHECK(m && m->size == sizeof(sco_storage_v2));
+    if (!m) return;
+    CHECK(QueryStorage(SCO_STORAGE_VERSION_1_1) == g_st && g_st->size == sizeof(sco_storage_v1));
+    const void* wrongVersion = &collision;
+    CHECK(g_api->query_service(SCO_STORAGE_V2_NAME, SCO_STORAGE_VERSION_1_1, &wrongVersion) == SCO_UNAVAILABLE);
+    CHECK(wrongVersion == nullptr);
+    const auto initial = sco::storage::CopyMetadata();
+    CHECK(initial && initial->generation != 0 && initial->owners.empty() && !initial->truncated);
+    sco_plugin* cold = sco::host::NewPlugin("meta_cold");
+    sco_plugin* owner = sco::host::NewPlugin("meta_owner");
+    auto oi = MetadataSentinel<sco_storage_owner_info>();
+    const auto oiBefore = oi;
+    auto ti = MetadataSentinel<sco_storage_table_info>();
+    const auto tiBefore = ti;
+    auto qi = MetadataSentinel<sco_storage_quota_info>();
+    const auto qiBefore = qi;
+    char name[64] = "untouched";
+    uint32_t capacity = sizeof(name);
+    uint64_t count = UINT64_MAX;
+    CHECK(m->owner_info(cold, &oi) == SCO_UNAVAILABLE && std::memcmp(&oi, &oiBefore, sizeof(oi)) == 0);
+    CHECK(m->next_table(cold, nullptr, name, &capacity, &ti) == SCO_UNAVAILABLE);
+    CHECK(capacity == sizeof(name) && std::strcmp(name, "untouched") == 0 && std::memcmp(&ti, &tiBefore, sizeof(ti)) == 0);
+    CHECK(m->row_count(cold, "x", &count) == SCO_UNAVAILABLE && count == UINT64_MAX);
+    CHECK(m->quota_info(cold, &qi) == SCO_UNAVAILABLE && std::memcmp(&qi, &qiBefore, sizeof(qi)) == 0);
+    CHECK(!fs::exists(opts.dataRoot));
+    // last_error creates an owner entry but deliberately leaves its database unopened.
+    uint32_t errorSize = 0;
+    CHECK(g_st->last_error(cold, nullptr, &errorSize) == SCO_TOO_MANY);
+    CHECK(m->owner_info(cold, &oi) == SCO_UNAVAILABLE);
+    const auto unopened = sco::storage::CopyMetadata();
+    CHECK(unopened && unopened->owners.size() == 1 && unopened->owners[0].ownerId == "meta_cold");
+    if (unopened && !unopened->owners.empty()) {
+        const auto& item = unopened->owners[0];
+        CHECK(!item.tableCount && !item.rowCount && !item.usedBytes && item.quotaBytes == opts.quotaBytes);
+    }
+    CHECK(!fs::exists(opts.dataRoot));
+
+    // Seed an ordinary real database with a virtual schema whose module is unavailable. No
+    // metadata operation may prepare that object or a view referencing it. Direct SQLite is
+    // fixture setup only; the provider is exercised through the actual host service table.
+    const auto file = sco::storage::DatabasePath("meta_owner");
+    std::error_code ec;
+    fs::create_directories(file.parent_path(), ec);
+    CHECK(!ec);
+    sqlite3* raw = nullptr;
+    CHECK(sqlite3_open(file.string().c_str(), &raw) == SQLITE_OK);
+    const char* schema =
+        "CREATE TABLE \"\"(n INTEGER); INSERT INTO \"\" VALUES(1),(2);"
+        "CREATE TABLE \"a\"\"b\"(n INTEGER, doubled INTEGER GENERATED ALWAYS AS(n*2));"
+        "INSERT INTO \"a\"\"b\"(n) VALUES(1),(2),(3);"
+        "CREATE TABLE wr(id INTEGER PRIMARY KEY, label TEXT) WITHOUT ROWID; INSERT INTO wr VALUES(1,'one');"
+        "CREATE TABLE zero(n INTEGER);"
+        "CREATE TABLE META_VIRTUAL_shadow(n INTEGER);"
+        "CREATE TABLE meta_virtualx(n INTEGER);"
+        "CREATE TABLE SCO_hidden(n INTEGER); CREATE TABLE sco_extra(n INTEGER);"
+        "CREATE VIEW meta_view AS SELECT * FROM wr;"
+        "PRAGMA writable_schema=ON;"
+        "INSERT INTO sqlite_master(type,name,tbl_name,rootpage,sql) VALUES"
+        "('table','meta_virtual','meta_virtual',0,'CREATE VIRTUAL TABLE meta_virtual USING metadata_missing_module');"
+        "PRAGMA writable_schema=OFF;"
+        "CREATE VIEW meta_bad_view AS SELECT * FROM meta_virtual;";
+    CHECK(sqlite3_exec(raw, schema, nullptr, nullptr, nullptr) == SQLITE_OK);
+    CHECK(sqlite3_close(raw) == SQLITE_OK);
+    CHECK(Exec(owner, "SELECT 1") == SCO_OK);
+    CHECK(m->owner_info(owner, &oi) == SCO_OK);
+    CHECK(oi.size == sizeof(oi) && oi.flags == SCO_STORAGE_OWNER_OPENED && oi.table_count == 5 && oi.cursor_count == 0);
+    CHECK(initial && oi.session_generation == initial->generation);
+    const uint64_t generation = oi.session_generation;
+    uint64_t cursor = 0;
+    CHECK(g_st->query(owner, "SELECT * FROM wr", nullptr, 0, &cursor) == SCO_OK);
+    CHECK(m->owner_info(owner, &oi) == SCO_OK && oi.cursor_count == 1);
+    CHECK(g_st->close(owner, cursor) == SCO_OK);
+
+    struct ExtendedOwner { sco_storage_owner_info info; uint64_t tail; } extended{};
+    extended.info.size = sizeof(extended);
+    extended.tail = 0x1122334455667788ull;
+    CHECK(m->owner_info(owner, &extended.info) == SCO_OK);
+    CHECK(extended.info.size == sizeof(extended.info) && extended.tail == 0x1122334455667788ull);
+    struct ExtendedTable { sco_storage_table_info info; uint64_t tail; } extTable{};
+    extTable.info.size = sizeof(extTable);
+    extTable.tail = 123456789;
+    capacity = sizeof(name);
+    CHECK(m->next_table(owner, nullptr, name, &capacity, &extTable.info) == SCO_OK);
+    CHECK(name[0] == '\0' && capacity == 1 && extTable.info.column_count == 1 && extTable.tail == 123456789);
+    CHECK(m->row_count(owner, "", &count) == SCO_OK && count == 2);
+    CHECK(m->row_count(owner, "a\"b", &count) == SCO_OK && count == 3);
+    CHECK(m->row_count(owner, "wr", &count) == SCO_OK && count == 1);
+    CHECK(m->row_count(owner, "zero", &count) == SCO_OK && count == 0);
+    CHECK(m->row_count(owner, "meta_virtualx", &count) == SCO_OK && count == 0);
+    for (const char* excluded : { "sco_kv", "SCO_hidden", "sco_extra", "sqlite_master", "meta_view", "meta_bad_view", "meta_virtual", "META_VIRTUAL_shadow", "missing", "wr\"; DROP TABLE wr; --" }) {
+        count = UINT64_MAX;
+        CHECK(m->row_count(owner, excluded, &count) == SCO_NOT_FOUND && count == UINT64_MAX);
+    }
+    // Name-size failure writes only the required capacity; the record and buffer stay intact.
+    ti = tiBefore;
+    std::strcpy(name, "untouched");
+    capacity = 1;
+    CHECK(m->next_table(owner, "", name, &capacity, &ti) == SCO_TOO_MANY && capacity == 4);
+    CHECK(std::strcmp(name, "untouched") == 0 && std::memcmp(&ti, &tiBefore, sizeof(ti)) == 0);
+    capacity = 0;
+    CHECK(m->next_table(owner, "", nullptr, &capacity, &ti) == SCO_TOO_MANY && capacity == 4);
+    capacity = sizeof(name);
+    CHECK(m->next_table(owner, "", name, &capacity, &ti) == SCO_OK && std::strcmp(name, "a\"b") == 0);
+    CHECK(ti.size == sizeof(ti) && ti.flags == 0 && ti.column_count == 2);
+    const char* expected[] = { "meta_virtualx", "wr", "zero" };
+    std::string after = "a\"b";
+    for (const char* next : expected) {
+        capacity = sizeof(name);
+        CHECK(m->next_table(owner, after.c_str(), name, &capacity, &ti) == SCO_OK && std::strcmp(name, next) == 0);
+        after = name;
+    }
+    ti = tiBefore;
+    std::strcpy(name, "untouched");
+    capacity = sizeof(name);
+    CHECK(m->next_table(owner, "zero", name, &capacity, &ti) == SCO_NOT_FOUND);
+    CHECK(capacity == sizeof(name) && std::strcmp(name, "untouched") == 0 && std::memcmp(&ti, &tiBefore, sizeof(ti)) == 0);
+
+    CHECK(m->quota_info(owner, &qi) == SCO_OK && qi.size == sizeof(qi) && qi.flags == 0);
+    const auto pageSize = static_cast<uint64_t>(QueryInt(owner, "PRAGMA page_size"));
+    const auto pageCount = static_cast<uint64_t>(QueryInt(owner, "PRAGMA page_count"));
+    CHECK(qi.configured_bytes == opts.quotaBytes && qi.effective_bytes == (opts.quotaBytes / pageSize) * pageSize);
+    CHECK(qi.allocated_bytes == pageCount * pageSize && qi.allocated_bytes > 0);
+    CHECK(qi.free_bytes + qi.allocated_bytes == qi.effective_bytes && qi.effective_bytes < qi.configured_bytes);
+    struct ExtendedQuota { sco_storage_quota_info info; uint64_t tail; } extQuota{};
+    extQuota.info.size = sizeof(extQuota);
+    extQuota.tail = 987654321;
+    CHECK(m->quota_info(owner, &extQuota.info) == SCO_OK && extQuota.tail == 987654321);
+
+    // Malformed records and buffers fail without zeroing any output; oversized names are
+    // bounded separately from key/value names. Records are checked before any SQL runs.
+    oi = oiBefore; oi.size = sizeof(oi) - 1;
+    const auto shortOwner = oi;
+    CHECK(m->owner_info(owner, &oi) == SCO_BAD_ARG && std::memcmp(&oi, &shortOwner, sizeof(oi)) == 0);
+    ti = tiBefore; ti.size = sizeof(ti) - 1;
+    const auto shortTable = ti;
+    capacity = sizeof(name);
+    CHECK(m->next_table(owner, nullptr, name, &capacity, &ti) == SCO_BAD_ARG && capacity == sizeof(name));
+    CHECK(std::memcmp(&ti, &shortTable, sizeof(ti)) == 0);
+    qi = qiBefore; qi.size = sizeof(qi) - 1;
+    const auto shortQuota = qi;
+    CHECK(m->quota_info(owner, &qi) == SCO_BAD_ARG && std::memcmp(&qi, &shortQuota, sizeof(qi)) == 0);
+    CHECK(m->owner_info(owner, nullptr) == SCO_BAD_ARG && m->quota_info(owner, nullptr) == SCO_BAD_ARG);
+    CHECK(m->row_count(owner, nullptr, &count) == SCO_BAD_ARG && m->row_count(owner, "wr", nullptr) == SCO_BAD_ARG);
+    ti = tiBefore;
+    CHECK(m->next_table(owner, nullptr, name, nullptr, &ti) == SCO_BAD_ARG);
+    CHECK(m->next_table(owner, nullptr, name, &capacity, nullptr) == SCO_BAD_ARG && capacity == sizeof(name));
+    CHECK(m->next_table(owner, nullptr, nullptr, &capacity, &ti) == SCO_BAD_ARG && capacity == sizeof(name));
+    const std::string overlong((16u << 20) + 1u, 'x');
+    count = UINT64_MAX;
+    CHECK(m->row_count(owner, overlong.c_str(), &count) == SCO_BAD_ARG && count == UINT64_MAX);
+    CHECK(m->next_table(owner, overlong.c_str(), name, &capacity, &ti) == SCO_BAD_ARG && capacity == sizeof(name));
+    CHECK(std::memcmp(&ti, &tiBefore, sizeof(ti)) == 0);
+
+    // A caller has no other-owner selector: identical table names resolve only in self's DB.
+    sco_plugin* foreign = sco::host::NewPlugin("meta_foreign");
+    CHECK(Exec(foreign, "CREATE TABLE wr(id INTEGER)") == SCO_OK);
+    CHECK(m->row_count(foreign, "wr", &count) == SCO_OK && count == 0);
+    CHECK(m->row_count(owner, "wr", &count) == SCO_OK && count == 1);
+    oi = oiBefore;
+    CHECK(m->owner_info(reinterpret_cast<sco_plugin*>(uintptr_t(1)), &oi) == SCO_BAD_ARG);
+    CHECK(m->owner_info(nullptr, &oi) == SCO_BAD_ARG && std::memcmp(&oi, &oiBefore, sizeof(oi)) == 0);
+    const auto beforeRelease = sco::storage::CopyMetadata();
+    CHECK(beforeRelease && beforeRelease->owners.size() == 3);
+    CHECK(sco::Release(foreign) == Result::Ok);
+    CHECK(m->owner_info(foreign, &oi) == SCO_BAD_ARG && std::memcmp(&oi, &oiBefore, sizeof(oi)) == 0);
+    const auto afterRelease = sco::storage::CopyMetadata();
+    CHECK(afterRelease && afterRelease->owners.size() == 2);
+    CHECK(beforeRelease && beforeRelease->owners.size() == 3); // immutable copy
+    CHECK(sco::Release(cold) == Result::Ok);
+    sco::storage::Stop();
+    CHECK(QueryMetadata(&r) == nullptr && r == SCO_NOT_FOUND && !sco::storage::CopyMetadata());
+    CHECK(m->owner_info(owner, &oi) == SCO_UNAVAILABLE && std::memcmp(&oi, &oiBefore, sizeof(oi)) == 0);
+    CHECK(sco::storage::Start(opts) == Result::Ok && QueryMetadata() == m);
+    const auto restarted = sco::storage::CopyMetadata();
+    CHECK(restarted && restarted->generation > generation && restarted->owners.empty());
+    CHECK(m->owner_info(owner, &oi) == SCO_UNAVAILABLE); // restart does not reopen persisted data
+    CHECK(Exec(owner, "SELECT 1") == SCO_OK);
+    CHECK(m->owner_info(owner, &oi) == SCO_OK && oi.session_generation > generation && oi.table_count == 5);
+    sco::storage::Stop();
+    auto smaller = opts;
+    smaller.quotaBytes = 1; // SQLite cannot shrink max_page_count below existing allocated pages
+    CHECK(sco::storage::Start(smaller) == Result::Ok);
+    qi = qiBefore; // the malformed-record test above intentionally left a short size prefix
+    CHECK(Exec(owner, "SELECT 1") == SCO_OK && m->quota_info(owner, &qi) == SCO_OK);
+    CHECK(qi.configured_bytes == 1 && qi.effective_bytes >= qi.allocated_bytes && qi.effective_bytes > 1);
+    CHECK(sco::Release(owner) == Result::Ok);
+    sco::storage::Stop();
+
+    // The real COUNT(*) must be interruptible. A one-million-row ordinary table takes many
+    // VM progress callbacks, so a one-ms budget cannot silently return an unbounded count.
+    auto budgetOpts = Opts();
+    budgetOpts.dataRoot /= "metadata-budget";
+    budgetOpts.budgetMs = 1;
+    CHECK(sco::storage::Start(budgetOpts) == Result::Ok);
+    sco_plugin* budgetOwner = sco::host::NewPlugin("meta_budget");
+    const auto budgetFile = sco::storage::DatabasePath("meta_budget");
+    fs::create_directories(budgetFile.parent_path(), ec);
+    raw = nullptr;
+    CHECK(sqlite3_open(budgetFile.string().c_str(), &raw) == SQLITE_OK);
+    CHECK(sqlite3_exec(raw, "CREATE TABLE huge(n INTEGER PRIMARY KEY) WITHOUT ROWID;"
+        "WITH RECURSIVE n(x) AS (SELECT 1 UNION ALL SELECT x+1 FROM n WHERE x<1000000)"
+        " INSERT INTO huge SELECT x FROM n", nullptr, nullptr, nullptr) == SQLITE_OK);
+    CHECK(sqlite3_close(raw) == SQLITE_OK);
+    CHECK(Exec(budgetOwner, "SELECT 1") == SCO_OK);
+    count = UINT64_MAX;
+    CHECK(m->row_count(budgetOwner, "huge", &count) == SCO_FAILED && count == UINT64_MAX);
+    CHECK(LastError(budgetOwner).find("time budget") != std::string::npos);
+    CHECK(sco::Release(budgetOwner) == Result::Ok);
+    sco::storage::Stop();
+    CHECK(sco::storage::Start(Opts()) == Result::Ok);
+}
+
 // ---- threads (ThreadSanitizer run) ----------------------------------------------------------
 
 static void TestConcurrency() {
@@ -848,6 +1100,7 @@ int main(int argc, char** argv) {
     TestCrash();
     TestQuota();
     TestUnload();
+    TestMetadata();
     TestConcurrency();
     sco::storage::Stop();
     std::printf("sco-core storage tests: %d passed, %d failed\n", g_pass.load(), g_fail.load());

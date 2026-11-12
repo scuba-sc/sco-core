@@ -230,6 +230,37 @@ void CopyDiagnostics(uint64_t now) noexcept {
 #ifndef SCO_KERNEL_ONLY
         sources.gamePack = game::diagnostics::CopyMinimal(g_platform.diagnosticSources, now);
 #endif
+        if (g_platform.diagnosticSources.profile) {
+            sources.profile = g_platform.diagnosticSources.profile;
+            // Identity/generation are explicitly supplied by the host. Counts
+            // describe this observed roster, never an inferred profile path.
+            sources.profile->observedMs = now;
+            sources.profile->pluginCount = static_cast<uint64_t>(g_list.size());
+            sources.profile->loadedPluginCount = static_cast<uint64_t>(std::count_if(
+                g_list.begin(), g_list.end(), [](const plugins::Plugin& p) {
+                    return p.state == plugins::State::Loaded;
+                }));
+            sources.profile->truncated = false;
+        }
+        if (g_platform.diagnosticSources.storage) {
+            if (auto copied = storage::CopyMetadata()) {
+                diagnostics::StorageMetadata metadata;
+                metadata.generation = copied->generation;
+                metadata.observedMs = now;
+                metadata.truncated = copied->truncated;
+                metadata.owners.reserve(copied->owners.size());
+                for (const auto& source : copied->owners) {
+                    diagnostics::StorageOwnerMetadata owner;
+                    owner.ownerId = source.ownerId;
+                    owner.tableCount = source.tableCount;
+                    owner.rowCount = source.rowCount;
+                    owner.usedBytes = source.usedBytes;
+                    owner.quotaBytes = source.quotaBytes;
+                    metadata.owners.push_back(std::move(owner));
+                }
+                sources.storage = std::move(metadata);
+            }
+        }
         // Copies only: no plugin callbacks, service queries or provider execution.
         g_diagnostics.Begin(g_list, std::move(host), std::move(game), now, std::move(sources));
         g_diagnostics.Advance(now);
@@ -841,7 +872,8 @@ bool StartOwned(const Platform& platform, const OwnedShutdown::Transition& trans
         platform.hostService.start || platform.hostService.tick || platform.hostService.stop ||
         platform.hostMenu.context || platform.hostMenu.load || platform.hostMenu.frame || platform.hostMenu.stop ||
         platform.setCapabilities || platform.pluginStartupSnapshot ||
-        platform.diagnosticSources.diagnosticsPlugin || platform.runtimeInspection.enabled ||
+        platform.diagnosticSources.diagnosticsPlugin || platform.diagnosticSources.profile ||
+        platform.diagnosticSources.storage || platform.runtimeInspection.enabled ||
         platform.privateSession.enabled || platform.reservedChords || platform.nReservedChords) {
         platform.shutdownOwner->fault();
         return false;

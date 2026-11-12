@@ -22,6 +22,7 @@ public:
     sco_result Open(const Plugin& plugin) noexcept { return Open(plugin.Api(), plugin.Self()); }
     sco_result Open(const sco_api* api, sco_plugin* self) noexcept {
         table_ = nullptr;
+        api_ = api;
         self_ = self;
         if (!api || !self) return SCO_BAD_ARG;
         if (api->size < offsetof(sco_api, query_service) + sizeof(api->query_service) ||
@@ -86,7 +87,63 @@ public:
         if (supported != SCO_OK) return supported;
         return UpdateNodes(id, nodes ? &nodes->base.base.base : nullptr, count, sizeof(sco_widget_node_1_3));
     }
+    // Explicit tagged-event routes require the 1.4 guarantee, even though node tags use 1.2 records.
+    sco_result SetPanelTagged(const char* id, const char* title, const sco_widget_node_1_2* nodes,
+                             uint32_t count, sco_widget_event_fn fn = nullptr, void* ctx = nullptr) noexcept {
+        const sco_widgets_v1* tagged = nullptr;
+        const sco_result supported = TaggedEvents(nodes, count, tagged);
+        if (supported != SCO_OK) return supported;
+        if (tagged->size < offsetof(sco_widgets_v1, set_panel) + sizeof(tagged->set_panel) || !tagged->set_panel)
+            return SCO_UNAVAILABLE;
+        return tagged->set_panel(self_, id, title, &nodes->base.base, count, sizeof(*nodes), fn, ctx);
+    }
+    template <class T>
+    sco_result SetPanelTagged(const char* id, const char* title, const sco_widget_node_1_2* nodes,
+                             uint32_t count, T& obj) noexcept {
+        return SetPanelTagged(id, title, nodes, count, &detail::WidgetEvent<T>, &obj);
+    }
+    sco_result UpdateNodesTagged(const char* id, const sco_widget_node_1_2* nodes, uint32_t count) noexcept {
+        const sco_widgets_v1* tagged = nullptr;
+        const sco_result supported = TaggedEvents(nodes, count, tagged);
+        if (supported != SCO_OK) return supported;
+        if (tagged->size < offsetof(sco_widgets_v1, update_nodes) + sizeof(tagged->update_nodes) || !tagged->update_nodes)
+            return SCO_UNAVAILABLE;
+        return tagged->update_nodes(self_, id, &nodes->base.base, count, sizeof(*nodes));
+    }
 private:
+    sco_result TaggedEvents(const sco_widget_node_1_2* nodes, uint32_t count,
+                            const sco_widgets_v1*& tagged) noexcept {
+        tagged = nullptr;
+        if (!table_ || !api_ || api_->size < offsetof(sco_api, query_service) + sizeof(api_->query_service) ||
+            !api_->query_service) return SCO_UNAVAILABLE;
+        const void* out = nullptr;
+        const sco_result queried = api_->query_service(SCO_WIDGETS_NAME, SCO_WIDGETS_VERSION_1_4, &out);
+        if (queried == SCO_NOT_FOUND || (queried == SCO_OK && !out)) return SCO_UNAVAILABLE;
+        if (queried != SCO_OK) return queried;
+        tagged = static_cast<const sco_widgets_v1*>(out);
+        if (tagged->size < offsetof(sco_widgets_v1, capabilities) + sizeof(tagged->capabilities) || !tagged->capabilities)
+            return SCO_UNAVAILABLE;
+        uint32_t caps[SCO_WIDGETS_CAPS_1_2]{SCO_WIDGETS_CAPS_1_2};
+        const sco_result r = tagged->capabilities(self_, caps);
+        if (r != SCO_OK) return r;
+        constexpr uint32_t required = SCO_WIDGETS_FEATURE_STABLE_TAGS | SCO_WIDGETS_FEATURE_EVENT_TAG;
+        if (caps[0] != SCO_WIDGETS_CAPS_1_2 || (caps[SCO_WIDGETS_CAP_FEATURES] & required) != required ||
+            !caps[SCO_WIDGETS_CAP_MAX_TAG]) return SCO_UNAVAILABLE;
+        if (!nodes || !count) return SCO_BAD_ARG;
+        if (count > SCO_WIDGETS_MAX_NODES) return SCO_TOO_MANY;
+        for (uint32_t i = 0; i < count; ++i) {
+            if (nodes[i].base.base.size != sizeof(*nodes)) return SCO_BAD_ARG;
+            const char* tag = nodes[i].tag;
+            uint32_t length = 0;
+            if (tag) while (*tag) {
+                const unsigned char c = static_cast<unsigned char>(*tag++);
+                if (++length > SCO_WIDGETS_MAX_TAG || length > caps[SCO_WIDGETS_CAP_MAX_TAG]) return SCO_TOO_MANY;
+                if (!((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') ||
+                    c == '.' || c == '_' || c == '-')) return SCO_BAD_ARG;
+            }
+        }
+        return SCO_OK;
+    }
     sco_result NumericPresentation() noexcept {
         uint32_t caps[SCO_WIDGETS_CAPS_1_2]{SCO_WIDGETS_CAPS_1_2};
         const sco_result result = Capabilities(caps);
@@ -96,6 +153,7 @@ private:
                    ? SCO_OK : SCO_UNAVAILABLE;
     }
     const sco_widgets_v1* table_ = nullptr;
+    const sco_api* api_ = nullptr;
     sco_plugin* self_ = nullptr;
 };
 } // namespace sco::sdk
