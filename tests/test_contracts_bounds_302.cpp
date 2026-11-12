@@ -30,6 +30,7 @@ template<class F> auto invoke(F&& fn) {
         {"test", nullptr, 0, 0, +[](const sco::Image&, const sco::SigResolveContext&) { return dependency ? sco::SigOk(dependency) : sco::SigFail("fixture missing"); }, {}},
         {"contracts.add_mission", nullptr, 0, 0, +[](const sco::Image&, const sco::SigResolveContext&) { return dependency ? sco::SigOk(dependency) : sco::SigFail("fixture missing"); }, {}},
         {"contracts.query_reply", nullptr, 0, 0, +[](const sco::Image&, const sco::SigResolveContext&) { return dependency ? sco::SigOk(dependency) : sco::SigFail("fixture missing"); }, {}},
+        {"contracts.hauling_assign_site", nullptr, 0, 0, +[](const sco::Image&, const sco::SigResolveContext&) { return dependency ? sco::SigOk(dependency) : sco::SigFail("fixture missing"); }, {}},
         {"contracts.mission_system_site", nullptr, 0, 0, +[](const sco::Image&, const sco::SigResolveContext&) { return dependency ? sco::SigOk(dependency) : sco::SigFail("fixture missing"); }, {}},
         {"pak.datacore_loader", nullptr, 0, 0, +[](const sco::Image&, const sco::SigResolveContext&) { return dependency ? sco::SigOk(dependency) : sco::SigFail("fixture missing"); }, {}},
         {"fixture.invoke", nullptr, 0, 0, +[](const sco::Image&, const sco::SigResolveContext& ctx) { active->value = (*active->fn)(ctx); static uint8_t marker; return sco::SigOk(&marker); }, {}},
@@ -99,12 +100,33 @@ void TestAddPlayer(bool invalidFirst) {
     assert(fixture302::invoke([&](const sco::SigResolveContext& ctx) { return ResolveAddPlayer(img, ctx); }).state != SigState::Ok);
     Pass(invalidFirst ? "AddPlayer invalid then valid refuses out-of-image/non-text targets" : "AddPlayer valid then invalid refuses out-of-image/non-text targets");
 }
+void TestHaulingVariants() {
+    using namespace sco; using namespace sco::game;
+    uint8_t b[256]{}; Image img{}; img.base=b; img.size=sizeof b; img.text={b,sizeof b};
+    const SigDef* row=nullptr;
+    for (const auto& item:kContractsSignatures) if (!std::strcmp(item.id,"contracts.hauling_assign")) row=&item;
+    assert(row && row->resolve); test_source=b+16;
+    auto* call=test_source+13; auto* target=b+128; call[0]=0xe8; Rip(call,target,1,5);
+    const uint8_t oldEntry[]={0x48,0x89,0x5c,0x24,0x08,0x57,0x48,0x83,0xec,0x20,0x48,0x8b,0xfa,0x48,0x8b,0xd9,0xe8};
+    const uint8_t newEntry[]={0x48,0x89,0x5c,0x24,0x08,0x48,0x89,0x74,0x24,0x10,0x57,0x48,0x83,0xec,0x20,0x48,0x8b,0xfa,0x48,0x8b,0xd9,0xe8};
+    const auto resolve=[&]() { return fixture302::invoke([&](const SigResolveContext& ctx) { return row->resolve(img,ctx); }); };
+    std::memcpy(target,oldEntry,sizeof oldEntry); assert(resolve().at==target);
+    std::memcpy(target,newEntry,sizeof newEntry); assert(resolve().at==target);
+    target[7]^=1; assert(resolve().state!=SigState::Ok); target[7]^=1;
+    call[0]=0x90; assert(resolve().state!=SigState::Ok); call[0]=0xe8;
+    img.text.size=128+sizeof newEntry-1; assert(resolve().state!=SigState::Ok);
+    img.text.size=sizeof b; Rip(call,b+250,1,5); assert(resolve().state!=SigState::Ok);
+    const int32_t outside = static_cast<int32_t>(sizeof b + 16 - static_cast<size_t>(call - b + 5));
+    std::memcpy(call+1,&outside,sizeof outside); assert(resolve().state!=SigState::Ok);
+    Pass("hauling observed prologues, changed, truncated and invalid call targets");
+}
 int main(int argc, char**) {
     using namespace sco;
     using namespace sco::game;
     if (argc > 1) { TestAddPlayer(argc == 2); return 0; }
     TestAddPlayer(true);
     TestAddPlayer(false);
+    TestHaulingVariants();
     auto bytes = std::make_unique<uint8_t[]>(512);
     auto* b = bytes.get();
     Image img{};

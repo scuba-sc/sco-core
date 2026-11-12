@@ -48,6 +48,18 @@ constexpr FnSpec kChangeTokenState{
 constexpr FnSpec kClearToken{
     "44 88 4C 24 20 44 89 44 24 18 48 89 4C 24 08 55 53 56 57 41 54 41 55 41 57 48 8D AC 24 A0 FE FF FF 48 81 EC 90 02 00 00 48 8B 32",
     nullptr, 0, nullptr };
+constexpr FnSpec kClearToken200{
+    "44 88 4C 24 20 44 89 44 24 18 48 89 4C 24 08 55 53 56 57 41 54 41 55 41 56 48 8D AC 24 B0 FE FF FF 48 81 EC 80 02 00 00 48 8B 3A",
+    nullptr, 0, nullptr };
+SigResult ResolveClearToken(const Image& img, const SigResolveContext& ctx) {
+    const auto older = ResolveFn<kClearToken>(img, ctx);
+    if (older.state != SigState::Ok && older.state != SigState::Missing) return older;
+    const auto newer = ResolveFn<kClearToken200>(img, ctx);
+    if (newer.state != SigState::Ok && newer.state != SigState::Missing) return newer;
+    if (older.state == SigState::Ok && newer.state == SigState::Ok)
+        return { SigState::Ambiguous, nullptr, 2, nullptr };
+    return older.state == SigState::Ok ? older : newer;
+}
 
 // ---- probes (log only, section 14) -------------------------------------------------------------
 
@@ -74,7 +86,7 @@ extern const SigDef kAtcSignatures[] = {
     { "atc.request_cancel",             nullptr, 0, 0, ResolveFn<kRequestCancel>,           {} },
     { "atc.on_vehicle_spawn_cancelled", nullptr, 0, 0, ResolveFn<kSpawnCancelled>,          {} },
     { "atc.change_token_state",         nullptr, 0, 0, ResolveFn<kChangeTokenState>,        {} },
-    { "atc.clear_token",                nullptr, 0, 0, ResolveFn<kClearToken>,              {} },
+    { "atc.clear_token",                nullptr, 0, 0, ResolveClearToken,                    {} },
     { "atc.request_taking_off",         nullptr, 0, 0, ResolveFn<kRequestTakingOff>,        {} },
     { "atc.rm_request_permission",      nullptr, 0, 0, ResolveFn<kRmRequestPermission>,     {} },
     { "atc.on_permission_requested",    nullptr, 0, 0, ResolveFn<kOnPermissionRequested>,   {} },

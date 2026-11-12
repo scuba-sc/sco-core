@@ -3,6 +3,7 @@
 #include "sco/signatures.h"
 #include <cassert>
 #include <cstdio>
+#include <cstring>
 #include <memory>
 namespace sco {
 uint8_t* dependency;
@@ -10,7 +11,7 @@ uint8_t* Sig(const char*) { return dependency; }
 
 SigResult SigPattern(const Section& s, const char* p) {
     uint8_t* at=nullptr; int n=FindPattern(s,p,&at,1);
-    return n==1 ? SigOk(at) : SigResult{SigState::Missing,nullptr,n,nullptr};
+    return n==1 ? SigOk(at) : SigResult{n ? SigState::Ambiguous : SigState::Missing,nullptr,n,nullptr};
 }
 }
 
@@ -55,6 +56,22 @@ int main() {
 #define ENTRY(n) {#n,sco::game::k##n##Signatures,sco::game::k##n##SignatureCount},
     Table tables[]={TABLES(ENTRY)};
 #undef ENTRY
+    const sco::SigDef* clearToken = nullptr;
+    for (size_t i=0; i<sco::game::kAtcSignatureCount; ++i)
+        if (!std::strcmp(sco::game::kAtcSignatures[i].id, "atc.clear_token")) clearToken=&sco::game::kAtcSignatures[i];
+    assert(clearToken && clearToken->resolve);
+    uint8_t fixture[256]{};
+    const uint8_t oldEntry[]={0x44,0x88,0x4c,0x24,0x20,0x44,0x89,0x44,0x24,0x18,0x48,0x89,0x4c,0x24,0x08,0x55,0x53,0x56,0x57,0x41,0x54,0x41,0x55,0x41,0x57,0x48,0x8d,0xac,0x24,0xa0,0xfe,0xff,0xff,0x48,0x81,0xec,0x90,0x02,0,0,0x48,0x8b,0x32};
+    const uint8_t newEntry[]={0x44,0x88,0x4c,0x24,0x20,0x44,0x89,0x44,0x24,0x18,0x48,0x89,0x4c,0x24,0x08,0x55,0x53,0x56,0x57,0x41,0x54,0x41,0x55,0x41,0x56,0x48,0x8d,0xac,0x24,0xb0,0xfe,0xff,0xff,0x48,0x81,0xec,0x80,0x02,0,0,0x48,0x8b,0x3a};
+    sco::Image sample{}; sample.base=fixture; sample.size=sizeof fixture; sample.text={fixture,sizeof fixture};
+    auto runClear=[&]() { return issue302_context::Run(sample,clearToken->resolve); };
+    assert(runClear().state!=sco::SigState::Ok);
+    std::memcpy(fixture+16,oldEntry,sizeof oldEntry); assert(runClear().at==fixture+16);
+    std::memcpy(fixture+16,newEntry,sizeof newEntry); assert(runClear().at==fixture+16);
+    std::memcpy(fixture+128,oldEntry,sizeof oldEntry); assert(runClear().state!=sco::SigState::Ok);
+    std::memcpy(fixture+128,newEntry,sizeof newEntry); assert(runClear().state!=sco::SigState::Ok);
+    std::memset(fixture+128,0,sizeof newEntry); sample.text.size=16+sizeof newEntry-1;
+    assert(runClear().state!=sco::SigState::Ok);
     size_t total=0;
     for (const auto& table:tables) {
         total+=table.count;
