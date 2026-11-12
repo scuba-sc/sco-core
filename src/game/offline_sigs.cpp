@@ -212,6 +212,11 @@ constexpr FnSpec kAsopGateValidation{
 // ---- landing zones don't destroy spawned ships -------------------------------------------------
 
 const char* ImpoundExtra(const Image& img, const uint8_t* f, const SigResolveContext&) {
+    const auto* frameBase = TextAt(img, f, 17, 1);
+    const auto* frameSize = TextAt(img, f, 24, 1);
+    if (!frameBase || !frameSize ||
+        !((*frameBase == 0x38 && *frameSize == 0xc8) || (*frameBase == 0x48 && *frameSize == 0xb8)))
+        return "impound frame layout changed";
     if (!rows::InImage(img, img.rdata.base, img.rdata.size)) return "invalid .rdata";
     const uint8_t* msg = BoundedCString(img, img.rdata, "$$: Vehicle '$$' [$$] impounded (or destroyed) by restricted area '$$' [$$]");
     const uint8_t* tag = BoundedCString(img, img.rdata, "Boundary Violation");
@@ -227,7 +232,7 @@ constexpr Check kImpoundChecks[] = {
     { 0x79, "4C 8D 05", "layout changed at +0x079" },   // lea r8, ["Boundary Violation"]
 };
 constexpr FnSpec kImpound{
-    "40 55 53 56 57 41 54 41 55 41 56 41 57 48 8D AC 24 38 FE FF FF 48 81 EC C8 02 00 00 33 D2 48 8B F1 E8",
+    "40 55 53 56 57 41 54 41 55 41 56 41 57 48 8D AC 24 ?? FE FF FF 48 81 EC ?? 02 00 00 33 D2 48 8B F1 E8",
     kImpoundChecks, std::size(kImpoundChecks), ImpoundExtra };
 
 // ---- offline contract broker + mission service -------------------------------------------------
