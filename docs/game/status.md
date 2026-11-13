@@ -6,6 +6,11 @@ The dated signature evidence below was recorded at sco-core `main` `2197dfb` (20
 
 > **Nothing has been verified in game since these services landed.** ON records default availability policy subject to readiness, admission and product conditions. Some capabilities expose static metadata without signature rows; ON does not certify gameplay. Recorded in-game results require their own dated evidence.
 
+> **Current startup HOLD:** Production game-service startup refuses before publishing
+> these tables. The defaults and evidence below describe contracts and provider
+> readiness, not current production availability. See [readiness](../defaults-readiness.md)
+> and [service-table lifetime](../design/service-table-lifetime.md).
+
 ## How to read it
 
 **Stability.** *Stable* or *Experimental*, per table: a compatibility promise about the table's layout and lifetime within SDK 2.x, decided by the rule in [Stability](../stability.md#how-a-game-table-gets-its-label) (a new label is Stable when at least one capability has a `sigcheck` row result, an OFF-pending-probe line or a dated in-game result, otherwise Experimental; once a released SDK has carried Stable, the table stays Stable for the rest of SDK 2.x). The `game.*` event bus row's label covers its event names and payload structs. A `-` marks a signature-row group (mining rows, CryPak adapter rows): it is not a service table, its rows can stop resolving with a game patch, and it carries no stability promise. A label says nothing about availability or evidence: a Stable table can still be OFF, answer `SCO_UNAVAILABLE`, or have no in-game run.
@@ -25,15 +30,15 @@ The dated signature evidence below was recorded at sco-core `main` `2197dfb` (20
 
 ## Typed loadout extension (G6)
 
-`game.loadout` 1.2 / `game.loadout.apply`: table published by Windows game-services
-composition, capability **OFF — typed engine methods unverified**. Synthetic real
+`game.loadout` 1.2 / `game.loadout.apply`: production startup currently refuses
+before the table is published. Typed engine methods remain unverified. Synthetic
 host/provider/native-module checks only; no trusted per-slot equip mapping and no
 offline admission adapter installed. See [loadout](loadout.md). Not run in game.
 
 `game.loadout.weapons` (added in 1.1) gates the weapon and multitool slots 8-21
-of `apply` and is **OFF by default**, vocabulary only: production starts the service
-with no engine backend, so those slots answer unavailable or unsupported until a
-verified backend declares weapon support. Synthetic evidence only; no per-slot port
+of `apply` and is **OFF by default**, vocabulary only. A fixture or service started
+without an engine backend returns unavailable for those slots; production currently
+does not publish the table. Synthetic evidence only; no per-slot port
 mapping is verified and nothing was run in game. The service version macro
 `SC_LOADOUT_SERVICE_VERSION` retains the synchronous prefix version. The separate
 1.2 asynchronous adapter is opt-in; the native respawn event producer remains
