@@ -693,7 +693,8 @@ void RemoveReloadCopies(const Plugin& p) {
     for (const fs::path& f : stale) { std::error_code rc; fs::remove(f, rc); }   // a mapped one stays on Windows
 }
 
-bool TryUnloadAll(std::vector<Plugin>& list, const ModuleOps& ops, const ScriptRuntime* runtime) {
+static bool TryUnloadAllImpl(std::vector<Plugin>& list, const ModuleOps& ops, const ScriptRuntime* runtime,
+                             bool allowExistingFaults) {
     sco::detail::LegacyEntry entry;
     if (!entry) return false;
     // Refuse overlapping terminal operations, including re-entry from a callback on
@@ -706,7 +707,8 @@ bool TryUnloadAll(std::vector<Plugin>& list, const ModuleOps& ops, const ScriptR
         std::atomic<bool>& active;
         ~TerminalGuard() { active.store(false); }
     } guard{terminalActive};
-    const auto faulted = [&list] {
+    std::vector<Plugin*> existingFaults;
+    const auto faulted = [&list, &existingFaults] {
         bool found = false;
         for (auto& p : list) {
             if (p.manifest.kind == Kind::Data) continue;
@@ -716,11 +718,19 @@ bool TryUnloadAll(std::vector<Plugin>& list, const ModuleOps& ops, const ScriptR
                 // the state itself cannot fail, even if reporting later does.
                 p.state = State::Faulted;
             }
-            if (p.state == State::Crashed || p.state == State::Faulted) found = true;
+            if ((p.state == State::Crashed || p.state == State::Faulted) &&
+                std::find(existingFaults.begin(), existingFaults.end(), &p) == existingFaults.end()) found = true;
         }
         return found;
     };
-    if (faulted()) return false;
+    if (faulted()) {
+        if (!allowExistingFaults) return false;
+        try {
+            for (auto& p : list)
+                if (p.manifest.kind != Kind::Data && (p.state == State::Crashed || p.state == State::Faulted))
+                    existingFaults.push_back(&p);
+        } catch (...) { return false; }
+    }
     std::vector<Plugin*> loaded;
     std::vector<const void*> owners;
     try {
@@ -752,8 +762,12 @@ bool TryUnloadAll(std::vector<Plugin>& list, const ModuleOps& ops, const ScriptR
     return true;
 }
 
+bool TryUnloadAll(std::vector<Plugin>& list, const ModuleOps& ops, const ScriptRuntime* runtime) {
+    return TryUnloadAllImpl(list, ops, runtime, false);
+}
+
 void UnloadAll(std::vector<Plugin>& list, const ModuleOps& ops, const ScriptRuntime* runtime) {
-    (void)TryUnloadAll(list, ops, runtime);
+    (void)TryUnloadAllImpl(list, ops, runtime, true);
 }
 
 // ---- status ---------------------------------------------------------------------------------

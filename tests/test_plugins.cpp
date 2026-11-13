@@ -1711,6 +1711,53 @@ static void TestTerminalManagedGroup() {
     }
 }
 
+static int g_legacyHealthyUnloads = 0;
+static void LegacyHealthyUnload() { ++g_legacyHealthyUnloads; }
+
+static void TestLegacyUnloadWithExistingCrash() {
+    std::vector<P::Plugin> list(2);
+    list[0].manifest.kind = P::Kind::Builtin;
+    list[0].state = State::Crashed;
+    list[0].exports.unload = LegacyHealthyUnload;
+    list[1].manifest.kind = P::Kind::Builtin;
+    list[1].state = State::Loaded;
+    list[1].self = NewOwner();
+    list[1].exports.unload = LegacyHealthyUnload;
+    static int backing = 1;
+    CHECK(sco::ProvideService(list[1].self, nullptr, "legacy_crash.svc", 1u << 16, &backing) == sco::Result::Ok);
+    sco::detail::ServiceGeneration generation = 0;
+    CHECK(sco::detail::FindManagedService("legacy_crash.svc", 1u << 16, generation) == sco::Result::Ok);
+    sco::detail::ManagedServicePin pin;
+    CHECK(pin.acquire(generation) == sco::Result::Ok);
+    g_legacyHealthyUnloads = 0;
+    CHECK(!P::TryUnloadAll(list, kRecOps));
+    P::UnloadAll(list, kRecOps);
+    CHECK(g_legacyHealthyUnloads == 0 && list[1].state == State::Loaded);
+    pin.reset();
+    CHECK(!P::TryUnloadAll(list, kRecOps));
+    P::UnloadAll(list, kRecOps);
+    CHECK(g_legacyHealthyUnloads == 1 && list[1].state == State::Unloaded && list[0].state == State::Crashed);
+}
+
+static void TestLegacyUnloadStopsOnNewFault() {
+    std::vector<P::Plugin> list(3);
+    list[0].manifest.kind = P::Kind::Builtin;
+    list[0].state = State::Crashed;
+    list[1].manifest.kind = P::Kind::Builtin;
+    list[1].state = State::Loaded;
+    list[1].exports.unload = ShutdownPeerUnload;
+    list[2].manifest.kind = P::Kind::Builtin;
+    list[2].state = State::Loaded;
+    list[2].loadOrder = 1;
+    list[2].exports.unload = ShutdownFaultUnload;
+    g_shutdownFault = &list[2];
+    g_shutdownPeerUnloads = 0;
+    P::UnloadAll(list, kRecOps);
+    CHECK(list[0].state == State::Crashed && list[2].state == State::Crashed);
+    CHECK(list[1].state == State::Loaded && g_shutdownPeerUnloads == 0);
+    g_shutdownFault = nullptr;
+}
+
 int main(int argc, char** argv) {
     if (argc < 3) { std::printf("usage: test_plugins <fixtures dir> <out dir>\n"); return 2; }
     g_fixtures = argv[1];
@@ -1718,6 +1765,8 @@ int main(int argc, char** argv) {
     sco::SetLogSink(Sink);
     sco::SetGameThread();
     TestTerminalManagedGroup();
+    TestLegacyUnloadWithExistingCrash();
+    TestLegacyUnloadStopsOnNewFault();
     TestShutdownFaultStopsPeers();
     TestShutdownReleaseHookFaultStopsPeers();
     TestManifest();
