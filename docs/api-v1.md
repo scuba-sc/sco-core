@@ -309,7 +309,9 @@ Some services are published by the host itself rather than by a plugin. They liv
 
 | Service | Version | Header | What |
 |---|---|---|---|
-| `sco.storage` | 1.0 | [`sco_storage.h`](../include/sco_storage.h) | Per-plugin persistent storage: key-value and SQL over SQLite, in the plugin's own database. [Storage](storage.md) |
+| `sco.storage` | 1.1 (1.0 prefix) | [`sco_storage.h`](../include/sco_storage.h) | Per-plugin key-value and SQL storage; 1.1 adds schema introspection. [Storage](storage.md) |
+| `sco.storage.metadata` | 2.0 | [`sco_storage_v2.h`](../include/sco_storage_v2.h) | Separate, optional caller-owned database metadata service; it does not replace or extend the `sco.storage` table. [Storage metadata](storage-metadata.md) |
+| `sco.widgets` | 1.0–1.4 | [`sco_widgets.h`](../include/sco_widgets.h) | Optional renderer-neutral panels; later versions add features described [below](#renderer-neutral-widget-service). |
 | `sco.datacore` | 1.1 | [`sco_datacore.h`](../include/sco_datacore.h) | DataCore overrides from code: the operations of a data pack's `.toml` files, queued call by call (`add_record` needs 1.1); after the game's DataCore load they are saved and apply from the next launch. A game-pack service published under `sco` only when the product enables it (`sco::app::Platform::dataCore`). [The sco.datacore service](datacore.md#the-scodatacore-service) |
 | `sco.ipc` | 1.0 | [`sco_ipc.h`](../include/sco_ipc.h) | Local shared-memory channels to another program on the same PC (a bridge): `Local\SCO_<plugin id>.<name>`, a current-user-only DACL on new Windows mappings (reuse checks owner/size, not the existing DACL), rings and seqlock blocks laid out with the MIT wire [`sc_ipc.h`](../include/sc_ipc.h), which the other program includes alone. [IPC](ipc.md) |
 | `sco.net` | 1.0 | [`sco_net.h`](../include/sco_net.h) | Typed message channels between the players of a private session the product opened (`<plugin id>.<name>`, unreliable or reliable, per-plugin send quotas); callbacks on the game thread, `net.state` / `net.peer` events. Published with the capability `sco.net` (`requires = sco.net`); plugins can't open or join sessions. [Multiplayer messages](net.md) |
@@ -705,15 +707,29 @@ Within major version 1:
 
 ## Renderer-neutral widget service
 
-`sco.widgets` 1.0 is a separate size-prefixed host service declared in
-[`sco_widgets.h`](../include/sco_widgets.h). It copies retained declarative panels
-and dispatches guarded game-thread events without exposing renderer types.
-[`Widget design`](design/widgets.md) defines the data, limits, lifetime and
-versioning; [`UI docs`](ui.md) distinguish it
-from the retained legacy `sco.ui` draw-context route. Frozen `sco_api` 1.1 is
-unchanged. C, C++20, C# and Lua provide typed routes; see the
-[SDK widget guide](../sdk/docs/widgets.md) for the current 1.1/1.2 binding support,
-version/feature checks and the unchanged published RC1 boundary.
+`sco.widgets` is an optional, separate size-prefixed host service declared in
+[`sco_widgets.h`](../include/sco_widgets.h). Its 1.0 base copies retained panels
+and dispatches guarded game-thread events without exposing renderer types. The
+source contract adds 1.1 subtree updates, capabilities and presentation tails;
+1.2 stable node tags; 1.3 numeric slider presentation; and 1.4 canonical callback
+event tags. The 1.4 extension changes neither the service table nor node layout.
+Frozen `sco_api` 1.1 is unchanged.
+
+Query the version required, check the complete extent and non-null pointer of each
+service member, and use `capabilities` feature bits before relying on an extension.
+For 1.4 tagged events, require both `SCO_WIDGETS_FEATURE_STABLE_TAGS` and
+`SCO_WIDGETS_FEATURE_EVENT_TAG`; check `event->size` covers
+`sco_widget_event_1_4` before reading its borrowed tag. A successful set/update
+with a nonempty tag enables tagged events for that panel until complete replacement;
+subtree removal does not reset it. Older hosts can accept node tags yet deliver
+numeric-only events. Tag-free panels retain 1.0/1.1 event layouts.
+
+See the [widget design](design/widgets.md), [UI guide](ui.md) and
+[SDK widget guide](../sdk/docs/widgets.md) for the contract, language routes and
+1.1–1.3 guidance. These describe source contracts; query the selected host and
+use the bindings and documentation from the selected kit. SDK 2.4.0 is stable;
+2.4.1 is an unpublished target, and source features do not establish runtime
+or game support.
 
 ## ABI freeze
 

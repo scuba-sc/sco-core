@@ -37,7 +37,8 @@ For the current release, consumer integration state, next horizon and contributi
    [native trust rules](../sdk/docs/plugin-rules.md): quiescence, Stop/unload and
    restart boundaries. [C++](sdk-cpp.md), [C#](sdk-csharp.md) and
    [Lua](../sdk/docs/lua.md) explain language-specific exposure and limits.
-4. Neutral services: [storage](storage.md), [UI](ui.md), [IPC](ipc.md),
+4. Neutral services: [storage](storage.md), separate [storage metadata](storage-metadata.md),
+   [widgets](../sdk/docs/widgets.md), [UI](ui.md), [IPC](ipc.md),
    [network messages](net.md) and [network wire](net-wire.md).
 5. Optional extension: [DataCore](datacore.md), [game services](game-services.md)
    and [current evidence/status](game/status.md). The [container contents example](game/container-contents.md#consumer-example-and-discovery) walks through a copied read and provider absence. Availability is not gameplay proof.
@@ -51,8 +52,9 @@ For the current release, consumer integration state, next horizon and contributi
 3. [Architecture](architecture.md): layers, startup, scheduling and limits.
 4. [Plugin loader](plugins.md) and [Lua runtime host](../plugins/lua/README.md):
    dependency ordering, discovery, reload and native trust.
-5. Host controls: [storage](storage.md), [UI](ui.md), [IPC](ipc.md),
-   [network](net.md), [DataCore](datacore.md), [game-pack opt-in](game-services.md).
+5. Host controls: [storage](storage.md), optional host-only [diagnostic sources](diagnostics-sources.md),
+   [UI](ui.md), [IPC](ipc.md), [network](net.md), [DataCore](datacore.md)
+   and [game-pack opt-in](game-services.md).
 6. [Host simulator](building.md#sco-host-sim) and focused tests in
    [building/testing](building.md); [host lessons](framework.md#lessons).
 

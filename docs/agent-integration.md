@@ -61,6 +61,28 @@ RC2 was published on 2026-10-28 and RC1 on 2026-10-21. They remain historical
 releases with unchanged bytes. Keep
 each selected kit's source, archive and host identities distinct.
 
+**Repository-source coordinates at this documentation revision.** In the full
+repository source tree, `sdk/VERSION` records `2.4.0` and
+`sdk/DEVELOPMENT_VERSION` records `2.4.1-dev.3`. These are source-repository
+values, not universal extracted-kit contents. The published stable SDK 2.4.0
+archive uses game pack 0.8.0; the current source game-pack coordinate is listed
+in the [SDK source context](../sdk/README.md) and [game-pack status](game-pack.md).
+The 2.4.1 line and current game-pack target are unpublished. Opt-in
+development packaging writes the selected development version to the generated
+kit `VERSION` and metadata and excludes `sdk/DEVELOPMENT_VERSION`; the
+game-neutral `core-source` profile omits the game header. For any extracted kit,
+start with its own `COMPATIBILITY.json`, `VERSION`/`VERSIONS.txt` and checksums.
+Profile determines which indexes exist: `core` and `core-source` have a workflow
+index but no developer catalogue and record no game overlay
+(`game_overlay_version` is null); a workflow index records SDK/source
+coordinates, not a game-pack version. The game-capable `game-sc`, `legacy` and
+`host-source-sc` profiles include the developer catalogue, whose SDK/game-pack/
+source coordinates should match that profile's compatibility descriptor. A
+standalone `game-sc` overlay uses the workflow bundle from its exact matching
+core kit and its `base_core_sha256` must match that core archive. These checks
+bind identities; they do not establish native activation, provider availability
+or game acceptance.
+
 **Stable and historical archive behavior.** The stable SDK 2.4.0 kit has the
 fifteen-tool default and matching workflow bundle documented on this page. The
 published RC2 archive has fourteen tools and predates `get_service_status` and
@@ -542,11 +564,20 @@ separate, see
    show me the raw `provenance` and `stability_context`." Most clients have no box for
    calling a tool by hand, and an agent tends to summarise away exactly these fields,
    so ask for the raw result. Every result carries `provenance`. Compare it with
-   `COMPATIBILITY.json` in the SDK folder: `sdk_version` must equal `core_sdk_version`
-   (2.4.0 for this kit), `game_pack_version` must equal `game_overlay_version`
-   (0.8.0), and `source_sha` must equal the `core` and `game-sc` values under
-   `source_commits` (the same commit in this kit). A different value means the server
-   is reading another catalogue, such as the site's changing mainline file.
+   the game-capable developer kit's `sdk-catalogue.json` and
+   `COMPATIBILITY.json`: `provenance.sdk_version` and
+   `provenance.game_pack_version` should match the catalogue, whose
+   `sdk_version`, `game_pack_version` and `source_sha` should match the
+   descriptor's `core_sdk_version`, `game_overlay_version` and applicable
+   `source_commits`. The `sdk-workflows.json` index carries SDK/source identity,
+   not a game-pack version; compare its `sdk_version` and `source_sha` with the
+   same kit. For a standalone `game-sc` overlay, its workflow bundle comes from
+   the exact matching core kit, and its `base_core_sha256` must match that core
+   archive. Game-neutral `core` and `core-source` kits have no developer
+   catalogue and no game overlay, so this game-service provenance check does
+   not apply to them. A mismatch means the server may be reading another
+   catalogue, such as the site's changing mainline file; the stable values above
+   are examples for the published 2.4.0 kit, not universal expectations.
 5. Check `--repo-root` in the same result, because steps 1 to 4 pass even when it is
    wrong or missing: the server starts, lists its tools and reports the right
    provenance. `stability_context.game_state` must be `read`, and no service may show

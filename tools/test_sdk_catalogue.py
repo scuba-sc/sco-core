@@ -20,7 +20,7 @@ SHA = '0123456789abcdef0123456789abcdef01234567'
 
 class InventoryVocabularyTests(unittest.TestCase):
     def test_inventory_layout_tolerates_windows_min_macro(self):
-        source = (ROOT / 'src/game/services/inventory_layout.cpp').read_text()
+        source = (ROOT / 'src/game/services/inventory_layout.cpp').read_text(encoding='utf-8')
         marker = 'namespace sco::game::services::inventory_layout {'
         self.assertEqual(source.count(marker), 1)
         source = source.replace(marker, '#define min(a, b) windows_min_macro_must_not_expand(a, b)\n' + marker)
@@ -30,17 +30,17 @@ class InventoryVocabularyTests(unittest.TestCase):
             path = Path(directory) / 'inventory_layout.cpp'
             args = [clang, '-x', 'c++', '-std=c++20', '-I', str(ROOT / 'include'), '-I', str(ROOT / 'src'),
                     '-I', str(ROOT / 'src/game/services'), '-fsyntax-only', str(path)]
-            path.write_text(source)
+            path.write_text(source, encoding='utf-8')
             result = subprocess.run(args, capture_output=True, text=True)
             self.assertEqual(result.returncode, 0, result.stderr)
             old = '(std::min)(frame.info.count, capacity)'
             self.assertEqual(source.count(old), 1)
-            path.write_text(source.replace(old, 'std::min(frame.info.count, capacity)'))
+            path.write_text(source.replace(old, 'std::min(frame.info.count, capacity)'), encoding='utf-8')
             self.assertNotEqual(subprocess.run(args, capture_output=True).returncode, 0)
 
     def test_managed_vocabulary_matches_all_public_categories(self):
-        header = (ROOT / 'include/sc_inventory.h').read_text()
-        managed = (ROOT / 'sdk/csharp/Sco.Sdk/Game/Inventory.cs').read_text()
+        header = (ROOT / 'include/sc_inventory.h').read_text(encoding='utf-8')
+        managed = (ROOT / 'sdk/csharp/Sco.Sdk/Game/Inventory.cs').read_text(encoding='utf-8')
         ordinals = {symbol: int(value) for symbol, value in
                     re.findall(r'\b(SC_ITEM_TYPE_\w+)\s*=\s*(\d+)\s*[,}]', header)}
         expected = {int(ordinals[symbol]): name for symbol, name in
@@ -69,7 +69,7 @@ class FindClangTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as local:
             exe = Path(local) / 'Microsoft/WinGet/Packages/X.LLVM-MinGW/p/bin/clang.exe'
             exe.parent.mkdir(parents=True)
-            exe.write_text('')
+            exe.write_text('', encoding='utf-8')
             env = {'LOCALAPPDATA': local}
             with mock.patch.dict(os.environ, env), mock.patch.object(
                     catalogue.shutil, 'which', return_value=None), mock.patch.object(
@@ -81,7 +81,7 @@ class FindClangTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as local:
             exe = Path(local) / 'Microsoft/WinGet/Packages/X.LLVM-MinGW/p/bin/clang.exe'
             exe.parent.mkdir(parents=True)
-            exe.write_text('')
+            exe.write_text('', encoding='utf-8')
             env = {'LOCALAPPDATA': local, 'ProgramFiles': str(Path(local) / 'none'),
                    'ProgramFiles(x86)': str(Path(local) / 'none')}
             with mock.patch.dict(os.environ, env), mock.patch.object(
@@ -110,11 +110,11 @@ class CatalogueTests(unittest.TestCase):
 
     def record(self, symbol, change):
         for path in (self.root / 'sdk/contracts').glob('*.json'):
-            data = json.loads(path.read_text())
+            data = json.loads(path.read_text(encoding='utf-8'))
             for record in data['records']:
                 if record['symbol'] == symbol:
                     change(record)
-                    path.write_text(catalogue.encoded(data))
+                    path.write_text(catalogue.encoded(data), encoding='utf-8')
                     return
         self.fail('test symbol not found')
 
@@ -124,9 +124,9 @@ class CatalogueTests(unittest.TestCase):
 
     def header_change(self, name, before, after):
         path = self.root / 'include' / name
-        source = path.read_text()
+        source = path.read_text(encoding='utf-8')
         self.assertEqual(source.count(before), 1)
-        path.write_text(source.replace(before, after))
+        path.write_text(source.replace(before, after), encoding='utf-8')
 
     def test_inventory_nested_prefix_exposes_inherited_and_new_members(self):
         inventory = catalogue.header_inventory(self.root)
@@ -212,7 +212,7 @@ class CatalogueTests(unittest.TestCase):
         path.write_text('#include "sco_api.h"\n#define SCO_FUTURE_NAME "sco.future"\n'
                         '#define SCO_FUTURE_VERSION_1_0 0x00010000u\n'
                         'typedef struct sco_future_v1 { uint32_t size; uint32_t pad; '
-                        'int (*ping)(void); } sco_future_v1;\n')
+                        'int (*ping)(void); } sco_future_v1;\n', encoding='utf-8')
         self.refuses('new undocumented method: sco_future_v1.ping')
 
     def test_removed_symbol_still_documented(self):
@@ -236,12 +236,12 @@ class CatalogueTests(unittest.TestCase):
 
     def test_reordered_header_members(self):
         path = self.root / 'include/sco_settings.h'
-        source = path.read_text()
+        source = path.read_text(encoding='utf-8')
         first = 'sco_result (*get_bool)(sco_plugin* self, const char* name, int32_t* out);'
         second = 'sco_result (*get_int)(sco_plugin* self, const char* name, int64_t* out);'
         self.assertIn(first, source)
         self.assertIn(second, source)
-        path.write_text(source.replace(first, 'SWAP_MARKER').replace(second, first).replace('SWAP_MARKER', second))
+        path.write_text(source.replace(first, 'SWAP_MARKER').replace(second, first).replace('SWAP_MARKER', second), encoding='utf-8')
         self.refuses('member_extent mismatch')
 
     def test_duplicate_id(self):
@@ -271,7 +271,7 @@ class CatalogueTests(unittest.TestCase):
         evidence = {'path': 'sdk/csharp/Sco.Sdk/Game/Actors.cs',
                     'token': '_t->last_error(self, o, &n)'}
         # The token is taken from the actual adapter, but its table is not World.
-        source = (self.root / evidence['path']).read_text()
+        source = (self.root / evidence['path']).read_text(encoding='utf-8')
         calls = [line.strip() for line in source.splitlines() if '->last_error(' in line]
         self.assertTrue(calls)
         evidence['token'] = calls[0]
@@ -298,12 +298,13 @@ class CatalogueTests(unittest.TestCase):
         after = 'int (*del)(sco_plugin* self, const char* key);'
         self.record('sco_storage_v1.del', lambda r: r.update(buffer_contract=r['buffer_contract'].replace(before, after)))
         path = self.root / 'docs/contracts.md'
-        path.write_text(path.read_text().replace(before, after))
+        path.write_text(path.read_text(encoding='utf-8').replace(before, after), encoding='utf-8')
         self.refuses('documented signature mismatch: sco_storage_v1.del')
 
     def test_documentation_drift(self):
         path = self.root / 'docs/contracts.md'
-        path.write_text(path.read_text().replace('Borrowed static host string; never free.', 'Free the host string.'))
+        path.write_text(path.read_text(encoding='utf-8').replace(
+            'Borrowed static host string; never free.', 'Free the host string.'), encoding='utf-8')
         self.refuses('documentation/record contract mismatch: sco_api.host_version')
 
     def test_service_or_version_mismatch(self):
@@ -375,12 +376,12 @@ class CatalogueTests(unittest.TestCase):
         self.assertEqual(outputs[0].read_bytes(), outputs[1].read_bytes())
         result = json.loads(outputs[0].read_bytes())
         self.assertEqual(result['source_sha'], SHA)
-        self.assertEqual(result['sdk_version'], (self.root / 'sdk/VERSION').read_text().strip())
-        self.assertEqual(result['game_pack_version'], '0.8.0')
+        self.assertEqual(result['sdk_version'], (self.root / 'sdk/VERSION').read_text(encoding='utf-8').strip())
+        self.assertEqual(result['game_pack_version'], '0.8.1')
         self.assertEqual(result['schema_version'], catalogue.CATALOGUE_SCHEMA_VERSION)
         self.assertEqual(result['status_registry_sha256'], catalogue.status_registry_sha256(self.root))
         self.assertRegex(result['status_registry_sha256'], r'^[0-9a-f]{64}$')
-        self.assertNotIn(str(self.root), outputs[0].read_text())
+        self.assertNotIn(str(self.root), outputs[0].read_text(encoding='utf-8'))
         self.assertEqual(set(result), {'schema_version', 'sdk_version', 'game_pack_version',
                                        'source_sha', 'status_registry_sha256', 'contract_context',
                                        'tables', 'records'})

@@ -13,6 +13,7 @@ The C++20 layer of the sco plugin SDK: header-only, over [`sco_api.h`](api-v1.md
 - [Services](#services)
 - [Raw handlers](#raw-handlers)
 - [Storage](#storage)
+- [Storage metadata](#storage-metadata)
 - [DataCore](#datacore)
 - [UI](#ui)
 - [Settings](#settings)
@@ -30,6 +31,7 @@ The C++20 layer of the sco plugin SDK: header-only, over [`sco_api.h`](api-v1.md
 | [`scosdk/service.hpp`](../include/scosdk/service.hpp) | `Provide`, `Release`, `ServiceRef<T>`, `HasMember`, `ServiceVersion` |
 | [`scosdk/raw.hpp`](../include/scosdk/raw.hpp) | `RegisterRaw<In, Out>`, `InvokeRaw`, `RegisterRawBytes`, `InvokeRawBytes` |
 | [`scosdk/storage.hpp`](../include/scosdk/storage.hpp) | `Storage`, `StorageCursor`, `StorageTransaction`, `SqlInt` / `SqlFloat` / `SqlText` / `SqlBlob` / `SqlNull` (the host service `sco.storage`, [`sco_storage.h`](../include/sco_storage.h)); not in `scosdk.hpp`, include it when you use storage |
+| [`scosdk/storage_metadata.hpp`](../include/scosdk/storage_metadata.hpp) | `StorageMetadata`: separate read-only owner metadata service; include explicitly (unpublished 2.4.1 source) |
 | [`scosdk/datacore.hpp`](../include/scosdk/datacore.hpp) | `DataCore`, `DataCorePatch`, `DataCoreInstance`, `DataCoreGuid`, `DataCoreEnum`, `DataCoreRef` (the host service `sco.datacore`, [`sco_datacore.h`](../include/sco_datacore.h)); not in `scosdk.hpp` |
 | [`scosdk/net.hpp`](../include/scosdk/net.hpp) | `Net`, `NetChannel`: typed message channels with the other players of a session the product opened, callbacks as lambdas on the game thread (the host service `sco.net`, [`sco_net.h`](../include/sco_net.h); [Multiplayer messages](net.md)) |
 | [`scosdk/ipc.hpp`](../include/scosdk/ipc.hpp) | `Ipc`, `IpcChannel`: shared-memory channels to another program on the same PC (the host service `sco.ipc`, [`sco_ipc.h`](../include/sco_ipc.h); [IPC](ipc.md)); `IpcChannel` closes its channel on destruction; not in `scosdk.hpp` |
@@ -169,6 +171,39 @@ if (store.Open(*this) == SCO_OK) {
 - `StorageCursor` is move-only and closes its cursor on destruction; `Int`, `Float`, `Text`, `Blob` and `Value` read the current row. `Keys(prefix, out)` lists keys in byte order.
 - The transaction is the plugin's, not the thread's ([Storage § Threads](storage.md#threads)).
 
+## Storage metadata
+
+The unpublished 2.4.1 source adds `scosdk/storage_metadata.hpp`; it is absent
+from stable SDK 2.4.0. This separate [`sco.storage.metadata` 2.0](storage-metadata.md)
+service inspects only this plugin's already opened database; it never opens one.
+
+```cpp
+#include "scosdk/storage_metadata.hpp"
+
+sco::sdk::StorageMetadata metadata;
+if (metadata.Open(*this) == SCO_OK) {
+    sco_storage_owner_info owner{};
+    if (metadata.OwnerInfo(owner) == SCO_OK) { /* copied counts and generation */ }
+    std::string name;
+    sco_storage_table_info table{};
+    sco_result r = metadata.NextTable(nullptr, name, table); // first ordinary table
+    if (r == SCO_OK) {
+        uint64_t rows = 0;
+        r = metadata.RowCount(name.c_str(), rows);
+    } // SCO_NOT_FOUND from NextTable means end of iteration
+    sco_storage_quota_info quota{};
+    r = metadata.QuotaInfo(quota);
+}
+```
+
+`NextTable` accepts the previous name as its cursor and copies the next name and
+column count. All four methods return `sco_result`, guard the complete member
+extent and non-null pointer, and leave outputs unchanged on failure. `Open` maps a
+missing or null table to `SCO_UNAVAILABLE`; a short/null member is also unavailable.
+The wrapper borrows the service and plugin handle for the loaded owner; do not use
+it after unload. Counts are budget-limited interval observations, not a transaction;
+excluded schema objects and quota semantics are described in the linked contract.
+
 ## DataCore
 
 `sco::sdk::DataCore` wraps the host service [`sco.datacore`](datacore.md#the-scodatacore-service): DataCore overrides from code. The product must publish it (`Open` answers `SCO_NOT_FOUND` otherwise). After the game's DataCore load (the usual case: plugins load after it), a committed patch is saved and applies from the next launch.
@@ -197,7 +232,7 @@ if (dc.Open(*this) == SCO_OK) {
 ## Renderer-neutral widgets
 
 `scosdk/widgets.hpp` (include explicitly, not through the umbrella) provides
-`sco::sdk::Widgets` over `sco.widgets` 1.0. `Open(api, self)` or `Open(plugin)`
+`sco::sdk::Widgets` over `sco.widgets`. `Open(api, self)` or `Open(plugin)`
 discovers it; `SetPanel(id, title, nodes, count, fn, ctx)` atomically replaces a
 complete copied tree and `RemovePanel(id)` ends callbacks. Each method checks the
 full member extent and NULL function pointer. The object overload borrows an
@@ -206,6 +241,27 @@ before they cross the C ABI. All methods/events are game-thread only.
 See [widget contract](design/widgets.md) and the
 [renderer-free example](../sdk/examples/widgets/widgets.c). This route has no
 ImGui types or link requirement.
+
+The unpublished 2.4.1 source adds `SetPanelTagged` and `UpdateNodesTagged`;
+these 1.4 callback-tag routes are absent from stable SDK 2.4.0. Use the headers
+and documentation from the selected kit for older extension support. Both
+helpers take `sco_widget_node_1_2` arrays and negotiate service 1.4, guard the
+complete capabilities and mutation members and their non-null pointers, and
+require `SCO_WIDGETS_FEATURE_STABLE_TAGS`, `SCO_WIDGETS_FEATURE_EVENT_TAG` and
+a usable maximum tag length before mutation. A missing, short, null or
+unsupported provider cannot provide the tagged-event guarantee; check every
+returned `sco_result`. Raw `SetPanel` with an extended stride does not perform
+this feature check and success alone does not guarantee tagged callbacks.
+
+A successful set/update with a nonempty tag enables tagged-event mode; it stays
+on through subtree updates/removals, and a full replacement resets it based on
+its new tree. In that mode the canonical target tag (or null for an untagged
+node) appears in the 48-byte `sco_widget_event_1_4`. Before casting the base
+event reference or pointer, check `event.size >= sizeof(sco_widget_event_1_4)`
+(or `event->size` in a C callback). The event, tag, text and panel ID are
+borrowed only during the callback, including reentrant changes; copy anything
+needed later. Numeric node IDs still route events. See the [1.4 contract](design/widgets.md)
+and [widget guide](../sdk/docs/widgets.md#canonical-callback-tags-14).
 
 `scosdk/menu_builder.hpp` adds `scosdk::PanelBuilder`: nest `Row` / `Column` bodies,
 then `Build()` and `PanelTree::Submit(widgets, id, title)`. A returned `WidgetRef`

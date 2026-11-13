@@ -14,6 +14,8 @@ Build plugins for [sc-offline](https://github.com/scuba-sc/sc-offline), the Star
 >
 > **Stable SDK 2.4.0 (published)**, Star Citizen game pack **0.8.0**, plugin ABI **1.1** unchanged. The stable [`sdk-v2.4.0` release](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0) was published on 2026-11-01 from source `6106fa3639cbcc28f78a1ded8de2707de019f4d3`; it provides five profile archives with `SHA256SUMS` and `release.json` ([archive identities](../docs/releases/sdk-v2.4.0.md#stable-archive-identity)). Verify a release download against its archive checksum. RC1 and RC2 are historical releases; their archive bytes remain unchanged. This current source guide does not rewrite the published archive snapshot. The ABI only grows, but plugins must still check service versions, sized extents, capabilities and manifest requirements. In sc-offline, plugin loading is on by default (`plugins = on` in `sc-offline.ini`); optional folders can ship disabled. That product default is not kernel policy. See the [SDK/MCP tutorial](../docs/sdk-mcp-tutorial.md).
 
+> **Repository-source context at this documentation revision:** the full source tree records `sdk/VERSION` as `2.4.0`, `sdk/DEVELOPMENT_VERSION` as `2.4.1-dev.3`, and `include/sc_game_pack.h` as game pack `0.8.1`. These are source inputs, not universal extracted-kit contents. Opt-in development packaging writes the selected development coordinate to the generated kit `VERSION` and metadata and excludes `sdk/DEVELOPMENT_VERSION`; the game-neutral `core-source` kit omits the game header. The published stable archive is SDK 2.4.0 with game pack 0.8.0. The 2.4.1 line and 0.8.1 game pack remain unpublished targets. Current source includes separate [`sco.storage.metadata` 2.0](../docs/storage-metadata.md) and [`sco.widgets` 1.4 tagged events](../docs/design/widgets.md#tagged-events-and-old-provider-refusal-14); these source features are absent from the published stable SDK 2.4.0 archive. These source and synthetic-test facts do not establish native activation, product-host availability or in-game acceptance. For an extracted kit, use its own `COMPATIBILITY.json`, `VERSION`/`VERSIONS.txt`, available indexes and checksums to establish what it contains.
+
 **Native plugins run with the game's full rights.** Only install plugins you trust; sc-offline doesn't review them. Plugins never connect to Cloud Imperium Games' servers; the only connections allowed are local IPC (`sco.ipc`) and private LAN/VPN co-presence through `sco.net`, both host services: see [Plugin rules](docs/plugin-rules.md).
 
 ## What's in the SDK
@@ -21,7 +23,7 @@ Build plugins for [sc-offline](https://github.com/scuba-sc/sc-offline), the Star
 | Path | What |
 |---|---|
 | `include/sco_api.h` | The frozen root plugin ABI; include public service headers for the services used |
-| `include/sco_*.h` | The host services' tables: `sco_storage.h`, `sco_ui.h`, `sco_ui_surfaces.h`, `sco_widgets.h`, `sco_settings.h`, `sco_ipc.h`, `sco_net.h` (core); `sco_datacore.h` (Star Citizen extension) |
+| `include/sco_*.h` | The host services' tables: `sco_storage.h`, `sco_ui.h`, `sco_ui_surfaces.h`, `sco_widgets.h`, `sco_settings.h`, `sco_ipc.h`, `sco_net.h` (core). The current full source tree adds `sco_storage_v2.h` for separate `sco.storage.metadata` 2.0 ([contract and limits](../docs/storage-metadata.md)); it is absent from the published stable SDK 2.4.0 archive. The game-capable extension also has `sco_datacore.h` |
 | `include/sc_*.h` | Core: the MIT wires and bridge layouts (`sc_ipc.h`, `sc_net.h`, `sc_titanlink.h`, `sc_voxel_bridge.h`). Star Citizen extension: the game pack's service tables and events (`sc_spatial.h`, `sc_spawn.h`, `sc_actors.h`, `sc_vehicles.h`, `sc_world.h`, `sc_entities.h`, `sc_creative.h`, `sc_game_events.h`; [game services](../docs/game-services.md), [status](../docs/game/status.md)) and its version (`sc_game_pack.h`) |
 | `include/scosdk/` | The C++20 layer over `sco_api.h`, header-only: [C++ plugins](#c-plugins). `scosdk/game/` and `scosdk/datacore.hpp` come with the Star Citizen extension |
 | `rust/` | Experimental raw Rust bindings and a native example in current development core and combined plugin kits; see [Rust plugin support](rust/README.md). The standalone source kits, game overlay and published stable SDK 2.4.0 archives do not contain them. The broader Rust refactor is deferred to 2.5.0 |
@@ -47,10 +49,16 @@ public headers of a profile).
 | Zip | Holds |
 |---|---|
 | `sco-sdk-core-source-<version>.zip` | Kernel source-development kit in repository layout: host/runtime, loaders, required vendored Lua/SQLite, CMake build, tools and synthetic tests. Build with `-DSCO_GAME_SC=OFF`; no game implementation, game ABI headers, game layout pins or game-contract fixtures |
-| `sco-sdk-host-source-sc-<version>.zip` | Standalone Star Citizen host source in repository layout: all `core-source` components plus complete game implementation, DataCore, headers and synthetic test dependencies. Build with `-DSCO_GAME_SC=ON`; [host-source guide](../docs/host-source-sc.md). Published in SDK 2.4.0 release candidate 1 (`sdk-v2.4.0-rc.1`) |
-| `sco-sdk-core-<version>.zip` | The game-neutral SDK: `sco_api.h`, the host services, the C++, C# and Lua layers, the generic examples and tools. Normal packages use `sdk/VERSION`; development packages use `sdk/DEVELOPMENT_VERSION` |
+| `sco-sdk-host-source-sc-<version>.zip` | Standalone Star Citizen host source in repository layout: all `core-source` components plus complete game implementation, DataCore, headers and synthetic test dependencies. Build with `-DSCO_GAME_SC=ON`; [host-source guide](../docs/host-source-sc.md). Published first in SDK 2.4.0 RC1 and included in the stable SDK 2.4.0 release ([stable archive identities](../docs/releases/sdk-v2.4.0.md#stable-archive-identity)) |
+| `sco-sdk-core-<version>.zip` | The game-neutral SDK: `sco_api.h`, the host services, the C++, C# and Lua layers, the generic examples and tools. Normal packages take their coordinate from source `sdk/VERSION`; opt-in development packages read source `sdk/DEVELOPMENT_VERSION`, write the selected value to the generated kit `VERSION` and metadata, and exclude `sdk/DEVELOPMENT_VERSION` |
 | `sco-sdk-game-sc-<game pack version>.zip` | The optional Star Citizen extension: the game pack's tables and events, DataCore, their C++ and C# wrappers, `travel_pack` and `quantum_pack`. Unpack it over the core SDK its `VERSIONS.txt.game-sc` names; it keeps its own `VERSIONS.txt.game-sc` and `SHA256SUMS.game-sc`, so nothing of the core is overwritten |
 | `sco-sdk-<version>.zip` | Both in one zip, the shape `sdk-v1.1.0` shipped. Releases use it until consumers move to the two zips |
+
+A locally built normal package can share the published stable archive's version
+and filename without having identical bytes. Stable release identity requires
+matching the archive digest recorded in the published release's `SHA256SUMS`;
+version or filename alone is not enough. The `core-source` profile is game-neutral
+and does not include `include/sc_game_pack.h`, so it has no game-pack coordinate.
 
 The `core-source` and `host-source-sc` kits exclude the separately packaged runtime MCP
 peer. Keep `SCO_BUILD_RUNTIME_MCP=OFF` in these kits; building that peer requires a full
@@ -103,16 +111,21 @@ it ships from SDK 2.1.0. Frozen plugin ABI 1.1 is unchanged.
 ## Renderer-neutral widget UI
 
 New plugins use `sco.widgets` (`sco_widgets.h`, `scosdk/widgets.hpp`), with a 1.0
-base and additive 1.1/1.2 extensions:
+base and additive versions through 1.4 in the current source:
 retained copied trees, typed game-thread events and no plugin renderer linkage.
 The [widget guide](docs/widgets.md) and `examples/widgets` show all eight widgets
 plus ROW/COLUMN layout with synthetic data. `sco-plugin-check` supplies deterministic
-headless interaction coverage. Current source/development kits include typed C#
-and Lua subtree update/removal, capabilities, tooltip/severity/paging fields,
-row events and stable tags. These bindings negotiate 1.2, then 1.1, then 1.0,
-check complete member extents and feature bits, and refuse unsupported requested
-features. The published RC1 archive is unchanged and retains its earlier bindings;
-use the guide and wrappers from the same selected kit.
+headless interaction coverage. Current source and opt-in development packages
+include typed C# and Lua subtree update/removal, capabilities,
+tooltip/severity/paging fields, row events, stable tags and numeric presentation.
+Their wrappers query service versions in descending order: 1.4, 1.3, 1.2, 1.1,
+then 1.0. They check complete member extents and required feature bits. Tagged
+callback routes additionally require service 1.4 and both stable-tag and
+event-tag features; older providers refuse these requests before mutation. The
+tagged-event route is an unpublished 2.4.1 source addition, absent from stable
+SDK 2.4.0. This current-source description does not establish which earlier
+minor bindings, including 1.3, are present in a frozen release archive; check
+the selected kit's own headers, wrappers and guide.
 The optional host-only adapter is source-kit code, never a public plugin header.
 
 ## Optional ImGui: a host-specific third-party ABI
@@ -231,7 +244,7 @@ An automatic no-argument call may return `SCO_NOT_FOUND` when there is no curren
 
 `--short-tables` hands the plugin a synthetic 1.0-sized `sco_api` prefix: `size` 88 (`offsetof(sco_api, provide_service)`) and `minor` 0. Calling a 1.1 member (`provide_service`, `query_service`, `release_service`, `invoke_raw`, `register_raw`) without first checking `api->size >= offsetof(sco_api, member) + sizeof(api->member)` fails the check, with the size the call needed. Use it to exercise size guards; actual host admission separately requires the exported API version to be supported.
 
-The stand-in serves `sco.widgets` 1.2 by default. It validates complete preorder trees, subtree updates/removals, 1.1 tooltip/severity/paging tails and 1.2 stable tags, including resulting-panel tag uniqueness. Each node is read only through its advertised size; capability readback reports features and limits. Under `--short-tables` the widgets table is its 1.0 extent (`size` 24), with extension tails ignored. Calling later table members without complete-member extent and non-null checks fails the checker. An unchecked `query_service` under that short root table also fails, while returning the stand-in table so subsequent unchecked calls can be diagnosed.
+The stand-in serves `sco.widgets` 1.4 by default. It validates complete preorder trees, subtree updates/removals, 1.1 tooltip/severity/paging tails, 1.2 stable tags, 1.3 numeric presentation and 1.4 tagged events, including resulting-panel tag uniqueness. Each node is read only through its advertised size; capability readback reports features and limits. Under `--short-tables` the widgets table is its 1.0 extent (`size` 24), with extension tails ignored. Calling later table members without complete-member extent and non-null checks fails the checker. An unchecked `query_service` under that short root table also fails, while returning the stand-in table so subsequent unchecked calls can be diagnosed.
 
 The stand-in host is not the game: it has no game thread, no crash guard and no game features. A plugin that passes still needs a run in the game.
 
@@ -391,9 +404,12 @@ GPL-3.0-only ([LICENSE](../LICENSE)), like sco-core. The project expects plugins
 For an unpublished source-bound package from a clean Git checkout, run
 `python3 sdk/package.py --development --profile host-source-sc --out <directory>`
 (or choose another declared profile). This opt-in mode uses the committed
-`sdk/DEVELOPMENT_VERSION` in archive names and generated SDK metadata, records the
-exact source commit, and does not imply a tag or release. The game-sc overlay
-keeps its actual game-pack version and adds the development SDK identifier to its
-archive name. The normal packaging mode and published 2.4.0 archive identities
-are unchanged. A successful package build does not authorize native activation
-or establish game or plugin runtime safety.
+`sdk/DEVELOPMENT_VERSION` as an input coordinate in archive names and generated
+SDK metadata, writes that coordinate to the generated kit `VERSION`, excludes
+the development-version input file, records the exact source commit, and does not
+imply a tag or release. The game-sc overlay keeps its actual game-pack version
+and adds the development SDK identifier to its archive name. Normal local
+packaging can share the published 2.4.0 version and filename while producing
+different bytes; published archive identity is its recorded checksum. A
+successful package build does not authorize native activation or establish game
+or plugin runtime safety.
