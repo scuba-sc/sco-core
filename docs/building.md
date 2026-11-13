@@ -56,6 +56,20 @@ cmake --build build --config RelWithDebInfo
 ctest --test-dir build -C RelWithDebInfo --output-on-failure
 ```
 
+With `SCO_BUILD_TESTS=ON`, configuration requires Python 3 and creates a fresh,
+uniquely named `<build>/sco-fixtures-*` directory for plugin discovery fixtures.
+The generated CTest commands and library output paths point to that directory;
+reconfiguring creates another one and leaves previous directories intact. This
+avoids consuming stale plugins and preserves existing data, at the cost of disk
+space and rebuilding the fixture libraries after regeneration. Generated test inputs and CTest output paths use that namespace. The
+configuration log prints the fixture path.
+
+Multi-config generators currently share a fixture namespace across build
+configurations. Use a separate build tree for each configuration: switching or
+running configurations concurrently in one tree can reuse or overwrite the
+other configuration’s fixture libraries.
+
+
 ### Options
 
 | Option | Default | Does |
@@ -156,11 +170,11 @@ add_subdirectory(external/sco-core EXCLUDE_FROM_ALL)
 | `test_pak` | `sco::game::pak` over a fake `ICryPak` (a real vtable) and a detoured fake loader: the load window, a served mount, passthrough of other files, a second `.dcb` and a second thread, an inert mount read from 0, offsets past 2 GiB, `Disable` |
 | `test_spatial` | Vector, quaternion and transform math; the zone tree (chains, round trips at 1e11 m, failures, readers beside a writer) |
 | `test_sdk` | The C++20 SDK layer (`include/scosdk/`): two SDK plugins over the real host table |
-| `test_plugins` | `plugin.ini`, discovery, the content index and the native loader against the fake plugins in `<build>/tests/out/plugins/` |
+| `test_plugins` | `plugin.ini`, discovery, the content index and the native loader against the fake plugins in `<build>/sco-fixtures-*/plugins/` |
 | `test_lua` | sco-lua through the real loader and host table, including `sdk/examples/greeter`, and `sco.store` over a real `sco.storage` with `sdk/examples/notebook` |
 | `test_app` | The host kit (`sco::app`) and built-in plugins: load order, `game.ready`, tick, a faulting built-in contained, `game.exit` before unload, unload order, restart |
 | `test_plugin_startup_snapshot` | Synthetic version-1 projection, privacy/bounds, starting/complete/failed/incomplete serialization, partial-temp isolation, and process-shared writer locking; no game or native plugin execution |
-| `host_sim_examples` | `sco-host-sim <build>/tests/out/sim/plugins --ticks 3 --invoke hello.wave "Pilot One"` over `hello`, `cpp_hello` (built by CMake), `greeter` and `travel_pack`: exit 0 and the reply; then `--invoke counter_panel.bump` over the same folder, where `counter_panel` calls `counter_service`'s table and must answer `counter is 1` (`tests/host_sim.cmake`) |
+| `host_sim_examples` | `sco-host-sim <build>/sco-fixtures-*/sim/plugins --ticks 3 --invoke hello.wave "Pilot One"` over `hello`, `cpp_hello` (built by CMake), `greeter` and `travel_pack`: exit 0 and the reply; then `--invoke counter_panel.bump` over the same folder, where `counter_panel` calls `counter_service`'s table and must answer `counter is 1` (`tests/host_sim.cmake`) |
 
 On Windows `test_plugins` loads real DLLs with `LoadLibraryExW` and runs the real `__try/__except` crash guard. The TSan runs and the `x86_64-pc-windows-msvc` cross-compile of the ABI pin stay in `tools/test.sh`.
 

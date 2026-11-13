@@ -56,6 +56,28 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 find_package(Threads REQUIRED)
 
+if(SCO_BUILD_TESTS)
+  find_package(Python3 COMPONENTS Interpreter)
+  # Every configure receives a newly and atomically created fixture namespace.  In particular,
+  # never clear tests/out: it may contain user data or a link into another directory.  Old
+  # namespaces remain untouched, while CTest and the generated target paths use this one.
+  if(NOT Python3_Interpreter_FOUND)
+    message(FATAL_ERROR "Python 3 is required to allocate an isolated test fixture directory")
+  endif()
+  execute_process(
+    COMMAND "${Python3_EXECUTABLE}" -c
+            "import tempfile,sys; print(tempfile.mkdtemp(prefix='sco-fixtures-', dir=sys.argv[1]))"
+            "${CMAKE_CURRENT_BINARY_DIR}"
+    RESULT_VARIABLE _sco_fixture_result OUTPUT_VARIABLE _sco_fixture_out
+    ERROR_VARIABLE _sco_fixture_error OUTPUT_STRIP_TRAILING_WHITESPACE)
+  if(NOT "${_sco_fixture_result}" STREQUAL "0" OR _sco_fixture_out STREQUAL "")
+    message(FATAL_ERROR "Could not allocate an isolated test fixture directory: ${_sco_fixture_error}")
+  endif()
+  file(TO_CMAKE_PATH "${_sco_fixture_out}" SCO_TEST_OUT)
+  message(STATUS "Test fixture namespace: ${SCO_TEST_OUT}")
+
+endif()
+
 # Warnings (and sanitizers) for sco-core's own code. Vendored Lua gets neither.
 function(sco_warnings target)
   if(MSVC)
@@ -134,7 +156,7 @@ if(SCO_GAME_SC)
   add_executable(abi_datacore_live tests/abi_datacore_live.c)
   target_include_directories(abi_datacore_live PRIVATE include)
   add_test(NAME abi_datacore_live COMMAND abi_datacore_live)
-  set(_abi_live_cxx "${CMAKE_CURRENT_BINARY_DIR}/abi_datacore_live.cpp")
+  set(_abi_live_cxx "${SCO_TEST_OUT}/abi_datacore_live.cpp")
   file(CONFIGURE OUTPUT "${_abi_live_cxx}"
        CONTENT "#include \"${CMAKE_CURRENT_SOURCE_DIR}/tests/abi_datacore_live.c\"\n")
   add_executable(abi_datacore_live_cxx "${_abi_live_cxx}")
@@ -590,10 +612,10 @@ if(SCO_GAME_SC AND SCO_BUILD_TESTS)
   sco_project_target(test_quantum_owned)
   add_test(NAME quantum_owned COMMAND test_quantum_owned)
   add_test(NAME quantum_owned_restore_fault COMMAND test_quantum_owned --restore-fault)
-  file(CONFIGURE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/abi_game_quantum.cpp"
+  file(CONFIGURE OUTPUT "${SCO_TEST_OUT}/abi_game_quantum.cpp"
        CONTENT "#include \"${CMAKE_CURRENT_SOURCE_DIR}/tests/abi_game_quantum.c\"\n")
   add_executable(abi_quantum_c tests/abi_game_quantum.c)
-  add_executable(abi_quantum_cpp "${CMAKE_CURRENT_BINARY_DIR}/abi_game_quantum.cpp")
+  add_executable(abi_quantum_cpp "${SCO_TEST_OUT}/abi_game_quantum.cpp")
   foreach(t abi_quantum_c abi_quantum_cpp)
     target_include_directories(${t} PRIVATE "${SCO_INCLUDE_DIR}")
     sco_project_target(${t})
@@ -683,9 +705,9 @@ if(SCO_BUILD_TESTS)
     target_include_directories(abi_input_c PRIVATE "${SCO_INCLUDE_DIR}")
     sco_project_target(abi_input_c)
     add_test(NAME abi_input_c COMMAND abi_input_c)
-    file(CONFIGURE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/abi_game_input.cpp"
+    file(CONFIGURE OUTPUT "${SCO_TEST_OUT}/abi_game_input.cpp"
          CONTENT "#include \"${CMAKE_CURRENT_SOURCE_DIR}/tests/abi_game_input.c\"\n")
-    add_executable(abi_input_cpp "${CMAKE_CURRENT_BINARY_DIR}/abi_game_input.cpp")
+    add_executable(abi_input_cpp "${SCO_TEST_OUT}/abi_game_input.cpp")
     target_include_directories(abi_input_cpp PRIVATE "${SCO_INCLUDE_DIR}")
     sco_project_target(abi_input_cpp)
     add_test(NAME abi_input_cpp COMMAND abi_input_cpp)
@@ -697,12 +719,21 @@ if(SCO_BUILD_TESTS)
       add_test(NAME abi_input_short_enums COMMAND abi_input_short_enums)
     endif()
   endif()
-  set(SCO_TEST_OUT "${CMAKE_CURRENT_BINARY_DIR}/tests/out")
-  file(MAKE_DIRECTORY "${SCO_TEST_OUT}")
+
+  # This regression only configures in a newly allocated child of this configure's
+  # fixture namespace. It retains its evidence and does not invoke CTest recursively.
+  if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_cmake_fixture_safety.py")
+    add_test(NAME cmake_fixture_safety COMMAND "${Python3_EXECUTABLE}"
+      "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_cmake_fixture_safety.py"
+      "--output-root=${SCO_TEST_OUT}" "--cmake=${CMAKE_COMMAND}"
+      "--generator=${CMAKE_GENERATOR}" "--platform=${CMAKE_GENERATOR_PLATFORM}"
+      "--toolset=${CMAKE_GENERATOR_TOOLSET}")
+    set_tests_properties(cmake_fixture_safety PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 420 RUN_SERIAL TRUE)
+  endif()
 
   # Plugin ABI pin (tests/abi_v1.c): compile-only, as C11 and as C++20, plus -fshort-enums where
   # the compiler has it. The abi_v1 test rebuilds these objects, so a broken pin fails ctest.
-  set(_abi_cxx "${CMAKE_CURRENT_BINARY_DIR}/abi_v1.cpp")
+  set(_abi_cxx "${SCO_TEST_OUT}/abi_v1.cpp")
   file(CONFIGURE OUTPUT "${_abi_cxx}"
        CONTENT "#include \"${CMAKE_CURRENT_SOURCE_DIR}/tests/abi_v1.c\"\n")
   add_library(sco_abi_v1_c OBJECT tests/abi_v1.c)
@@ -734,12 +765,11 @@ if(SCO_BUILD_TESTS)
   # probe is built here (any compiler, MSVC included) and only run by this test, so `cmake --build`
   # alone stays green and ctest carries the verdict. Header-only, so the kernel-only build runs it
   # too. Needs python3 (CI has it) and the git tag (fetched by the tool when missing).
-  find_package(Python3 COMPONENTS Interpreter)
   if(Python3_Interpreter_FOUND AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_sdk_workflows.py")
     add_test(NAME sdk_workflows COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/test_sdk_workflows.py")
   endif()
   if(Python3_Interpreter_FOUND)
-    set(_freeze_probe "${CMAKE_CURRENT_BINARY_DIR}/abi_freeze_probe.c")
+    set(_freeze_probe "${SCO_TEST_OUT}/abi_freeze_probe.c")
     execute_process(COMMAND "${Python3_EXECUTABLE}"
                             "${CMAKE_CURRENT_SOURCE_DIR}/tools/abi_snapshot.py" gen "${_freeze_probe}"
                     RESULT_VARIABLE _freeze_gen)
@@ -758,7 +788,7 @@ if(SCO_BUILD_TESTS)
   endif()
 
   # The sco.storage table pin (tests/abi_storage.c), the same three ways.
-  set(_abi_storage_cxx "${CMAKE_CURRENT_BINARY_DIR}/abi_storage.cpp")
+  set(_abi_storage_cxx "${SCO_TEST_OUT}/abi_storage.cpp")
   file(CONFIGURE OUTPUT "${_abi_storage_cxx}"
        CONTENT "#include \"${CMAKE_CURRENT_SOURCE_DIR}/tests/abi_storage.c\"\n")
   add_library(sco_abi_storage_c OBJECT tests/abi_storage.c)
@@ -780,7 +810,7 @@ if(SCO_BUILD_TESTS)
            COMMAND "${CMAKE_COMMAND}" --build "${CMAKE_BINARY_DIR}" ${_abi_config} --target ${_abi_storage_targets})
 
   # The separate storage metadata table pin (tests/abi_storage_v2.c), the same three ways.
-  set(_abi_storage_v2_cxx "${CMAKE_CURRENT_BINARY_DIR}/abi_storage_v2.cpp")
+  set(_abi_storage_v2_cxx "${SCO_TEST_OUT}/abi_storage_v2.cpp")
   file(CONFIGURE OUTPUT "${_abi_storage_v2_cxx}"
        CONTENT "#include \"${CMAKE_CURRENT_SOURCE_DIR}/tests/abi_storage_v2.c\"\n")
   add_library(sco_abi_storage_v2_c OBJECT tests/abi_storage_v2.c)
@@ -802,7 +832,7 @@ if(SCO_BUILD_TESTS)
            COMMAND "${CMAKE_COMMAND}" --build "${CMAKE_BINARY_DIR}" ${_abi_config} --target ${_abi_storage_v2_targets})
 
   # The sco.settings table pin (tests/abi_settings.c), the same three ways.
-  set(_abi_settings_cxx "${CMAKE_CURRENT_BINARY_DIR}/abi_settings.cpp")
+  set(_abi_settings_cxx "${SCO_TEST_OUT}/abi_settings.cpp")
   file(CONFIGURE OUTPUT "${_abi_settings_cxx}"
        CONTENT "#include \"${CMAKE_CURRENT_SOURCE_DIR}/tests/abi_settings.c\"\n")
   add_library(sco_abi_settings_c OBJECT tests/abi_settings.c)
@@ -825,7 +855,7 @@ if(SCO_BUILD_TESTS)
 
   if(SCO_GAME_SC)
   # The game.vehicles table pin (tests/abi_game_vehicles.c), the same three ways. Game-pack only.
-  set(_abi_vehicles_cxx "${CMAKE_CURRENT_BINARY_DIR}/abi_game_vehicles.cpp")
+  set(_abi_vehicles_cxx "${SCO_TEST_OUT}/abi_game_vehicles.cpp")
   file(CONFIGURE OUTPUT "${_abi_vehicles_cxx}"
        CONTENT "#include \"${CMAKE_CURRENT_SOURCE_DIR}/tests/abi_game_vehicles.c\"\n")
   add_library(sco_abi_game_vehicles_c OBJECT tests/abi_game_vehicles.c)
@@ -847,7 +877,7 @@ if(SCO_BUILD_TESTS)
            COMMAND "${CMAKE_COMMAND}" --build "${CMAKE_BINARY_DIR}" ${_abi_config} --target ${_abi_vehicles_targets})
 
   # The game.entities table pin (tests/abi_game_entities.c, sc_entities.h), the same three ways. Game-pack only.
-  set(_abi_ge_cxx "${CMAKE_CURRENT_BINARY_DIR}/abi_game_entities.cpp")
+  set(_abi_ge_cxx "${SCO_TEST_OUT}/abi_game_entities.cpp")
   file(CONFIGURE OUTPUT "${_abi_ge_cxx}"
        CONTENT "#include \"${CMAKE_CURRENT_SOURCE_DIR}/tests/abi_game_entities.c\"\n")
   add_library(sco_abi_game_entities_c OBJECT tests/abi_game_entities.c)
@@ -869,7 +899,7 @@ if(SCO_BUILD_TESTS)
            COMMAND "${CMAKE_COMMAND}" --build "${CMAKE_BINARY_DIR}" ${_abi_config} --target ${_abi_ge_targets})
 
   # The game.actor_stats table pin (tests/abi_game_actor_stats.c, sc_actor_stats.h), the same three ways. Game-pack only.
-  set(_abi_gas_cxx "${CMAKE_CURRENT_BINARY_DIR}/abi_game_actor_stats.cpp")
+  set(_abi_gas_cxx "${SCO_TEST_OUT}/abi_game_actor_stats.cpp")
   file(CONFIGURE OUTPUT "${_abi_gas_cxx}"
        CONTENT "#include \"${CMAKE_CURRENT_SOURCE_DIR}/tests/abi_game_actor_stats.c\"\n")
   add_library(sco_abi_game_actor_stats_c OBJECT tests/abi_game_actor_stats.c)
@@ -891,7 +921,7 @@ if(SCO_BUILD_TESTS)
            COMMAND "${CMAKE_COMMAND}" --build "${CMAKE_BINARY_DIR}" ${_abi_config} --target ${_abi_gas_targets})
 
   # The game.actor_stats_write table pin (tests/abi_game_actor_stats_write.c, sc_actor_stats_write.h), the same three ways. Game-pack only.
-  set(_abi_gasw_cxx "${CMAKE_CURRENT_BINARY_DIR}/abi_game_actor_stats_write.cpp")
+  set(_abi_gasw_cxx "${SCO_TEST_OUT}/abi_game_actor_stats_write.cpp")
   file(CONFIGURE OUTPUT "${_abi_gasw_cxx}"
        CONTENT "#include \"${CMAKE_CURRENT_SOURCE_DIR}/tests/abi_game_actor_stats_write.c\"\n")
   add_library(sco_abi_game_actor_stats_write_c OBJECT tests/abi_game_actor_stats_write.c)
@@ -913,7 +943,7 @@ if(SCO_BUILD_TESTS)
            COMMAND "${CMAKE_COMMAND}" --build "${CMAKE_BINARY_DIR}" ${_abi_config} --target ${_abi_gasw_targets})
 
   # The game.gamerules table pin (tests/abi_game_gamerules.c, sc_gamerules.h), the same three ways. Game-pack only.
-  set(_abi_ggr_cxx "${CMAKE_CURRENT_BINARY_DIR}/abi_game_gamerules.cpp")
+  set(_abi_ggr_cxx "${SCO_TEST_OUT}/abi_game_gamerules.cpp")
   file(CONFIGURE OUTPUT "${_abi_ggr_cxx}"
        CONTENT "#include \"${CMAKE_CURRENT_SOURCE_DIR}/tests/abi_game_gamerules.c\"\n")
   add_library(sco_abi_game_gamerules_c OBJECT tests/abi_game_gamerules.c)
@@ -936,7 +966,7 @@ if(SCO_BUILD_TESTS)
   endforeach()
 
   # The game.build table pin (tests/abi_game_build.c, sc_game_build.h), the same three ways. Game-pack only.
-  set(_abi_gb_cxx "${CMAKE_CURRENT_BINARY_DIR}/abi_game_build.cpp")
+  set(_abi_gb_cxx "${SCO_TEST_OUT}/abi_game_build.cpp")
   file(CONFIGURE OUTPUT "${_abi_gb_cxx}"
        CONTENT "#include \"${CMAKE_CURRENT_SOURCE_DIR}/tests/abi_game_build.c\"\n")
   add_library(sco_abi_game_build_c OBJECT tests/abi_game_build.c)
@@ -954,7 +984,7 @@ if(SCO_BUILD_TESTS)
            COMMAND ${CMAKE_COMMAND} -E echo "layout pinned by object-library compile")
 
   # The game.inventory table pin (tests/abi_game_inventory.c, sc_inventory.h), the same three ways. Game-pack only.
-  set(_abi_ginv_cxx "${CMAKE_CURRENT_BINARY_DIR}/abi_game_inventory.cpp")
+  set(_abi_ginv_cxx "${SCO_TEST_OUT}/abi_game_inventory.cpp")
   file(CONFIGURE OUTPUT "${_abi_ginv_cxx}"
        CONTENT "#include \"${CMAKE_CURRENT_SOURCE_DIR}/tests/abi_game_inventory.c\"\n")
   add_library(sco_abi_game_inventory_c OBJECT tests/abi_game_inventory.c)
@@ -972,7 +1002,7 @@ if(SCO_BUILD_TESTS)
            COMMAND ${CMAKE_COMMAND} -E echo "layout pinned by object-library compile")
 
   # The game.creative table pin (tests/abi_game_creative.c, sc_creative.h), the same three ways. Game-pack only.
-  set(_abi_gc_cxx "${CMAKE_CURRENT_BINARY_DIR}/abi_game_creative.cpp")
+  set(_abi_gc_cxx "${SCO_TEST_OUT}/abi_game_creative.cpp")
   file(CONFIGURE OUTPUT "${_abi_gc_cxx}"
        CONTENT "#include \"${CMAKE_CURRENT_SOURCE_DIR}/tests/abi_game_creative.c\"\n")
   add_library(sco_abi_game_creative_c OBJECT tests/abi_game_creative.c)
@@ -1066,7 +1096,7 @@ if(SCO_BUILD_TESTS)
   endif()
 
   # The sco.ui table pin (tests/abi_ui.c), the same three ways.
-  set(_abi_ui_cxx "${CMAKE_CURRENT_BINARY_DIR}/abi_ui.cpp")
+  set(_abi_ui_cxx "${SCO_TEST_OUT}/abi_ui.cpp")
   file(CONFIGURE OUTPUT "${_abi_ui_cxx}"
        CONTENT "#include \"${CMAKE_CURRENT_SOURCE_DIR}/tests/abi_ui.c\"\n")
   add_library(sco_abi_ui_c OBJECT tests/abi_ui.c)
@@ -1088,7 +1118,7 @@ if(SCO_BUILD_TESTS)
            COMMAND "${CMAKE_COMMAND}" --build "${CMAKE_BINARY_DIR}" ${_abi_config} --target ${_abi_ui_targets})
 
   # The sco.widgets table pin (tests/abi_widgets.c), the same three ways.
-  set(_abi_widgets_cxx "${CMAKE_CURRENT_BINARY_DIR}/abi_widgets.cpp")
+  set(_abi_widgets_cxx "${SCO_TEST_OUT}/abi_widgets.cpp")
   file(CONFIGURE OUTPUT "${_abi_widgets_cxx}"
        CONTENT "#include \"${CMAKE_CURRENT_SOURCE_DIR}/tests/abi_widgets.c\"\n")
   add_library(sco_abi_widgets_c OBJECT tests/abi_widgets.c)
@@ -1110,7 +1140,7 @@ if(SCO_BUILD_TESTS)
            COMMAND "${CMAKE_COMMAND}" --build "${CMAKE_BINARY_DIR}" ${_abi_config} --target ${_abi_widgets_targets})
 
   # The sco.ui.surfaces table and payload pins (tests/abi_ui_surfaces.c), the same three ways.
-  set(_abi_ui_surfaces_cxx "${CMAKE_CURRENT_BINARY_DIR}/abi_ui_surfaces.cpp")
+  set(_abi_ui_surfaces_cxx "${SCO_TEST_OUT}/abi_ui_surfaces.cpp")
   file(CONFIGURE OUTPUT "${_abi_ui_surfaces_cxx}"
        CONTENT "#include \"${CMAKE_CURRENT_SOURCE_DIR}/tests/abi_ui_surfaces.c\"\n")
   add_library(sco_abi_ui_surfaces_c OBJECT tests/abi_ui_surfaces.c)
@@ -1133,7 +1163,7 @@ if(SCO_BUILD_TESTS)
 
   if(SCO_GAME_SC)
   # The sco.datacore table pin (tests/abi_datacore.c), the same three ways.
-  set(_abi_datacore_cxx "${CMAKE_CURRENT_BINARY_DIR}/abi_datacore.cpp")
+  set(_abi_datacore_cxx "${SCO_TEST_OUT}/abi_datacore.cpp")
   file(CONFIGURE OUTPUT "${_abi_datacore_cxx}"
        CONTENT "#include \"${CMAKE_CURRENT_SOURCE_DIR}/tests/abi_datacore.c\"\n")
   add_library(sco_abi_datacore_c OBJECT tests/abi_datacore.c)
@@ -1158,7 +1188,7 @@ if(SCO_BUILD_TESTS)
 
   # The sco.ipc table pin (tests/abi_ipc.c, which also compiles the static_asserts of sc_ipc.h), the
   # same three ways.
-  set(_abi_ipc_cxx "${CMAKE_CURRENT_BINARY_DIR}/abi_ipc.cpp")
+  set(_abi_ipc_cxx "${SCO_TEST_OUT}/abi_ipc.cpp")
   file(CONFIGURE OUTPUT "${_abi_ipc_cxx}"
        CONTENT "#include \"${CMAKE_CURRENT_SOURCE_DIR}/tests/abi_ipc.c\"\n")
   add_library(sco_abi_ipc_c OBJECT tests/abi_ipc.c)
@@ -1181,7 +1211,7 @@ if(SCO_BUILD_TESTS)
 
   # The MIT wire of sco.net packets (tests/abi_sc_net.c, sc_net.h's constants, structs and helper
   # signatures), the same three ways.
-  set(_abi_sc_net_cxx "${CMAKE_CURRENT_BINARY_DIR}/abi_sc_net.cpp")
+  set(_abi_sc_net_cxx "${SCO_TEST_OUT}/abi_sc_net.cpp")
   file(CONFIGURE OUTPUT "${_abi_sc_net_cxx}"
        CONTENT "#include \"${CMAKE_CURRENT_SOURCE_DIR}/tests/abi_sc_net.c\"\n")
   add_library(sco_abi_sc_net_c OBJECT tests/abi_sc_net.c)
@@ -1203,7 +1233,7 @@ if(SCO_BUILD_TESTS)
            COMMAND "${CMAKE_COMMAND}" --build "${CMAKE_BINARY_DIR}" ${_abi_config} --target ${_abi_sc_net_targets})
 
   # The sco.net table pin (tests/abi_net.c), the same three ways.
-  set(_abi_net_cxx "${CMAKE_CURRENT_BINARY_DIR}/abi_net.cpp")
+  set(_abi_net_cxx "${SCO_TEST_OUT}/abi_net.cpp")
   file(CONFIGURE OUTPUT "${_abi_net_cxx}"
        CONTENT "#include \"${CMAKE_CURRENT_SOURCE_DIR}/tests/abi_net.c\"\n")
   add_library(sco_abi_net_c OBJECT tests/abi_net.c)
@@ -1237,7 +1267,7 @@ if(SCO_BUILD_TESTS)
     target_include_directories(sco_test_relocation_position PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src" "${SCO_INCLUDE_DIR}")
     sco_project_target(sco_test_relocation_position)
     add_test(NAME relocation_position COMMAND sco_test_relocation_position)
-    set(_relocation_cxx "${CMAKE_CURRENT_BINARY_DIR}/abi_relocation.cpp")
+    set(_relocation_cxx "${SCO_TEST_OUT}/abi_relocation.cpp")
     file(CONFIGURE OUTPUT "${_relocation_cxx}" CONTENT "#include \"${CMAKE_CURRENT_SOURCE_DIR}/tests/abi_relocation.c\"\n")
     add_library(sco_abi_relocation_cxx OBJECT "${_relocation_cxx}")
     target_include_directories(sco_abi_relocation_cxx PRIVATE "${SCO_INCLUDE_DIR}")
@@ -1308,7 +1338,7 @@ if(SCO_BUILD_TESTS)
     target_link_libraries(test_container_contents PRIVATE sco_host)
     sco_project_target(test_container_contents)
     add_test(NAME container_contents COMMAND test_container_contents)
-    set(_abi_contents_cpp "${CMAKE_CURRENT_BINARY_DIR}/abi_container_contents.cpp")
+    set(_abi_contents_cpp "${SCO_TEST_OUT}/abi_container_contents.cpp")
     file(CONFIGURE OUTPUT "${_abi_contents_cpp}" CONTENT "#include \"${CMAKE_CURRENT_SOURCE_DIR}/tests/abi_container_contents.c\"\n")
     add_executable(abi_container_contents_c tests/abi_container_contents.c)
     add_executable(abi_container_contents_cpp "${_abi_contents_cpp}")
@@ -1368,7 +1398,7 @@ if(SCO_BUILD_TESTS)
     add_test(NAME world_free_cam COMMAND test_world_free_cam)
   endif()
   foreach(_b IN LISTS _abi_bridge_pins)
-    set(_abi_b_cxx "${CMAKE_CURRENT_BINARY_DIR}/abi_${_b}.cpp")
+    set(_abi_b_cxx "${SCO_TEST_OUT}/abi_${_b}.cpp")
     file(CONFIGURE OUTPUT "${_abi_b_cxx}"
          CONTENT "#include \"${CMAKE_CURRENT_SOURCE_DIR}/tests/abi_${_b}.c\"\n")
     add_library(sco_abi_${_b}_c OBJECT tests/abi_${_b}.c)
@@ -1395,7 +1425,7 @@ if(SCO_BUILD_TESTS)
       add_dependencies(sco_test_game_spatial sco_abi_game_spatial_short_enums)
     endif()
   # The game.actors table pin (tests/abi_game_actors.c, sc_actors.h), the same three ways.
-  set(_abi_ga_cxx "${CMAKE_CURRENT_BINARY_DIR}/abi_game_actors.cpp")
+  set(_abi_ga_cxx "${SCO_TEST_OUT}/abi_game_actors.cpp")
   file(CONFIGURE OUTPUT "${_abi_ga_cxx}"
        CONTENT "#include \"${CMAKE_CURRENT_SOURCE_DIR}/tests/abi_game_actors.c\"\n")
   add_library(sco_abi_game_actors_c OBJECT tests/abi_game_actors.c)
@@ -1604,7 +1634,7 @@ if(SCO_BUILD_TESTS)
   set_tests_properties(test_runtime_diagnostics_policy test_runtime_diagnostics_ipc
     test_diagnostics_platform PROPERTIES RESOURCE_LOCK sco_diagnostics_transport)
   # Independently compiled source publisher: only copied public SDK declarations.
-  set(_diagnostic_sdk "${CMAKE_CURRENT_BINARY_DIR}/diagnostics-sdk/include")
+  set(_diagnostic_sdk "${SCO_TEST_OUT}/diagnostics-sdk/include")
   file(MAKE_DIRECTORY "${_diagnostic_sdk}")
   foreach(_h sco_api.h sco_diagnostics_publisher.h)
     configure_file("${SCO_INCLUDE_DIR}/${_h}" "${_diagnostic_sdk}/${_h}" COPYONLY)
@@ -1617,10 +1647,10 @@ if(SCO_BUILD_TESTS)
   elseif(UNIX)
     target_link_options(diagnostics_publisher_fixture PRIVATE "-Wl,--no-undefined")
   endif()
-  file(CONFIGURE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/abi_diagnostics_publisher.cpp"
+  file(CONFIGURE OUTPUT "${SCO_TEST_OUT}/abi_diagnostics_publisher.cpp"
     CONTENT "#include \"${CMAKE_CURRENT_SOURCE_DIR}/tests/abi_diagnostics_publisher.c\"\n")
   add_library(sco_abi_diagnostics_publisher_c OBJECT tests/abi_diagnostics_publisher.c)
-  add_library(sco_abi_diagnostics_publisher_cxx OBJECT "${CMAKE_CURRENT_BINARY_DIR}/abi_diagnostics_publisher.cpp")
+  add_library(sco_abi_diagnostics_publisher_cxx OBJECT "${SCO_TEST_OUT}/abi_diagnostics_publisher.cpp")
   set(_diagnostic_pins sco_abi_diagnostics_publisher_c sco_abi_diagnostics_publisher_cxx)
   if(NOT MSVC)
     add_library(sco_abi_diagnostics_publisher_short OBJECT tests/abi_diagnostics_publisher.c)
@@ -1636,7 +1666,7 @@ if(SCO_BUILD_TESTS)
   add_dependencies(test_diagnostics_publishers diagnostics_publisher_fixture ${_diagnostic_pins})
   sco_project_target(test_diagnostics_publishers)
   add_test(NAME test_diagnostics_publishers COMMAND test_diagnostics_publishers
-    "$<TARGET_FILE:diagnostics_publisher_fixture>" "${CMAKE_CURRENT_BINARY_DIR}/tests/out")
+    "$<TARGET_FILE:diagnostics_publisher_fixture>" "${SCO_TEST_OUT}")
 
   add_executable(test_runtime_diagnostics_snapshot
     tests/test_runtime_diagnostics_snapshot.cpp tests/test_runtime_diagnostics_services.cpp)
@@ -1761,7 +1791,7 @@ if(SCO_BUILD_TESTS)
   # persistence across a restart, settings.changed. Host build, no game.
   add_executable(test_settings tests/test_settings.cpp)
   add_executable(test_content tests/test_content.cpp tests/abi_content.c)
-  set(_content_inc "${CMAKE_CURRENT_BINARY_DIR}/content_public_include")
+  set(_content_inc "${SCO_TEST_OUT}/content_public_include")
   file(MAKE_DIRECTORY "${_content_inc}")
   foreach(h sco_api.h sco_content.h)
     configure_file("${SCO_INCLUDE_DIR}/${h}" "${_content_inc}/${h}" COPYONLY)
@@ -1870,7 +1900,7 @@ if(SCO_BUILD_TESTS)
     sco_project_target(cvars_probe)
     # Explicit config placement prevents multi-config generators from putting the
     # module below an implicit Release/Debug directory beside a stale manifest.
-    set(_cvars_plugin_root "${CMAKE_CURRENT_BINARY_DIR}/cvars_plugins/$<CONFIG>")
+    set(_cvars_plugin_root "${SCO_TEST_OUT}/cvars_plugins/$<CONFIG>")
     set_target_properties(cvars_probe PROPERTIES PREFIX "" SUFFIX ".so"
       # Import libraries/exports also share OUTPUT_NAME on MSVC. Isolate all
       # artifacts so parallel read/write probe links cannot race on one .exp.
@@ -1887,7 +1917,7 @@ if(SCO_BUILD_TESTS)
     target_include_directories(cvars_write_probe PRIVATE "${SCO_INCLUDE_DIR}")
     target_compile_definitions(cvars_write_probe PRIVATE CVARS_PROBE_WRITE)
     sco_project_target(cvars_write_probe)
-    set(_cvars_write_plugin_root "${CMAKE_CURRENT_BINARY_DIR}/cvars_write_plugins/$<CONFIG>")
+    set(_cvars_write_plugin_root "${SCO_TEST_OUT}/cvars_write_plugins/$<CONFIG>")
     set_target_properties(cvars_write_probe PROPERTIES PREFIX "" OUTPUT_NAME "cvars_probe" SUFFIX ".so"
       ARCHIVE_OUTPUT_DIRECTORY "${_cvars_write_plugin_root}/cvars_probe"
       LIBRARY_OUTPUT_DIRECTORY "${_cvars_write_plugin_root}/cvars_probe"
@@ -2106,7 +2136,6 @@ if(SCO_BUILD_TESTS)
     set(_ext so)
   endif()
   set(_plug "${SCO_TEST_OUT}/plugins")
-  file(REMOVE_RECURSE "${_plug}")
   # One plugin m<n> per FAKE_MODE n in fake_plugin.c; keep in step with tools/test.sh.
   set(SCO_FAKE_PLUGIN_MODES 0 1 2 3 4 5 6 7 8 9 10)
   set(_fakes)
@@ -2148,7 +2177,6 @@ if(SCO_BUILD_TESTS)
   # tools/test.sh and tools/test-win.sh.
   set(_frozen "${SCO_TEST_OUT}/frozen_v11/v11")
   set(_frozen_inc "${SCO_TEST_OUT}/frozen_v11_include")
-  file(REMOVE_RECURSE "${SCO_TEST_OUT}/frozen_v11" "${_frozen_inc}")
   file(WRITE "${_frozen}/plugin.ini"
        "id = v11\nname = Frozen 1.1\nversion = 1.1.0\napi = 1.1\nkind = native\nentry = v11.${_ext}\n")
   if(Python3_Interpreter_FOUND)
@@ -2197,7 +2225,6 @@ if(SCO_BUILD_TESTS)
     target_link_libraries(sco-plugin-check PRIVATE ${CMAKE_DL_LIBS})
   endif()
   set(_chk "${SCO_TEST_OUT}/plugin_check")
-  file(REMOVE_RECURSE "${_chk}")
   foreach(probe IN ITEMS chk_release_own:0 chk_release_borrowed:1 chk_tail_unchecked:2 chk_tail_checked:3
                       chk_w11_unchecked:4 chk_w11_checked:5 chk_no_resource:6
                       chk_command_failed:7 chk_command_bad_arg:8 chk_command_unknown:9 chk_observe_misuse:10
@@ -2307,7 +2334,6 @@ if(SCO_BUILD_TESTS)
   # {hello/{hello.<ext>,plugin.ini}, cpp_hello/, counter_service/, counter_panel/, greeter/,
   # travel_pack/}. Keep in step with tools/test.sh.
   set(_sim "${SCO_TEST_OUT}/sim/plugins")
-  file(REMOVE_RECURSE "${SCO_TEST_OUT}/sim")
   add_library(sco_sim_hello SHARED sdk/examples/hello/hello.c)
   target_include_directories(sco_sim_hello PRIVATE "${SCO_INCLUDE_DIR}")
   set_target_properties(sco_sim_hello PROPERTIES
