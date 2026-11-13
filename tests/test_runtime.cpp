@@ -2,14 +2,52 @@
 // Host build, no game needed. The "game thread" is this test's main thread.
 //   tools/test.sh
 #include "sco/runtime.h"
+#include "../src/api/managed_service_gate.h"
 #include "../src/api/internal.h"   // detail::InvokeOwned
 #include <atomic>
+#include <cstdlib>
+#include <new>
 #include <chrono>
 #include <cstdio>
 #include <cstring>
 #include <string>
 #include <thread>
 #include <vector>
+
+// Bounded waits keep failed scheduling or regressions from hanging the test process.
+static std::atomic<bool> g_lifetimeWaitTimedOut{false};
+template <typename Predicate>
+static bool WaitForLifetimeTest(Predicate ready) {
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+    while (!ready()) {
+        if (std::chrono::steady_clock::now() >= deadline) {
+            g_lifetimeWaitTimedOut.store(true);
+            return false;
+        }
+        std::this_thread::yield();
+    }
+    return true;
+}
+
+#ifdef SCO_MANAGED_TESTING
+static thread_local bool g_failSubscriptionAllocation = false;
+static const void* g_oomRaceOwner = nullptr;
+static std::atomic<bool> g_oomRaceEntered{false};
+void* operator new(std::size_t size) {
+    if (g_failSubscriptionAllocation && sco::detail::InReleaseSubscriptionsForTest()) {
+        g_failSubscriptionAllocation = false;
+        if (g_oomRaceOwner) {
+            g_oomRaceEntered.store(true);
+            WaitForLifetimeTest([] { return sco::detail::OwnerReleaseStatus(g_oomRaceOwner) == sco::Result::Crashed; });
+        }
+        throw std::bad_alloc();
+    }
+    if (void* p = std::malloc(size ? size : 1)) return p;
+    throw std::bad_alloc();
+}
+void operator delete(void* p) noexcept { std::free(p); }
+void operator delete(void* p, std::size_t) noexcept { std::free(p); }
+#endif
 
 static int g_fail = 0, g_pass = 0;
 #define CHECK(c) do { if (c) ++g_pass; else { ++g_fail; std::printf("FAIL %s:%d: %s\n", __FILE__, __LINE__, #c); } } while (0)
@@ -1036,6 +1074,134 @@ static void TestRaw() {
     CHECK(sco::ReleaseService(nullptr, "sv.one") == Result::BadArg && sco::ReleaseService(&s, nullptr) == Result::BadArg);
 }
 
+static void TestManagedLifetime() {
+    using namespace sco::detail;
+    static int owner, second, rawOwner, table;
+    constexpr uint32_t version = 0x10000;
+    CHECK(sco::ProvideService(&owner, "managed", "managed.one", version, &table) == Result::Ok);
+    ServiceGeneration first = 0, next = 0;
+    CHECK(FindManagedService("managed.one", version, first) == Result::Ok && first);
+    {
+        ManagedServicePin pin;
+        CHECK(pin.acquire(first) == Result::Ok);
+        CHECK(pin.acquire(first) == Result::BadArg);
+        bool inUse = false;
+        const void* owners[] = { &owner, &second };
+        CHECK(sco::ServiceWithdrawal(owners, 2, true, false, inUse) == Result::Failed);
+        CHECK(sco::ReleaseService(&owner, "managed.one") == Result::Failed);
+        CHECK(sco::Release(&owner) == Result::Failed); // reentrant refusal, no hooks
+        ManagedServicePin other;
+        CHECK(other.acquire(first) == Result::Ok); // failure did not reserve part of group
+    }
+    try { ManagedServicePin pin; CHECK(pin.acquire(first) == Result::Ok); throw 1; } catch (...) {}
+    bool inUse = false;
+    const void* owners[] = { &owner };
+    CHECK(sco::ServiceWithdrawal(owners, 1, true, false, inUse) == Result::Ok);
+    ManagedServicePin blocked;
+    CHECK(blocked.acquire(first) == Result::Unavailable);
+    sco::CancelServiceWithdrawal(owners, 1);
+    CHECK(sco::ReleaseService(&owner, "managed.one") == Result::Ok);
+    CHECK(sco::ProvideService(&owner, "managed", "managed.one", version, &table) == Result::Ok);
+    CHECK(FindManagedService("managed.one", version, next) == Result::Ok && next != first);
+    CHECK(blocked.acquire(first) == Result::Unavailable);
+    g_lifetimeWaitTimedOut.store(false);
+    std::atomic<bool> pinned{false}, finish{false};
+    std::atomic<Result> worker{Result::Failed};
+    std::thread t([&] { ManagedServicePin pin; worker.store(pin.acquire(next)); pinned.store(true);
+        WaitForLifetimeTest([&] { return finish.load(); }); });
+    CHECK(WaitForLifetimeTest([&] { return pinned.load(); }));
+    CHECK(worker.load() == Result::Ok);
+    CHECK(sco::ServiceWithdrawal(owners, 1, true, true, inUse) == Result::Failed);
+    finish.store(true); t.join();
+    CHECK(!g_lifetimeWaitTimedOut.load());
+    CHECK(sco::ServiceWithdrawal(owners, 1, true, false, inUse) == Result::Ok);
+    CHECK(blocked.acquire(next) == Result::Unavailable);
+    CHECK(sco::Release(&owner) == Result::Ok);
+    CHECK(!ManagedServiceEverUsed(&owner));
+    CHECK(sco::ProvideService(&rawOwner, "rawmanaged", "rawmanaged.one", version, &table) == Result::Ok);
+    const void* raw = nullptr;
+    CHECK(sco::QueryService("rawmanaged.one", version, &raw) == Result::Ok && raw == &table);
+    const void* rawOwners[] = { &rawOwner };
+    CHECK(sco::ServiceWithdrawal(rawOwners, 1, true, false, inUse) == Result::Failed && inUse);
+    CHECK(sco::Release(&rawOwner) == Result::Ok && sco::ServiceTableHandedOut(&rawOwner));
+}
+
+#ifdef SCO_MANAGED_TESTING
+static void TestReleaseSubscriptionOomRetry() {
+    g_lifetimeWaitTimedOut.store(false);
+    static int owner;
+    g_failSubscriptionAllocation = true;
+    CHECK(sco::Release(&owner) == Result::TooMany);
+    CHECK(!g_failSubscriptionAllocation); // actual subscription allocation failed
+    CHECK(!sco::detail::Released(&owner));
+    CHECK(sco::Release(&owner) == Result::Ok);
+    static int raceOwner;
+    g_oomRaceOwner = &raceOwner;
+    g_oomRaceEntered.store(false);
+    Result fault = Result::Failed;
+    std::thread worker([&] {
+        if (WaitForLifetimeTest([] { return g_oomRaceEntered.load(); }))
+            fault = sco::detail::QuarantineOwner(&raceOwner);
+    });
+    g_failSubscriptionAllocation = true;
+    CHECK(sco::Release(&raceOwner) == Result::Crashed);
+    worker.join();
+    CHECK(fault == Result::Ok);
+    CHECK(!g_lifetimeWaitTimedOut.load());
+    CHECK(sco::Release(&raceOwner) == Result::Crashed);
+    g_oomRaceOwner = nullptr;
+}
+#endif
+
+static std::atomic<bool> g_dropEntered{false}, g_dropContinue{false};
+static void IgnoreManagedTask(void*) {}
+static void ReleaseDropBarrier(void*) {
+    g_dropEntered.store(true);
+    WaitForLifetimeTest([] { return g_dropContinue.load(); });
+}
+static std::atomic<bool> g_releaseHookEntered{false}, g_releaseHookContinue{false};
+static const void* g_barrierOwner = nullptr;
+static void ReleaseBarrier(const void* owner) {
+    if (owner != g_barrierOwner) return;
+    g_releaseHookEntered.store(true);
+    WaitForLifetimeTest([] { return g_releaseHookContinue.load(); });
+}
+static void TestReleaseFaultArbitration() {
+    g_lifetimeWaitTimedOut.store(false);
+    static int quarantined, releasing, duringRelease;
+    CHECK(sco::detail::QuarantineOwner(&quarantined) == Result::Ok);
+    CHECK(sco::Release(&quarantined) == Result::Crashed);
+    g_dropEntered.store(false);
+    g_dropContinue.store(false);
+    CHECK(sco::detail::PostOwned(IgnoreManagedTask, ReleaseDropBarrier, nullptr, &duringRelease) == Result::Ok);
+    Result concurrentFault = Result::Failed;
+    std::thread beforeHooks([&] {
+        if (WaitForLifetimeTest([] { return g_dropEntered.load(); }))
+            concurrentFault = sco::detail::QuarantineOwner(&duringRelease);
+        g_dropContinue.store(true);
+    });
+    CHECK(sco::Release(&duringRelease) == Result::Crashed);
+    beforeHooks.join();
+    CHECK(concurrentFault == Result::Ok);
+    CHECK(sco::Release(&duringRelease) == Result::Crashed);
+    g_barrierOwner = &releasing;
+    g_releaseHookEntered.store(false);
+    g_releaseHookContinue.store(false);
+    CHECK(sco::AddReleaseHook(ReleaseBarrier) == Result::Ok);
+    Result fault = Result::Ok;
+    std::thread worker([&] {
+        if (WaitForLifetimeTest([] { return g_releaseHookEntered.load(); }))
+            fault = sco::detail::QuarantineOwner(&releasing);
+        g_releaseHookContinue.store(true);
+    });
+    CHECK(sco::Release(&releasing) == Result::Ok);
+    worker.join();
+    CHECK(fault == Result::Crashed);
+    CHECK(!g_lifetimeWaitTimedOut.load());
+    CHECK(sco::RemoveReleaseHook(ReleaseBarrier) == Result::Ok);
+    g_barrierOwner = nullptr;
+}
+
 int main() {
     TestBeforeGameThread();   // first: checks the "no game thread yet" state
     TestTaskQueue();
@@ -1045,6 +1211,11 @@ int main() {
     TestCalloutGuard();
     TestDoneAfterRelease();
     TestServices();
+    TestManagedLifetime();
+    TestReleaseFaultArbitration();
+#ifdef SCO_MANAGED_TESTING
+    TestReleaseSubscriptionOomRetry();
+#endif
     TestCommands();
     TestCommandRecycling();   // after TestCommands: it leaves only the host's commands live
     TestRaw();

@@ -1,3 +1,4 @@
+#include "../src/api/managed_service_gate.h"
 // Unit tests for capabilities (sco/caps.h) and the host's sco_api table (sco/host.h).
 // Host build, no game needed. The "game thread" is this test's main thread.
 //   tools/test.sh
@@ -597,12 +598,25 @@ static void TestCommandRecycling() {
     CHECK(api->list_commands(nullptr, 0) == base);
 }
 
+static void TestManagedHostRefusal() {
+    static int table;
+    using namespace sco::detail;
+    ServiceGeneration generation = 0;
+    CHECK(sco::host::ProvideHostService("sco.managedtest", 0x10000, &table) == Result::Ok);
+    CHECK(FindManagedService("sco.managedtest", 0x10000, generation) == Result::Unavailable && !generation);
+    CHECK(sco::host::WithdrawHostService("sco.managedtest") == Result::Ok);
+    CHECK(sco::host::ProvideGameService("game.managedtest", 0x10000, &table) == Result::Ok);
+    CHECK(FindManagedService("game.managedtest", 0x10000, generation) == Result::Unavailable && !generation);
+    CHECK(sco::host::WithdrawGameService("game.managedtest") == Result::Ok);
+}
+
 int main() {
     sco::SetGameThread();
     TestCaps();
     TestCommandRecycling();   // before TestTable, which uses up the handle table
     TestTable();
     TestGameServices();
+    TestManagedHostRefusal();
     std::printf("sco-core host tests: %d passed, %d failed\n", g_pass, g_fail);
     return g_fail ? 1 : 0;
 }

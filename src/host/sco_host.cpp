@@ -8,6 +8,7 @@
 #include "sco/runtime.h"
 #include "sco/status.h"
 #include "../api/internal.h"
+#include "../api/managed_service_gate.h"
 #include "../api/owned_publication.h"
 #include <atomic>
 #include <cstdint>
@@ -344,7 +345,7 @@ namespace {
 char g_hostOwner = 0;   // its address is the owner token (not const: never folded); never released
 }  // namespace
 
-const void* HostOwner() { return &g_hostOwner; }
+const void* HostOwner() { sco::detail::DenyManagedOwner(&g_hostOwner); return &g_hostOwner; }
 
 Result ProvideHostService(const char* name, uint32_t version, const void* table) {
     // "sco.<name>": the runtime's prefix rule also accepts the bare prefix, a host service may not.
@@ -367,7 +368,7 @@ namespace {
 char g_gameOwner = 0;   // its address is the owner token (not const: never folded); never released
 }  // namespace
 
-const void* GameOwner() { return &g_gameOwner; }
+const void* GameOwner() { sco::detail::DenyManagedOwner(&g_gameOwner); return &g_gameOwner; }
 
 Result ProvideGameService(const char* name, uint32_t version, const void* table) {
     if (!name) return Result::BadArg;

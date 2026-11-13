@@ -1,3 +1,4 @@
+#include "../api/managed_service_gate.h"
 // Native loader: maps a plugin DLL, checks what it says about itself, calls sco_plugin_load,
 // and contains faults in plugin code. Every call into plugin code goes through Guarded().
 #include "sco/plugins.h"
@@ -119,9 +120,9 @@ static std::string CrashReason(const char* where, uint32_t code) {
 // Ok when nothing of p's is left in the runtime: no owner yet, released now, or released already
 // (BadArg: a nested fault's MarkCrashed got there first). Anything else (TooMany, WrongThread)
 // means the runtime may still call p's code.
-static Result ReleaseOwner(Plugin& p) {
+static Result ReleaseOwner(Plugin& p, bool terminal = false) {
     if (!p.self) return Result::Ok;
-    const Result r = sco::Release(p.self);
+    const Result r = terminal ? sco::detail::ReleaseTerminalOwner(p.self) : sco::Release(p.self);
     if (r == Result::Ok || r == Result::BadArg) return Result::Ok;
     sco::Log("[plugin] %s: release returned %s", IdOf(p), sco::ResultName(r));
     return r;
@@ -146,7 +147,8 @@ static void Crash(Plugin& p, const char* where, uint32_t code) {
         sco::Log("[plugin] %s: fault quiescence failed; stopping the process", IdOf(p));
         std::abort();   // cannot establish safe scheduling/admission: never claim recovery
     }
-    const bool retain = p.self && (sco::ServiceTableHandedOut(p.self) || pendingVerdict);
+    const bool retain = p.self && (sco::ServiceTableHandedOut(p.self) || sco::detail::ManagedServiceEverUsed(p.self) || pendingVerdict ||
+                                      sco::detail::OwnerReleaseWasStarted(p.self));
     p.reason = CrashReason(where, code);
     if (retain) {
         p.reason += "; state retained, restart the game (no recovery guaranteed)";
@@ -216,7 +218,8 @@ static std::atomic<uint32_t> g_loadCounter{ 0 };
 // the session, because a caller may still hold the table. Ask after sco::Release(p.self) has
 // withdrawn p's services: from then on no new table can be handed out, so the answer is final.
 static bool KeepMapped(const Plugin& p) {
-    if (!p.self || !sco::ServiceTableHandedOut(p.self)) return false;
+    if (!p.self || (!sco::ServiceTableHandedOut(p.self) &&
+        !(p.state == State::Faulted && sco::detail::ManagedServiceEverUsed(p.self)))) return false;
     sco::Log("[plugin] %s: kept mapped: its service table was handed out", IdOf(p));
     return true;
 }
@@ -532,13 +535,13 @@ void ContainCallouts(std::vector<Plugin>* list) {
 }
 
 // Unloads a loaded native (ops set: closes its module) or built-in (ops null: nothing to close).
-static void UnloadCode(Plugin& p, const ModuleOps* ops) {
+static void UnloadCode(Plugin& p, const ModuleOps* ops, bool terminal = false) {
     if (const uint32_t code = Guarded(UnloadThunk, reinterpret_cast<void*>(p.exports.unload))) {
         Crash(p, "sco_plugin_unload", code);   // module stays mapped
         return;
     }
     if (p.state != State::Loaded) return;   // a nested fault in unload() marked it Crashed: keep that
-    if (const Result r = ReleaseOwner(p); r != Result::Ok) { ReleaseFailed(p, r); return; }   // never unmap
+    if (const Result r = ReleaseOwner(p, terminal); r != Result::Ok) { ReleaseFailed(p, r); return; }   // never unmap
     if (p.state != State::Loaded) return;   // release hooks may fault this plugin
     CloseOrKeep(p, ops);   // stays mapped when a service table of p's was handed out
     p.exports = {};
@@ -620,8 +623,8 @@ bool LoadScript(Plugin& p, const sco_api* api, sco_plugin* self, const ScriptRun
     return true;
 }
 
-static void UnloadScript(Plugin& p, const ScriptRuntime* runtime) {
-    if (const Result r = ReleaseOwner(p); r != Result::Ok) { ReleaseFailed(p, r); return; }   // script kept
+static void UnloadScript(Plugin& p, const ScriptRuntime* runtime, bool terminal) {
+    if (const Result r = ReleaseOwner(p, terminal); r != Result::Ok) { ReleaseFailed(p, r); return; }   // script kept
     if (p.state != State::Loaded) return;
     if (runtime && runtime->unload) runtime->unload(p.self);
     if (p.state != State::Loaded) return;
@@ -630,7 +633,7 @@ static void UnloadScript(Plugin& p, const ScriptRuntime* runtime) {
 }
 
 // Teardown of one Loaded plugin without the mid-session service handout check.
-static void UnloadOneNow(Plugin& p, const ModuleOps* ops, const ScriptRuntime* runtime) {
+static void UnloadOneNow(Plugin& p, const ModuleOps* ops, const ScriptRuntime* runtime, bool terminal = false) {
     if (p.state != State::Loaded) return;
     if (p.self && sco::detail::Released(p.self)) {
         // An off-thread fault closed this owner, but its queued verdict may have been
@@ -641,9 +644,9 @@ static void UnloadOneNow(Plugin& p, const ModuleOps* ops, const ScriptRuntime* r
         return;
     }
     switch (p.manifest.kind) {
-        case Kind::Native:  UnloadCode(p, ops); break;
-        case Kind::Builtin: UnloadCode(p, nullptr); break;
-        case Kind::Lua:     UnloadScript(p, runtime); break;
+        case Kind::Native:  UnloadCode(p, ops, terminal); break;
+        case Kind::Builtin: UnloadCode(p, nullptr, terminal); break;
+        case Kind::Lua:     UnloadScript(p, runtime, terminal); break;
         case Kind::Data:    break;
     }
 }
@@ -693,6 +696,16 @@ void RemoveReloadCopies(const Plugin& p) {
 bool TryUnloadAll(std::vector<Plugin>& list, const ModuleOps& ops, const ScriptRuntime* runtime) {
     sco::detail::LegacyEntry entry;
     if (!entry) return false;
+    // Refuse overlapping terminal operations, including re-entry from a callback on
+    // another thread. This flag is not a lock held across plugin code: contenders
+    // return immediately, while the owner clears it on every exit.
+    static std::atomic<bool> terminalActive{false};
+    bool expected = false;
+    if (!terminalActive.compare_exchange_strong(expected, true)) return false;
+    struct TerminalGuard {
+        std::atomic<bool>& active;
+        ~TerminalGuard() { active.store(false); }
+    } guard{terminalActive};
     const auto faulted = [&list] {
         bool found = false;
         for (auto& p : list) {
@@ -709,8 +722,21 @@ bool TryUnloadAll(std::vector<Plugin>& list, const ModuleOps& ops, const ScriptR
     };
     if (faulted()) return false;
     std::vector<Plugin*> loaded;
-    for (auto& p : list)
-        if (p.state == State::Loaded && p.manifest.kind != Kind::Data) loaded.push_back(&p);
+    std::vector<const void*> owners;
+    try {
+        loaded.reserve(list.size());
+        owners.reserve(list.size());
+        for (auto& p : list) if (p.state == State::Loaded && p.manifest.kind != Kind::Data) {
+            loaded.push_back(&p);
+            if (p.self) {
+                // One owner cannot safely be torn down through two plugin instances.
+                if (std::find(owners.begin(), owners.end(), p.self) != owners.end()) return false;
+                owners.push_back(p.self);
+            }
+        }
+    } catch (...) { return false; }
+    // All admission closes before the first export. Reservations remain closed on partial failure.
+    if (sco::detail::ReserveTerminalOwners(owners.data(), owners.size()) != Result::Ok) return false;
     // Built-ins after every other plugin, then newest first.
     auto before = [](const Plugin* a, const Plugin* b) {
         const bool ab = a->manifest.kind == Kind::Builtin, bb = b->manifest.kind == Kind::Builtin;
@@ -720,25 +746,14 @@ bool TryUnloadAll(std::vector<Plugin>& list, const ModuleOps& ops, const ScriptR
         for (size_t j = i; j > 0 && before(loaded[j], loaded[j - 1]); --j) std::swap(loaded[j - 1], loaded[j]);
     for (Plugin* p : loaded) {
         if (faulted()) return false;
-        UnloadOneNow(*p, &ops, runtime);
+        UnloadOneNow(*p, &ops, runtime, true);
         if (p->state != State::Unloaded || faulted()) return false;
     }
     return true;
 }
 
 void UnloadAll(std::vector<Plugin>& list, const ModuleOps& ops, const ScriptRuntime* runtime) {
-    sco::detail::LegacyEntry entry;
-    if (!entry) return;
-    std::vector<Plugin*> loaded;
-    for (auto& p : list)
-        if (p.state == State::Loaded && p.manifest.kind != Kind::Data) loaded.push_back(&p);
-    auto before = [](const Plugin* a, const Plugin* b) {
-        const bool ab = a->manifest.kind == Kind::Builtin, bb = b->manifest.kind == Kind::Builtin;
-        return ab != bb ? bb : a->loadOrder > b->loadOrder;
-    };
-    for (size_t i = 1; i < loaded.size(); ++i)
-        for (size_t j = i; j > 0 && before(loaded[j], loaded[j - 1]); --j) std::swap(loaded[j - 1], loaded[j]);
-    for (Plugin* p : loaded) UnloadOneNow(*p, &ops, runtime);
+    (void)TryUnloadAll(list, ops, runtime);
 }
 
 // ---- status ---------------------------------------------------------------------------------
