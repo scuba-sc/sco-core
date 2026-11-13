@@ -360,7 +360,9 @@ The host also registers commands of its own, under the reserved prefix `sco`, wi
 
 ## Game pack services
 
-Services the Star Citizen game pack publishes under the reserved owner `game` (`sco::host::ProvideGameService`, when the product sets `Platform::gameServices`; [game services](game-services.md)). Their headers ship with the SDK and sco-core implements them in the game pack (`SCO_GAME_SC`), so on a host without the game pack, or on a game build whose rows don't resolve, `query_service` answers `SCO_NOT_FOUND` or a function answers `SCO_UNAVAILABLE`. **None of them has run in a game session since it landed:** [status of every game.* table](game/status.md) says per capability what is on and how far it has been checked.
+These are contracts for services the Star Citizen game pack may publish under the reserved owner `game` (`sco::host::ProvideGameService`, when the product sets `Platform::gameServices`; [game services](game-services.md)). Their headers ship with the SDK and sco-core implements them in the game pack (`SCO_GAME_SC`).
+
+**Current HOLD:** Production native game-service startup is unavailable. `app::Start` with `Platform::gameServices` and public `game::services::Start()` refuse before mutation; the contracts below do not mean their tables are currently published. **None of them has run in a game session since it landed:** [status of every game.* table](game/status.md) says per capability what is on and how far it has been checked. When a host without the game pack or a game build whose rows don't resolve is used, `query_service` answers `SCO_NOT_FOUND` or a function answers `SCO_UNAVAILABLE`.
 
 | Service | Version | Header | Pin | Capabilities |
 |---|---|---|---|---|
@@ -373,6 +375,7 @@ Services the Star Citizen game pack publishes under the reserved owner `game` (`
 | `game.owned` | 1.0 | [`sc_owned.h`](../include/sc_owned.h) | `abi_game_owned.c` | existing entity/actor removal and seat reads |
 | `game.world` | 1.0 | [`sc_world.h`](../include/sc_world.h) | `abi_game_world.c` | `game.world.raycast`, `.camera` |
 | `game.entities` | 1.1 | [`sc_entities.h`](../include/sc_entities.h) | `abi_game_entities.c` | `game.entities.transform`, `.spawn`, `.class_of`, `.query_radius` (off), `.watch` (off) |
+| `game.loadout` | 1.2 | [`sc_loadout.h`](../include/sc_loadout.h) | `abi_game_loadout.c` | `game.loadout.apply` / `.weapons` (off); `.async` requires the explicit adapter path; no production table under the current HOLD |
 | `game.*` events | bus | [`sc_game_events.h`](../include/sc_game_events.h) | `abi_game_events.c` | `game.events.player_spawned`, `.player_died`, `.zone_changed`, `.vehicle_seat` (off) |
 
 ### `teleport.spatial` 1.0 (game pack)
@@ -648,6 +651,10 @@ or writes game state. Not run in game.
 
 [`sc_inventory.h`](../include/sc_inventory.h), pinned by [`tests/abi_game_inventory.c`](../tests/abi_game_inventory.c) (1.0 table 16 bytes, `sc_inventory_port` 24 bytes, 1.0 snapshot prefix 3088 bytes):
 `snapshot` copies the local player's item ports (up to 128) with `valid`, `item_class_id` (a coarse category) and `entity_id` per port, and a `generation` counter. Version 1.1 adds size-gated completeness details and has C# and Lua wrappers. The separately queried 1.2 table adds a copied logical layout and C++, C# and Lua wrappers; its capability `game.inventory.layout` is OFF without a production producer. `game.inventory.read` also defaults OFF. See [game.inventory](game/inventory.md). Not run in game.
+
+### `game.loadout` 1.2 (game pack)
+
+[`sc_loadout.h`](../include/sc_loadout.h), pinned by [`tests/abi_game_loadout.c`](../tests/abi_game_loadout.c) (the 1.0 table is 16 bytes; the 1.2 table is 40 bytes; the job report is 160 bytes). This separate size-prefixed contract leaves frozen `sco_api` 1.1 unchanged. Query `SC_LOADOUT_VERSION_1_2` and check the full member extent and non-null pointer before using the 1.2 tail. It retains synchronous `apply` and appends owner-scoped async `submit`, `status` and `cancel`; admission is not equip completion. `game.loadout.apply` and `.weapons` have no production backend and remain off. The Windows async adapter has a separate explicit `SCO_LOADOUT_ASYNC=1` opt-in and fresh-admission checks; its fixture evidence does not establish gameplay. **The current startup HOLD above means production does not publish this table.** C++ provides [`Loadout`](../include/scosdk/game/loadout.hpp); C# and Lua mutation are unsupported. See the [loadout API details](game/loadout.md).
 
 ## Raw handlers (1.1)
 

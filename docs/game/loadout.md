@@ -41,16 +41,18 @@ executed in a Windows synthetic-object fixture, including delayed spawn, exact
 attachment arguments, confirmation, missing class and admission-loss cleanup.
 This is native-boundary evidence, not in-game port or gameplay certification.
 
-**Synthetic/native-boundary checked; not run in game.** Production publishes the
-table when Windows game services start, but `game.loadout.apply` stays **false**.
-The synchronous route has no verified typed per-slot equip implementation. Signature
-resolution or a successful query is not permission to mutate a player.
+**Synthetic/native-boundary checked; not run in game.** Production game-service
+startup currently refuses before publishing this table. `game.loadout.apply` is
+unavailable, and the synchronous route has no verified typed per-slot equip
+implementation. Signature resolution or a successful query is not permission to
+mutate a player.
 
 Version 1.1 adds slot vocabulary only: weapon and multitool slots 8..21 (see
-[Slots](#slots)). Records are unchanged, `SC_LOADOUT_SERVICE_VERSION` stays 1.0 while
-1.2 is published, and 1.0/1.1 queries are still answered. The
-capability `game.loadout.weapons` defaults **OFF**, and production still installs no
-synchronous backend, so synchronous apply answers UNAVAILABLE for every slot.
+[Slots](#slots)). Records are unchanged, `SC_LOADOUT_SERVICE_VERSION` stays 1.0; when
+a 1.2 table is published, it also answers 1.0/1.1 queries. The capability
+`game.loadout.weapons` defaults **OFF**. In a fixture or service started without a
+synchronous backend, apply returns UNAVAILABLE for every slot; production currently
+does not publish the table.
 
 ## Inputs and outputs
 
@@ -187,8 +189,9 @@ per-slot confirmation; use synchronous or asynchronous per-slot reports for thos
   after re-checking admission; a refused occurrence is dropped, not replayed. A callback
   fault disables the event with `apply` until process restart; Stop clears a pending
   occurrence, withdraws the tick subscription and turns the capability off.
-- Production calls `StartLoadout()` with no backend, so the capability stays off and the
-  event never fires.
+- Production game-service startup currently refuses before `StartLoadout()` is reached,
+  so the capability stays off and the event never fires. A service started without a
+  backend also leaves this capability off.
 
 ## Language and package routes
 
