@@ -1126,6 +1126,29 @@ static void TestManagedLifetime() {
     CHECK(sco::Release(&rawOwner) == Result::Ok && sco::ServiceTableHandedOut(&rawOwner));
 }
 
+static void TestManagedShutdownAdmission() {
+    using namespace sco::detail;
+    static int owner, other, table;
+    constexpr uint32_t version = 0x10000;
+    CHECK(sco::ProvideService(&owner, nullptr, "shutdown.external", version, &table) == Result::Ok);
+    ServiceGeneration generation = 0;
+    CHECK(FindManagedService("shutdown.external", version, generation) == Result::Ok);
+    ManagedServicePin pin;
+    CHECK(pin.acquire(generation) == Result::Ok);
+    CHECK(BeginManagedShutdown() == Result::Failed);
+    ManagedServicePin retry;
+    CHECK(retry.acquire(generation) == Result::Ok); // refusal did not close admission
+    pin.reset(); retry.reset();
+    CHECK(BeginManagedShutdown() == Result::Ok);
+    CHECK(retry.acquire(generation) == Result::Unavailable);
+    CHECK(sco::ProvideService(&other, nullptr, "shutdown.new", version, &table) == Result::Unavailable);
+    CHECK(BeginManagedShutdown() == Result::Failed);
+    ResetManagedShutdown();
+    CHECK(retry.acquire(generation) == Result::Ok);
+    retry.reset();
+    CHECK(sco::Release(&owner) == Result::Ok);
+}
+
 #ifdef SCO_MANAGED_TESTING
 static void TestReleaseSubscriptionOomRetry() {
     g_lifetimeWaitTimedOut.store(false);
@@ -1212,6 +1235,7 @@ int main() {
     TestDoneAfterRelease();
     TestServices();
     TestManagedLifetime();
+    TestManagedShutdownAdmission();
     TestReleaseFaultArbitration();
 #ifdef SCO_MANAGED_TESTING
     TestReleaseSubscriptionOomRetry();

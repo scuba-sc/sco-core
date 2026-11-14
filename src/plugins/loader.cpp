@@ -15,6 +15,7 @@
 #include <cstring>
 #include <fstream>
 #include <memory>
+#include <mutex>
 #include <new>
 #include <system_error>
 
@@ -25,6 +26,22 @@
 #endif
 
 namespace sco::plugins {
+
+namespace {
+std::mutex g_loaderAdmissionLock;
+size_t g_loaderEntries = 0;
+bool g_loaderShutdown = false;
+}
+detail::LoaderEntry::LoaderEntry() { std::lock_guard<std::mutex> lock(g_loaderAdmissionLock); if (!g_loaderShutdown) { ++g_loaderEntries; entered_ = true; } }
+detail::LoaderEntry::~LoaderEntry() { if (entered_) { std::lock_guard<std::mutex> lock(g_loaderAdmissionLock); --g_loaderEntries; } }
+using detail::LoaderEntry;
+bool detail::BeginAppShutdown() {
+    std::lock_guard<std::mutex> lock(g_loaderAdmissionLock);
+    if (g_loaderShutdown || g_loaderEntries) return false;
+    g_loaderShutdown = true;
+    return true;
+}
+void detail::ResetAppShutdown() { std::lock_guard<std::mutex> lock(g_loaderAdmissionLock); g_loaderShutdown = false; }
 
 // ---- module ops -----------------------------------------------------------------------------
 
@@ -264,12 +281,14 @@ static bool UnloadGate(const std::vector<const Plugin*>& group, std::string& why
 }
 
 bool CanUnload(const Plugin& p, std::string& why) {
+    LoaderEntry loader; if (!loader) return false;
     sco::detail::LegacyEntry entry;
     if (!entry) return false;
     return UnloadGate({ &p }, why, UnloadAdmission::Inspect);
 }
 
 bool BeginUnload(const std::vector<Plugin*>& group, std::string& why) {
+    LoaderEntry loader; if (!loader) return false;
     sco::detail::LegacyEntry entry;
     if (!entry) return false;
     try {
@@ -281,6 +300,7 @@ bool BeginUnload(const std::vector<Plugin*>& group, std::string& why) {
 }
 
 void CancelUnload(const std::vector<Plugin*>& group) {
+    LoaderEntry loader; if (!loader) return;
     sco::detail::LegacyEntry entry;
     if (!entry) return;
     // Cancel one at a time without allocations: only still-live survivors can be reopened.
@@ -368,6 +388,7 @@ static bool QueryAndLoad(Plugin& p, const sco_api* api, sco_plugin* self, const 
 }
 
 bool LoadNative(Plugin& p, const sco_api* api, sco_plugin* self, const Options& opts, const ModuleOps& ops) {
+    LoaderEntry loader; if (!loader) return false;
     sco::detail::LegacyEntry entry;
     if (!entry) return false;
     if (p.state != State::Ready || p.manifest.kind != Kind::Native) return false;
@@ -424,6 +445,7 @@ Plugin FromBuiltin(const Builtin& b) {
 }
 
 bool LoadBuiltin(Plugin& p, const sco_api* api, sco_plugin* self, const Options& opts) {
+    LoaderEntry loader; if (!loader) return false;
     sco::detail::LegacyEntry entry;
     if (!entry) return false;
     if (p.state != State::Ready || p.manifest.kind != Kind::Builtin) return false;
@@ -550,6 +572,7 @@ static void UnloadCode(Plugin& p, const ModuleOps* ops, bool terminal = false) {
 }
 
 void UnloadNative(Plugin& p, const ModuleOps& ops) {
+    LoaderEntry loader; if (!loader) return;
     sco::detail::LegacyEntry entry;
     if (!entry) return;
     if (p.state != State::Loaded || p.manifest.kind != Kind::Native) return;
@@ -573,6 +596,7 @@ static void ScriptThunk(void* c) {
 }
 
 bool LoadScript(Plugin& p, const sco_api* api, sco_plugin* self, const ScriptRuntime& runtime) {
+    LoaderEntry loader; if (!loader) return false;
     sco::detail::LegacyEntry entry;
     if (!entry) return false;
     if (p.state != State::Ready || p.manifest.kind != Kind::Lua) return false;
@@ -652,6 +676,7 @@ static void UnloadOneNow(Plugin& p, const ModuleOps* ops, const ScriptRuntime* r
 }
 
 void UnloadOne(Plugin& p, const ModuleOps& ops, const ScriptRuntime* runtime) {
+    LoaderEntry loader; if (!loader) return;
     sco::detail::LegacyEntry entry;
     if (!entry) return;
     if (p.state != State::Loaded) return;
@@ -763,10 +788,18 @@ static bool TryUnloadAllImpl(std::vector<Plugin>& list, const ModuleOps& ops, co
 }
 
 bool TryUnloadAll(std::vector<Plugin>& list, const ModuleOps& ops, const ScriptRuntime* runtime) {
+    if (!detail::BeginAppShutdown()) return false;
+    struct Reopen { ~Reopen() { detail::ResetAppShutdown(); } } reopen;
+    return TryUnloadAllImpl(list, ops, runtime, false);
+}
+
+bool detail::TryAppShutdownUnloadAll(std::vector<Plugin>& list, const ModuleOps& ops, const ScriptRuntime* runtime) {
     return TryUnloadAllImpl(list, ops, runtime, false);
 }
 
 void UnloadAll(std::vector<Plugin>& list, const ModuleOps& ops, const ScriptRuntime* runtime) {
+    if (!detail::BeginAppShutdown()) return;
+    struct Reopen { ~Reopen() { detail::ResetAppShutdown(); } } reopen;
     (void)TryUnloadAllImpl(list, ops, runtime, true);
 }
 

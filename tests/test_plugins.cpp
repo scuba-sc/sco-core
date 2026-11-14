@@ -1659,7 +1659,7 @@ static void TerminalPeerUnload() {
     const sco_api api = MakeApi();
     const P::ScriptRuntime runtime{ FailedScriptLoad, FailedScriptUnload };
     CHECK(!P::LoadScript(duplicate, &api, (*g_terminalList)[0].self, runtime));
-    CHECK(duplicate.state == State::Refused);
+    CHECK(duplicate.state == State::Ready); // admission refusal leaves the caller's entry intact
     std::thread([] {
         // The first unload is paused in this callback until the contender returns.
         // A blocking operation-wide mutex would deadlock here.

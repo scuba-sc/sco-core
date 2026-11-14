@@ -1298,7 +1298,39 @@ static void TestAppSettings(const fs::path& out) {
     fs::remove_all(base, ec);
 }
 
+#include "../src/api/managed_service_gate.h"
 // ---- shutdown reentrancy --------------------------------------------------------------------
+
+static int g_preflightCalls, g_preflightOwner, g_preflightTable;
+static sco::detail::ServiceGeneration g_preflightGeneration;
+static bool PreflightCallback(void*) {
+    ++g_preflightCalls;
+    sco::detail::ManagedServicePin pin;
+    CHECK(pin.acquire(g_preflightGeneration) == sco::Result::Unavailable);
+    CHECK(sco::ProvideService(&g_preflightOwner, nullptr, "preflight.new", 0x10000, &g_preflightTable) == sco::Result::Unavailable);
+    std::vector<P::Plugin> empty;
+    CHECK(!P::TryUnloadAll(empty));
+    CHECK(sco::app::Stop() == sco::Result::Unavailable);
+    return true;
+}
+static void TestManagedShutdownPreflight() {
+    sco::app::Platform pf;
+    pf.beforeDependentStop = PreflightCallback;
+    g_preflightCalls = 0;
+    CHECK(sco::app::Start(pf));
+    CHECK(sco::ProvideService(&g_preflightOwner, nullptr, "preflight.external", 0x10000, &g_preflightTable) == sco::Result::Ok);
+    CHECK(sco::detail::FindManagedService("preflight.external", 0x10000, g_preflightGeneration) == sco::Result::Ok);
+    sco::detail::ManagedServicePin pin;
+    CHECK(pin.acquire(g_preflightGeneration) == sco::Result::Ok);
+    CHECK(sco::app::Stop() == sco::Result::Failed);
+    CHECK(g_preflightCalls == 0 && sco::ui::Started());
+    sco::detail::ManagedServicePin retry;
+    CHECK(retry.acquire(g_preflightGeneration) == sco::Result::Ok);
+    pin.reset(); retry.reset();
+    CHECK(sco::app::Stop() == sco::Result::Ok);
+    CHECK(g_preflightCalls == 1);
+    CHECK(sco::Release(&g_preflightOwner) == sco::Result::Ok);
+}
 
 static int g_stopExits = 0, g_stopUnloads = 0;
 static void StopExit(const char*, const void*, void*) {
@@ -1498,10 +1530,19 @@ static void TestHostStopRetainsRegistry() {
     pf.setCapabilities = SetCaps;
     pf.hostService = {&stopCalls, FixtureHostStart, FixtureHostTick, FixtureHostStopFail};
     CHECK(sco::app::Start(pf));
+    static int externalOwner, externalTable;
+    sco::detail::ServiceGeneration externalGeneration = 0;
+    CHECK(sco::ProvideService(&externalOwner, nullptr, "postfailure.external", 0x10000, &externalTable) == sco::Result::Ok);
+    CHECK(sco::detail::FindManagedService("postfailure.external", 0x10000, externalGeneration) == sco::Result::Ok);
     const auto owner = sco::AcquireHostSignatureRegistry();
     CHECK(owner && owner->Snapshot() && sco::caps::Has("teleport"));
     CHECK(sco::app::Stop() == sco::Result::Failed);
     CHECK(stopCalls == 1 && sco::AcquireHostSignatureRegistry() == owner);
+    sco::detail::ManagedServicePin rejected;
+    CHECK(rejected.acquire(externalGeneration) == sco::Result::Unavailable);
+    CHECK(sco::ProvideService(&externalOwner, nullptr, "postfailure.new", 0x10000, &externalTable) == sco::Result::Unavailable);
+    std::vector<P::Plugin> untouched;
+    CHECK(!P::TryUnloadAll(untouched) && sco::ui::Started());
     CHECK(owner->Snapshot() && !sco::caps::Has("teleport"));
     CHECK(!sco::app::Start(pf));
 }
@@ -1706,6 +1747,7 @@ int main(int argc, char** argv) {
         return g_fail ? 1 : 0;
     }
     if (argc > 3 && std::strcmp(argv[3], "shutdown-only") == 0) {
+        TestManagedShutdownPreflight();
         TestRecursiveShutdown();
         TestShutdownCalloutSafety();
         TestShutdownDrain();

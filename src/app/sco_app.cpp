@@ -8,6 +8,7 @@
 #include "../owned_registry_reservation.h"
 #include "../ipc/diagnostics_worker.h"
 #include "../api/internal.h"
+#include "../api/managed_service_gate.h"
 #include "../plugins/internal.h"
 #include "sco/caps.h"
 #include "sco/content.h"
@@ -754,6 +755,7 @@ static bool StartImpl(const Platform& platform, const sco::detail::StartupPublis
     }
     try {
     sco::detail::SetGameThreadOwned(cap);
+    sco::detail::ResetManagedShutdown();
     sco::detail::SetRuntimeStopping(false);
     g_diagnostics.Reset();
     diagnostics::ResetServiceDiagnosticHistory();
@@ -922,6 +924,14 @@ Result Stop() {
     if (!g_started) return Result::Ok;
     if (g_stopping) return Result::Unavailable;
     if (sco::detail::InCallout() || g_reloading) { Log("[app] stop refused: active callout or reload"); return Result::Unavailable; }
+    if (!g_platform.shutdownOwner) {
+        if (!plugins::detail::BeginAppShutdown()) return Result::Failed;
+        if (sco::detail::BeginManagedShutdown() != Result::Ok) {
+            plugins::detail::ResetAppShutdown();
+            Log("[app] stop refused: managed service pins remain");
+            return Result::Failed;
+        }
+    }
     g_stopping = true;   // recursive Stop from game.exit or unload is a no-op
     if (g_platform.shutdownOwner) {
         // The existing shutdown sequence invokes arbitrary subscribers, task
@@ -985,7 +995,7 @@ Result Stop() {
     StopMenu();  // drain host-owned cleanup even if no subsequent Tick occurs
     sco::detail::StopRuntime();   // no new lookup/work; every queued ctx dropped before unload
     try {
-        if (!plugins::TryUnloadAll(g_list, g_platform.moduleOps, g_platform.scripts)) return refuseRetirement();
+        if (!plugins::detail::TryAppShutdownUnloadAll(g_list, g_platform.moduleOps, g_platform.scripts)) return refuseRetirement();
     } catch (...) { return refuseRetirement(); }
     if (g_platform.shutdownOwner && !g_platform.shutdownOwner->ready()) return refuseRetirement();
     bool registryCleanupSafe = !HasRetainedGameHooks();
@@ -1045,6 +1055,7 @@ Result Stop() {
     g_teardownFailed = !registryCleanupSafe;
     g_started = false;
     g_stopping = false;
+    if (registryCleanupSafe) plugins::detail::ResetAppShutdown();
     return registryCleanupSafe ? Result::Ok : Result::Failed;
 }
 

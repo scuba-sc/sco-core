@@ -6,6 +6,7 @@
 #include "sco/runtime.h"
 #include "scosdk/content.hpp"
 #include "../src/api/internal.h"
+#include "../src/api/managed_service_gate.h"
 #include "abi_content.c" // C++ layout pins; also compiled separately as C11
 #include <cstdio>
 #include <cstdlib>
@@ -228,7 +229,9 @@ int main(int argc, char** argv) {
 
     // Between index and snapshot, replace regular files and parent dirs with links.
     // Public callbacks still have no paths; host-side snapshot refuses entire pack.
-    sco::SetGameThread(); sco::detail::SetRuntimeStopping(false);
+    // app::Stop closed managed publication until the next app start; this standalone
+    // content session reopens it explicitly, like the runtime flag beside it.
+    sco::SetGameThread(); sco::detail::SetRuntimeStopping(false); sco::detail::ResetManagedShutdown();
     P::Options opts{}; opts.enabled = true;
     auto list = P::Discover(root, opts); P::ContentIndex index; index.Build(list);
     fs::remove(root / "b_pack/lists/shared.txt");

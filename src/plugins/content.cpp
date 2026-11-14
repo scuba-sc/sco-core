@@ -93,6 +93,7 @@ static std::string Collect(const Plugin& p, std::vector<ContentItem>& out) {
 }
 
 size_t ContentIndex::Build(std::vector<Plugin>& list) {
+    detail::LoaderEntry loader; if (!loader) return 0;
     items_.clear();
     for (auto& p : list) {
         // Loaded too: a rebuild re-reads every pack it indexed before.

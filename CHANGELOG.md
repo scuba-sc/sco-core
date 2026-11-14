@@ -4,6 +4,10 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+- App shutdown now refuses while a managed service pin is live and, once begun, closes
+  managed acquisition, service publication and plugin loader entry until the next app
+  start. Synthetic tests only; native activation and in-game behavior remain unverified.
+
 - Advance the unpublished development SDK coordinate to `2.4.1-dev.3` for the
   build-200 game-pack candidate, keeping earlier development archive identities distinct.
 

@@ -388,6 +388,7 @@ void UnloadOne(Plugin& p, const ModuleOps& ops = PlatformModuleOps(), const Scri
 
 // Active managed pins, failed or quarantined code abort shutdown before any unload; a fault during teardown stops
 // the remaining peers. Returns false on refusal or incomplete teardown, true on success.
+// The caller must exclude direct concurrent mutation of the supplied vector and its entries.
 // Healthy handed-out providers still bypass the mid-session refusal. Data packs are unchanged.
 bool TryUnloadAll(std::vector<Plugin>& list, const ModuleOps& ops = PlatformModuleOps(),
                const ScriptRuntime* runtime = nullptr);

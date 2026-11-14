@@ -5,6 +5,10 @@
 
 namespace sco::detail {
 using ServiceGeneration = uint64_t;
+// Atomically refuse a process-wide shutdown while any managed pin is live;
+// success closes managed acquisition and publication until the next app start.
+Result BeginManagedShutdown();
+void ResetManagedShutdown();
 #ifdef SCO_MANAGED_TESTING
 bool InReleaseSubscriptionsForTest() noexcept;
 #endif
@@ -32,7 +36,7 @@ Result OwnerReleaseStatus(const void* owner);
 Result ReserveTerminalOwners(const void* const* owners, size_t count);
 // Only the loader may release an owner while its terminal reservation is held.
 Result ReleaseTerminalOwner(const void* owner);
-Result ReserveOwnerRelease(const void* owner, bool& created);
+Result ReserveOwnerRelease(const void* owner, bool& created, bool terminal = false);
 void CancelOwnerRelease(const void* owner, bool created);
 long QuarantineServices(const void* owner);
 }

@@ -59,6 +59,7 @@ std::vector<ManagedState> g_managed;
 std::vector<const void*> g_managedUsed;
 std::vector<const void*> g_managedDenied;
 bool g_managedGloballyDenied = false;
+bool g_managedShutdown = false; // protected by g_lock
 std::vector<const void*> g_releasing;
 uint64_t g_nextGeneration = 1;
 // Owners whose table QueryService has returned at least once. Kept after the services are
@@ -70,7 +71,6 @@ std::vector<const void*> g_handedOut;
 std::vector<const void*> g_withdrawing;
 // Terminal reservations are never cancelled by an administrative reload.
 std::vector<const void*> g_terminalWithdrawing;
-thread_local const void* g_terminalReleaseOwner = nullptr;
 
 // Diagnostic sidecars are independent of publication storage. Their allocation failures
 // must never turn a successful provide/withdraw/release into a registry failure.
@@ -253,6 +253,17 @@ void detail::SetRuntimeStopping(bool stopped) {
     g_stopped.store(stopped);
 }
 
+Result detail::BeginManagedShutdown() {
+    std::lock_guard<std::mutex> hold(g_lock);
+    if (g_managedShutdown || !g_managed.empty()) return Result::Failed;
+    g_managedShutdown = true;
+    return Result::Ok;
+}
+void detail::ResetManagedShutdown() {
+    std::lock_guard<std::mutex> hold(g_lock);
+    g_managedShutdown = false;
+}
+
 static Result ProvideServiceImpl(const detail::StartupPublish* cap, const void* owner, const char* prefix,
                                  const char* name, uint32_t version, const void* table) {
     if (!owner || !table || !ValidServiceName(name)) return Result::BadArg;
@@ -266,7 +277,7 @@ static Result ProvideServiceImpl(const detail::StartupPublish* cap, const void* 
         if (p == 0 || strncmp(name, prefix, p) != 0 || (name[p] != '\0' && name[p] != '.')) return Result::BadArg;
     }
     std::lock_guard<std::mutex> hold(g_lock);
-    if (cap ? !cap->valid() : detail::RuntimeStopping()) return Result::Unavailable;
+    if (g_managedShutdown || (cap ? !cap->valid() : detail::RuntimeStopping())) return Result::Unavailable;
     if (detail::Released(owner)) return Result::BadArg;
     if (Withdrawing(owner)) return Result::Unavailable;
     for (const Service& s : g_services)
@@ -343,7 +354,7 @@ Result detail::FindManagedService(const char* name, uint32_t minVersion, Service
     if (!admission || admission.startup() || admission.owned()) return Result::Unavailable;
     std::lock_guard<std::mutex> hold(g_lock);
     for (const auto& s : g_services) if (s.name == name) {
-        if (RuntimeStopping() || Withdrawing(s.owner) || Released(s.owner) || g_managedGloballyDenied ||
+        if (g_managedShutdown || RuntimeStopping() || Withdrawing(s.owner) || Released(s.owner) || g_managedGloballyDenied ||
             std::find(g_managedDenied.begin(), g_managedDenied.end(), s.owner) != g_managedDenied.end()) return Result::Unavailable;
         if ((s.version >> 16) != (minVersion >> 16) || s.version < minVersion) return Result::Unavailable;
         generation = s.generation;
@@ -357,7 +368,7 @@ Result detail::ManagedServicePin::acquire(ServiceGeneration generation) {
     if (!admission || admission.startup() || admission.owned()) return Result::Unavailable;
     std::lock_guard<std::mutex> hold(g_lock);
     for (const auto& s : g_services) if (s.generation == generation) {
-        if (RuntimeStopping() || Withdrawing(s.owner) || Released(s.owner) || g_managedGloballyDenied ||
+        if (g_managedShutdown || RuntimeStopping() || Withdrawing(s.owner) || Released(s.owner) || g_managedGloballyDenied ||
             std::find(g_managedDenied.begin(), g_managedDenied.end(), s.owner) != g_managedDenied.end()) return Result::Unavailable;
         for (auto& state : g_managed) if (state.generation == generation) {
             if (state.pins == std::numeric_limits<size_t>::max()) return Result::TooMany;
@@ -422,17 +433,11 @@ Result detail::ReserveTerminalOwners(const void* const* owners, size_t count) {
         if (owners[i] && !Withdrawing(owners[i])) g_terminalWithdrawing.push_back(owners[i]);
     return Result::Ok;
 }
-Result detail::ReleaseTerminalOwner(const void* owner) {
-    const void* previous = g_terminalReleaseOwner;
-    g_terminalReleaseOwner = owner;
-    struct Restore { const void* previous; ~Restore() { g_terminalReleaseOwner = previous; } } restore{previous};
-    return sco::Release(owner);
-}
-Result detail::ReserveOwnerRelease(const void* owner, bool& created) {
+Result detail::ReserveOwnerRelease(const void* owner, bool& created, bool terminal) {
     created = false;
     std::lock_guard<std::mutex> hold(g_lock);
     if (ManagedPinned(owner)) return Result::Failed;
-    if (g_terminalReleaseOwner != owner &&
+    if (!terminal &&
         std::find(g_terminalWithdrawing.begin(), g_terminalWithdrawing.end(), owner) != g_terminalWithdrawing.end())
         return Result::Failed;
     if (std::find(g_releasing.begin(), g_releasing.end(), owner) != g_releasing.end())

@@ -352,7 +352,7 @@ static thread_local bool g_inReleaseSubscriptionsForTest = false;
 bool detail::InReleaseSubscriptionsForTest() noexcept { return g_inReleaseSubscriptionsForTest; }
 #endif
 
-Result Release(const void* owner, size_t* removed) {
+static Result ReleaseImpl(const void* owner, size_t* removed, bool terminal) {
     if (removed) *removed = 0;
     if (!owner) return Result::BadArg;
     if (!OnGameThread()) return Result::WrongThread;
@@ -361,7 +361,7 @@ Result Release(const void* owner, size_t* removed) {
     // Owned sessions keep the entire graph until an explicit safe commit exists.
     if (!admission || admission.owned()) return Result::Unavailable;
     bool reservationCreated = false;
-    const Result reservation = detail::ReserveOwnerRelease(owner, reservationCreated);
+    const Result reservation = detail::ReserveOwnerRelease(owner, reservationCreated, terminal);
     if (reservation != Result::Ok) return reservation;
     Result marked = Result::Ok;
     {
@@ -418,6 +418,9 @@ Result Release(const void* owner, size_t* removed) {
     if (removed) *removed = static_cast<size_t>(subs + cmds + tasks + services + raw);
     return Result::Ok;
 }
+
+Result Release(const void* owner, size_t* removed) { return ReleaseImpl(owner, removed, false); }
+Result detail::ReleaseTerminalOwner(const void* owner) { return ReleaseImpl(owner, nullptr, true); }
 
 void detail::ReleaseFaultResources(const void* owner) {
     // Hooks run outside g_hookLock (a hook may add or remove hooks), from a copy.
