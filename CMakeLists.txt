@@ -464,7 +464,7 @@ sco_project_target(sco_app)
 
 # Offline game host composition is a separate host-source target, never a plugin API.
 if(SCO_GAME_SC)
-  add_library(sco_game_host STATIC src/game/host.cpp)
+  add_library(sco_game_host STATIC src/game/host.cpp src/game/retained_host.cpp)
   target_link_libraries(sco_game_host PUBLIC sco_app sco_game_sc sco_hook sco_pak sco_datacore_service sco_game_admission)
   sco_project_target(sco_game_host)
 endif()
@@ -2016,6 +2016,13 @@ if(SCO_BUILD_TESTS)
   target_link_libraries(test_pak_files PRIVATE sco_pak_fixture)
   sco_project_target(test_pak_files)
   add_test(NAME test_pak_files COMMAND test_pak_files)
+  # The process-retained enable over a fake loader, on the production sco_pak (no unsafe fixture):
+  # the public Enable stays gated, the retained one hooks and latches against Disable.
+  add_executable(test_pak_retained tests/test_pak_retained.cpp)
+  target_link_libraries(test_pak_retained PRIVATE sco_pak)
+  sco_project_target(test_pak_retained)
+  add_test(NAME test_pak_retained COMMAND test_pak_retained)
+  set_tests_properties(test_pak_retained PROPERTIES SKIP_RETURN_CODE 77)
   endif()
 
   add_executable(test_vfs tests/test_vfs.cpp)
@@ -2086,6 +2093,21 @@ if(SCO_BUILD_TESTS)
   add_test(NAME game_host_quit COMMAND test_game_host quit)
   add_test(NAME game_host_quit_missing COMMAND test_game_host missing-quit)
   set_tests_properties(game_host_loss game_host_quit game_host_quit_missing PROPERTIES SKIP_RETURN_CODE 77)
+  # Process-retained composition: one executable, one process per mode. The retained TU is rebuilt here
+  # with the quit-detour test seam; the strict TU comes from sco_game_host.
+  add_executable(test_game_host_retained tests/game_host_retained.cpp src/game/retained_host.cpp)
+  target_compile_definitions(test_game_host_retained PRIVATE SCO_GAME_HOST_REPORT_TESTING=1)
+  target_link_libraries(test_game_host_retained PRIVATE sco_game_host)
+  sco_project_target(test_game_host_retained)
+  foreach(_mode admission barrier_null barrier_false barrier_throw lifecycle quit admission_loss exclusive exclusive_strict_first managed_pin_live owner_reads request_stop request_stop_callout quit_required services_start services_barrier_false
+          services_entry_refusals closure_private_session closure_runtime_inspection app_entry_refusals app_entry_owned
+          pak_barrier_false pak_barrier_true quit_in_tick quit_off_thread detailed_retained_refused retry_after_refusal
+          exit_running exit_owner_worker)
+    add_test(NAME game_host_retained_${_mode} COMMAND test_game_host_retained ${_mode})
+    set_tests_properties(game_host_retained_${_mode} PROPERTIES TIMEOUT 30)
+  endforeach()
+  set_tests_properties(game_host_retained_services_start game_host_retained_services_barrier_false game_host_retained_services_entry_refusals
+                        game_host_retained_pak_barrier_false game_host_retained_pak_barrier_true PROPERTIES SKIP_RETURN_CODE 77)
   # The DataCore parser over tests/dcb_builder.h fixtures; it also writes the fixtures dcb_tool
   # runs sco-dcb on.
   add_executable(test_datacore tests/test_datacore.cpp)

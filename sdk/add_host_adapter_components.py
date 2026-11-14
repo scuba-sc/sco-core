@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""After G1 integration, classify the six real adapter files in host-source-sc only.
+"""After G1 integration, classify the real adapter files in host-source-sc only.
 
 No placeholders, broad include grants, policy changes or release operations.
 Run from any directory: python3 sdk/add_host_adapter_components.py.
@@ -15,7 +15,9 @@ import package as pkg
 
 ADAPTER_FILES = ("include/sco/game/host.h", "src/game/host.cpp",
                  "src/game/host_testing.h", "tests/game_host_data.cpp",
-                 "tests/game_host.cpp", "docs/game/host.md")
+                 "tests/game_host.cpp", "docs/game/host.md",
+                 "src/game/retained_host.cpp", "src/game/retained_host.h", "tests/game_host_retained.cpp",
+                 "src/game/pak_retained.h", "src/game/services/process_retained.h", "tests/test_pak_retained.cpp")
 
 
 def main():
@@ -54,9 +56,9 @@ def main():
     updated = json.dumps(m, indent=1) + "\n"
     if updated != original:
         manifest.write_text(updated, encoding="utf-8")
-        print("classified six real G1 files as private host-source-sc components")
+        print("classified the real G1 adapter files as private host-source-sc components")
     else:
-        print("six G1 files already classified as private host-source-sc components")
+        print("the G1 adapter files are already classified as private host-source-sc components")
 
 
 if __name__ == "__main__":

@@ -29,6 +29,12 @@ public:
             host.Stop();capture_.Stop();
         });
     }
+    // Non-joining stop request for a process-retained closure: the worker leaves its loop and ends its own
+    // channel; nothing here waits, frees or resets. The thread handle stays owned until process exit.
+    void Signal() noexcept {
+        stopping_.store(true,std::memory_order_release);
+        if(options_.admission)options_.admission->store(OfflineAdmission::Denied,std::memory_order_release);
+    }
     void Stop() {
         stopping_.store(true,std::memory_order_release);
         if(options_.admission)options_.admission->store(OfflineAdmission::Denied,std::memory_order_release);

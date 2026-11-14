@@ -24,6 +24,9 @@ enum class Phase : uint32_t { Idle, Preparing, Prepared, Activating, Activated, 
 enum class QuitPolicy : uint32_t { Required, External };
 enum class DataCoreHook : uint32_t { Required, External };
 enum class ConsumerRetirement : uint32_t { Quiesced, Retained };
+// Strict (default): the owned, drain-attempting composition below; every existing refusal stands.
+// ProcessRetained: the explicit contract documented at Options::composition.
+enum class Composition : uint32_t { Strict, ProcessRetained };
 // Cooperative reader/worker progress, distinct from HostReport::result and
 // DependencyDisposition. Drained never means app cleanup or native retirement.
 enum class DrainDisposition : uint32_t { NotAdopted, Open, Requested, InProgress, Drained, Retained, Unknown };
@@ -65,6 +68,27 @@ struct Options {
     // Those consumers can bypass Read/worker admission and remain unsupported.
     std::shared_ptr<OwnedShutdown> shutdownOwner;
     uint32_t drainTimeoutMs = 1000; // 1..60000; timeout is terminal, never readiness
+    // Process-retained composition (ProcessRetained), selected at Prepare for the whole process;
+    // it is mutually exclusive with Strict (a Prepare in the other composition is BadArg). The first
+    // Prepare fixes the composition even when it is refused: a refused retained attempt (admission,
+    // barrier) leaves the host Idle and the same composition may retry, but never the other one.
+    // It runs the normal, non-owned app runtime with plugins, built-ins, scripts, native game
+    // services, host menu/service and capabilities. Three rules, none proved by Core:
+    //  A. Retention: module code and every dependency (image, resolver, registry, inspector,
+    //     providers, plugin modules, callbacks) stay mapped and alive until process exit.
+    //     Nothing is unloaded or freed at Stop.
+    //  B. Install quiescence: platform.gameReadersQuiesced is required and must be truthful:
+    //     engine execution is quiesced while Prepare/Start install native hooks. It is checked
+    //     immediately before the first native mutation; null, false or a throw refuses.
+    //  C. Stop is closure: it closes admission, lets plugins observe game.exit once and retains
+    //     everything. No reader/worker drain is claimed; there is no restart.
+    // Required: imageOwner, resolverOwner, platform.gameReadersQuiesced; refused: platform.shutdownOwner,
+    // earlyDataRequirement, retireConsumer, nativeDataCoreReads. The optional Options::shutdownOwner is
+    // not bound to the app runtime; the host only drives its admission (readers open at Running,
+    // request_stop() at Stop or admission loss, never drain_until/fault on the game thread).
+    // Core does NOT claim: reader/worker drain, unload, restart, engine-object lifetime inside
+    // hooks, or any in-game run. Calls follow the documented game-thread rules.
+    Composition composition = Composition::Strict;
 };
 
 // Additive C++ host-source reporting, separate from the frozen plugin ABI.

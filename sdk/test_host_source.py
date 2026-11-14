@@ -23,7 +23,9 @@ pkg = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(pkg)
 ADAPTER_FILES = {"include/sco/game/host.h", "src/game/host.cpp",
                  "src/game/host_testing.h", "tests/game_host_data.cpp",
-                 "tests/game_host.cpp", "docs/game/host.md"}
+                 "tests/game_host.cpp", "docs/game/host.md",
+                 "src/game/retained_host.cpp", "src/game/retained_host.h", "tests/game_host_retained.cpp",
+                 "src/game/pak_retained.h", "src/game/services/process_retained.h", "tests/test_pak_retained.cpp"}
 
 # These private synthetic evidence inputs are deliberately excluded from every SDK archive.
 # List exact files so a new neighboring fixture remains subject to the ordinary census.

@@ -6,6 +6,8 @@
 #include "sco/log.h"
 #include "../api/internal.h"
 #include "../api/owned_publication.h"
+#include "../net/leave_request.h"
+#include <atomic>
 #include <chrono>
 #include <memory>
 #include <string_view>
@@ -14,6 +16,7 @@ namespace sco::game::private_session {
 namespace {
 std::unique_ptr<net::SessionControlV1> broker;
 bool (*inspect)() = nullptr;
+std::atomic<bool> closed{false}; // process-retained closure: refuses every entry, frees nothing
 sco_plugin* owner = nullptr;
 bool calling = false;
 uint32_t maxPeers = 0;
@@ -33,7 +36,7 @@ void End(const char* reason) {
 sco_result Check(sco_plugin* self) {
     if (!OnGameThread()) return SCO_WRONG_THREAD;
     if (!self || !host::PluginId(self) || detail::Released(self)) return SCO_BAD_ARG;
-    if (calling || !broker || detail::RuntimeStopping()) return SCO_UNAVAILABLE;
+    if (calling || !broker || closed.load() || detail::RuntimeStopping()) return SCO_UNAVAILABLE;
     return SCO_OK;
 }
 sco_result AdmitRequest() {
@@ -108,7 +111,7 @@ sco_result Leave(sco_plugin* self) {
 sco_result State(sc_private_session_state_v1* out) {
     if (!OnGameThread()) return SCO_WRONG_THREAD;
     if (!out || out->size < sizeof(*out)) return SCO_BAD_ARG;
-    if (!broker || calling || detail::RuntimeStopping()) return SCO_UNAVAILABLE;
+    if (!broker || calling || closed.load() || detail::RuntimeStopping()) return SCO_UNAVAILABLE;
     CallScope scope;
     if (!Admitted()) { End("admission lost"); return SCO_UNAVAILABLE; }
     const auto* netTable = net::Table();
@@ -171,7 +174,7 @@ Result Start(const Options& options, const sco::detail::StartupPublish& cap) {
 void Tick() {
     sco::detail::RuntimeLease admission;
     if (!admission || admission.startup() || (admission.owned() && sco::detail::RuntimeStopping())) return;
-    if (!OnGameThread() || !broker || calling) return;
+    if (!OnGameThread() || !broker || calling || closed.load()) return;
     CallScope scope;
     if (!Admitted()) {
         End("admission lost");
@@ -196,9 +199,17 @@ void Stop() {
     caps::Set(SC_PRIVATE_SESSION_NAME, false, "broker stopped");
     Log("[private-session] broker stopped");
 }
+void Close() {
+    if (!OnGameThread() || !broker) return;
+    closed.store(true);
+    if (owner) net::retained_closure::RequestLeave("host closure"); // ends the session's thread by itself; no join
+    Log("[private-session] closed: admission refused, broker retained");
+}
 void ReleaseOwner(const void* released) {
     sco::detail::RuntimeLease admission;
     if (!admission || admission.owned()) return;
+    // After a retained closure the leave is already queued; never join the session thread here.
+    if (closed.load()) return;
     if (OnGameThread() && released && owner == released) End("owner release");
 }
 }

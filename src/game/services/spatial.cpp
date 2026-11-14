@@ -14,6 +14,7 @@
 #include "vehicles.h"
 #include "entities.h"
 #include "creative.h"
+#include "process_retained.h"
 #include "asop_service.h"
 #include "contracts_service.h"
 #include "hangar.h"
@@ -382,8 +383,9 @@ void OnTick(const char*, const void*, void*) {
 }  // namespace
 
 // Kept private until a native execution/reader exclusion proof exists. The
-// public Start definition is the unconditional refusal in start.cpp.
-[[maybe_unused]] static Result StartNativeUnproven() {
+// public Start definition is the unconditional refusal in start.cpp; only the game
+// host's process-retained composition reaches this through detail::StartProcessRetained.
+static Result StartNativeUnproven() {
     if (!OnGameThread()) return Result::WrongThread;
     if (g_cleanupFailed) return Result::Failed;
     if (g_started) return Result::Ok;
@@ -558,6 +560,19 @@ void OnTick(const char*, const void*, void*) {
         SC_CREATIVE_SERVICE_NAME);
     return Result::Ok;
 }
+
+namespace detail {
+// The real start for the process-retained composition (process_retained.h). The caller has
+// confirmed the shell's reader-quiescence attestation immediately before.
+Result StartProcessRetained(const ProcessRetainedStart& start) {
+    if (!start.appProcessRetained || !start.barrier) return Result::Unavailable;
+    bool attested = false;
+    try { attested = start.barrier(start.context); } catch (...) {}
+    if (!attested) return Result::Unavailable;
+    SetCreativeHookAtStartOnly(true); // its hook goes in below, inside the attestation
+    return StartNativeUnproven();
+}
+}  // namespace detail
 
 Result Stop() {
     if (!OnGameThread()) return Result::WrongThread;

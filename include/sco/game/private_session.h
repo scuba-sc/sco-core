@@ -12,6 +12,11 @@ struct Options {
 Result Start(const Options& options);
 void Tick();
 void Stop();
+// Process-retained closure (game host Composition::ProcessRetained): closes admission only. Every
+// entry then refuses, and a running session is asked to leave without waiting for its network
+// thread. The broker, its table and its sockets stay allocated until process exit; nothing is
+// joined, withdrawn or freed. Game thread.
+void Close();
 // Wire through ServiceOptions::ownerReleased, reusing existing net release hook.
 void ReleaseOwner(const void* owner);
 }

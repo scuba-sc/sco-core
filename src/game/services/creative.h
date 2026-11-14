@@ -11,6 +11,10 @@ Result StartCreative();
 // Switches every toggle off, removes the magazine hook, withdraws the table.
 // Failed means the magazine hook may remain installed and its backing state is retained.
 Result StopCreative();
+// Process-retained composition only (process_retained.h): the magazine hook is installed inside
+// StartCreative, under the start-time reader barrier, and never later; EnsureAmmoHook then only
+// reports whether it is installed. Set before Start by services::detail::StartProcessRetained.
+void SetCreativeHookAtStartOnly(bool enabled);
 
 // spawn.cpp's release hook: owner unloaded or crashed, so every toggle it switched on goes off
 // (god mode, fly, the fly speed, both ammo toggles) and its last error is forgotten. Game thread.

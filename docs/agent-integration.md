@@ -63,7 +63,7 @@ each selected kit's source, archive and host identities distinct.
 
 **Repository-source coordinates at this documentation revision.** In the full
 repository source tree, `sdk/VERSION` records `2.4.0` and
-`sdk/DEVELOPMENT_VERSION` records `2.4.1-dev.3`. These are source-repository
+`sdk/DEVELOPMENT_VERSION` records `2.4.1-dev.4`. These are source-repository
 values, not universal extracted-kit contents. The published stable SDK 2.4.0
 archive uses game pack 0.8.0; the current source game-pack coordinate is listed
 in the [SDK source context](../sdk/README.md) and [game-pack status](game-pack.md).

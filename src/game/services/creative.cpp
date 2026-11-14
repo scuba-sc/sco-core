@@ -80,6 +80,7 @@ volatile LONG g_lastNotify = 1;
 volatile uint64_t g_you = 0, g_myShip = 0;
 SetAmmoFn     g_setAmmoOrig = nullptr;
 bool          g_hooked = false;
+bool          g_hookAtStartOnly = false;   // process-retained: install in StartCreative, never lazily
 bool          g_hookRemovalFailed = false;
 void*         g_hookTarget = nullptr;
 
@@ -397,10 +398,7 @@ void TopUpShip(uint64_t ship, ULONGLONG now) {
     }
 }
 
-// Hooks the magazine setter once; false (and the reason in why) when it can't be.
-bool EnsureAmmoHook(const char** why) {
-    if (g_hookRemovalFailed) { *why = "magazine hook cleanup failed; restart required"; return false; }
-    if (g_hooked) return true;
+bool InstallAmmoHook(const char** why) {
     void* target = Sig("ammo.set_ammo");
     void* orig = nullptr;
     const hook::Error e = hook::InstallDetour(target, kStolenAmmo, reinterpret_cast<void*>(&SetAmmoDetour), &orig);
@@ -413,6 +411,15 @@ bool EnsureAmmoHook(const char** why) {
     g_hooked = true;
     Log("[game] creative: the magazine setter is hooked");
     return true;
+}
+
+// Hooks the magazine setter once; false (and the reason in why) when it can't be. A process-retained
+// start installs it in StartCreative, so after start this only reports whether it is installed.
+bool EnsureAmmoHook(const char** why) {
+    if (g_hookRemovalFailed) { *why = "magazine hook cleanup failed; restart required"; return false; }
+    if (g_hooked) return true;
+    if (g_hookAtStartOnly) { *why = "the magazine hook was not installed at service start"; return false; }
+    return InstallAmmoHook(why);
 }
 
 bool RemoveAmmoHook() {
@@ -664,9 +671,16 @@ Result StartCreative() {
         g_c = {};
         return r;
     }
+    if (g_hookAtStartOnly && (g_c.ammo || g_c.ship)) {   // inside the start-time reader barrier
+        const char* why = nullptr;
+        if (!InstallAmmoHook(&why))
+            Log("[game] creative: the magazine hook was not installed at start: %s; infinite ammo stays unavailable", why);
+    }
     g_started = true;
     return Result::Ok;
 }
+
+void SetCreativeHookAtStartOnly(bool enabled) { g_hookAtStartOnly = enabled; }
 
 Result StopCreative() {
     if (!g_started) return g_hooked || g_hookRemovalFailed ? Result::Failed : Result::Ok;

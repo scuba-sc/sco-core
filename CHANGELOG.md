@@ -4,6 +4,20 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+- Advance the unpublished development SDK coordinate to `2.4.1-dev.4` for the
+  process-retained host composition, keeping earlier development archive identities distinct.
+
+- Add the game host's `Composition::ProcessRetained` option: an explicit contract in which
+  the shell retains all code and dependencies until process exit and attests install
+  quiescence, the host runs the normal app runtime, and Stop closes admission without
+  unloading anything or claiming a drain. The strict default is unchanged and the two
+  compositions exclude each other per process. The composition reaches the real game-service
+  start and the DataCore pak enable through private entries (the public `services::Start`,
+  `app::Start` with `gameServices` and `pak::Enable` still refuse everyone else); its pak
+  enable is latched against `Disable`, and its stop closes admission without stopping or
+  withdrawing services. Synthetic tests only; nothing was run in game, and several
+  services stay off or unavailable on their own terms.
+
 - App shutdown now refuses while a managed service pin is live and, once begun, closes
   managed acquisition, service publication and plugin loader entry until the next app
   start. Synthetic tests only; native activation and in-game behavior remain unverified.

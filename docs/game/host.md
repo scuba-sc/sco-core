@@ -338,3 +338,131 @@ TLS destruction, cached-call refusal and retained backing. A test-only observer
 checks every worker/helper handle plus the in-progress control flag; readiness
 alone would not distinguish a finished but unjoined helper. No warning is
 suppressed and no fixture detaches a worker or fabricates a retirement success.
+
+## Process-retained composition
+
+`Options::composition = Composition::ProcessRetained` selects a second, separate
+host composition for a product that runs inside the game process on the normal
+(non-owned) app runtime: plugins, built-ins, scripts, native game services, host
+menu, host service and capabilities. The strict composition above stays the
+default and is unchanged. This is an explicit contract, not a proof; none of it
+has been run in the game.
+
+The shell promises:
+
+- **A. Retention.** Module code and every dependency (image, resolver provider,
+  signature registry, admission inspector, plugin modules, callbacks, contexts)
+  stay mapped and alive until process exit. Core's host and stop paths never unload
+  or free them. One exception is deliberate: managed plugin reload (`sco.reload`,
+  `app::Reload`) remains available while Running and unloads and reloads plugin
+  modules under the loader's own admission rules; it is a plugin-level operation,
+  not host retirement, and has no retained-mode test yet.
+- **B. Install quiescence.** `platform.gameReadersQuiesced` is non-null and
+  truthful: engine execution is quiesced for as long as Prepare and Start
+  install native hooks. Core calls it immediately before the first native
+  mutation of Prepare (registry install, quit hook) and each internal entry calls it
+  again itself, immediately before its own patch: the DataCore pak enable and the
+  game-service start. Null, `false` or a throw refuses with `Unavailable` and
+  nothing is installed by that step (before the registry install the host is back
+  at Idle; later it is `Failed`). `imageOwner` and `resolverOwner` are required, and
+  the calls arrive on the documented threads (Start, Tick and Stop on the game
+  thread). The attestation covers exactly these installs, all made synchronously
+  inside Prepare or Start: the quit detour, the pak loader detour, and every hook the
+  game services install during their start (entities stream hooks, game events,
+  quantum, and creative's magazine hook, which is installed in the creative start
+  and never lazily). It does not cover installs that cannot be made at start. The
+  pak loader's per-load CryPak slot swap runs on the engine's own loader thread
+  inside the engine's call, so it is late by design; Core cannot quiesce it.
+  Reachable code that would patch later is none: the ASOP host's installers sit
+  behind `asop_host::Start`, which still refuses, and the DataCore live-read and
+  mining hooks stay off.
+- **C. Stop is closure.** There is no reader or worker drain proof, no unload and
+  no restart.
+
+Selection and exclusion: the first `Prepare` of a process fixes the composition.
+A `Prepare`, `PrepareDetailed` or legacy entry for the other one is `BadArg`
+(a detailed refusal reports `ProcessRetained`, drain `Unknown`). The retained
+host is its own state machine; it shares only the fresh-admission inspector hooks. A detailed capsule
+whose options ask for `ProcessRetained` is refused (`BadArg`) rather than run strict.
+
+Lifecycle:
+
+- `Prepare` refuses `Unknown`/`Present`/online evidence before any registration.
+  It builds, registers, freezes and resolves a signature registry against the
+  image with the supplied owners, installs it as the global host registry (the
+  app pins it at Start; it is never cleared), installs the quit hook when
+  `quit == Required`, and prepares early DataCore like the legacy host. After the
+  registry or a hook is installed a failure leaves the phase `Failed`, retained.
+  A refused attempt (admission, barrier, invalid options) leaves the host Idle with
+  nothing installed and still claims the process for this composition: the same
+  composition may retry (the product retries a refused admission), the other never.
+  `shutdownOwner`, `earlyDataRequirement`, `retireConsumer`, `nativeDataCoreReads`
+  and `platform.shutdownOwner` are refused.
+- `Activate` is an API-symmetry transition; `Start` (game thread) starts the normal
+  runtime through an internal entry that refuses unless the reader callback is
+  present, no owner is bound and the runtime is not owned. The public
+  `app::StartDetailed` keeps refusing `gameServices` for everyone else.
+- `Tick` re-checks admission every pass; lost admission runs the same closure.
+- `Stop` and `BeforeQuit` (game thread, not inside a callout) close admission and
+  nothing else. Step by step: the loader and managed-service admission close (live
+  pins or loader entries do not fail the stop; they stay retained and later
+  acquisition refuses); the diagnostics worker is signalled to end itself (no join);
+  the private session stops accepting requests, a running session is asked to leave
+  without joining its network thread, and the broker, table and sockets stay allocated;
+  `game.exit` is dispatched once; the host menu client is stopped and its owner is
+  released (its subscriptions, commands, tasks and UI surfaces are withdrawn; no
+  retained-mode test covers a configured host menu yet); runtime admission closes and
+  capabilities are revoked. Nothing else is unloaded, withdrawn, reset or freed: plugins,
+  game and host services, the diagnostics publisher and snapshot store (its
+  entries refuse through the runtime-stopping flag, and the snapshot is no longer
+  served), queued work and the registry all stay. `Ok` means closure, not
+  retirement. The phase becomes `Stopped`; a second call is `Ok`; `Prepare` and
+  `Start` afterwards refuse. The quit detour runs closure, then forwards the
+  original exactly once on the same stack; a quit issued from inside that
+  closure is absorbed by the outer detour. If closure cannot run there (a tick
+  holds the control gate, the call is inside a callout or off the game thread) the
+  detour issues the non-waiting stop request instead: it closes the owner and the
+  fresh admission, and the next `Tick` runs the closure. `game.exit` is then not
+  guaranteed before the original quit runs.
+- An optional `Options::shutdownOwner` is not bound to the runtime. The host
+  drives its admission: readers and workers are refused until `Running`, and
+  `request_stop()` closes it at Stop or admission loss. Core never calls
+  `drain_until` or `fault()` for it; the product drains from its own thread.
+  `RequestStopDetailed` closes the owner, reports `Ok`, `ProcessRetained`, a
+  nonzero session ID and drain `Requested`, from any thread or callout, and
+  the next `Tick` runs the game-thread closure. `StatusDetailed` reports the
+  retained phase with `ProcessRetained`.
+
+Native entries opened for this composition only. Two private entries replace the
+blanket refusals of the public ones, both used only after `gameReadersQuiesced`
+returned true and neither reachable by another caller: the app start reaches the
+real game-service start (`game::services::Start()` and `app::StartDetailed` with
+`gameServices` still refuse everyone else), and `dataCoreHook == Required` enables
+the DataCore pak hook (`pak::Enable` stays gated). The pak enable is latched: once
+enabled for this composition `pak::Disable()` is a refused no-op and the detour,
+mounts and `vfs.pak` stay in place until exit. The game services tick on the normal
+runtime while Running. Stop never stops, withdraws or finalizes them: providers stay
+published, and lookups, publication and events refuse through the runtime-stopping
+flag, while tables a caller already holds keep working (the retention contract).
+
+Process exit. Once the retained runtime starts, no destructor reachable at static
+destruction joins a thread, blocks or terminates, whether or not closure ran (a game
+that calls `ExitProcess` without the quit hook included). The objects that own a
+thread, or that a running thread reads, are held in static storage that is never
+destroyed in this composition: the diagnostics worker with its snapshot store and
+capture, and the network service's thread and shared state (the thread of a hosted or
+joined private session lives there). The host's own copies of an optional
+`shutdownOwner`, its Options and the registry are immortal too, so an owner's worker
+join never runs from Core. Other compositions destroy all of these at exit as before.
+At `ExitProcess` the OS has already ended the other threads; a normal `exit` with the
+threads still running is also safe, because their state outlives them. A product-held
+owner or any thread the product starts itself remains the product's responsibility.
+
+Not claimed: reader or worker drain, unload, restart, engine-object lifetime
+inside hooks, or any in-game behavior. Tests are synthetic: on the synthetic image
+the services start with unresolved rows, and a fake loader stands in for the pak
+detour. Opening those entries does not enable every service. Many remain off or
+unavailable on their own terms (per-service opt-ins such as `SCO_CVARS_NATIVE`,
+`SCO_LOADOUT_ASYNC` and `SCO_AUDIO_NATIVE`, native mining and DataCore live reads, and
+backends no production code installs), and `Options::nativeDataCoreReads` is still
+refused here.

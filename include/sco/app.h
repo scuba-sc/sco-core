@@ -107,7 +107,8 @@ struct Platform {
     // DataCore load (sc-offline: design plan PR 8). Off, query_service answers SCO_NOT_FOUND.
     bool dataCore = false;
     // Reserved for native game services. Requests currently refuse app startup
-    // before service mutation until durable native exclusion is established.
+    // before service mutation until durable native exclusion is established. Only the
+    // game host's process-retained composition starts the runtime with it (internal entry).
     bool gameServices = false;
     // Legacy barrier callback; its return value cannot authorize native startup.
     bool (*gameReadersQuiesced)(void*) = nullptr;
@@ -179,6 +180,10 @@ void Tick(uint32_t nowMs);
 // After Started, only Ok establishes completed app cleanup. For any other
 // result preserve backing and do not restart unless a later Stop returns Ok.
 // RetainDependencies from startup remains process-retained even if Stop says Ok.
+// A runtime started by the game host's process-retained composition (game/host.h,
+// Composition::ProcessRetained) stops by closure only: Ok there means admission is closed and
+// game.exit was dispatched once, NOT that anything was retired. Plugins, services, the signature
+// registry and all backing stay mapped until process exit, and a restart is refused.
 Result Stop();
 
 // Every plugin of the last Start: built-ins first, then discovered folders. Stable from Start

@@ -16,6 +16,7 @@
 #include "host_testing.h"
 #include "quit_owner_gate.h"
 #include "admission.h"
+#include "retained_host.h"
 #if defined(SCO_GAME_SERVICES)
 #include "services/datacore_live_engine.h"
 #endif
@@ -126,7 +127,7 @@ HostReport Report(Result result, bool uncertain = false) noexcept {
 }
 bool DetailedConfiguration(const Options& o) noexcept {
     const auto& p = o.platform;
-    return o.size >= sizeof(Options) && o.inspect && o.shutdownOwner &&
+    return o.size >= sizeof(Options) && o.composition == Composition::Strict && o.inspect && o.shutdownOwner &&
         o.quit == QuitPolicy::External && o.dataCoreHook == DataCoreHook::External &&
         !o.nativeDataCoreReads && !o.preEngineQuiesced && !o.earlyDataRequirement && !o.earlyDataContext &&
         !o.retireConsumer && !o.consumerContext && o.drainTimeoutMs && o.drainTimeoutMs <= 60000 &&
@@ -589,6 +590,8 @@ HostReport PrepareDetailed(const std::shared_ptr<const HostCapsule>& capsule) no
     if (legacyControlUsed.load()) return Report(Result::Unavailable);
     if (!capsule || !capsule->hasBacking() || !DetailedConfiguration(capsule->configuration()))
         return Report(Result::BadArg);
+    // The process-retained composition excludes this one; its exposure is conservatively retained.
+    if (!retained::ClaimStrict()) return Report(Result::BadArg, true);
     try {
 #ifdef SCO_GAME_HOST_REPORT_TESTING
         if (reportFault.load() == testing::ReportFault::BeforeRootAllocation) throw std::bad_alloc();
@@ -613,18 +616,21 @@ HostReport PrepareDetailed(const std::shared_ptr<const HostCapsule>& capsule) no
     }
 }
 HostReport ActivateDetailed() noexcept {
+    if (retained::Selected()) return retained::ActivateDetailed();
     ControlEntry control;
     if (!control.entered) return Report(Result::Unavailable, true);
     if (!retainedHost.load()) return Report(Result::Unavailable);
     try { return Report(ActivateImpl()); } catch (...) { return Report(RetainTransitionFailure(Result::Failed)); }
 }
 HostReport StartDetailed() noexcept {
+    if (retained::Selected()) return retained::StartDetailed();
     ControlEntry control;
     if (!control.entered) return Report(Result::Unavailable, true);
     if (!retainedHost.load()) return Report(Result::Unavailable);
     try { return Report(StartImpl()); } catch (...) { return Report(RetainTransitionFailure(Result::Failed)); }
 }
 HostReport StopDetailed() noexcept {
+    if (retained::Selected()) return retained::StopDetailed();
     ControlEntry control;
     if (!control.entered) return Report(Result::Unavailable, true);
     try { return Report(StopImpl()); } catch (...) {
@@ -633,6 +639,7 @@ HostReport StopDetailed() noexcept {
     }
 }
 HostReport RequestStopDetailed() noexcept {
+    if (retained::Selected()) return retained::RequestStop();
     // The immutable capsule was rooted before publication and is never released.
     // Use that root, not mutable Options or the control gate: the requester may
     // itself be inside the inspector or an admitted callback on that gate.
@@ -648,6 +655,7 @@ HostReport RequestStopDetailed() noexcept {
     return Report(result);
 }
 HostReport StatusDetailed() noexcept {
+    if (retained::Selected()) return retained::StatusReport();
     // Classify the gate observation before collecting the scalar snapshot.
     // A busy observation remains busy even if Prepare finishes before return.
     // Overlapping calls can still return earlier observations after newer ones.
@@ -667,30 +675,37 @@ HostReport StatusDetailed() noexcept {
     return report;
 }
 Result Prepare(const Options& o) {
+    // Selected per process by the first Prepare; the other composition then refuses.
+    if (o.size >= sizeof(Options) && o.composition == Composition::ProcessRetained) return retained::Prepare(o);
+    if (!retained::ClaimStrict()) return Result::BadArg;
     ControlEntry control;
     if (!control.entered || retainedHost.load()) return Result::BadArg;
     legacyControlUsed.store(true, std::memory_order_release);
     return PrepareImpl(o);
 }
 Result Activate() {
+    if (retained::Selected()) return retained::Activate();
     ControlEntry control;
     if (!control.entered) return Result::BadArg;
     if (!retainedHost.load()) legacyControlUsed.store(true, std::memory_order_release);
     return ActivateImpl();
 }
 Result Start() {
+    if (retained::Selected()) return retained::Start();
     ControlEntry control;
     if (!control.entered) return Result::BadArg;
     if (!retainedHost.load()) legacyControlUsed.store(true, std::memory_order_release);
     return StartImpl();
 }
 Result Tick(uint32_t nowMs) {
+    if (retained::Selected()) return retained::Tick(nowMs);
     ControlEntry control;
     if (!control.entered) return Result::Unavailable;
     if (!retainedHost.load()) legacyControlUsed.store(true, std::memory_order_release);
     return TickImpl(nowMs);
 }
 Result Stop() {
+    if (retained::Selected()) return retained::Stop();
     ControlEntry control;
     if (!control.entered) return Result::Unavailable;
     if (!retainedHost.load()) legacyControlUsed.store(true, std::memory_order_release);
@@ -761,7 +776,9 @@ vfs::Result TransformDataCore(vfs::BaseIo& base, uint64_t size, std::vector<vfs:
     } catch (...) { return {"DataCore transform failed"}; }
 }
 }
-Snapshot Status() { return {phase.load(), resolved.load(), quitInstalled.load(), dataActive.load()}; }
+Snapshot Status() {
+    if (retained::Selected()) return retained::Status();
+    return {phase.load(), resolved.load(), quitInstalled.load(), dataActive.load()}; }
 
 #if defined(_WIN32)
 Check InspectWindowsFirewallRule(const wchar_t* ruleName, const wchar_t* imagePath) noexcept {
