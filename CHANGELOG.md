@@ -4,6 +4,24 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+- Advance the unpublished development SDK coordinate to `2.4.1-dev.5` (faster signature
+  scan with identical results, widget renderer layout, service diagnostics).
+
+- ImGui widgets renderer: options are one full-width selectable row with an ellipsis and a
+  full-text tooltip, combos show their value as the preview with the label to the left, labelled
+  form controls align in one label column per group, a ROW of COLUMNs shares its width equally,
+  labelled groups get a section header, and combo popups are capped. No ABI or event change.
+  Rendering checked headlessly only; not seen on screen or in game.
+
+- Add startup diagnostics to the game pack logs: per-capability readiness with the signature rows
+  that are not OK for `game.creative`, once-per-reason refusal lines for `game.creative` and
+  `game.entities`, a relocation failure line naming which completion conditions held, and
+  per-phase timings of the process-retained host's Prepare. Logging only.
+
+- Speed up signature pattern scans: `FindPattern` now anchors on the pattern's rarest fixed byte
+  instead of its first byte. Results are identical (checked against the previous scan over
+  randomized buffers and wildcard patterns).
+
 - Advance the unpublished development SDK coordinate to `2.4.1-dev.4` for the
   process-retained host composition, keeping earlier development archive identities distinct.
 

@@ -1528,6 +1528,11 @@ if(SCO_BUILD_TESTS)
     add_test(NAME test_exact_build_profile COMMAND test_exact_build_profile
       "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/exact_build_profile/fixture.synthetic.canonical.json")
   endif()
+  add_executable(test_scan_equivalence tests/test_scan_equivalence.cpp)
+  target_link_libraries(test_scan_equivalence PRIVATE sco_core)
+  sco_project_target(test_scan_equivalence)
+  add_test(NAME test_scan_equivalence COMMAND test_scan_equivalence)
+
   add_executable(test_signature_registry tests/test_signature_registry.cpp)
   target_link_libraries(test_signature_registry PRIVATE sco_core)
   sco_project_target(test_signature_registry)
@@ -1951,6 +1956,10 @@ if(SCO_BUILD_TESTS)
   sco_project_target(test_widgets)
   add_test(NAME test_widgets COMMAND test_widgets)
 
+  add_executable(test_widgets_layout tests/test_widgets_layout.cpp)
+  sco_project_target(test_widgets_layout)
+  add_test(NAME test_widgets_layout COMMAND test_widgets_layout)
+
   add_executable(test_widgets11 tests/test_widgets11.cpp)
   target_link_libraries(test_widgets11 PRIVATE sco_widgets)
   sco_project_target(test_widgets11)
@@ -1987,6 +1996,23 @@ if(SCO_BUILD_TESTS)
   target_compile_definitions(test_widgets_sdk PRIVATE SCO_TEST_IMGUI_ADAPTER)
   sco_project_target(test_widgets_sdk)
   add_test(NAME test_widgets_sdk COMMAND test_widgets_sdk)
+
+  # Optional frame test of the real ImGui renderer, headless (no GPU, no backend). It needs ImGui
+  # sources, which Core does not ship: pass -DSCO_TEST_IMGUI_SOURCE_DIR=<dir with imgui.cpp>.
+  set(SCO_TEST_IMGUI_SOURCE_DIR "" CACHE PATH "Optional ImGui source directory for test_widgets_imgui_smoke")
+  if(SCO_TEST_IMGUI_SOURCE_DIR AND EXISTS "${SCO_TEST_IMGUI_SOURCE_DIR}/imgui.cpp")
+    add_library(sco_test_imgui STATIC
+      "${SCO_TEST_IMGUI_SOURCE_DIR}/imgui.cpp" "${SCO_TEST_IMGUI_SOURCE_DIR}/imgui_draw.cpp"
+      "${SCO_TEST_IMGUI_SOURCE_DIR}/imgui_tables.cpp" "${SCO_TEST_IMGUI_SOURCE_DIR}/imgui_widgets.cpp")
+    target_include_directories(sco_test_imgui SYSTEM PUBLIC "${SCO_TEST_IMGUI_SOURCE_DIR}")
+    if(NOT MSVC)
+      target_compile_options(sco_test_imgui PRIVATE -w)
+    endif()
+    add_executable(test_widgets_imgui_smoke tests/test_widgets_imgui_smoke.cpp src/widgets/imgui_adapter.cpp)
+    target_link_libraries(test_widgets_imgui_smoke PRIVATE sco_widgets sco_test_imgui)
+    sco_project_target(test_widgets_imgui_smoke)
+    add_test(NAME test_widgets_imgui_smoke COMMAND test_widgets_imgui_smoke)
+  endif()
 
   add_executable(test_menu_builder tests/test_menu_builder.cpp)
   target_link_libraries(test_menu_builder PRIVATE sco_widgets)

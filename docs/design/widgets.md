@@ -134,6 +134,23 @@ never exports them as public headers. This adapter does not change the older
 opaque-context contract of `sco.ui`, remove its hotkeys, or force old plugins to
 migrate. Actual window placement, styling and GPU/game validation are product work.
 
+How the adapter draws the declarative tree (layout rules live in `src/widgets/imgui_layout.h`):
+
+- COMBO, SLIDER, TEXT_INPUT and TOGGLE with a label draw it on the left in one label column
+  per container (the widest sibling label, 120-320 px) with the control on the same line, so a
+  panel reads as an aligned form. A COMBO shows its current value as the preview and fills the
+  rest of the row up to 420 px; unlabelled controls take the whole row. The popup is capped at
+  640 px and about twelve rows, whatever the option names or count.
+- LIST and COMBO options are one full-width selectable row each, with the text cut by an
+  ellipsis to the row (full text in a tooltip). Selection events and paging are unchanged.
+- A ROW made only of COLUMNs shares its width equally between them. A COLUMN or ROW with a
+  label shows it as a section header. Pixel limits scale with the font size (16 px reference).
+- Plugin text is never parsed as an ImGui label, with one exception: ImGui hides everything
+  after `##` in a combo preview, so a preview containing it shows a space between the `#`s.
+
+Widths are never taken from the available width of an auto-resizing window without a floor
+(see the button note in the source), so such windows settle at a size instead of collapsing.
+
 ## Language and evidence boundary
 
 - C: direct `sco_widgets_v1.set_panel` / `.remove_panel`.

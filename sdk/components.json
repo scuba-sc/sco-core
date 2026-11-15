@@ -1858,6 +1858,16 @@
       "license": "GPL-3.0-only"
     },
     {
+      "id": "source.src.widgets.imgui_layout.h",
+      "source": "src/widgets/imgui_layout.h",
+      "destination": "src/widgets/imgui_layout.h",
+      "profiles": [
+        "core-source"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only"
+    },
+    {
       "id": "source.tests.abi_widgets.c",
       "source": "tests/abi_widgets.c",
       "destination": "tests/abi_widgets.c",
@@ -4013,6 +4023,36 @@
       "id": "source.tests.test_widget_numeric.cpp",
       "source": "tests/test_widget_numeric.cpp",
       "destination": "tests/test_widget_numeric.cpp",
+      "profiles": [
+        "core-source"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only"
+    },
+    {
+      "id": "source.tests.test_widgets_layout.cpp",
+      "source": "tests/test_widgets_layout.cpp",
+      "destination": "tests/test_widgets_layout.cpp",
+      "profiles": [
+        "core-source"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only"
+    },
+    {
+      "id": "source.tests.test_widgets_imgui_smoke.cpp",
+      "source": "tests/test_widgets_imgui_smoke.cpp",
+      "destination": "tests/test_widgets_imgui_smoke.cpp",
+      "profiles": [
+        "core-source"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only"
+    },
+    {
+      "id": "source.tests.test_scan_equivalence.cpp",
+      "source": "tests/test_scan_equivalence.cpp",
+      "destination": "tests/test_scan_equivalence.cpp",
       "profiles": [
         "core-source"
       ],

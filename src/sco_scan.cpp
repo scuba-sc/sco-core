@@ -1,8 +1,31 @@
 #include "sco/scan.h"
+#include <array>
 #include <cstdlib>
 #include <cstring>
 
 namespace sco {
+
+namespace {
+// How common each byte value is in x64 code, roughly (higher: more common). FindPattern scans for the
+// pattern byte with the lowest cost: memchr then skips almost everything, where anchoring on a
+// common first byte (REX prefixes, 0x8B, zero padding) stops at every few bytes. Only a speed hint:
+// any anchor byte finds exactly the same matches.
+constexpr std::array<uint8_t, 256> MakeByteCost() {
+    std::array<uint8_t, 256> cost{};
+    for (auto& c : cost) c = 1;
+    const struct { uint8_t value, weight; } common[] = {
+        {0x00, 255}, {0xFF, 200}, {0x48, 190}, {0x8B, 170}, {0x89, 160}, {0xCC, 150}, {0x0F, 140}, {0x24, 130},
+        {0x04, 120}, {0x01, 110}, {0xE8, 105}, {0x40, 100}, {0x41, 100}, {0x4C, 100}, {0x83, 95}, {0x08, 95},
+        {0xC0, 90}, {0x45, 90}, {0x85, 85}, {0x74, 85}, {0x10, 80}, {0x20, 80}, {0x8D, 80}, {0x05, 75},
+        {0x03, 75}, {0x02, 70}, {0x18, 70}, {0x28, 65}, {0x30, 65}, {0x38, 65}, {0x50, 60}, {0x80, 60},
+        {0xC7, 60}, {0xC3, 60}, {0xEB, 55}, {0x75, 55}, {0x49, 55}, {0x44, 50}, {0x66, 50}, {0x90, 50},
+        {0x5B, 45}, {0x5F, 45}, {0x57, 45}, {0x56, 45}, {0x53, 45}, {0x7E, 40}, {0x0D, 40},
+    };
+    for (const auto& c : common) cost[c.value] = c.weight;
+    return cost;
+}
+constexpr std::array<uint8_t, 256> kByteCost = MakeByteCost();
+}  // namespace
 
 const uint8_t* FindCString(const Section& s, const char* str) {
     const size_t n = strlen(str) + 1;
@@ -57,10 +80,21 @@ int FindPattern(const Section& text, const char* pattern, uint8_t** out, int max
     if (n == 0 || !text.base || text.size < n) return 0;
     int matches = 0;
     uint8_t* const end = text.base + text.size - n;
-    for (uint8_t* p = text.base; p <= end; ++p) {
-        if (!wild[0]) p = static_cast<uint8_t*>(memchr(p, bytes[0], static_cast<size_t>(end - p) + 1));
-        if (!p) break;
-        size_t i = 1;
+    // The anchor: the rarest fixed byte of the pattern, and its offset in it.
+    size_t anchor = n;
+    for (size_t i = 0; i < n; ++i)
+        if (!wild[i] && (anchor == n || kByteCost[bytes[i]] < kByteCost[bytes[anchor]])) anchor = i;
+    if (anchor == n) {   // every byte is a wildcard: every position matches
+        for (uint8_t* p = text.base; p <= end; ++p) { if (matches < max) out[matches] = p; ++matches; }
+        return matches;
+    }
+    // Candidate matches start at an anchor byte, in order, so matches are found in address order.
+    uint8_t* const last = end + anchor;   // the last position where the anchor byte can sit
+    for (uint8_t* a = text.base + anchor; a <= last; ++a) {
+        a = static_cast<uint8_t*>(memchr(a, bytes[anchor], static_cast<size_t>(last - a) + 1));
+        if (!a) break;
+        uint8_t* const p = a - anchor;
+        size_t i = 0;
         while (i < n && (wild[i] || p[i] == bytes[i])) ++i;
         if (i == n) { if (matches < max) out[matches] = p; ++matches; }
     }

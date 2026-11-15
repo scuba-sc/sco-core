@@ -19,6 +19,8 @@
 #include "sco/datacore_service.h"
 #include "admission.h"
 #include <atomic>
+#include <chrono>
+#include <cstdint>
 #include <limits>
 #include <memory>
 #include <mutex>
@@ -173,22 +175,62 @@ vfs::Result TransformDataCore(vfs::BaseIo& base, uint64_t size, std::vector<vfs:
         return {};
     } catch (...) { return {"DataCore transform failed"}; }
 }
+// Wall time per Prepare phase in milliseconds (steady clock), logged once when Prepare returns so a
+// slow start shows where it went. Written only inside Prepare, which the gate serializes.
+using Clock = std::chrono::steady_clock;
+struct PrepareTimes {
+    int64_t admission = 0, registration = 0, freeze = 0, resolve = 0, install = 0, quiesce = 0, quit = 0;
+    int64_t dataService = 0, discovery = 0, index = 0, mounts = 0, pak = 0, data = 0, total = 0;
+};
+PrepareTimes times;
+int64_t SinceMs(Clock::time_point from) {
+    return std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now() - from).count();
+}
+struct PrepareLog {
+    Clock::time_point start = Clock::now();
+    PrepareLog() { times = {}; }
+    ~PrepareLog() {
+        times.total = SinceMs(start);
+        try {
+            Log("[game-host] prepare timing ms: total %lld, admission %lld, sig-register %lld, freeze %lld, resolve %lld, "
+                "quiesce %lld, registry-install %lld, quit-hook %lld, datacore %lld",
+                static_cast<long long>(times.total), static_cast<long long>(times.admission),
+                static_cast<long long>(times.registration), static_cast<long long>(times.freeze),
+                static_cast<long long>(times.resolve), static_cast<long long>(times.quiesce),
+                static_cast<long long>(times.install), static_cast<long long>(times.quit),
+                static_cast<long long>(times.data));
+            Log("[game-host] prepare datacore ms: service-start %lld, plugin-discovery %lld, index-build %lld, "
+                "mount-build %lld, pak-enable %lld",
+                static_cast<long long>(times.dataService), static_cast<long long>(times.discovery),
+                static_cast<long long>(times.index), static_cast<long long>(times.mounts),
+                static_cast<long long>(times.pak));
+        } catch (...) {}
+    }
+};
 Result PrepareData() {
     const auto& pf = Opt().platform;
     if (!pf.dataCore) return Result::Ok;
+    auto mark = Clock::now();
     const Result r = datacore::service::Start({pf.dataRoot});
+    times.dataService = SinceMs(mark);
     if (r != Result::Ok) return r;
     dataActive = true;
     auto inputs = std::make_shared<Data::Inputs>();
     plugins::Options po;
     po.enabled = pf.pluginsEnabled;
     po.has = HasDataRequirement;
+    mark = Clock::now();
     inputs->list = plugins::Discover(pf.pluginRoot, po);
+    times.discovery = SinceMs(mark);
+    mark = Clock::now();
     inputs->index.Build(inputs->list); // no plugin callbacks during early load
+    times.index = SinceMs(mark);
+    mark = Clock::now();
     vfs::Mount mount;
     mount.path = "Data/Game2.dcb"; mount.source = "host.datacore";
     mount.producer = vfs::Transform(TransformDataCore);
     auto mounts = vfs::Table::Build({std::move(mount)});
+    times.mounts = SinceMs(mark);
     if (!mounts) return Result::Failed;
     {
         auto& d = D();
@@ -198,6 +240,7 @@ Result PrepareData() {
     }
     if (!Admitted()) return Result::Unavailable;
     if (Opt().dataCoreHook == DataCoreHook::Required) {
+        struct PakTimer { Clock::time_point from = Clock::now(); ~PakTimer() { times.pak = SinceMs(from); } } pakTimer;
         pak::Options poPak; poPak.mounts = Mounts;
         // The entry calls the shell's attestation itself, immediately before the patch; latched after Ok.
 #ifdef SCO_GAME_HOST_REPORT_TESTING
@@ -286,12 +329,19 @@ Result Prepare(const Options& o) {
     Phase expected = Phase::Idle;
     if (!phase.compare_exchange_strong(expected, Phase::Preparing)) return Result::BadArg; // also blocks inspector reentry
     if (!ValidOptions(o)) { phase = Phase::Idle; return Result::BadArg; }
+    PrepareLog timing; // one pair of log lines whichever way Prepare returns
+    const auto timedAdmitted = [] {
+        const auto mark = Clock::now();
+        const bool ok = Admitted();
+        times.admission += SinceMs(mark);
+        return ok;
+    };
     try {
         if (o.shutdownOwner) Owners().push_back(o.shutdownOwner);
         Opt() = o;
         ownerPtr.store(o.shutdownOwner.get(), std::memory_order_release);
     } catch (...) { return Refuse(Result::Failed); }
-    if (!Admitted()) return Refuse(Result::Unavailable);
+    if (!timedAdmitted()) return Refuse(Result::Unavailable);
     if (!o.imageOwner || !o.resolverOwner || !o.image || !o.image->base || !o.image->size ||
         !o.image->text.base || !o.image->text.size || !o.image->rdata.base || !o.image->rdata.size)
         return Refuse(Result::BadArg);
@@ -301,26 +351,35 @@ Result Prepare(const Options& o) {
             return Refuse(Result::Unavailable);
         }
         auto candidate = std::make_shared<SignatureRegistry>(o.signatureRegistryBudgetBytes);
+        auto mark = Clock::now();
         const auto registration = RegisterGameSignatures(*candidate);
+        times.registration = SinceMs(mark);
         if (registration.status != SigRegistryStatus::Ok) {
             Log("[game-host] signature registration failed: %s (table %zu, row %zu)",
                 SigRegistryStatusName(registration.status), registration.table, registration.row);
             return Refuse(Result::Failed);
         }
+        mark = Clock::now();
         auto status = candidate->Freeze();
+        times.freeze = SinceMs(mark);
         if (status != SigRegistryStatus::Ok) {
             Log("[game-host] signature freeze failed: %s", SigRegistryStatusName(status));
             return Refuse(Result::Failed);
         }
         Registry() = candidate; // resolver code may run: keep the registry (and owners) until exit once it does
+        mark = Clock::now();
         status = candidate->Resolve(*o.image, o.imageOwner, o.resolverOwner);
+        times.resolve = SinceMs(mark);
         if (status != SigRegistryStatus::Ok) {
             Log("[game-host] signature resolution failed: %s", SigRegistryStatusName(status));
             return Fail(Result::Failed);
         }
-        if (!Admitted()) return Refuse(Result::Unavailable);
+        if (!timedAdmitted()) return Refuse(Result::Unavailable);
         // Rule B: the shell attests quiescence immediately before the first native mutation.
-        if (!Quiesced()) {
+        mark = Clock::now();
+        const bool quiesced = Quiesced();
+        times.quiesce = SinceMs(mark);
+        if (!quiesced) {
             Log("[game-host] prepare refused: native install quiescence not attested");
             return Refuse(Result::Unavailable);
         }
@@ -328,19 +387,26 @@ Result Prepare(const Options& o) {
         if (owner && !OwnedShutdownHostAccess::begin_startup(*owner)) return Refuse(Result::Unavailable);
         auto transition = owner ? OwnedShutdownHostAccess::transition(*owner) : OwnedShutdown::Transition{};
         if (owner && !transition) return Fail(Result::Unavailable);
-        if (!InstallHostSignatureRegistry(candidate, RevokeCapabilities)) {
+        mark = Clock::now();
+        const bool installed = InstallHostSignatureRegistry(candidate, RevokeCapabilities);
+        times.install = SinceMs(mark);
+        if (!installed) {
             Log("[game-host] signature registry install refused");
             return Fail(Result::Unavailable);
         }
         resolved = true;
-        if (!Admitted()) return Fail(Result::Unavailable);
+        if (!timedAdmitted()) return Fail(Result::Unavailable);
         if (o.quit == QuitPolicy::Required) {
+            mark = Clock::now();
             const Result q = InstallQuit();
+            times.quit = SinceMs(mark);
             if (q != Result::Ok) return Fail(q);
         }
+        mark = Clock::now();
         const Result d = PrepareData();
+        times.data = SinceMs(mark);
         if (d != Result::Ok) return Fail(d);
-        if (!Admitted()) return Fail(Result::Unavailable);
+        if (!timedAdmitted()) return Fail(Result::Unavailable);
         detail::SetFreshInspector(o.inspect);
         if (owner) {
             if (!transition.publish(phase, Phase::Preparing, Phase::Prepared)) return Fail(Result::Unavailable);

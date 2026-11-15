@@ -26,6 +26,7 @@
 #include <cstdio>
 #include <cstring>
 #include <iterator>
+#include <string>
 #include <windows.h>
 
 namespace sco::game::services {
@@ -111,6 +112,38 @@ bool SetCap(const char* name, const char* const* rows, size_t n, bool readsOk) {
     return readsOk && RowsOk(rows, n);
 }
 
+// "id(state)" for each row that is not Ok, comma separated; empty when every row is Ok. Row ids only,
+// never addresses.
+std::string RowsNotOk(const char* const* ids, size_t n) {
+    std::string out;
+    const auto signatures = AcquireHostSignatureSnapshot();
+    for (size_t i = 0; i < n; ++i) {
+        const SigResult* s = signatures ? signatures->Lookup(ids[i]) : nullptr;
+        const SigState state = s ? s->state : SigState::NotRun;
+        if (state == SigState::Ok) continue;
+        if (!out.empty()) out += ", ";
+        out += ids[i];
+        out += '(';
+        out += s ? SigStateName(state) : "unknown";
+        out += ')';
+    }
+    return out;
+}
+
+// One line per capability at service start, so a log shows which feature is unavailable and which
+// signature rows are the reason. blocker names a prerequisite that is not ready (nullptr: none).
+void LogCapability(const char* name, bool ready, const char* const* rows, size_t n, const char* blocker) {
+    if (ready) {
+        Log("[game] creative: %s: ready", name);
+        return;
+    }
+    std::string why = blocker ? blocker : "";
+    const std::string bad = RowsNotOk(rows, n);
+    if (!bad.empty()) why += std::string(why.empty() ? "" : "; ") + "rows not Ok: " + bad;
+    if (why.empty()) why = "no signature row reported a problem";
+    Log("[game] creative: %s: not ready (%s)", name, why.c_str());
+}
+
 void Resolve() {
     g_c = {};
     const bool readsOk = reads::Ready();
@@ -178,7 +211,22 @@ const char* PluginName(const sco_plugin* self) {
     return id ? id : "?";
 }
 
-// Records why a call failed (the reason for last_error), logs it with the plugin's id and returns r.
+// Each distinct reason is logged once (game thread only), so a plugin retrying a refused call every
+// frame cannot flood the log; last_error still carries the latest reason.
+constexpr size_t kSeenMax = 48, kSeenLen = 192;
+char   g_seen[kSeenMax][kSeenLen];
+size_t g_seenCount = 0;
+
+bool FirstTime(const char* key) {
+    for (size_t i = 0; i < g_seenCount; ++i)
+        if (strncmp(g_seen[i], key, kSeenLen - 1) == 0) return false;
+    if (g_seenCount == kSeenMax) return false;   // table full: stay quiet rather than grow
+    snprintf(g_seen[g_seenCount++], kSeenLen, "%s", key);
+    return true;
+}
+
+// Records why a call failed (the reason for last_error), logs the first occurrence of each distinct
+// reason with the plugin's id and returns r.
 sco_result Fail(const sco_plugin* owner, const char* fn, sco_result r, const char* fmt, ...) {
     ErrSlot& e = ErrFor(owner);
     va_list ap;
@@ -186,8 +234,19 @@ sco_result Fail(const sco_plugin* owner, const char* fn, sco_result r, const cha
     vsnprintf(e.msg, sizeof(e.msg), fmt, ap);
     va_end(ap);
     e.seq = ++g_errSeq;
-    if (owner) Log("[game] creative: %s: %s -> %s: %s", PluginName(owner), fn, ResultName(static_cast<Result>(r)), e.msg);
+    char key[kSeenLen];
+    snprintf(key, sizeof(key), "%s|%s|%s", fn, ResultName(static_cast<Result>(r)), e.msg);
+    if (FirstTime(key))
+        Log("[game] creative: %s: %s -> %s: %s (first occurrence; repeats are not logged)", PluginName(owner), fn,
+            ResultName(static_cast<Result>(r)), e.msg);
     return r;
+}
+
+// An accepted request the game could not act on yet (logged once per reason; the tick keeps trying).
+void NoteDeferred(const char* what, const char* reason) {
+    char key[kSeenLen];
+    snprintf(key, sizeof(key), "deferred|%s|%s", what, reason);
+    if (FirstTime(key)) Log("[game] creative: %s accepted but not applied yet: %s (first occurrence)", what, reason);
 }
 
 sco_result WrongThread() {
@@ -260,6 +319,15 @@ uint64_t PlayerShip() {
 // ---- god mode ----------------------------------------------------------------------------------
 
 enum class Apply { Changed, Already, NotSpawned, NoData, Fault };
+
+const char* ApplyReason(Apply a) {
+    switch (a) {
+    case Apply::NotSpawned: return "you're not spawned yet";
+    case Apply::NoData:     return "the actor has no god mode data";
+    case Apply::Fault:      return "fault while calling the game";
+    default:                return nullptr;
+    }
+}
 
 // Puts your actor's god mode state byte at on (2) or off (0), through the game's own setter.
 Apply ApplyGod(bool on) {
@@ -454,7 +522,9 @@ void OnTick(const char*, const void*, void*) {
     // The game resets the state on a respawn, so god mode is held, not set once.
     if (g_god.on && now - g_lastGod >= 500) {
         g_lastGod = now;
-        if (ApplyGod(true) == Apply::Changed) Log("[game] creative: god mode applied (no damage)");
+        const Apply r = ApplyGod(true);
+        if (r == Apply::Changed) Log("[game] creative: god mode applied (no damage)");
+        else if (const char* why = ApplyReason(r)) NoteDeferred("god mode", why);
     }
 }
 
@@ -517,7 +587,9 @@ sco_result SvcSetGodMode(sco_plugin* self, int on) {
         return SCO_OK;
     }
     if (const sco_result r = NeedRelease(self, "set_god_mode"); r != SCO_OK) return r;
-    if (ApplyGod(true) == Apply::Fault) return Fail(self, "set_god_mode", SCO_FAILED, "fault while setting god mode");
+    const Apply applied = ApplyGod(true);
+    if (applied == Apply::Fault) return Fail(self, "set_god_mode", SCO_FAILED, "fault while setting god mode");
+    if (const char* why = ApplyReason(applied)) NoteDeferred("god mode", why);   // held by the tick, still on
     g_god = { true, self };
     g_lastGod = GetTickCount64();
     Log("[game] creative: %s: god mode on", PluginName(self));
@@ -574,6 +646,7 @@ sco_result SvcSetInfiniteAmmo(sco_plugin* self, int on) {
     const char* why = nullptr;
     if (!EnsureAmmoHook(&why)) return Fail(self, "set_infinite_ammo", SCO_FAILED, "couldn't hook the magazine setter: %s", why);
     g_you = LocalPlayerId();
+    if (!g_you) NoteDeferred("infinite ammo", "the local player isn't available yet");
     g_ammo = { true, self };
     InterlockedExchange(&g_ammoOn, 1);
     Log("[game] creative: %s: infinite ammo on", PluginName(self));
@@ -593,6 +666,7 @@ sco_result SvcSetInfiniteShipAmmo(sco_plugin* self, int on) {
     const char* why = nullptr;
     if (!EnsureAmmoHook(&why)) return Fail(self, "set_infinite_ship_ammo", SCO_FAILED, "couldn't hook the magazine setter: %s", why);
     g_myShip = PlayerShip();
+    if (!g_myShip) NoteDeferred("infinite ship ammo", "you're not aboard a ship right now");
     g_ship = { true, self };
     g_lastShip = 0;
     InterlockedExchange(&g_shipOn, 1);
@@ -649,6 +723,7 @@ bool Reset() {
     g_c = {};
     for (ErrSlot& e : g_errs) e = {};
     g_queryErr = {};
+    g_seenCount = 0;
     return true;
 }
 
@@ -658,6 +733,16 @@ Result StartCreative() {
     if (g_started) return Result::Ok;
     if (g_hooked || g_hookRemovalFailed) return Result::Failed;
     Resolve();
+    {
+        const char* readsWhy = reads::Ready() ? nullptr : "teleport reads not ready";
+        LogCapability(kCapGod, g_c.god, kGodRows, std::size(kGodRows), readsWhy);
+        LogCapability(kCapFly, g_c.fly, kFlyRows, std::size(kFlyRows), readsWhy);
+        LogCapability(kCapAmmo, g_c.ammo, kAmmoRows, std::size(kAmmoRows), readsWhy);
+        LogCapability(kCapShip, g_c.ship, kShipRows, std::size(kShipRows), readsWhy);
+        // The fly speed rides on game.creative.fly, so it is not ready whenever fly is not.
+        LogCapability("game.creative.fly_speed", g_c.speed, kSpeedRows, std::size(kSpeedRows),
+                      g_c.fly ? nullptr : "game.creative.fly not ready");
+    }
     if (!g_c.god && !g_c.fly && !g_c.ammo && !g_c.ship)
         Log("[game] game.creative.* not ready: game.creative answers SCO_UNAVAILABLE (see the [core] lines)");
     Result r = host::ProvideGameService(SC_CREATIVE_SERVICE_NAME, SC_CREATIVE_SERVICE_VERSION, &kService);
@@ -676,6 +761,11 @@ Result StartCreative() {
         if (!InstallAmmoHook(&why))
             Log("[game] creative: the magazine hook was not installed at start: %s; infinite ammo stays unavailable", why);
     }
+    Log("[game] creative: ammo hook at start: %s",
+        g_hooked ? "installed"
+                 : !(g_c.ammo || g_c.ship) ? "not installed (no ammo capability is ready)"
+                 : g_hookAtStartOnly ? "not installed (install failed, see above)"
+                                     : "not installed (installed on first use)");
     g_started = true;
     return Result::Ok;
 }
