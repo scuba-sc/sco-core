@@ -2511,6 +2511,12 @@ SPDX-FileCopyrightText = "2026 the sco-core contributors"
 SPDX-License-Identifier = "GPL-3.0-only"
 
 [[annotations]]
+path = "tests/test_sig_index_equivalence.cpp"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
 path = "tests/test_scan_equivalence.cpp"
 precedence = "override"
 SPDX-FileCopyrightText = "2026 the sco-core contributors"

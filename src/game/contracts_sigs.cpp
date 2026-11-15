@@ -67,12 +67,10 @@ const uint8_t* LeaTo(const Image& img, const uint8_t* target, const uint8_t* fro
     const auto b = reinterpret_cast<uintptr_t>(text.base);
     const auto f = from ? reinterpret_cast<uintptr_t>(from) : b;
     if (f < b || f - b > text.size) return nullptr;
-    for (size_t i = f - b; i <= text.size - 7; ++i) {
-        const uint8_t* p = TextOffset(img, text.base, i, 7);
-        if ((p[0] & 0xFB) == 0x48 && p[1] == 0x8D && (p[2] & 0xC7) == 0x05 &&
-            CheckedRip(img, p, 3, 7) == target) return p;
-    }
-    return nullptr;
+    // The sites for `target` come from the pass's index (one walk of .text for every lookup).
+    ScanIndexRef index(img);
+    const size_t at = index->FindRip(text, RipForm::AnyLea(), target, f - b);
+    return at == ScanIndex::kNone ? nullptr : text.base + at;
 }
 const uint8_t* ExactLeaTo(const Image& img, const uint8_t* target) {
     for (const uint8_t* p = LeaTo(img, target, nullptr); p; ) {

@@ -44,6 +44,7 @@
 #include <cstring>
 #include <iterator>
 #include <mutex>
+#include <string>
 #include <vector>
 #include <windows.h>
 
@@ -321,9 +322,18 @@ bool ReadSeatInfo(SeatInfo& s) {
 
 // ---- the tick: drain, decide, dispatch ---------------------------------------------------------
 
+// An event nobody subscribed to (zone changes, usually) would otherwise log a line every time it
+// fires: the "0 subscribers" line is logged once per event name per session. A dispatch the bus
+// refused, and any delivery to a subscriber, still log every time.
+std::vector<std::string> g_loggedNoSubscribers;
+
 void Publish(const char* event, const void* payload) {
     size_t called = 0;
     const Result r = Dispatch(event, payload, &called);
+    if (r == Result::Ok && called == 0) {
+        for (const std::string& seen : g_loggedNoSubscribers) if (seen == event) return;
+        g_loggedNoSubscribers.emplace_back(event);
+    }
     Log("[game] event %s: %zu subscriber%s%s", event, called, called == 1 ? "" : "s", r == Result::Ok ? "" : " (dispatch refused)");
 }
 
@@ -563,6 +573,7 @@ Result StopEvents() {
     g_capMission = false;
     g_nwait = 0;
     g_seatLogged = 0;
+    g_loggedNoSubscribers.clear();
     return Result::Ok;
 }
 

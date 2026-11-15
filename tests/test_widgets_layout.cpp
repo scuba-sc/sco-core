@@ -72,24 +72,37 @@ static void TestEllipsize() {
 
 static void TestColumnsAndWidths() {
     const float font = 16.0f, big = 32.0f;
-    CHECK(LabelColumnWidth(0.0f, font) == 0.0f);   // no labelled sibling: no column
-    CHECK(LabelColumnWidth(-3.0f, font) == 0.0f);
-    CHECK(LabelColumnWidth(40.0f, font) == 120.0f); // clamped up
-    CHECK(LabelColumnWidth(200.0f, font) == 200.0f);
-    CHECK(LabelColumnWidth(900.0f, font) == 320.0f); // clamped down
-    CHECK(LabelColumnWidth(40.0f, big) == 240.0f && LabelColumnWidth(900.0f, big) == 640.0f); // scales with font
-    CHECK(LabelColumnWidth(40.0f, 0.0f) == 120.0f);  // unusable font size falls back to 1x
+    const float nan = std::numeric_limits<float>::quiet_NaN();
+    // Label column: the widest label, at most 40% of the container, at least 100 px (scaled).
+    CHECK(LabelColumnWidth(0.0f, 1000.0f, font) == 0.0f);   // no labelled sibling: no column
+    CHECK(LabelColumnWidth(-3.0f, 1000.0f, font) == 0.0f);
+    CHECK(LabelColumnWidth(40.0f, 1000.0f, font) == 100.0f);   // the floor
+    CHECK(LabelColumnWidth(200.0f, 1000.0f, font) == 200.0f);  // its own width
+    CHECK(LabelColumnWidth(900.0f, 1000.0f, font) == 400.0f);  // 40% of the container
+    CHECK(LabelColumnWidth(240.0f, 480.0f, font) == 192.0f);   // a two-column panel: 40% of one column
+    CHECK(LabelColumnWidth(200.0f, 200.0f, font) == 100.0f);   // 40% is under the floor: the floor wins
+    CHECK(LabelColumnWidth(40.0f, 1000.0f, big) == 200.0f);    // the floor scales with the font
+    CHECK(LabelColumnWidth(900.0f, 2000.0f, big) == 800.0f);
+    CHECK(LabelColumnWidth(40.0f, 1000.0f, 0.0f) == 100.0f);   // unusable font size falls back to 1x
+    CHECK(LabelColumnWidth(200.0f, nan, font) == 100.0f);      // unusable container width: the floor
 
-    CHECK(ControlWidth(1000.0f, 0.0f, 8.0f, font) == 420.0f);       // capped
-    CHECK(ControlWidth(300.0f, 0.0f, 8.0f, font) == 300.0f);        // fills the row
+    // Control: the rest of the row, capped only in a container wider than 900 px (then at 560 px).
+    CHECK(ControlWidth(600.0f, 0.0f, 8.0f, font) == 600.0f);        // fills the row, no 420 cap
+    CHECK(ControlWidth(900.0f, 0.0f, 8.0f, font) == 900.0f);        // 900 is not wider than 900
+    CHECK(ControlWidth(1000.0f, 0.0f, 8.0f, font) == 560.0f);       // wide container: capped
+    CHECK(ControlWidth(1000.0f, 400.0f, 8.0f, font) == 560.0f);
+    CHECK(ControlWidth(1000.0f, 600.0f, 8.0f, font) == 392.0f);     // under the cap anyway
     CHECK(ControlWidth(300.0f, 120.0f, 8.0f, font) == 172.0f);      // minus label column and gap
     CHECK(ControlWidth(10.0f, 0.0f, 8.0f, font) == 140.0f);         // floor: auto-resize never collapses
     CHECK(ControlWidth(-50.0f, 120.0f, 8.0f, font) == 140.0f);
-    CHECK(ControlWidth(1000.0f, 0.0f, 8.0f, font, kListMax) == 640.0f);
-    CHECK(ControlWidth(1000.0f, 0.0f, 8.0f, big) == 840.0f);
-    CHECK(ControlWidth(std::numeric_limits<float>::quiet_NaN(), 0.0f, 8.0f, font) == 140.0f);
-    // Two aligned controls in a 480 px column: label column up to its cap still leaves a control.
-    CHECK(ControlWidth(480.0f, LabelColumnWidth(900.0f, font), 8.0f, font) >= 140.0f);
+    CHECK(ControlWidth(1000.0f, 0.0f, 8.0f, font, kListMax) == 640.0f);   // an explicit cap (lists) still applies
+    CHECK(ControlWidth(1000.0f, 0.0f, 8.0f, big) == 1000.0f);       // 1000 < 900 scaled: no cap
+    CHECK(ControlWidth(2000.0f, 0.0f, 8.0f, big) == 1120.0f);       // the cap scales too
+    CHECK(ControlWidth(nan, 0.0f, 8.0f, font) == 140.0f);
+    // Two aligned controls in a 480 px column hold well over half of it, whatever the label length.
+    CHECK(ControlWidth(480.0f, LabelColumnWidth(240.0f, 480.0f, font), 8.0f, font) == 280.0f);
+    CHECK(ControlWidth(480.0f, LabelColumnWidth(900.0f, 480.0f, font), 8.0f, font) >= 0.55f * 480.0f);
+    CHECK(ControlWidth(480.0f, LabelColumnWidth(30.0f, 480.0f, font), 8.0f, font) == 372.0f);
 }
 
 static void TestPopupLimits() {

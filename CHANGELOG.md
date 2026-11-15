@@ -4,6 +4,20 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+- Advance the unpublished development SDK coordinate to `2.4.1-dev.6`.
+
+- Signature resolution: the rows that walked the game's whole `.text` once per row for a RIP-relative
+  `lea` now read one per-resolve-pass index of those instructions (built on first use, sorted by
+  target, exact for every byte position, dropped when the pass ends), and the row families that
+  repeated one scan per row (social group, handshake gates, `Libs/OfflineDB`) scan once per pass.
+  Results are unchanged: `tools/sigcheck.sh` output is identical to the previous receipt and
+  `test_sig_index_equivalence` compares each replaced loop with a verbatim copy. In-game Prepare
+  time not yet measured. Widgets renderer: the label column of a form is the widest label up to 40%
+  of its container (100 px floor) and the control takes the rest of the row, so two-column panels
+  no longer squeeze combos to ~100 px; only containers wider than 900 px cap controls (560 px).
+  `[game] event ...: 0 subscribers` is logged once per event name per session instead of at every
+  zone change.
+
 - Advance the unpublished development SDK coordinate to `2.4.1-dev.5` (faster signature
   scan with identical results, widget renderer layout, service diagnostics).
 

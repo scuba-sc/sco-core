@@ -1532,6 +1532,12 @@ if(SCO_BUILD_TESTS)
   target_link_libraries(test_scan_equivalence PRIVATE sco_core)
   sco_project_target(test_scan_equivalence)
   add_test(NAME test_scan_equivalence COMMAND test_scan_equivalence)
+  # The resolvers' rip-relative lea scans against verbatim copies of the byte-by-byte loops they replaced.
+  add_executable(test_sig_index_equivalence tests/test_sig_index_equivalence.cpp)
+  target_link_libraries(test_sig_index_equivalence PRIVATE sco_core)
+  sco_project_target(test_sig_index_equivalence)
+  add_test(NAME test_sig_index_equivalence COMMAND test_sig_index_equivalence)
+  set_tests_properties(test_sig_index_equivalence PROPERTIES TIMEOUT 120)
 
   add_executable(test_signature_registry tests/test_signature_registry.cpp)
   target_link_libraries(test_signature_registry PRIVATE sco_core)

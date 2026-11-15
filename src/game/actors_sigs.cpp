@@ -39,20 +39,13 @@ int RipRefs(const Image& img, uint8_t reg0, uint8_t reg1, uint8_t reg2, const ui
     if (!text.base || text.size < 7 || text.size > static_cast<size_t>(PTRDIFF_MAX) || !rows::InText(img, text.base, text.size) ||
         !rows::InImage(img, target, 1)) return 0;
     int n = 0;
-    // Seven-byte extent includes the final possible instruction.
-    const size_t last = text.size - 7;
-    for (size_t off = 0; off <= last; ++off) {
-        const uint8_t* begin = rows::TextAt(img, text.base, static_cast<ptrdiff_t>(off), last - off + 1);
-        const uint8_t* p = static_cast<const uint8_t*>(memchr(begin, reg0, last - off + 1));
-        if (!p) break;
-        off = static_cast<size_t>(p - text.base);
-        // memchr's capped start range guarantees the complete seven-byte instruction.
-        if (p[0] == reg0 && p[1] == reg1 && p[2] == reg2 &&
-            rows::CheckedRip(img, p, 3, 7) == target) {
-            if (n < max) out[n] = p;
-            ++n;
-        }
-    }
+    // Every position up to the final possible seven-byte instruction.
+    ScanIndexRef index(img);
+    index->ForEachRip(text, RipForm::Exact(reg0, reg1, reg2), target, 0, text.size - 7, [&](size_t off) {
+        if (n < max) out[n] = text.base + off;
+        ++n;
+        return true;
+    });
     return n;
 }
 
@@ -269,10 +262,11 @@ SigResult ResolveFlightReady(const Image& img, const SigResolveContext&) {
         !rows::InImage(img, header, 1)) return Missing();
     const uint8_t* found = nullptr;
     int hits = 0;
-    // p denotes the opcode byte after the REX prefix. The last LEA ends at .text's end.
-    for (size_t off = 0x200; off <= text.size - 6; ++off) {
-        const uint8_t* lea = rows::TextAt(img, text.base, static_cast<ptrdiff_t>(off - 1), 7);
-        if (!BytesMatch(lea, "48 8D 15") || rows::CheckedRip(img, lea, 3, 7) != header) continue;
+    // Each `lea rdx, [Dashboards.h]` (48 8D 15), the last one ending at .text's end, from the pass's
+    // index; the first can start at 0x1FF (the old scan began at the opcode byte, 0x200).
+    ScanIndexRef index(img);
+    index->ForEachRip(text, RipForm::Exact(0x48, 0x8D, 0x15), header, 0x1FF, ~size_t{0}, [&](size_t leaOff) {
+        const uint8_t* lea = text.base + leaOff;
         const uint8_t* start = nullptr;
         for (ptrdiff_t back = 0; back < 0x60; ++back) {
             const uint8_t* q = rows::TextAt(img, lea, -back - 2, 2);
@@ -281,7 +275,7 @@ SigResult ResolveFlightReady(const Image& img, const SigResolveContext&) {
                 start = rows::TextAt(img, q, 2, 4); break;
             }
         }
-        if (!start) continue;
+        if (!start) return true;
         uint32_t line = 0;
         const size_t span = static_cast<size_t>(lea - start);
         for (size_t i = 0; i + 6 <= span; ++i) {
@@ -292,7 +286,8 @@ SigResult ResolveFlightReady(const Image& img, const SigResolveContext&) {
             found = start;
             ++hits;
         }
-    }
+        return true;
+    });
     if (!hits) return Missing();
     if (hits > 1) return Ambiguous(hits);
     return SigOk(found);

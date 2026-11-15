@@ -210,14 +210,15 @@ void RenderNode(const Panel& panel, size_t& cursor, Context& ctx, bool inherited
         EndScope enabled{ImGui::EndDisabled};
         const ImGuiStyle& style = ImGui::GetStyle();
         const float fontSize = ImGui::GetFontSize();
-        // Measured before the label moves the cursor: the control fills what is left of the row.
+        // Measured before the label moves the cursor: the container's content width. The label column
+        // is a share of it and the control fills what is left of the row.
         const float available = ImGui::GetContentRegionAvail().x;
         // A labelled form control puts its label in the column shared with its siblings and the
         // control on the same line; everything else keeps its label on a line of its own.
         float column = 0;
         if (IsForm(node.kind) && !node.label.empty()) {
             const auto siblings = ctx.groups.find(node.parent);
-            column = layout::LabelColumnWidth(siblings == ctx.groups.end() ? 0.0f : siblings->second.widestLabel, fontSize);
+            column = layout::LabelColumnWidth(siblings == ctx.groups.end() ? 0.0f : siblings->second.widestLabel, available, fontSize);
             FormLabel(node, column);
         } else if ((node.kind == SCO_WIDGET_ROW || node.kind == SCO_WIDGET_COLUMN) && !node.label.empty() &&
                    !node.severity) {

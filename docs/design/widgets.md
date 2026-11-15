@@ -137,10 +137,13 @@ migrate. Actual window placement, styling and GPU/game validation are product wo
 How the adapter draws the declarative tree (layout rules live in `src/widgets/imgui_layout.h`):
 
 - COMBO, SLIDER, TEXT_INPUT and TOGGLE with a label draw it on the left in one label column
-  per container (the widest sibling label, 120-320 px) with the control on the same line, so a
-  panel reads as an aligned form. A COMBO shows its current value as the preview and fills the
-  rest of the row up to 420 px; unlabelled controls take the whole row. The popup is capped at
-  640 px and about twelve rows, whatever the option names or count.
+  per container with the control on the same line, so a panel reads as an aligned form. The
+  column is as wide as the widest sibling label, at most 40% of the container's content width
+  and at least 100 px; a longer label is cut by an ellipsis with its full text in a tooltip.
+  The control takes the whole rest of the row (in a two-column ROW, most of its column), and so
+  does a control without a label. Only a container wider than 900 px caps its controls, at
+  560 px. A COMBO shows its current value as the preview. The popup is capped at 640 px and
+  about twelve rows, whatever the option names or count.
 - LIST and COMBO options are one full-width selectable row each, with the text cut by an
   ellipsis to the row (full text in a tooltip). Selection events and paging are unchanged.
 - A ROW made only of COLUMNs shares its width equally between them. A COLUMN or ROW with a

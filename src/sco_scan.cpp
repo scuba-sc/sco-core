@@ -1,5 +1,7 @@
 #include "sco/scan.h"
+#include <algorithm>
 #include <array>
+#include <new>
 #include <cstdlib>
 #include <cstring>
 
@@ -99,6 +101,104 @@ int FindPattern(const Section& text, const char* pattern, uint8_t** out, int max
         if (i == n) { if (matches < max) out[matches] = p; ++matches; }
     }
     return matches;
+}
+
+// ---- the rip-relative site index ---------------------------------------------------------------
+
+namespace {
+inline int64_t SiteKey(const ScanIndex::Site& s) { return static_cast<int64_t>(s.off) + 7 + s.disp; }
+
+inline bool FormAt(const uint8_t* p, const RipForm& f) {
+    return (p[0] & f.mask0) == f.b0 && p[1] == f.b1 && (p[2] & f.mask2) == f.b2;
+}
+
+// True when the lea shape is implied by `form`, so every match is an indexed site.
+constexpr bool ImpliesLea(const RipForm& f) {
+    return (f.mask0 & 0xFB) == 0xFB && (f.b0 & 0xFB) == 0x48 && (f.b0 & ~f.mask0) == 0 && f.b1 == 0x8D &&
+           (f.mask2 & 0xC7) == 0xC7 && (f.b2 & 0xC7) == 0x05 && (f.b2 & ~f.mask2) == 0;
+}
+
+// p + 7 + disp32 == target, without wrapping the address space.
+bool RipTargetIs(const uint8_t* p, const uint8_t* target) {
+    const auto addr = reinterpret_cast<uintptr_t>(p);
+    if (addr > UINTPTR_MAX - 7) return false;
+    uintptr_t dest = addr + 7;
+    const int64_t delta = Rel32(p + 3);
+    if (delta < 0) { const uintptr_t d = static_cast<uintptr_t>(-delta); if (d > dest) return false; dest -= d; }
+    else { const uintptr_t d = static_cast<uintptr_t>(delta); if (d > UINTPTR_MAX - dest) return false; dest += d; }
+    return dest == reinterpret_cast<uintptr_t>(target);
+}
+}  // namespace
+
+bool ScanIndex::Build(const Section& text) {
+    if (built_ && textBase_ == text.base && textSize_ == text.size) return usable_;
+    sites_.clear();
+    built_ = true; usable_ = false; textBase_ = text.base; textSize_ = text.size;
+    const auto base = reinterpret_cast<uintptr_t>(text.base);
+    if (!text.base || text.size < 7 || text.size > maxText_ || text.size > 0xFFFFFFFFu || text.size > UINTPTR_MAX - base)
+        return false;
+    try {
+        const uint8_t* const t = text.base;
+        const size_t last = text.size - 7;   // the last instruction start; its opcode byte is last + 1
+        for (const uint8_t* q = t + 1; q <= t + last + 1; ++q) {
+            q = static_cast<const uint8_t*>(memchr(q, 0x8D, static_cast<size_t>(t + last + 1 - q) + 1));
+            if (!q) break;
+            const uint8_t* p = q - 1;
+            if ((p[0] & 0xFB) != 0x48 || (p[2] & 0xC7) != 0x05) continue;
+            sites_.push_back({static_cast<uint32_t>(p - t), Rel32(p + 3)});
+        }
+        std::sort(sites_.begin(), sites_.end(), [](const Site& a, const Site& b) {
+            const int64_t ka = SiteKey(a), kb = SiteKey(b);
+            return ka != kb ? ka < kb : a.off < b.off;
+        });
+    } catch (const std::bad_alloc&) {
+        std::vector<Site>().swap(sites_);
+        return false;   // scans fall back to walking .text
+    }
+    usable_ = true;
+    return true;
+}
+
+void ScanIndex::ForEachRipImpl(const Section& text, const RipForm& form, const uint8_t* target,
+                               size_t first, size_t last, bool (*visit)(void*, size_t), void* ctx) {
+    if (!text.base || text.size < 7) return;
+    if (last > text.size - 7) last = text.size - 7;
+    if (first > last) return;
+    if (ImpliesLea(form) && Build(text)) {
+        // The sites for `target`: key == target - text.base (a target further than 2^63 away matches none).
+        const auto tb = reinterpret_cast<uintptr_t>(text.base), ta = reinterpret_cast<uintptr_t>(target);
+        const uintptr_t dist = ta >= tb ? ta - tb : tb - ta;
+        if (dist > static_cast<uintptr_t>(INT64_MAX)) return;
+        const int64_t key = ta >= tb ? static_cast<int64_t>(dist) : -static_cast<int64_t>(dist);
+        const Site* const begin = sites_.data();
+        const Site* const end = begin + sites_.size();
+        const Site* b = std::lower_bound(begin, end, key, [](const Site& s, int64_t k) { return SiteKey(s) < k; });
+        const Site* e = std::upper_bound(b, end, key, [](int64_t k, const Site& s) { return k < SiteKey(s); });
+        b = std::lower_bound(b, e, first, [](const Site& s, size_t v) { return s.off < v; });
+        for (; b != e && b->off <= last; ++b) {
+            if (!FormAt(text.base + b->off, form)) continue;
+            if (!visit(ctx, b->off)) return;
+        }
+        return;
+    }
+    for (size_t off = first; off <= last; ++off) {
+        const uint8_t* p = text.base + off;
+        if (FormAt(p, form) && RipTargetIs(p, target) && !visit(ctx, off)) return;
+    }
+}
+
+SiteMemo& ScanIndex::Memo(const Image& img, MemoKey key) {
+    const Image& m = memoImage_;
+    if (!memoBound_ || m.base != img.base || m.size != img.size || m.timestamp != img.timestamp ||
+        m.text.base != img.text.base || m.text.size != img.text.size ||
+        m.rdata.base != img.rdata.base || m.rdata.size != img.rdata.size ||
+        m.pdata.base != img.pdata.base || m.pdata.size != img.pdata.size) {
+        for (auto& slot : memo_) slot = SiteMemo{};
+        memoImage_ = img;
+        memoImage_.index = nullptr;
+        memoBound_ = true;
+    }
+    return memo_[static_cast<size_t>(key)];
 }
 
 uint8_t* FunctionStart(const Image& img, const uint8_t* at) {

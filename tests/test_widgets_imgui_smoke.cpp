@@ -176,15 +176,107 @@ static void RunAlignment() {
     const float widest = ImGui::CalcTextSize("A considerably longer label").x;
     ImGui::EndFrame();
     ImGui::DestroyContext(context);
-    const float column = sco::widgets::layout::LabelColumnWidth(widest, font);
-    const float control = sco::widgets::layout::ControlWidth(1000.0f - 2 * padding, column, spacing, font);
+    const float available = 1000.0f - 2 * padding;   // the window's content width
+    const float column = sco::widgets::layout::LabelColumnWidth(widest, available, font);
+    const float control = sco::widgets::layout::ControlWidth(available, column, spacing, font);
     CHECK(std::fabs(short_first - (column + spacing + control)) < 1.5f);
+}
+
+// A two-column ROW of 8 labelled COMBOs per column: long labels (~30 characters) and long current
+// values (~25) must leave each combo most of its column and show the value without an ellipsis.
+// Combo widths are read from the frame rectangles the renderer drew (ImGuiCol_FrameBg, the combo
+// minus its arrow button); column content widths from the ImGui table the ROW became.
+static void RunTwoColumnCombos() {
+    ImGuiContext* context = ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO();
+    io.IniFilename = nullptr;
+    io.LogFilename = nullptr;
+    io.DisplaySize = ImVec2(1000, 800);
+    io.DeltaTime = 1.0f / 60.0f;
+    io.BackendFlags |= ImGuiBackendFlags_RendererHasTextures;
+    io.Fonts->AddFontDefault();
+    const std::string value = "Unchanged (keeps current)";   // 25 characters
+    Panel panel;
+    panel.id = "form";
+    uint32_t next = 1;
+    const auto add = [&](uint32_t kind, uint32_t parent, const std::string& label) -> Node& {
+        panel.nodes.emplace_back();
+        Node& node = panel.nodes.back();
+        node.kind = kind; node.id = next++; node.parent = parent; node.label = label;
+        return node;
+    };
+    const uint32_t row = add(SCO_WIDGET_ROW, 0, "").id;
+    for (int c = 0; c < 2; ++c) {
+        const uint32_t column = add(SCO_WIDGET_COLUMN, row, "").id;
+        for (int i = 0; i < 8; ++i) {
+            Node& combo = add(SCO_WIDGET_COMBO, column, "Field " + std::to_string(c * 8 + i) + " with a long form label");   // ~30 characters
+            combo.items = {value, "Set to the first value", "Set to the second value"};
+            combo.index = 0;
+        }
+    }
+    for (const Node& node : panel.nodes)
+        if (node.kind == SCO_WIDGET_COMBO) CHECK(node.label.size() >= 28 && node.label.size() <= 34);
+    CHECK(value.size() >= 24 && value.size() <= 26);
+
+    std::vector<float> comboWidths, columnContent;
+    float frameHeight = 0, framePadX = 0, valueWidth = 0, windowWidth = 0;
+    for (int frame = 0; frame < 6; ++frame) {
+        ImGui::NewFrame();
+        ImGui::SetNextWindowPos(ImVec2(0, 0));
+        ImGui::SetNextWindowSize(ImVec2(1000, 800));
+        ImGui::Begin("root");
+        std::vector<Event> events;
+        ImGuiRenderer(false).Render(panel, events);
+        if (frame == 5) {
+            frameHeight = ImGui::GetFrameHeight();
+            framePadX = ImGui::GetStyle().FramePadding.x;
+            valueWidth = ImGui::CalcTextSize(value.c_str()).x;
+            windowWidth = ImGui::GetWindowWidth();
+            const ImU32 frameBg = ImGui::GetColorU32(ImGuiCol_FrameBg);
+            const ImVector<ImDrawVert>& v = ImGui::GetWindowDrawList()->VtxBuffer;
+            for (int i = 0; i + 3 < v.Size; ) {
+                const bool rect = v[i].col == frameBg && v[i + 1].col == frameBg && v[i + 2].col == frameBg && v[i + 3].col == frameBg &&
+                                  v[i].pos.y == v[i + 1].pos.y && v[i + 2].pos.y == v[i + 3].pos.y &&
+                                  v[i].pos.x == v[i + 3].pos.x && v[i + 1].pos.x == v[i + 2].pos.x &&
+                                  v[i + 1].pos.x > v[i].pos.x && v[i + 2].pos.y > v[i].pos.y;
+                if (rect) { comboWidths.push_back(v[i + 1].pos.x - v[i].pos.x + frameHeight); i += 4; }   // + the arrow button
+                else ++i;
+            }
+            ImGuiContext& g = *ImGui::GetCurrentContext();
+            for (int n = 0; n < g.Tables.GetMapSize(); ++n) {
+                const ImGuiTable* table = g.Tables.TryGetMapData(n);
+                if (!table || table->ColumnsCount != 2) continue;
+                for (int c = 0; c < 2; ++c) columnContent.push_back(table->Columns[c].WorkMaxX - table->Columns[c].WorkMinX);
+            }
+        }
+        ImGui::End();
+        ImGui::EndFrame();
+    }
+    CHECK(windowWidth == 1000.0f);
+    CHECK(comboWidths.size() == 16);
+    CHECK(columnContent.size() == 2);
+    if (comboWidths.size() == 16 && columnContent.size() == 2) {
+        float least = 1.0e9f;
+        for (size_t i = 0; i < comboWidths.size(); ++i) {
+            const float content = columnContent[i / 8];
+            least = std::min(least, comboWidths[i] / content);
+            CHECK(comboWidths[i] >= 0.55f * content);     // most of the column, not ~100 px
+            CHECK(comboWidths[i] <= content + 0.5f);
+            // The preview is laid out in what is left of the combo after its arrow and padding: the
+            // whole current value must fit there, so it is shown without an ellipsis.
+            CHECK(valueWidth <= comboWidths[i] - frameHeight - framePadX);
+        }
+        std::printf("two-column combos: column content %.0f / %.0f px, combo width %.0f px (%.0f%% of its column at the least), value %.0f px\n",
+                    columnContent[0], columnContent[1], comboWidths[0], 100.0f * least, valueWidth);
+    }
+    ImGui::DestroyContext(context);
 }
 
 int main() {
     Run(false);
     Run(true);
     RunAlignment();
+    RunTwoColumnCombos();
     std::printf("widgets imgui smoke: %d passed, %d failed\n", pass, fail);
     return fail ? 1 : 0;
 }

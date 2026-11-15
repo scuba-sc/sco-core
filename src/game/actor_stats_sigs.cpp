@@ -105,14 +105,17 @@ SigResult ResolveAdjustStat(const Image& img, const SigResolveContext&) {
     if (!label) return SigFail("the AdjustStatValue label isn't in .rdata");
     if (!Code(img, img.text.base, img.text.size) || img.text.size < 7) return SigFail("no .text");
     int leas = 0;
-    for (size_t off = 0; off <= img.text.size - 7; ++off) {
-        const uint8_t* p = rows::TextAt(img, img.text.base, static_cast<ptrdiff_t>(off), 7);
-        if ((p[0] != 0x48 && p[0] != 0x4C) || p[1] != 0x8D || (p[2] & 0xC7) != 0x05) continue;
-        if (Target(img, p) != label) continue;
-        if (FunctionStart(img, p) != r.at) return SigFail("an AdjustStatValue label lea is outside the matched function");
+    bool outside = false;
+    size_t next = 0;   // a lea that starts inside the last one counted isn't looked at
+    ScanIndexRef index(img);
+    index->ForEachRip(img.text, RipForm::AnyLea(), label, 0, ~size_t{0}, [&](size_t off) {
+        if (off < next) return true;
+        if (FunctionStart(img, img.text.base + off) != r.at) { outside = true; return false; }
         ++leas;
-        off += 6;
-    }
+        next = off + 7;
+        return true;
+    });
+    if (outside) return SigFail("an AdjustStatValue label lea is outside the matched function");
     if (!leas) return SigFail("the matched function doesn't load the AdjustStatValue label");
     return r;
 }

@@ -82,23 +82,20 @@ constexpr rows::FnSpec kStateSite = {
 };
 
 // Counts the `r0 r1 r2 rel32` instructions in .text whose RIP target is `target` (up to max kept).
-int LeaRefs(const Section& text, uint8_t r0, uint8_t r1, uint8_t r2, const uint8_t* target, const uint8_t** out, int max) {
+int LeaRefs(const Image& img, const Section& text, uint8_t r0, uint8_t r1, uint8_t r2, const uint8_t* target, const uint8_t** out, int max) {
     if (!rows::InRange(text, text.base, text.size) || text.size < 7 || !target) return 0;
     int n = 0;
-    for (size_t i = 0; i <= text.size - 7; ++i) {
-        const uint8_t* p = text.base + i;
-        const uintptr_t addr = reinterpret_cast<uintptr_t>(p);
-        if (addr > UINTPTR_MAX - 7) continue;
-        uintptr_t dest = addr + 7;
-        const int64_t delta = Rel32(p + 3);
-        if (delta < 0) { const uintptr_t d = static_cast<uintptr_t>(-delta); if (d > dest) continue; dest -= d; }
-        else { const uintptr_t d = static_cast<uintptr_t>(delta); if (d > UINTPTR_MAX - dest) continue; dest += d; }
-        if (p[0] == r0 && p[1] == r1 && p[2] == r2 && static_cast<uintptr_t>(dest) == reinterpret_cast<uintptr_t>(target)) {
-            if (n < max) out[n] = p;
-            ++n;
-        }
-    }
+    ScanIndexRef index(img);
+    index->ForEachRip(text, RipForm::Exact(r0, r1, r2), target, 0, ~size_t{0}, [&](size_t off) {
+        if (n < max) out[n] = text.base + off;
+        ++n;
+        return true;
+    });
     return n;
+}
+// Without an image there is no pass index: walk .text directly (the bounds tests call this form).
+[[maybe_unused]] int LeaRefs(const Section& text, uint8_t r0, uint8_t r1, uint8_t r2, const uint8_t* target, const uint8_t** out, int max) {
+    return LeaRefs(Image{}, text, r0, r1, r2, target, out, max);
 }
 
 // The function whose label string is `label`: the one lea r0 r1 r2 [label] in .text, and the .pdata
@@ -109,7 +106,7 @@ SigResult LabelFunction(const Image& img, const char* label, uint8_t r0, uint8_t
     const uint8_t* str = FindCString(img.rdata, label);
     if (!str) return SigFail("the label string isn't in .rdata");
     const uint8_t* refs[2] = {};
-    const int n = LeaRefs(img.text, r0, r1, r2, str, refs, 2);
+    const int n = LeaRefs(img, img.text, r0, r1, r2, str, refs, 2);
     if (n == 0) return { SigState::Missing, nullptr, 0, nullptr };
     if (n > 1) return { SigState::Ambiguous, nullptr, n, nullptr };
     if (!rows::ImageAt(img, img.pdata.base, 0, img.pdata.size)) return SigFail("invalid .pdata");

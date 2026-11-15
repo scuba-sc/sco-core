@@ -49,13 +49,14 @@ int RipRefs(const Image& img, uint8_t r1, uint8_t r2, const uint8_t* target, siz
     if (!text.base || tail < 7 || lead > text.size || tail > text.size - lead) return 0;
     const size_t last = text.size - tail;
     int n = 0;
-    for (size_t off = lead; off <= last; ++off) {
+    ScanIndexRef index(img);
+    index->ForEachRip(text, RipForm::Exact(0x48, r1, r2), target, lead, last, [&](size_t off) {
         uint8_t* p = text.base + off;
-        if (p[0] != 0x48 || p[1] != r1 || p[2] != r2) continue;
-        if (CheckedRip(img, p, 3, 7) != target || !ok(p)) continue;
+        if (!ok(p)) return true;
         if (n < max) out[n] = p;
         ++n;
-    }
+        return true;
+    });
     return n;
 }
 

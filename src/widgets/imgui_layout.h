@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
+#include <limits>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -13,8 +14,11 @@ namespace sco::widgets::layout {
 
 // Pixel limits below are written for this font size and scale linearly with the live one.
 constexpr float kReferenceFontSize = 16.0f;
-constexpr float kLabelColumnMin = 120.0f, kLabelColumnMax = 320.0f;
-constexpr float kControlMin = 140.0f, kControlMax = 420.0f;
+// A form's label column is as wide as its widest label but never more than this share of the
+// container's content width, so the controls keep most of a narrow column; it never goes below the floor.
+constexpr float kLabelColumnMin = 100.0f, kLabelColumnShare = 0.40f;
+// Controls fill the rest of their row. Only a container wider than kWideContainer caps them.
+constexpr float kControlMin = 140.0f, kWideContainer = 900.0f, kWideControlMax = 560.0f;
 constexpr float kListMax = 640.0f;
 constexpr float kComboPopupMaxWidth = 640.0f, kComboPopupMinRowWidth = 280.0f;
 constexpr int kComboPopupMaxRows = 12;
@@ -26,23 +30,32 @@ inline float Scale(float fontSize) {
     return fontSize > 0.0f && std::isfinite(fontSize) ? fontSize / kReferenceFontSize : 1.0f;
 }
 
-// One consistent label column per container, from the widest sibling label. Zero when no sibling
-// has a label, so controls without labels take the whole row.
-inline float LabelColumnWidth(float widestLabel, float fontSize) {
+// One consistent label column per container: the widest sibling label, at most 40% of the
+// container's content width, at least the floor. Zero when no sibling has a label, so controls
+// without labels take the whole row.
+inline float LabelColumnWidth(float widestLabel, float containerWidth, float fontSize) {
     if (!(widestLabel > 0.0f)) return 0.0f;
     const float scale = Scale(fontSize);
-    return std::clamp(widestLabel, kLabelColumnMin * scale, kLabelColumnMax * scale);
+    const float share = std::isfinite(containerWidth) ? kLabelColumnShare * containerWidth : 0.0f;
+    return std::max(std::min(widestLabel, share), kLabelColumnMin * scale);
 }
 
-// Width of a control that fills the rest of its row up to a cap. Never below a floor: layouts that
-// derive their size from the available width inside auto-resizing windows would otherwise shrink
-// it to nothing (see the BUTTON note in the adapter).
+// Width of a control: all of the row that the label column leaves. With the default `maximum` that
+// is uncapped, except in a container wider than kWideContainer, where it stops at kWideControlMax;
+// a caller can pass its own cap (lists). Never below a floor: layouts that derive their size from
+// the available width inside auto-resizing windows would otherwise shrink it to nothing (see the
+// BUTTON note in the adapter).
 inline float ControlWidth(float available, float labelColumn, float spacing, float fontSize,
-                          float maximum = kControlMax) {
+                          float maximum = 0.0f) {
     const float scale = Scale(fontSize);
-    float width = std::isfinite(available) ? available : 0.0f;
+    const float container = std::isfinite(available) ? available : 0.0f;
+    float width = container;
     if (labelColumn > 0.0f) width -= labelColumn + spacing;
-    return std::clamp(width, kControlMin * scale, std::max(maximum * scale, kControlMin * scale));
+    const float minimum = kControlMin * scale;
+    float cap = std::numeric_limits<float>::max();
+    if (maximum > 0.0f) cap = maximum * scale;
+    else if (container > kWideContainer * scale) cap = kWideControlMax * scale;
+    return std::clamp(width, minimum, std::max(cap, minimum));
 }
 
 struct PopupLimit {
