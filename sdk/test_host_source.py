@@ -294,11 +294,14 @@ class HostSourceArchive(unittest.TestCase):
         tracked = set(pkg.tracked_files(pkg.ROOT))
         self.assertLessEqual(PRIVATE_EVIDENCE_FIXTURES, tracked)
         self.assertFalse(PRIVATE_EVIDENCE_FIXTURES & sources)
-        required = required_source_dependencies(tracked)
+        # Files the manifest names one by one as repository-only (not whole folders) are not kit
+        # dependencies; CMake only uses them when they exist.
+        repository_only = {e["path"] for e in m.get("excluded", []) if not e["path"].endswith("/")}
+        required = required_source_dependencies(tracked) - repository_only
         neighbor = "tests/fixtures/synthetic_native_evidence/unlisted-new-fixture.json"
         self.assertIn(neighbor, required_source_dependencies(tracked | {neighbor}) - sources)
         self.assertFalse(required - sources, f"missing tracked source dependencies: {sorted(required - sources)}")
-        self.assertTrue(neutral <= sources)
+        self.assertLessEqual(neutral, sources)
         self.assertTrue(all(pkg.destination(m, "host-source-sc", c) == c["source"] for c in chosen))
         game = {c["source"] for c in chosen if c.get("group") in ("game-contract", "host-source-sc")
                 or "game-sc" in c["profiles"]}
