@@ -103,7 +103,8 @@ HUB_DOCS = {
         ('docs/agent-integration.md', 'Read-only MCP discovery tools for agents and IDEs.'),
         ('docs/sdk-mcp-tutorial.md', 'Discover a contract, request a scaffold, validate manifest/widgets and run a native checker.'),
         ('docs/host-source-sc.md', 'Build the Star Citizen host from the generated host-source kit.'),
-        ('docs/releases/sdk-v2.4.0.md', 'SDK 2.4.0 release notes, candidate status and archives.'),
+        ('docs/releases/sdk-v2.4.1.md', 'SDK 2.4.1 release notes: what is new, compatibility and evidence.'),
+        ('docs/releases/sdk-v2.4.0.md', 'SDK 2.4.0 release notes, candidate history and archives.'),
         ('docs/reference-snapshots.md', 'Snapshots that bind reference content to SDK inputs.'),
     ),
 }
@@ -279,7 +280,24 @@ def published_stage():
     return 'Published release', 'published assets; verify their identity'
 
 
+def documents_published_release(catalogue):
+    """True when the catalogue's SDK and game-pack versions are the published final release's."""
+    return bool(PUBLISHED_METADATA
+                and PUBLISHED_METADATA['tag'] == 'sdk-v' + catalogue['sdk_version']
+                and PUBLISHED_METADATA['sdk_version'] == catalogue['sdk_version']
+                and PUBLISHED_METADATA['game_pack_version'] == catalogue['game_pack_version'])
+
+
 def banner(catalogue, release_tag, category):
+    if not release_tag and documents_published_release(catalogue):
+        # The deployed source documents the published release; later main commits may only fix docs.
+        tag = PUBLISHED_METADATA['tag']
+        return ('<div data-pagefind-ignore="index">\n\n:::note[SDK ' + catalogue['sdk_version'] + ']\n'
+                + 'Documents SDK **' + catalogue['sdk_version'] + '** · game pack **' + catalogue['game_pack_version']
+                + '**, published as [' + tag + '](' + RELEASES + quote(tag, safe='') + '). Built from source `'
+                + catalogue['source_sha'] + '`.\n'
+                + '<span data-pagefind-filter="Type:' + esc(category) + '">Source-backed inventory is not a runtime '
+                + 'or in-game verification claim.</span>\n:::\n\n</div>\n\n')
     label = 'release ' + release_tag if release_tag else 'development preview'
     published = release_tag or PUBLISHED_DOWNLOAD_TAG
     stage = 'published assets; verify their identity' if release_tag else published_stage()[1]
@@ -899,7 +917,7 @@ def generate(root, catalogue, output, release_tag=None):
         text = re.sub(r'^#\s+[^\n]+\n', '', text, count=1, flags=re.M)
         text = rewrite_links(text, name, catalogue['source_sha'], doc_routes)
         if PUBLISHED_METADATA and name in {
-                'docs/releases/sdk-v2.4.0.md', 'docs/roadmap.md',
+                'docs/releases/' + PUBLISHED_RELEASE + '.md', 'docs/roadmap.md',
                 'docs/game/status.md',
                 'docs/agent-integration.md'}:
             text = ('> **Current published SDK:** [' + PUBLISHED_METADATA['tag'] + ']('

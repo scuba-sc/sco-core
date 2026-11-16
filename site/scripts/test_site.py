@@ -366,6 +366,28 @@ class SiteTests(unittest.TestCase):
         release_portal = gen.release_portal(ROOT, catalogue, 'sdk-v' + source_version, routes)
         self.assertNotIn('Development archive versions may differ', release_portal)
 
+    def test_banner_follows_published_release_data(self):
+        catalogue = deepcopy(self.catalogue)
+        catalogue['sdk_version'], catalogue['game_pack_version'] = '9.8.7', '6.5.4'
+        meta = {'tag': 'sdk-v9.8.7', 'sdk_version': '9.8.7', 'game_pack_version': '6.5.4', 'source_sha': 'e' * 40}
+        saved = gen.PUBLISHED_METADATA
+        try:
+            gen.PUBLISHED_METADATA = meta
+            notice = gen.banner(catalogue, None, 'Guides')
+            self.assertTrue(notice.startswith('<div data-pagefind-ignore="index">\n\n:::note[SDK 9.8.7]'))
+            self.assertIn('published as [sdk-v9.8.7]', notice)
+            self.assertIn(catalogue['source_sha'], notice)
+            self.assertIn('not a runtime or in-game verification claim', notice)
+            self.assertNotIn('development preview', notice)
+            self.assertNotIn('Development archives may use', notice)
+            for key, value in (('sdk_version', '9.8.8'), ('game_pack_version', '6.5.5')):
+                moved = dict(catalogue, **{key: value})
+                self.assertIn('development preview', gen.banner(moved, None, 'Guides'))
+            gen.PUBLISHED_METADATA = dict(meta, tag='sdk-v9.8.7-rc.1')
+            self.assertIn('development preview', gen.banner(catalogue, None, 'Guides'))
+        finally:
+            gen.PUBLISHED_METADATA = saved
+
     def test_mapping_status_is_authoritative(self):
         record = deepcopy(self.catalogue['records'][0])
         for language in record['language_mappings']:
