@@ -83,6 +83,9 @@ SetAmmoFn     g_setAmmoOrig = nullptr;
 bool          g_hooked = false;
 bool          g_hookAtStartOnly = false;   // process-retained: install in StartCreative, never lazily
 bool          g_hookRemovalFailed = false;
+#ifdef SCO_CREATIVE_TESTING
+bool          g_testNoGame = false;        // tests/test_creative_logs.cpp: no game memory, game-facing calls succeed
+#endif
 void*         g_hookTarget = nullptr;
 
 template <typename T> T Rd(uintptr_t p) { return *reinterpret_cast<const T*>(p); }
@@ -351,6 +354,9 @@ Apply ApplyGod(bool on) {
 
 // ESCActorFlyMode: 2 = fly (noclip), 0 = off, as sc-offline sent them.
 Apply RequestFly(bool on) {
+#ifdef SCO_CREATIVE_TESTING
+    if (g_testNoGame) return Apply::Changed;
+#endif
     __try {
         uintptr_t actor, entity;
         if (!reads::LocalPlayer(actor, entity)) return Apply::NotSpawned;
@@ -484,6 +490,9 @@ bool InstallAmmoHook(const char** why) {
 // Hooks the magazine setter once; false (and the reason in why) when it can't be. A process-retained
 // start installs it in StartCreative, so after start this only reports whether it is installed.
 bool EnsureAmmoHook(const char** why) {
+#ifdef SCO_CREATIVE_TESTING
+    if (g_testNoGame) return true;
+#endif
     if (g_hookRemovalFailed) { *why = "magazine hook cleanup failed; restart required"; return false; }
     if (g_hooked) return true;
     if (g_hookAtStartOnly) { *why = "the magazine hook was not installed at service start"; return false; }
