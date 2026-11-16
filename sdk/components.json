@@ -9505,6 +9505,18 @@
       "public_header": false
     },
     {
+      "id": "host-source-sc-tests-test_creative_logs.cpp",
+      "source": "tests/test_creative_logs.cpp",
+      "destination": "tests/test_creative_logs.cpp",
+      "profiles": [
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc",
+      "public_header": false
+    },
+    {
       "id": "host-source-sc-tests-test_asop.cpp",
       "source": "tests/test_asop.cpp",
       "destination": "tests/test_asop.cpp",
