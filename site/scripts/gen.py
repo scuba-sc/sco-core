@@ -295,7 +295,9 @@ def banner(catalogue, release_tag, category):
         return ('<div data-pagefind-ignore="index">\n\n:::note[SDK ' + catalogue['sdk_version'] + ']\n'
                 + 'Documents SDK **' + catalogue['sdk_version'] + '** · game pack **' + catalogue['game_pack_version']
                 + '**, published as [' + tag + '](' + RELEASES + quote(tag, safe='') + '). Built from source `'
-                + catalogue['source_sha'] + '`.\n'
+                + catalogue['source_sha'] + '`'
+                + ('' if catalogue['source_sha'] == PUBLISHED_METADATA['source_sha']
+                   else ', which may include changes made after the release') + '.\n'
                 + '<span data-pagefind-filter="Type:' + esc(category) + '">Source-backed inventory is not a runtime '
                 + 'or in-game verification claim.</span>\n:::\n\n</div>\n\n')
     label = 'release ' + release_tag if release_tag else 'development preview'

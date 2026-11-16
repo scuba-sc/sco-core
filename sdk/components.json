@@ -4068,14 +4068,16 @@
       "license": "GPL-3.0-only"
     },
     {
-      "id": "source.tests.test_sig_index_equivalence.cpp",
+      "id": "host-source-sc-tests-test_sig_index_equivalence.cpp",
       "source": "tests/test_sig_index_equivalence.cpp",
       "destination": "tests/test_sig_index_equivalence.cpp",
       "profiles": [
-        "core-source"
+        "host-source-sc"
       ],
       "origin": "project-authored",
-      "license": "GPL-3.0-only"
+      "license": "GPL-3.0-only",
+      "group": "host-source-sc",
+      "public_header": false
     },
     {
       "id": "source.include.sco.app.h",

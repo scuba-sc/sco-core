@@ -334,6 +334,15 @@ class BumpTests(Fixture):
         self.assertIn("site/scripts/gen.py: no hub entry", err)
         self.assertEqual(self.snapshot(), before)
 
+    def test_late_refusal_rolls_back_every_write(self):
+        # Passes preflight but refuses in set_define, after the version files would be written.
+        header = self.read("include/sc_game_pack.h")
+        self.write("include/sc_game_pack.h", header + "#define SCO_GAME_PACK_VERSION \"0.0.0\"\n")
+        before = self.snapshot()
+        code, _, err = self.run_main("--bump", "2.4.2", "--game-pack", "0.9.0")
+        self.assertEqual(code, 1, err)
+        self.assertEqual(self.snapshot(), before)
+
     def test_bump_refuses_a_malformed_game_build(self):
         before = self.snapshot()
         for build in ("4.10.200", "4.10.200.x", '4.10.200.1"\n#define X 1'):

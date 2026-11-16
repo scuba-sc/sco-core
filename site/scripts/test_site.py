@@ -382,6 +382,10 @@ class SiteTests(unittest.TestCase):
             self.assertIn('not a runtime or in-game verification claim', notice)
             self.assertNotIn('development preview', notice)
             self.assertNotIn('Development archives may use', notice)
+            self.assertIn('may include changes made after the release', notice)
+            gen.PUBLISHED_METADATA = dict(meta, source_sha=catalogue['source_sha'])
+            self.assertNotIn('may include changes', gen.banner(catalogue, None, 'Guides'))
+            gen.PUBLISHED_METADATA = meta
             for key, value in (('sdk_version', '9.8.8'), ('game_pack_version', '6.5.5')):
                 moved = dict(catalogue, **{key: value})
                 self.assertIn('development preview', gen.banner(moved, None, 'Guides'))

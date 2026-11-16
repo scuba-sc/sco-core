@@ -316,6 +316,27 @@ def bump(version, game_pack, game_build):
     return values
 
 
+BUMP_FILES = ("sdk/VERSION", "sdk/DEVELOPMENT_VERSION", "sdk/CANDIDATE_TAG", "include/sc_game_pack.h",
+              "CHANGELOG.md", "site/public-inputs.json", "site/scripts/gen.py")
+
+
+def transactional_bump(version, game_pack, game_build):
+    """bump() then rewrite every region; any failure restores every file it could have touched."""
+    notes = Path(f"docs/releases/sdk-v{version}.md")
+    paths = [Path(p) for p in BUMP_FILES] + doc_files() + [notes]
+    saved = {p: (ROOT / p).read_bytes() if (ROOT / p).is_file() else None for p in paths}
+    try:
+        bump(version, game_pack, game_build)
+        return run(write=True)
+    except BaseException:
+        for p, data in saved.items():
+            if data is None:
+                (ROOT / p).unlink(missing_ok=True)
+            else:
+                (ROOT / p).write_bytes(data)
+        raise
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     mode = parser.add_mutually_exclusive_group(required=True)
@@ -330,9 +351,9 @@ def main(argv=None):
         parser.error("--game-pack and --game-build only apply with --bump")
     try:
         if args.bump:
-            bump(args.bump, args.game_pack, args.game_build)
-            args.write = True
-        values, stale, regions = run(write=args.write)
+            values, stale, regions = transactional_bump(args.bump, args.game_pack, args.game_build)
+        else:
+            values, stale, regions = run(write=args.write)
     except Refusal as exc:
         print("refused: " + str(exc), file=sys.stderr)
         return 1
