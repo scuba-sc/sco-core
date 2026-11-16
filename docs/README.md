@@ -14,7 +14,8 @@ For the current release, consumer integration state, next horizon and contributi
 2. [SDK archive reference](../sdk/README.md), [plugin.ini](../sdk/docs/plugin-ini.md)
    and [plugin rules](../sdk/docs/plugin-rules.md): packaging, manifests and trust.
 3. Your language: [C ABI](api-v1.md), [C++](sdk-cpp.md), [C#](sdk-csharp.md),
-   [Lua](../sdk/docs/lua.md) or [data packs](../sdk/docs/data-packs.md).
+   [Lua](../sdk/docs/lua.md) or [data packs](../sdk/docs/data-packs.md). Development
+   source also has experimental raw [Rust bindings](../sdk/rust/README.md).
 4. [Designing modular plugins](plugin-design.md): one feature per plugin, versioned
    service tables, `requires`, clean unload and anti-patterns, with a provider and
    consumer example pair.
@@ -51,7 +52,8 @@ For the current release, consumer integration state, next horizon and contributi
    this is **not** the plugin C++ wrapper reference.
 3. [Architecture](architecture.md): layers, startup, scheduling and limits.
 4. [Plugin loader](plugins.md) and [Lua runtime host](../plugins/lua/README.md):
-   dependency ordering, discovery, reload and native trust.
+   dependency ordering, discovery, reload and native trust. The game host's
+   strict and process-retained compositions: [game host](game/host.md).
 5. Host controls: [storage](storage.md), optional host-only [diagnostic sources](diagnostics-sources.md),
    [UI](ui.md), [IPC](ipc.md), [network](net.md), [DataCore](datacore.md)
    and [game-pack opt-in](game-services.md).
@@ -94,12 +96,18 @@ Client-specific instructions live in the integration guide, not in this index.
 
 ## Maintainer — Build, contribute, release
 
+<!-- release-block:current-release -->
+SDK **2.4.1** uses Star Citizen game pack **0.8.1** (checked against build
+4.10.200.58746) and plugin ABI **1.1**. Download it from the
+[`sdk-v2.4.1` release page](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.1) and verify each archive against that release's
+`SHA256SUMS`; the [release notes](https://github.com/scuba-sc/sco-core/blob/sdk-v2.4.1/docs/releases/sdk-v2.4.1.md) list what changed. The previous release is
+[SDK 2.4.0](https://github.com/scuba-sc/sco-core/blob/sdk-v2.4.0/docs/releases/sdk-v2.4.0.md).
+<!-- /release-block:current-release -->
+
 1. [Contributing](../CONTRIBUTING.md) and [building/testing](building.md):
    source policy, named tests, CI and product adoption.
-2. [Changelog](../CHANGELOG.md), [SDK 2.4.0 notes](releases/sdk-v2.4.0.md) and the
-   current stable release, [SDK 2.4.0](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0),
-   built from source `6106fa3639cbcc28f78a1ded8de2707de019f4d3`. See the
-   [historical RC2 record](releases/sdk-v2.4.0.md#historical-rc2-candidate-status-before-publication)
+2. [Changelog](../CHANGELOG.md) and the release notes and release page named above. See the
+   [historical RC2 record](releases/sdk-v2.4.0.md#historical-rc2-candidate-status)
    and keep SDK/package, plugin ABI and game-pack version coordinates distinct.
 3. [Release checklist](legal/release-checklist.md) and
    [release decisions](legal/release-decisions/README.md): candidate versus

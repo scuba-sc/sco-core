@@ -53,7 +53,9 @@ EXTENDED_TOOLS = MINIMAL_TOOLS + ['get_service_status', 'list_engine_natives', '
                                   'search_guides', 'get_guide_section', 'list_workflows', 'get_workflow']
 SCRIPT = '/tools/sco-core-mcp/server.py'
 SERVER_NAME = 'sco-core-sdk'
-KIT_FOLDER = 'sco-sdk-2.4.0'
+# Setup docs write the kit folder as a placeholder; tests extract a real folder of that shape.
+KIT_DOC_FOLDER = 'sco-sdk-<version>'
+KIT_FOLDER = 'sco-sdk-' + (ROOT / 'sdk/VERSION').read_text().strip()
 # Wording the setup rewrite removed because it contradicted the rest of the setup docs.
 RETIRED_WORDING = ('enable only the six', 'enable only those six', 'four additional',
                    'combined `legacy` developer kit', '/absolute/sdk', 'requires **only the six',
@@ -272,7 +274,7 @@ class DocumentedBlockTests(unittest.TestCase):
             'catalogue beside nothing': lambda e: e['args'].__setitem__(
                 catalogue + 1, e['args'][catalogue + 1].replace('sdk-catalogue.json', 'other.json')),
             'repo root above the SDK folder': lambda e: e['args'].__setitem__(
-                e['args'].index('--repo-root') + 1, e['args'][0].split('/' + KIT_FOLDER)[0]),
+                e['args'].index('--repo-root') + 1, e['args'][0].split('/' + KIT_DOC_FOLDER)[0]),
         }
         for label, change in changes.items():
             bad = deepcopy(good)

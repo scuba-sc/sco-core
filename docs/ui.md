@@ -7,10 +7,13 @@ in [`sco_widgets.h`](../include/sco_widgets.h) and [`scosdk/widgets.hpp`](../inc
 The host owns rendering; plugins submit copied preorder trees and receive typed
 game-thread events. See [widget design](design/widgets.md) and
 [SDK widget guide](../sdk/docs/widgets.md). Published RC1 supplies widgets 1.2;
-current source publishes 1.3 with numeric presentation, retaining the additive 1.2,
-1.1 and base 1.0 routes. A newer SDK does not upgrade an installed host. Query
-version 1.3 and check the numeric-presentation feature and complete member extent
-before using it; follow the guide for language-specific support and refusal.
+SDK 2.4.0 supplies 1.3 with numeric presentation. SDK 2.4.1 provides 1.4, which adds canonical callback event tags,
+retaining the additive 1.3, 1.2, 1.1 and base 1.0 routes. A newer SDK does not
+upgrade an installed host. Query the version you need (1.3 for numeric
+presentation, 1.4 for tagged events), check the matching feature bit
+(`SCO_WIDGETS_FEATURE_NUMERIC_PRESENTATION`; `SCO_WIDGETS_FEATURE_STABLE_TAGS` and
+`SCO_WIDGETS_FEATURE_EVENT_TAG`) and the complete member extent before using it;
+follow the guide for language-specific support and refusal.
 C, C++20, C# and Lua expose the earlier versioned operations as described there;
 each wrapper language has a declarative panel builder that writes the preorder array for you. The C++ builder also opts into 1.1 attributes: see the cookbook below. C# is in
 [the C# SDK guide](sdk-csharp.md) ("Panel builder"), Lua in
@@ -59,12 +62,33 @@ events; the new tree renders next pass.
 
 **Host adapter.** The optional ImGui adapter spells severity out as text (`Warning:`) as well as
 coloring it, shows tooltips on hover, and draws only the visible rows of a paged LIST/TABLE
-with Previous/Next controls that produce `SCO_WIDGET_EVENT_PAGE`. The scosdk C++ builder
+with Previous/Next controls that produce `SCO_WIDGET_EVENT_PAGE`.
+In current source the adapter also lays a form out in one label column per container (the
+widest label, up to 40% of the container and at least 100 px, with the control taking the rest
+of the row), draws LIST and COMBO options as one full-width row with an ellipsis and a full-text
+tooltip, and shares the width of a ROW of COLUMNs equally; see [widget design](design/widgets.md).
+This changes layout only, not the ABI or events. It was checked headlessly, not on screen. The scosdk C++ builder
 exposes the node attributes. Native C/C++ and current typed C#/Lua bindings
 also expose the guarded subtree/capability routes; C#/Lua support presentation
 fields, row/PAGE events and 1.2 stable tags. See the [SDK widget guide](../sdk/docs/widgets.md)
 for operation-specific checks and the unchanged published RC1 boundary. Nothing
 here has run in the game.
+
+### `sco.widgets` 1.4: canonical callback tags
+
+Since SDK 2.4.1, a successful `set_panel` or `update_nodes` that carries
+a nonempty node tag (1.2 tags, `[A-Za-z0-9._-]{1..63}`) puts that panel in tagged-event mode.
+Every callback then gets a 48-byte `sco_widget_event_1_4`: the 40-byte `sco_widget_event_1_1`
+prefix plus `const char* tag`, the target node's copied canonical tag or NULL for an untagged
+target. Check `event->size >= sizeof(sco_widget_event_1_4)` before casting. The tag is borrowed
+for the callback only; copy it to keep it. The mode survives subtree updates and removals and
+is reset by a full `set_panel` whose tree has no nonempty tag; tag-free panels keep their
+32/40-byte events. Numeric node ids still route and validate events, and the tag comes from the
+host's own node, never from the renderer. Require version 1.4 plus both `STABLE_TAGS` and
+`EVENT_TAG`: an older host may accept tags and still deliver numeric-only events. The guarded
+C++ (`SetPanelTagged`, `UpdateNodesTagged`), C# and Lua routes refuse an older provider before
+submitting. Details: [widget design](design/widgets.md#tagged-events-and-old-provider-refusal-14).
+Synthetic tests only; not run in game.
 
 ### Cookbook: declarative C++ panels (`scosdk/menu_builder.hpp`)
 
@@ -428,7 +452,7 @@ The host normalizes a chord to lower case, the modifiers in the order `ctrl`, `a
 ## Unload, crash and shutdown
 
 - On ordinary unload, ordinary failed-load cleanup or non-retained crash cleanup, the host releases the owner: the release hook removes tabs, badges, overlays, hotkeys and its last error; its chords become free and later calls naming its handle are `SCO_BAD_ARG`. Restart-required retained-provider faults skip these hooks and retain resources, though guarded callbacks stop. If a nested consumer received a provider table before its load failed, the instance becomes `refused` with backing state retained: no owner release, resource hooks, export clearing or module closure. This is distinct from the fault path. See [native entrypoint contracts](contracts.md#native-plugin-entrypoints).
-- `sco::app::Stop` closes runtime admission before tearing down still-loaded plugins, then stops the service: `sco.ui` is withdrawn, all remaining entries and reservations are cleared, and the table answers `SCO_UNAVAILABLE`. Retained faulted instances are not entered during plugin teardown.
+- `sco::app::Stop` closes runtime admission before tearing down still-loaded plugins, then stops the service: `sco.ui` is withdrawn, all remaining entries and reservations are cleared, and the table answers `SCO_UNAVAILABLE`. Retained faulted instances are not entered during plugin teardown. Stop refuses, and tears nothing down, while a managed service pin is live; once it proceeds it closes managed acquisition, publication and loader entry until the next app start. A runtime started by the game host's process-retained composition ([game host](game/host.md)) stops by closure only: nothing is withdrawn or unloaded until process exit.
 
 ## Settings
 

@@ -318,16 +318,17 @@ class ArchiveAndMCP(unittest.TestCase):
                     for name, (data, _) in entries.items():
                         self.assertEqual(archive.read(top + '/' + name), data)
                     if profile == 'legacy':
-                        # A current-source kit must describe stable 2.4.0 and keep RC2 historical.
+                        # A current-source kit describes the source's release (tools/release_docs.py
+                        # regions) and keeps earlier releases historical.
                         readme = archive.read(top + '/README.md').decode()
                         lua = archive.read(top + '/docs/lua.md').decode()
                         mcp = archive.read(top + '/tools/sco-core-mcp/README.md').decode()
                         guide_index = json.loads(archive.read(top + '/sdk-guides.json'))
-                        self.assertIn('Stable SDK 2.4.0', readme)
-                        self.assertIn('RC1 and RC2 are historical releases', readme)
-                        self.assertIn('Stable SDK 2.4.0', lua)
-                        self.assertIn('Stable SDK 2.4.0', mcp)
-                        self.assertIn('sdk-v2.4.0', mcp)
+                        version = (ROOT / 'sdk/VERSION').read_text().strip()
+                        for text in (readme, lua, mcp):
+                            self.assertIn('SDK **' + version + '**', text)
+                            self.assertIn('releases/tag/sdk-v' + version, text)
+                        self.assertIn('Previous release', mcp)
                         self.assertIn('historical RC2 launcher', mcp)
                         for text in (readme, lua, mcp):
                             self.assertNotIn('latest release', ' '.join(text.lower().split()))

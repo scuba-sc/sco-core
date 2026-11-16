@@ -4,6 +4,14 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+## sdk-v2.4.1
+
+SDK 2.4.1 with game pack 0.8.1 for Star Citizen build 4.10.200.58746. Plugin ABI stays 1.1;
+plugins built against 2.4.0 load unchanged. Release notes: `docs/releases/sdk-v2.4.1.md`.
+
+- Set the stable source version to `2.4.1` and the automatic candidate designation to
+  `sdk-v2.4.1`; development archives built after this release use `2.4.2-dev.N`.
+
 - `game.vehicles` seat log: an accepted `seat` call logs `seat request sent (actor ..., seat ...); the game links it on
   its next update` instead of `link actor ... isLinked 0`, which read as a failure on success because the value is
   read before the game applies the request. `isLinked` is logged only when already 1. Behaviour and return values

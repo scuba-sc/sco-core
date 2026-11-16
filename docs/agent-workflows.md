@@ -1,6 +1,16 @@
 # Consumer workflows for agents
 
-Current source contains six focused skills for developers building extensions. The published stable SDK is **2.4.0**, published on 2026-11-01 from source `6106fa3639cbcc28f78a1ded8de2707de019f4d3`; its five profile archive identities are in the [release notes](releases/sdk-v2.4.0.md#stable-archive-identity). For the full repository source at this documentation revision, `sdk/VERSION` records `2.4.0`, `sdk/DEVELOPMENT_VERSION` records `2.4.1-dev.6`, and `include/sc_game_pack.h` records game pack `0.8.1`. These are source-repository coordinates, not universal contents of extracted kits: development packaging writes its selected coordinate to the generated kit `VERSION` and excludes `sdk/DEVELOPMENT_VERSION`, while `core-source` omits the game header. The published stable archive contains game pack `0.8.0`; the 2.4.1 line and game pack 0.8.1 are unpublished targets. Check each extracted kit's own compatibility descriptor, `VERSION`/`VERSIONS.txt`, indexes and checksums for its actual profile, versions and source identity. Current-source docs do not change the immutable stable, RC2 or RC1 archive bytes or authorize a release. API truth stays in public headers, contracts and the matching catalogue when one is included.
+Current source contains six focused skills for developers building extensions. The current release:
+
+<!-- release-block:current-release -->
+SDK **2.4.1** uses Star Citizen game pack **0.8.1** (checked against build
+4.10.200.58746) and plugin ABI **1.1**. Download it from the
+[`sdk-v2.4.1` release page](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.1) and verify each archive against that release's
+`SHA256SUMS`; the [release notes](https://github.com/scuba-sc/sco-core/blob/sdk-v2.4.1/docs/releases/sdk-v2.4.1.md) list what changed. The previous release is
+[SDK 2.4.0](https://github.com/scuba-sc/sco-core/blob/sdk-v2.4.0/docs/releases/sdk-v2.4.0.md).
+<!-- /release-block:current-release -->
+
+Verify archives against the release's `SHA256SUMS`. SDK 2.4.0 was published on 2026-11-01 from source `6106fa3639cbcc28f78a1ded8de2707de019f4d3`; its five profile archive identities are in the [2.4.0 release notes](releases/sdk-v2.4.0.md#stable-archive-identity). For the full repository source at this documentation revision, `sdk/VERSION` records <!--rv:sdk_version-->2.4.1<!--/rv-->, `sdk/DEVELOPMENT_VERSION` records the next development coordinate, and `include/sc_game_pack.h` records game pack <!--rv:game_pack_version-->0.8.1<!--/rv-->. These are source-repository coordinates, not universal contents of extracted kits: development packaging writes its selected coordinate to the generated kit `VERSION` and excludes `sdk/DEVELOPMENT_VERSION`, while `core-source` omits the game header. The current SDK archives contain game pack <!--rv:game_pack_version-->0.8.1<!--/rv-->; the 2.4.0 archives contain `0.8.0`. Check each extracted kit's own compatibility descriptor, `VERSION`/`VERSIONS.txt`, indexes and checksums for its actual profile, versions and source identity. Current-source docs do not change the immutable stable, RC2 or RC1 archive bytes or authorize a release. API truth stays in public headers, contracts and the matching catalogue when one is included.
 
 | Task | Entrypoint |
 | --- | --- |
@@ -42,8 +52,8 @@ example is a manual route: read `rust/README.md` and `examples/rust_hello`
 directly. The standalone source kits and game overlay do not contain those files.
 The CLI and MCP
 scaffolder do not generate Rust, and MCP language-filtered API/example searches
-advertise only `c`, `cpp`, `csharp` and `lua`. The published stable SDK 2.4.0
-does not contain the Rust files. These discovery limits do not establish live
+advertise only `c`, `cpp`, `csharp` and `lua`. The `core` profile of SDK 2.4.1
+contains the Rust files; SDK 2.4.0 does not. These discovery limits do not establish live
 provider availability or remove the need to read the underlying C ABI contract.
 
 For a source checkout, build a matching catalogue using its existing instructions, then:
@@ -129,7 +139,7 @@ Stable SDK 2.4.0 is now the current published release, published on 2026-11-01
 from source `6106fa3639cbcc28f78a1ded8de2707de019f4d3`. RC2 was published on
 2026-10-28 from `844e136ccb280ad8cb43f73bc43c9447e8f6799d`; it remains an
 immutable historical archive. The prepublication RC2 state remains in the
-[historical notes](releases/sdk-v2.4.0.md#historical-rc2-candidate-status-before-publication).
+[historical notes](releases/sdk-v2.4.0.md#historical-rc2-candidate-status).
 Published archive, product-host and source identities are separate. Recheck each
 consumer's exact ref before describing adoption. The following
 issues explain demand for contracts already present in source. Their proposals
@@ -143,7 +153,7 @@ their full acceptance.
 | [#192](https://github.com/scuba-sc/sco-core/issues/192), partial pack application | `PackApplyPolicy::BestEffort` is explicit opt-in with `PackApplyReceipt`; Atomic remains default. `sco-dcb lint <pack>...` checks syntax; `sco-dcb check <file.dcb> <pack>...` also needs the database. The issue's one-input example is not the implemented CLI. [Pack contract](datacore.md#packs-lint-check-show-diff) | `tests/test_datacore_pack.cpp`, `tests/dcb_pack.cmake` |
 | [#194](https://github.com/scuba-sc/sco-core/issues/194), action vocabulary | `game.input` 1.0 has **1,297** actions, ids 1..1297, re-derived on 4.10.197.2878. The older 1,267-member proposal is superseded by source evidence. C++20 has a header-only typed consumer wrapper for copied metadata; this does not add input dispatch or establish live provider availability. [Contract](game/input.md) | `tests/abi_game_input.c`, `tests/test_input.cpp`, `tests/test_input_cpp.cpp` |
 | [#195](https://github.com/scuba-sc/sco-core/issues/195), respawn completion | `game.loadout.respawn_completed` deliberately carries only the size-prefixed 8-byte occurrence marker (`size`, padding), with occurrences within a tick coalesced. It has no proposed entity/result fields and is not per-slot success. The producer seam is tested; the native hook remains unresolved and the capability OFF. [Lifecycle](game/loadout.md#respawn-completed-event-gameloadoutrespawn_completed) | `tests/abi_game_events.c`, `tests/game_contracts/loadout/test_loadout.cpp` |
-| [#140](https://github.com/scuba-sc/sco-core/issues/140), host-source distribution | The standalone `host-source-sc` profile exists in the five-profile manifest and stable SDK 2.4.0 release inventory. Use the selected release archive and its independently recorded identity. A host-source build proves host composition; plugins separately consume the plugin SDK. [Kit guide](host-source-sc.md) | `sdk/test_host_source.py` and the selected archive's checksums/compatibility metadata |
+| [#140](https://github.com/scuba-sc/sco-core/issues/140), host-source distribution | The standalone `host-source-sc` profile exists in the five-profile manifest and the SDK 2.4.0 and 2.4.1 release inventories. Use the selected release archive and its independently recorded identity. A host-source build proves host composition; plugins separately consume the plugin SDK. [Kit guide](host-source-sc.md) | `sdk/test_host_source.py` and the selected archive's checksums/compatibility metadata |
 
 Additional current-source contracts are not contained in published RC1:
 
@@ -153,6 +163,7 @@ Additional current-source contracts are not contained in published RC1:
 | [ASOP selection 1.0](game/asop-selection.md) | Query the service and each complete member, and require `game.asop.selection.file` and a ready host coordinator. Editing the host-owned document does not establish native terminal publication or observation. C# and Lua are unsupported. |
 | [Position-only relocation 1.1](game/relocation-position.md) | Query 1.1, check the complete `request_position` member and `game.relocation.position`, and preserve offline/owner and observation guards. The default native adapter supplies no position callbacks; the capability is OFF. |
 | [Widgets 1.3](../sdk/docs/widgets.md#numeric-presentation-13) | Query 1.3, check the full member extent and numeric-presentation feature before submitting the extended node. Host and language support are independent of the SDK used to compile. |
+| [Widgets 1.4](../sdk/docs/widgets.md#canonical-callback-tags-14) | A 1.4 host (since SDK 2.4.1) copies the canonical node tag into a guarded `sco_widget_event_1_4` callback tail. Query 1.4 and check `SCO_WIDGETS_FEATURE_EVENT_TAG`, and check `event->size` before reading the tag; older hosts deliver numeric-only events. New in SDK 2.4.1; synthetic tests only. |
 
 These boundaries are source descriptions; a built candidate does not establish
 that the installed product host supplies the capabilities. Synthetic

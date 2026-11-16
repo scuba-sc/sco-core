@@ -11,10 +11,18 @@ Build plugins for [sc-offline](https://github.com/scuba-sc/sc-offline), the Star
 | `lua` | A Lua 5.4 script, run in a sandbox by sc-offline's bundled Lua runtime | [`examples/greeter`](examples/greeter), [`examples/notebook`](examples/notebook) (storage) |
 
 > **Identify the kit in hand:** check `COMPATIBILITY.json` for its versions, profile and source revisions (`COMPATIBILITY.json.game-sc` for the standalone game overlay). Where present, the SDK version is also in `VERSION`, or `sdk/VERSION` in source-layout kits. A development archive can have different coordinates from the published stable release and is not itself a release asset.
->
-> **Stable SDK 2.4.0 (published)**, Star Citizen game pack **0.8.0**, plugin ABI **1.1** unchanged. The stable [`sdk-v2.4.0` release](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0) was published on 2026-11-01 from source `6106fa3639cbcc28f78a1ded8de2707de019f4d3`; it provides five profile archives with `SHA256SUMS` and `release.json` ([archive identities](../docs/releases/sdk-v2.4.0.md#stable-archive-identity)). Verify a release download against its archive checksum. RC1 and RC2 are historical releases; their archive bytes remain unchanged. This current source guide does not rewrite the published archive snapshot. The ABI only grows, but plugins must still check service versions, sized extents, capabilities and manifest requirements. In sc-offline, plugin loading is on by default (`plugins = on` in `sc-offline.ini`); optional folders can ship disabled. That product default is not kernel policy. See the [SDK/MCP tutorial](../docs/sdk-mcp-tutorial.md).
 
-> **Repository-source context at this documentation revision:** the full source tree records `sdk/VERSION` as `2.4.0`, `sdk/DEVELOPMENT_VERSION` as `2.4.1-dev.6`, and `include/sc_game_pack.h` as game pack `0.8.1`. These are source inputs, not universal extracted-kit contents. Opt-in development packaging writes the selected development coordinate to the generated kit `VERSION` and metadata and excludes `sdk/DEVELOPMENT_VERSION`; the game-neutral `core-source` kit omits the game header. The published stable archive is SDK 2.4.0 with game pack 0.8.0. The 2.4.1 line and 0.8.1 game pack remain unpublished targets. Current source includes separate [`sco.storage.metadata` 2.0](../docs/storage-metadata.md) and [`sco.widgets` 1.4 tagged events](../docs/design/widgets.md#tagged-events-and-old-provider-refusal-14); these source features are absent from the published stable SDK 2.4.0 archive. These source and synthetic-test facts do not establish native activation, product-host availability or in-game acceptance. For an extracted kit, use its own `COMPATIBILITY.json`, `VERSION`/`VERSIONS.txt`, available indexes and checksums to establish what it contains.
+<!-- release-block:current-release -->
+SDK **2.4.1** uses Star Citizen game pack **0.8.1** (checked against build
+4.10.200.58746) and plugin ABI **1.1**. Download it from the
+[`sdk-v2.4.1` release page](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.1) and verify each archive against that release's
+`SHA256SUMS`; the [release notes](https://github.com/scuba-sc/sco-core/blob/sdk-v2.4.1/docs/releases/sdk-v2.4.1.md) list what changed. The previous release is
+[SDK 2.4.0](https://github.com/scuba-sc/sco-core/blob/sdk-v2.4.0/docs/releases/sdk-v2.4.0.md).
+<!-- /release-block:current-release -->
+
+> The release provides five profile archives with `SHA256SUMS` and `release.json`; an earlier release's archive bytes are unchanged. The ABI only grows, but plugins must still check service versions, sized extents, capabilities and manifest requirements. In sc-offline, plugin loading is on by default (`plugins = on` in `sc-offline.ini`); optional folders can ship disabled. That product default is not kernel policy. See the [SDK/MCP tutorial](../docs/sdk-mcp-tutorial.md).
+
+> **Repository-source context at this documentation revision:** the full source tree records `sdk/VERSION` as <!--rv:sdk_version-->2.4.1<!--/rv-->, `sdk/DEVELOPMENT_VERSION` as the next development coordinate, and `include/sc_game_pack.h` as game pack <!--rv:game_pack_version-->0.8.1<!--/rv-->. These are source inputs, not universal extracted-kit contents. Opt-in development packaging writes the selected development coordinate to the generated kit `VERSION` and metadata and excludes `sdk/DEVELOPMENT_VERSION`; the game-neutral `core-source` kit omits the game header. SDK 2.4.1 shipped with game pack 0.8.1 and SDK 2.4.0 with game pack 0.8.0; SDK 2.4.1 includes separate [`sco.storage.metadata` 2.0](../docs/storage-metadata.md) and [`sco.widgets` 1.4 tagged events](../docs/design/widgets.md#tagged-events-and-old-provider-refusal-14); these features are absent from SDK 2.4.0. These source and synthetic-test facts do not establish native activation, product-host availability or in-game acceptance. For an extracted kit, use its own `COMPATIBILITY.json`, `VERSION`/`VERSIONS.txt`, available indexes and checksums to establish what it contains.
 
 **Native plugins run with the game's full rights.** Only install plugins you trust; sc-offline doesn't review them. Plugins never connect to Cloud Imperium Games' servers; the only connections allowed are local IPC (`sco.ipc`) and private LAN/VPN co-presence through `sco.net`, both host services: see [Plugin rules](docs/plugin-rules.md).
 
@@ -23,15 +31,16 @@ Build plugins for [sc-offline](https://github.com/scuba-sc/sc-offline), the Star
 | Path | What |
 |---|---|
 | `include/sco_api.h` | The frozen root plugin ABI; include public service headers for the services used |
-| `include/sco_*.h` | The host services' tables: `sco_storage.h`, `sco_ui.h`, `sco_ui_surfaces.h`, `sco_widgets.h`, `sco_settings.h`, `sco_ipc.h`, `sco_net.h` (core). The current full source tree adds `sco_storage_v2.h` for separate `sco.storage.metadata` 2.0 ([contract and limits](../docs/storage-metadata.md)); it is absent from the published stable SDK 2.4.0 archive. The game-capable extension also has `sco_datacore.h` |
+| `include/sco_*.h` | The host services' tables: `sco_storage.h`, `sco_ui.h`, `sco_ui_surfaces.h`, `sco_widgets.h`, `sco_settings.h`, `sco_ipc.h`, `sco_net.h` (core). Since SDK 2.4.1 the SDK adds `sco_storage_v2.h` for separate `sco.storage.metadata` 2.0 ([contract and limits](../docs/storage-metadata.md)); it is absent from SDK 2.4.0. The game-capable extension also has `sco_datacore.h` |
 | `include/sc_*.h` | Core: the MIT wires and bridge layouts (`sc_ipc.h`, `sc_net.h`, `sc_titanlink.h`, `sc_voxel_bridge.h`). Star Citizen extension: the game pack's service tables and events (`sc_spatial.h`, `sc_spawn.h`, `sc_actors.h`, `sc_vehicles.h`, `sc_world.h`, `sc_entities.h`, `sc_creative.h`, `sc_game_events.h`; [game services](../docs/game-services.md), [status](../docs/game/status.md)) and its version (`sc_game_pack.h`) |
 | `include/scosdk/` | The C++20 layer over `sco_api.h`, header-only: [C++ plugins](#c-plugins). `scosdk/game/` and `scosdk/datacore.hpp` come with the Star Citizen extension |
-| `rust/` | Experimental raw Rust bindings and a native example in current development core and combined plugin kits; see [Rust plugin support](rust/README.md). The standalone source kits, game overlay and published stable SDK 2.4.0 archives do not contain them. The broader Rust refactor is deferred to 2.5.0 |
-| `csharp/` | The C# layer (`Sco.Sdk`, .NET 8, NativeAOT) and its layout test: [C# plugins](#c-plugins-1). `Sco.Sdk/Game/`, `DataCore*.cs` and the tests' `Game*.cs` come with the Star Citizen extension; the project compiles whichever are present |
+| `rust/` | Experimental raw Rust bindings and a native example in the core and combined plugin kits since SDK 2.4.1; see [Rust plugin support](rust/README.md). The standalone source kits, game overlay and SDK 2.4.0 archives do not contain them. The broader Rust refactor is deferred to 2.5.0 |
+| `csharp/` | The C# layer (`Sco.Sdk`, .NET 8, NativeAOT) and its layout test: [C# plugins](#c-plugins). `Sco.Sdk/Game/`, `DataCore*.cs` and the tests' `Game*.cs` come with the Star Citizen extension; the project compiles whichever are present |
 | `cmake/sco-plugin.cmake` | `sco_add_plugin()` and `sco_add_pack()`: build a plugin and lay it out |
 | `template/` | A native plugin to copy and rename |
 | `examples/` | `hello` (native C), `counter_service` and `counter_panel` (native C: a provider and a consumer of one service table), `widgets` (native C, retained neutral UI), `cpp_hello` (native C++20), `cs_hello` (native C#, NativeAOT), `greeter` (Lua), `notebook` (Lua: storage with `sco.store`); the Star Citizen extension adds `travel_pack` (data) and `quantum_pack` (data: DataCore overrides) |
 | `tools/sco-plugin-check.c` | Checks a built plugin folder on your machine, without the game |
+| `tools/sco-plugin-verify.py` | Read-only check of a plugin ZIP's structure and manifest, without extracting it: [Verify a plugin archive](#verify-a-plugin-archive) |
 | `tools/lua-check.lua` | Runs a Lua plugin against a stand-in `sco` table, without the game |
 | `docs/` | [plugin.ini](docs/plugin-ini.md), [data packs](docs/data-packs.md), [Lua](docs/lua.md), [plugin rules](docs/plugin-rules.md), [API reference](../docs/api-v1.md), [C++ SDK](../docs/sdk-cpp.md), [C# SDK](../docs/sdk-csharp.md) |
 | `VERSIONS.txt` | The kernel, plugin ABI and game-pack versions and the verified game builds (in the zip only). The extension zip keeps its own as `VERSIONS.txt.game-sc`, so unpacking it over the core overwrites nothing |
@@ -49,7 +58,7 @@ public headers of a profile).
 | Zip | Holds |
 |---|---|
 | `sco-sdk-core-source-<version>.zip` | Kernel source-development kit in repository layout: host/runtime, loaders, required vendored Lua/SQLite, CMake build, tools and synthetic tests. Build with `-DSCO_GAME_SC=OFF`; no game implementation, game ABI headers, game layout pins or game-contract fixtures |
-| `sco-sdk-host-source-sc-<version>.zip` | Standalone Star Citizen host source in repository layout: all `core-source` components plus complete game implementation, DataCore, headers and synthetic test dependencies. Build with `-DSCO_GAME_SC=ON`; [host-source guide](../docs/host-source-sc.md). Published first in SDK 2.4.0 RC1 and included in the stable SDK 2.4.0 release ([stable archive identities](../docs/releases/sdk-v2.4.0.md#stable-archive-identity)) |
+| `sco-sdk-host-source-sc-<version>.zip` | Standalone Star Citizen host source in repository layout: all `core-source` components plus complete game implementation, DataCore, headers and synthetic test dependencies. Build with `-DSCO_GAME_SC=ON`; [host-source guide](../docs/host-source-sc.md). Published first in SDK 2.4.0 RC1 and included in the SDK 2.4.0 and 2.4.1 releases ([2.4.0 archive identities](../docs/releases/sdk-v2.4.0.md#stable-archive-identity)) |
 | `sco-sdk-core-<version>.zip` | The game-neutral SDK: `sco_api.h`, the host services, the C++, C# and Lua layers, the generic examples and tools. Normal packages take their coordinate from source `sdk/VERSION`; opt-in development packages read source `sdk/DEVELOPMENT_VERSION`, write the selected value to the generated kit `VERSION` and metadata, and exclude `sdk/DEVELOPMENT_VERSION` |
 | `sco-sdk-game-sc-<game pack version>.zip` | The optional Star Citizen extension: the game pack's tables and events, DataCore, their C++ and C# wrappers, `travel_pack` and `quantum_pack`. Unpack it over the core SDK its `VERSIONS.txt.game-sc` names; it keeps its own `VERSIONS.txt.game-sc` and `SHA256SUMS.game-sc`, so nothing of the core is overwritten |
 | `sco-sdk-<version>.zip` | Both in one zip, the shape `sdk-v1.1.0` shipped. Releases use it until consumers move to the two zips |
@@ -122,7 +131,7 @@ Their wrappers query service versions in descending order: 1.4, 1.3, 1.2, 1.1,
 then 1.0. They check complete member extents and required feature bits. Tagged
 callback routes additionally require service 1.4 and both stable-tag and
 event-tag features; older providers refuse these requests before mutation. The
-tagged-event route is an unpublished 2.4.1 source addition, absent from stable
+tagged-event route is new in SDK 2.4.1 and absent from
 SDK 2.4.0. This current-source description does not establish which earlier
 minor bindings, including 1.3, are present in a frozen release archive; check
 the selected kit's own headers, wrappers and guide.
@@ -401,7 +410,7 @@ GPL-3.0-only ([LICENSE](../LICENSE)), like sco-core. The project expects plugins
 
 ## Private development packages
 
-For an unpublished source-bound package from a clean Git checkout, run
+For a private source-bound package from a clean Git checkout, run
 `python3 sdk/package.py --development --profile host-source-sc --out <directory>`
 (or choose another declared profile). This opt-in mode uses the committed
 `sdk/DEVELOPMENT_VERSION` as an input coordinate in archive names and generated
@@ -409,7 +418,7 @@ SDK metadata, writes that coordinate to the generated kit `VERSION`, excludes
 the development-version input file, records the exact source commit, and does not
 imply a tag or release. The game-sc overlay keeps its actual game-pack version
 and adds the development SDK identifier to its archive name. Normal local
-packaging can share the published 2.4.0 version and filename while producing
+packaging can share the released version and filename while producing
 different bytes; published archive identity is its recorded checksum. A
 successful package build does not authorize native activation or establish game
 or plugin runtime safety.

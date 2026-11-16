@@ -31,14 +31,14 @@ The C++20 layer of the sco plugin SDK: header-only, over [`sco_api.h`](api-v1.md
 | [`scosdk/service.hpp`](../include/scosdk/service.hpp) | `Provide`, `Release`, `ServiceRef<T>`, `HasMember`, `ServiceVersion` |
 | [`scosdk/raw.hpp`](../include/scosdk/raw.hpp) | `RegisterRaw<In, Out>`, `InvokeRaw`, `RegisterRawBytes`, `InvokeRawBytes` |
 | [`scosdk/storage.hpp`](../include/scosdk/storage.hpp) | `Storage`, `StorageCursor`, `StorageTransaction`, `SqlInt` / `SqlFloat` / `SqlText` / `SqlBlob` / `SqlNull` (the host service `sco.storage`, [`sco_storage.h`](../include/sco_storage.h)); not in `scosdk.hpp`, include it when you use storage |
-| [`scosdk/storage_metadata.hpp`](../include/scosdk/storage_metadata.hpp) | `StorageMetadata`: separate read-only owner metadata service; include explicitly (unpublished 2.4.1 source) |
+| [`scosdk/storage_metadata.hpp`](../include/scosdk/storage_metadata.hpp) | `StorageMetadata`: separate read-only owner metadata service; include explicitly (since SDK 2.4.1) |
 | [`scosdk/datacore.hpp`](../include/scosdk/datacore.hpp) | `DataCore`, `DataCorePatch`, `DataCoreInstance`, `DataCoreGuid`, `DataCoreEnum`, `DataCoreRef` (the host service `sco.datacore`, [`sco_datacore.h`](../include/sco_datacore.h)); not in `scosdk.hpp` |
 | [`scosdk/net.hpp`](../include/scosdk/net.hpp) | `Net`, `NetChannel`: typed message channels with the other players of a session the product opened, callbacks as lambdas on the game thread (the host service `sco.net`, [`sco_net.h`](../include/sco_net.h); [Multiplayer messages](net.md)) |
 | [`scosdk/ipc.hpp`](../include/scosdk/ipc.hpp) | `Ipc`, `IpcChannel`: shared-memory channels to another program on the same PC (the host service `sco.ipc`, [`sco_ipc.h`](../include/sco_ipc.h); [IPC](ipc.md)); `IpcChannel` closes its channel on destruction; not in `scosdk.hpp` |
 | [`scosdk/game/vehicles.hpp`](../include/scosdk/game/vehicles.hpp) | `sco::sdk::game::Vehicles`: the ship you're aboard, its seats, `Seat` / `Eject` / `PowerOn` for your own actors and ships (the game service `game.vehicles`, [`sc_vehicles.h`](../include/sc_vehicles.h); [API](api-v1.md#gamevehicles-10-game-pack)); not in `scosdk.hpp` |
 | [`scosdk/game/creative.hpp`](../include/scosdk/game/creative.hpp) | `sco::sdk::game::Creative`: `SetGodMode`, `SetFlyMode`, `SetFlySpeed`, `SetInfiniteAmmo`, `SetInfiniteShipAmmo`, `State`, `LastError` (the game service `game.creative`, [`sc_creative.h`](../include/sc_creative.h); [API](api-v1.md#gamecreative-10-game-pack)); toggles you switch on go off when your plugin unloads; not in `scosdk.hpp` |
 | [`scosdk/settings.hpp`](../include/scosdk/settings.hpp) | `Settings`, `AsSettingsChanged`: read the typed `[settings]` of your `plugin.ini` (the host service `sco.settings`, [`sco_settings.h`](../include/sco_settings.h)); not in `scosdk.hpp`, include it when you use settings |
-| [`scosdk/widgets.hpp`](../include/scosdk/widgets.hpp) | `Widgets`: renderer-neutral retained panels and events (`sco.widgets` 1.0); include explicitly |
+| [`scosdk/widgets.hpp`](../include/scosdk/widgets.hpp) | `Widgets`: renderer-neutral retained panels and events (`sco.widgets` 1.0, with the 1.1 subtree/capability routes and, since SDK 2.4.1, the 1.4 `SetPanelTagged` / `UpdateNodesTagged`); include explicitly |
 | [`scosdk/menu_builder.hpp`](../include/scosdk/menu_builder.hpp) | `scosdk::PanelBuilder`, `PanelTree`: declarative widgets, 1.0 by default with opt-in 1.1 tooltip, severity and paging; include explicitly |
 | [`scosdk/ui_surfaces.hpp`](../include/scosdk/ui_surfaces.hpp) | `UiSurfaces`: show a `sco.widgets` panel as a HUD rectangle, billboard or world quad (the host service `sco.ui.surfaces`, [`sco_ui_surfaces.h`](../include/sco_ui_surfaces.h)); `Hud`, `Billboard`, `Quad` build poses; include explicitly |
 | [`scosdk/ui.hpp`](../include/scosdk/ui.hpp) | `Ui`: tabs, overlays, badges and hotkeys (the host service `sco.ui`, [`sco_ui.h`](../include/sco_ui.h)); not in `scosdk.hpp`, include it when you use UI |
@@ -173,8 +173,8 @@ if (store.Open(*this) == SCO_OK) {
 
 ## Storage metadata
 
-The unpublished 2.4.1 source adds `scosdk/storage_metadata.hpp`; it is absent
-from stable SDK 2.4.0. This separate [`sco.storage.metadata` 2.0](storage-metadata.md)
+SDK 2.4.1 adds `scosdk/storage_metadata.hpp`; it is absent
+from SDK 2.4.0. This separate [`sco.storage.metadata` 2.0](storage-metadata.md)
 service inspects only this plugin's already opened database; it never opens one.
 
 ```cpp
@@ -242,8 +242,8 @@ See [widget contract](design/widgets.md) and the
 [renderer-free example](../sdk/examples/widgets/widgets.c). This route has no
 ImGui types or link requirement.
 
-The unpublished 2.4.1 source adds `SetPanelTagged` and `UpdateNodesTagged`;
-these 1.4 callback-tag routes are absent from stable SDK 2.4.0. Use the headers
+SDK 2.4.1 adds `SetPanelTagged` and `UpdateNodesTagged`;
+these 1.4 callback-tag routes are absent from SDK 2.4.0. Use the headers
 and documentation from the selected kit for older extension support. Both
 helpers take `sco_widget_node_1_2` arrays and negotiate service 1.4, guard the
 complete capabilities and mutation members and their non-null pointers, and

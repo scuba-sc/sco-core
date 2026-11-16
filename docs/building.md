@@ -226,9 +226,21 @@ Workflow actions are pinned to commit SHAs. The release workflow defaults to `co
 
 ## Releases
 
-The SDK is released as profile archives under a tag `sdk-v<version>`; a release candidate uses `sdk-v<version>-rc.<n>`. Stable SDK 2.4.0 is the latest published release at [`sdk-v2.4.0`](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0), published on 2026-11-01 from source commit `6106fa3639cbcc28f78a1ded8de2707de019f4d3`. Its five archive identities and checksums are in the [release notes](releases/sdk-v2.4.0.md#stable-archive-identity); later `main` commits do not change those published bytes. RC2, published on 2026-10-28 from `844e136ccb280ad8cb43f73bc43c9447e8f6799d`, and RC1 are historical releases with their own immutable archives. The [`sdk-v2.4.0-rc.2` release notes](releases/sdk-v2.4.0.md#published-rc2-archive-identity) preserve that artifact identity and the prepublication history. The `sdk-v2.0.0` to `sdk-v2.3.0` tags remain in git, but their release downloads were withdrawn. The version lives in `sdk/VERSION`; the plugin ABI's own version is `SCO_API_MAJOR` / `SCO_API_MINOR` in `sco_api.h`, and version 1 only grows ([Compatibility](api-v1.md#compatibility)).
+The SDK is released as profile archives under a tag `sdk-v<version>`; a release candidate uses `sdk-v<version>-rc.<n>`. The current release:
+
+<!-- release-block:current-release -->
+SDK **2.4.1** uses Star Citizen game pack **0.8.1** (checked against build
+4.10.200.58746) and plugin ABI **1.1**. Download it from the
+[`sdk-v2.4.1` release page](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.1) and verify each archive against that release's
+`SHA256SUMS`; the [release notes](https://github.com/scuba-sc/sco-core/blob/sdk-v2.4.1/docs/releases/sdk-v2.4.1.md) list what changed. The previous release is
+[SDK 2.4.0](https://github.com/scuba-sc/sco-core/blob/sdk-v2.4.0/docs/releases/sdk-v2.4.0.md).
+<!-- /release-block:current-release -->
+
+Its five archives and their checksums are listed in its `SHA256SUMS` on the release page. SDK 2.4.0 (`sdk-v2.4.0`) was published on 2026-11-01 from source commit `6106fa3639cbcc28f78a1ded8de2707de019f4d3`. Its five archive identities and checksums are in the [2.4.0 release notes](releases/sdk-v2.4.0.md#stable-archive-identity); later `main` commits do not change those published bytes. RC2, published on 2026-10-28 from `844e136ccb280ad8cb43f73bc43c9447e8f6799d`, and RC1 are historical releases with their own immutable archives. The [`sdk-v2.4.0-rc.2` release notes](releases/sdk-v2.4.0.md#published-rc2-archive-identity) preserve that artifact identity and the prepublication history. The `sdk-v2.0.0` to `sdk-v2.3.0` tags remain in git, but their release downloads were withdrawn. The version lives in `sdk/VERSION`; the plugin ABI's own version is `SCO_API_MAJOR` / `SCO_API_MINOR` in `sco_api.h`, and version 1 only grows ([Compatibility](api-v1.md#compatibility)).
 
 Follow the [maintainer release procedure](legal/release-checklist.md#releasing): prepare the version and notes, build a candidate on checked main, tag its exact source, and dispatch the [`release`](../.github/workflows/release.yml) workflow with its run and artifact IDs. The workflow checks the candidate, hashes and attestations and verifies the draft assets before publication without rebuilding.
+
+**Bumping the version.** Run `python3 tools/release_docs.py --bump X.Y.Z [--game-pack A.B.C] [--game-build B]`. It writes `sdk/VERSION`, the next development coordinate, the candidate tag, the changelog heading, a release-notes skeleton, the site allowlist and hub entry, and re-renders every release region in the docs. Then fill in the release notes and the changelog section and run `python3 tools/doc_release_gate.py --tag sdk-vX.Y.Z`. Digests are added to the release notes only after the release workflow publishes them. Never hand-type the current version, tag, game pack, game build, plugin ABI or archive names outside a generated region (a `release-block` or `rv` marker, described in the `tools/release_docs.py` docstring); `python3 tools/release_docs.py --check` fails on stale regions.
 
 A release the workflow creates doesn't trigger other workflows (GitHub doesn't run workflows on events made with a workflow's own token), so the `discord` post for it doesn't happen automatically; post the announcement by hand after verified publication. Do not manually publish a failed draft to bypass the promotion checks.
 

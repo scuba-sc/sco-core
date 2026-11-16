@@ -36,9 +36,10 @@ Every host service table under the reserved owner `sco`, declared in an
 | `sco.net` | 1.0 | [`sco_net.h`](../include/sco_net.h) |
 | `sco.settings` | 1.0 | [`sco_settings.h`](../include/sco_settings.h) |
 | `sco.storage` | 1.1 | [`sco_storage.h`](../include/sco_storage.h) |
+| `sco.storage.metadata` | 2.0 | [`sco_storage_v2.h`](../include/sco_storage_v2.h) |
 | `sco.ui` | 1.0 | [`sco_ui.h`](../include/sco_ui.h) |
 | `sco.ui.surfaces` | 1.0 | [`sco_ui_surfaces.h`](../include/sco_ui_surfaces.h) |
-| `sco.widgets` | 1.2 | [`sco_widgets.h`](../include/sco_widgets.h) |
+| `sco.widgets` | 1.4 | [`sco_widgets.h`](../include/sco_widgets.h) |
 
 A host service is still optional: a host or game build that does not offer one does not
 publish it, and `query_service` answers `SCO_NOT_FOUND`

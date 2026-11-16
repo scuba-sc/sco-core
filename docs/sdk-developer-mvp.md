@@ -11,7 +11,7 @@ native/status metadata, `tools/sco-new-plugin.py`, checker source and CMake inte
 download and checksum, each client (Claude Code, Codex, Cursor, VS Code, Copilot CLI),
 Windows and macOS/Linux launchers and how to verify the connection. For a client that
 reads an `mcpServers` object, the entry is the following. The SDK folder is the folder that
-directly contains `sdk-catalogue.json`, `sco-sdk-2.4.0` for the combined kit; use absolute
+directly contains `sdk-catalogue.json`, `sco-sdk-<version>` for the combined kit; use absolute
 paths, and on Windows `py` with `-3` as the first argument. Discovery now defaults to
 fifteen tools including service status and workflow retrieval; use `--minimal-tools` for six catalogue tools.
 Published RC2 bytes retain their fourteen-tool profile until a newer kit is approved and published.
@@ -22,11 +22,11 @@ Published RC2 bytes retain their fourteen-tool profile until a newer kit is appr
     "sco-core-sdk": {
       "command": "python3",
       "args": [
-        "/absolute/path/to/sco-sdk-2.4.0/tools/sco-core-mcp/server.py",
+        "/absolute/path/to/sco-sdk-<version>/tools/sco-core-mcp/server.py",
         "--catalogue",
-        "/absolute/path/to/sco-sdk-2.4.0/sdk-catalogue.json",
+        "/absolute/path/to/sco-sdk-<version>/sdk-catalogue.json",
         "--repo-root",
-        "/absolute/path/to/sco-sdk-2.4.0"
+        "/absolute/path/to/sco-sdk-<version>"
       ]
     }
   }
@@ -49,12 +49,12 @@ guide sections in `sdk-guides.json`; guide prose is not a contract record.
 The agent writes the returned files into its own new project and runs:
 
 ```sh
-cmake -S project -B project/build -DSCO_SDK=/absolute/path/to/sco-sdk-2.4.0
+cmake -S project -B project/build -DSCO_SDK=/absolute/path/to/sco-sdk-<version>
 cmake --build project/build --config Debug --target check
 ```
 
 For `lang: "csharp"` there is no `CMakeLists.txt`: publish with
-`dotnet publish project -c Release -r win-x64 -o project/out/<id> -p:ScoSdk=/absolute/path/to/sco-sdk-2.4.0`
+`dotnet publish project -c Release -r win-x64 -o project/out/<id> -p:ScoSdk=/absolute/path/to/sco-sdk-<version>`
 and run `sco-plugin-check` on `project/out/<id>` with and without `--short-tables`
 (the generated `README.md` has the steps). For `lang: "lua"` the `check` target
 checks the manifest and entry only.

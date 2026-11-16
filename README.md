@@ -14,7 +14,7 @@ sco-core puts the game's internals (addresses, file formats, engine calls) behin
 
 ## Who it is for
 
-- **Mod authors:** write a plugin in C, C++20, C# (NativeAOT, so players need no .NET), sandboxed Lua, or as a data pack with no code.
+- **Mod authors:** write a plugin in C, C++20, C# (NativeAOT, so players need no .NET), sandboxed Lua, or as a data pack with no code. Experimental raw Rust bindings ship from SDK 2.4.1 ([Rust support](sdk/rust/README.md)); they are in the `core` profile archives from SDK 2.4.1 and not in the 2.4.0 archives.
 - **Products** such as sc-offline: build sco-core in and ship features as built-in plugins on the same interface.
 - **Patch-day maintainers:** check a new game build without starting the game.
 
@@ -27,12 +27,17 @@ sco-core puts the game's internals (addresses, file formats, engine calls) behin
 
 ## Quick start: write a plugin
 
-The SDK is **2.4.0**, Star Citizen game pack **0.8.0**, plugin ABI **1.1** (unchanged
-since 2.3.0). The latest published release is the stable [SDK 2.4.0](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0), built from source commit `6106fa3639cbcc28f78a1ded8de2707de019f4d3`. The [RC2](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0-rc.2) and [RC1 release](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0-rc.1) are historical. Download
-`sco-sdk-2.4.0.zip` (or `sco-sdk-core-2.4.0.zip`) and `SHA256SUMS` from the selected release page and
-check the digest as in [Start your first plugin](docs/getting-started.md), or build an archive
-with `python3 sdk/package.py`. See the [2.4.0 release notes](docs/releases/sdk-v2.4.0.md);
-behavior in 2.4.0 has not been run in game. Then:
+<!-- release-block:current-release -->
+SDK **2.4.1** uses Star Citizen game pack **0.8.1** (checked against build
+4.10.200.58746) and plugin ABI **1.1**. Download it from the
+[`sdk-v2.4.1` release page](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.1) and verify each archive against that release's
+`SHA256SUMS`; the [release notes](https://github.com/scuba-sc/sco-core/blob/sdk-v2.4.1/docs/releases/sdk-v2.4.1.md) list what changed. The previous release is
+[SDK 2.4.0](https://github.com/scuba-sc/sco-core/blob/sdk-v2.4.0/docs/releases/sdk-v2.4.0.md).
+<!-- /release-block:current-release -->
+
+Choose the combined archive (or the core archive) from that release page, check the digest as in
+[Start your first plugin](docs/getting-started.md), or build an archive with
+`python3 sdk/package.py`. The SDK does not claim that anything in this release works in game. Then:
 
 ```sh
 cd sco-sdk-<version>

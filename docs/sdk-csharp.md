@@ -157,7 +157,7 @@ The host-owned services each have a class. `Open(plugin)` queries the service on
 | Class | Service | Does |
 |---|---|---|
 | `Storage`, `StorageCursor` | [`sco.storage`](storage.md) ([`sco_storage.h`](../include/sco_storage.h)) | `Put` / `Get` (bytes, unmanaged structs, `PutString` / `GetString`; any size, the handshake is done here), `Delete`, `Keys(prefix, list)`, `NextTable` / `NextColumn` (schema), `Begin` / `Commit` / `Rollback`, `Exec(sql, out changes, params SqlParam[])`, `Query(sql, out cursor, ...)` with `Next`, `Int`, `Float`, `Text`, `Blob`, `ColumnName`; `LastError()`. Dispose a cursor to close it |
-| `StorageMetadata` | [`sco.storage.metadata` 2.0](storage-metadata.md) | Copied owner, table, row-count and quota metadata for the already opened owner database; unpublished 2.4.1 source only |
+| `StorageMetadata` | [`sco.storage.metadata` 2.0](storage-metadata.md) | Copied owner, table, row-count and quota metadata for the already opened owner database; since SDK 2.4.1 |
 | `Sco.Sdk.Game.Vehicles` | [`game.vehicles`](api-v1.md#gamevehicles-10-game-pack) ([`sc_vehicles.h`](../include/sc_vehicles.h)) | `Open`, `PlayerShip`, `Seats(ship, Span<ScVehicleSeat>, out count, out more)` (each seat's `Name` and `Flags`), `SeatOccupant`, `Seat`, `Eject`, `PowerOn`, `LastError()`. Game thread only |
 | `Sco.Sdk.Game.Creative` | [`game.creative`](api-v1.md#gamecreative-10-game-pack) ([`sc_creative.h`](../include/sc_creative.h)) | `Open`, `SetGodMode`, `SetFlyMode`, `SetFlySpeed(float)`, `SetInfiniteAmmo`, `SetInfiniteShipAmmo`, `State(out ScCreativeFlag)`, `LastError()`. Game thread only; a toggle you switch on goes off when your plugin unloads |
 | `DataCore`, `DataCorePatch` | [`sco.datacore`](datacore.md#the-scodatacore-service) ([`sco_datacore.h`](../include/sco_datacore.h)) | `State`, `Begin(out patch, flags)`; on the patch `Set(record, field, DcValue)`, `AddInstance`, `SetPointer`, `Append`, `AddRecord` (needs `sco.datacore` 1.1, `Abi.DataCoreVersion1_1`; a 1.0 host answers `Unavailable`), `Commit`, `Discard`, `Report(i, out DcReport)` / `Reports()`. A patch disposed without `Commit` is discarded. Results arrive with the event `datacore.applied` (data: `ScoDcApplied*`) |
@@ -172,9 +172,9 @@ The host-owned services each have a class. `Open(plugin)` queries the service on
 | `Sco.Sdk.Game.GameEvents` | the game pack's bus events ([`sc_game_events.h`](../include/sc_game_events.h); [game services](game-services.md#events)) | Extension methods on `Plugin`: `OnPlayerSpawned`, `OnPlayerDied`, `OnActorDied`, `OnZoneChanged` (handler gets a copy of `ScGamePlayerSpawned` / `ScGamePlayerDied` / `ScGameActorDied` / `ScGameZoneChanged`; a payload shorter than the struct is dropped). They run on the game thread from the host's tick |
 | `Sco.Sdk.Game.Entities` | [`game.entities`](api-v1.md#gameentities-11-game-pack) ([`sc_entities.h`](../include/sc_entities.h)) | `Open`, `Alive(id)`, `ClassOf(id, out cls)`, `GetTransform(id, Span<double> pos, Span<double> rot, out zone)`, `SetTransform`, `Spawn(cls, zone, pos, rot, out id)`, `Despawn`, `Keep` (1.1), `Watch(what, type, fn, ctx, out id)` (an unmanaged function pointer), `Unwatch`, `QueryRadius`, `LastError()`, `LastReadError()`. Game thread only |
 
-### Storage metadata (unpublished 2.4.1 source)
+### Storage metadata (since SDK 2.4.1)
 
-`Sco.Sdk.StorageMetadata` is absent from stable SDK 2.4.0. It discovers a
+`Sco.Sdk.StorageMetadata` is absent from SDK 2.4.0. It discovers a
 separate read-only service and never opens a database:
 
 ```csharp
@@ -288,6 +288,15 @@ dotnet run -c Release --project sdk/csharp/Sco.Sdk.Tests -- --widgets
 These are headless development fixtures, not Windows NativeAOT loading, GPU or
 in-game verification.
 
+Since SDK 2.4.1, `Widgets` negotiates `sco.widgets` 1.4 (falling back to
+1.3, 1.2, 1.1 and 1.0) and `WidgetNode.Tag` takes a stable node tag. A nonempty tag
+needs a 1.4 provider with the stable-tag and event-tag features and a usable maximum
+tag length; otherwise `SetPanel` and `UpdateNodes` return `Unavailable` before
+submitting. A callback then receives `WidgetEvent.Tag`, the copied tag of the target
+node (null for an untagged node); an event whose tag does not match the retained node
+is dropped. These routes are absent from SDK 2.4.0. See the
+[SDK widget guide](../sdk/docs/widgets.md#canonical-callback-tags-14).
+
 ## Lifetimes
 
 The SDK owns every callable you hand it (command and raw handlers, event handlers, tasks, `done` callbacks, draw functions) and the UTF-8 strings a command keeps (in a native arena freed at unload). The `ctx` it gives the host for each is an **id into a registry**, never a `GCHandle` or a pointer: the trampoline looks the id up on every call, and unload removes the plugin's entries, so a call the host makes late (or never makes) finds nothing instead of a freed object. Ids are never reused.
@@ -343,7 +352,7 @@ The plugin is compiled ahead of time and trimmed: there is no JIT and no runtime
 `csharp/Sco.Sdk.Tests` checks every struct against the C headers and drives the wrappers through a stand-in host table:
 
 ```sh
-dotnet run -c Release --project sdk/csharp/Sco.Sdk.Tests -- tests/abi_v1.c tests/abi_storage.c tests/abi_ui.c tests/abi_settings.c tests/abi_datacore.c
+dotnet run -c Release --project sdk/csharp/Sco.Sdk.Tests -- tests/abi_v1.c tests/abi_storage.c tests/abi_storage_v2.c tests/abi_widgets.c tests/abi_ui.c tests/abi_settings.c tests/abi_datacore.c
 ```
 
-`Pins.cs` holds every `SIZE`, `AT` and `PIN` line of the `tests/abi_*.c` files (sco-core's own pins of `sco_api.h`, `sco_storage.h`, `sco_ui.h`, `sco_settings.h` and `sco_datacore.h`); the test checks each one with `Marshal.SizeOf`, `Unsafe.SizeOf` and `Marshal.OffsetOf` and the SDK's constants, and a pin it can't check is a failure. Given the C files, it also fails unless `Pins.cs` equals their lines, so a changed header can't slip past. Then `FakeHost.cs` loads plugins through a table of `[UnmanagedCallersOnly]` stand-ins: commands, a throwing command and `OnLoad`, event multiplexing, tasks, raw handlers and the size handshake, the service size check, and a late call through an old `ctx` after unload. Exit 0 = every check passed. The SDK's CI ([`sdk.yml`](../.github/workflows/sdk.yml)) runs it on Linux and Windows, publishes `cs_hello` with NativeAOT on both, checks it with `sco-plugin-check`, and loads it through the real host kit with `sco-host-sim`.
+`Pins.cs` holds every `SIZE`, `AT` and `PIN` line of the `tests/abi_*.c` files (sco-core's own pins of `sco_api.h`, `sco_storage.h`, `sco_storage_v2.h`, `sco_widgets.h`, `sco_ui.h`, `sco_settings.h` and `sco_datacore.h`; the widget pins sit in `WidgetsPins.cs`); the test checks each one with `Marshal.SizeOf`, `Unsafe.SizeOf` and `Marshal.OffsetOf` and the SDK's constants, and a pin it can't check is a failure. Given the C files, it also fails unless `Pins.cs` equals their lines, so a changed header can't slip past. Then `FakeHost.cs` loads plugins through a table of `[UnmanagedCallersOnly]` stand-ins: commands, a throwing command and `OnLoad`, event multiplexing, tasks, raw handlers and the size handshake, the service size check, and a late call through an old `ctx` after unload. Exit 0 = every check passed. The SDK's CI ([`sdk.yml`](../.github/workflows/sdk.yml)) runs it on Linux and Windows, publishes `cs_hello` with NativeAOT on both, checks it with `sco-plugin-check`, and loads it through the real host kit with `sco-host-sim`.

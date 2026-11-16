@@ -262,8 +262,8 @@ class RealTreeTests(unittest.TestCase):
         self.assertIn('b7541dc91802f5fa1b050151bbc82e0e47834b6f', status)
         self.assertIn('not published', status)
         lua = next(s for s in data['sections'] if s['doc'] == 'sdk/docs/lua.md' and s['level'] == 1)
-        self.assertIn('Stable SDK 2.4.0', lua['text'])
-        self.assertIn('RC1 and RC2 are historical releases', lua['text'])
+        version = (ROOT / 'sdk/VERSION').read_text().strip()
+        self.assertIn('SDK ' + version + ' uses Star Citizen game pack', lua['text'])
         self.assertNotIn('release candidate 1, tag', lua['text'])
         tutorial = entries[('docs/sdk-mcp-tutorial.md', '2. Obtain SDK and build your own copies in isolation')]['text']
         self.assertIn('tutorial wrapper', tutorial)

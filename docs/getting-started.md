@@ -3,16 +3,15 @@
 This is one complete path from a published SDK archive to a checked, renamed C
 plugin, then Windows game deployment. You do not need a sco-core checkout.
 
-Stable SDK **2.4.0** uses Star Citizen game pack **0.8.0** and plugin ABI **1.1**
-(unchanged since 2.3.0). The [stable release](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0)
-was published on 2026-11-01 from source commit
-`6106fa3639cbcc28f78a1ded8de2707de019f4d3`; its five archive identities are in the
-[release notes](releases/sdk-v2.4.0.md#stable-archive-identity). Later `main` commits
-do not change the published archive bytes. The RC1 examples/checksums below are
-historical and apply only to that archive; the release notes retain RC2 details.
-Verify the selected archive against that
-release's `SHA256SUMS` and check the kit and host identities separately. Nothing new
-in 2.4.0 has been run in game.
+<!-- release-block:current-release-brief -->
+SDK **2.4.1** uses Star Citizen game pack **0.8.1** (checked against build
+4.10.200.58746) and plugin ABI **1.1**. Archives and their digests are on the
+[`sdk-v2.4.1` release page](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.1); the [release notes](https://github.com/scuba-sc/sco-core/blob/sdk-v2.4.1/docs/releases/sdk-v2.4.1.md) list what changed.
+<!-- /release-block:current-release-brief -->
+
+Verify the selected archive against that release's `SHA256SUMS` and check the kit and host
+identities separately. The SDK does not claim that anything new in this release has been run in game.
+The [SDK 2.4.0 coordinates](#previous-release-sdk-240) are kept below for reference.
 
 ## 1. Choose a language and archive
 
@@ -40,17 +39,40 @@ line) and `lua` (`plugin.ini` and `main.lua`; Lua has no service lookup, so
 language's folder holds and how to check it. A generated plugin that passes the
 checkers has not been run in game.
 
-### Stable SDK 2.4.0 assets
+### Current release assets
 
-Choose a profile from the [stable archive identities](releases/sdk-v2.4.0.md#stable-archive-identity).
-This walkthrough uses `sco-sdk-core-2.4.0.zip`; use the combined
-`sco-sdk-2.4.0.zip` if you need game services or the MCP catalogue. The stable
-release and its release candidates have different checksums even where asset
-names match.
+Choose a profile from the archives on the release page linked above. This walkthrough
+uses the core archive; use the combined archive if you need game services or the MCP
+catalogue. Checksums differ between releases even where asset names look alike.
+
+<!-- release-block:archives -->
+| Archive | Choose it when |
+| --- | --- |
+| `sco-sdk-core-2.4.1.zip` | You need the neutral ABI, host services, native template and generic examples. |
+| `sco-sdk-2.4.1.zip` | You also need Star Citizen service headers, DataCore or game data-pack examples: core plus the game extension in one archive, with the MCP discovery catalogue. |
+| `sco-sdk-game-sc-0.8.1.zip` | Optional extension over its **exact matching** core archive (`sco-sdk-core-2.4.1.zip`), not a standalone SDK. Check `COMPATIBILITY.json.game-sc` and the required base digest before composing; equal version strings are insufficient. See [archive composition](../sdk/README.md#zips). |
+| `sco-sdk-core-source-2.4.1.zip` | You are embedding or building the host kernel, not following the plugin template path. See [source-kit instructions](../sdk/README.md#build-the-kernel-source-kit). Do not overlay it with a plugin SDK. |
+| `sco-sdk-host-source-sc-2.4.1.zip` | You are building the Star Citizen host source standalone, not a plugin. See the [host-source guide](../docs/host-source-sc.md). Do not overlay it with a plugin SDK. |
+<!-- /release-block:archives -->
+
+Raw unzip does not validate an overlay's compatibility. If you do not need to
+manage the core/overlay descriptors separately, use the combined archive.
+
+To use the SDK with an AI agent through MCP, download the combined archive instead of
+the core archive, which has no catalogue, guides or server, and follow
+[Set up the discovery server from the SDK kit](agent-integration.md#set-up-the-discovery-server-from-the-sdk-kit).
 
 <a id="sdk-240-release-candidate-1-assets"></a>
+<a id="previous-release-sdk-240"></a>
 
-### Historical SDK 2.4.0 release candidate 1 assets
+### Previous release: SDK 2.4.0 assets
+
+SDK 2.4.0 coordinates, kept for reference. Choose a profile from the
+[stable archive identities](releases/sdk-v2.4.0.md#stable-sdk-240-archive-identities);
+the stable 2.4.0 walkthrough used `sco-sdk-core-2.4.0.zip`, or the combined
+`sco-sdk-2.4.0.zip` for game services and the MCP catalogue.
+
+#### Historical SDK 2.4.0 release candidate 1 assets
 
 Every archive below is attached to the `sdk-v2.4.0-rc.1` release, together with
 `SHA256SUMS` and one `<archive>.spdx.json` SBOM per archive. The SHA-256 column
@@ -63,13 +85,6 @@ repeats that release's `SHA256SUMS`.
 | `sco-sdk-game-sc-0.8.0.zip` | Optional extension over its **exact matching** core archive (`sco-sdk-core-2.4.0.zip`), not a standalone SDK. Check `COMPATIBILITY.json.game-sc` and the required base digest before composing; equal version strings are insufficient. See [archive composition](../sdk/README.md#zips). | `fafd2d2d4d86cf479c25a4623e94c7004b45e527e94dceb8354293c6a6b5a8f9` |
 | `sco-sdk-core-source-2.4.0.zip` | You are embedding/building the host kernel, not following the plugin template path. See [source-kit instructions](../sdk/README.md#build-the-kernel-source-kit). Do not overlay it with a plugin SDK. | `f2f7c35591ed96090240466910e3db408953a9a4f6e0a16a36da83bc2a34ee62` |
 | `sco-sdk-host-source-sc-2.4.0.zip` | You are building the Star Citizen host source standalone, not a plugin. See the [host-source guide](host-source-sc.md). Do not overlay it with a plugin SDK. | `5ca76ff9dac6bbaa183c6f308d610e08d9c1b0daf6ebda6458e222277406dfc6` |
-
-Raw unzip does not validate an overlay's compatibility. If you do not need to
-manage the core/overlay descriptors separately, use the combined archive.
-
-To use the SDK with an AI agent through MCP, download `sco-sdk-2.4.0.zip` instead of
-the core archive, which has no catalogue, guides or server, and follow
-[Set up the discovery server from the SDK kit](agent-integration.md#set-up-the-discovery-server-from-the-sdk-kit).
 
 ## 2. Install prerequisites
 
@@ -93,18 +108,50 @@ the core archive, which has no catalogue, guides or server, and follow
 
 ## 3. Download, verify, extract
 
-Use an empty working directory. The stable download, verification, extraction,
-build and checker commands in sections 3 to 5 were executed on 2026-11-11 on
-Windows x64 (Git Bash, Python 3, CMake, Visual Studio 2022) against the published
-stable core archive and its release `SHA256SUMS`. The historical RC1 path was
-previously run on Windows on 2026-10-21; earlier revisions ran on macOS. On
-Windows, use a shell that supports these shell blocks (Git Bash works), or
-perform the download/extraction in the browser and use the linked Windows CMake
-recipe.
+Use an empty working directory. The download, verification, extraction, build
+and checker commands in sections 3 to 5 were last executed on 2026-11-11 on
+Windows x64 (Git Bash, Python 3, CMake, Visual Studio 2022) against the SDK 2.4.0
+core archive and its release `SHA256SUMS`; the commands for later
+releases differ only in the tag and archive names. On Windows, use a shell that supports these shell blocks
+(Git Bash works), or perform the download/extraction in the browser and use the
+linked Windows CMake recipe.
 
-### Download the published stable SDK 2.4.0
+### Download the current SDK
 
-Run the following in an empty directory. The release API records
+Run the following in an empty directory. The script compares the archive with
+the checksum file from the same release.
+
+<!-- release-block:download-core-verify -->
+```sh
+env -u GITHUB_TOKEN -u GH_TOKEN gh release download sdk-v2.4.1 -R scuba-sc/sco-core -p 'sco-sdk-core-2.4.1.zip' -p SHA256SUMS
+python3 - <<'PY'
+import hashlib
+from pathlib import Path
+import zipfile
+archive = Path("sco-sdk-core-2.4.1.zip")
+entries = dict(line.split(None, 1)[::-1] for line in Path("SHA256SUMS").read_text().splitlines() if line.strip())
+if hashlib.sha256(archive.read_bytes()).hexdigest() != entries[archive.name]:
+    raise SystemExit("SHA256 mismatch: stop; do not extract or build")
+if Path(archive.stem).exists():
+    raise SystemExit("Extraction destination already exists; choose an empty directory")
+with zipfile.ZipFile(archive) as sdk:
+    sdk.extractall(".")
+print(archive.name + ": SHA256 OK")
+PY
+```
+<!-- /release-block:download-core-verify -->
+
+Expected: the archive name followed by `: SHA256 OK`.
+In a browser, download both files from the release page linked at the top of this page.
+The release-level `SHA256SUMS` checks archive bytes; the similarly named file
+**inside** the SDK covers extracted files. A checksum downloaded alongside an
+archive is an integrity check, not independent signer authentication. The
+[release checklist](legal/release-checklist.md) describes the release verification
+process. Only extract archives from the trusted project release.
+
+### Previous release: SDK 2.4.0 download
+
+SDK 2.4.0 commands, kept for reference. The release API records
 `sco-sdk-core-2.4.0.zip` with SHA-256
 `d2a8313ec5e3a7ae9ff95c253841b40e75454bec9799dccba5cbab9346432a7b`;
 the script compares that value with the checksum file from the same release.
@@ -137,7 +184,7 @@ archive is an integrity check, not independent signer authentication. The
 [release checklist](legal/release-checklist.md) describes the release verification
 process. Only extract archives from the trusted project release.
 
-### Historical RC1 download
+#### Historical RC1 download
 
 The following example and digest apply only to RC1. Choose this instead of the stable
 block above when intentionally reproducing the historical RC1 path.
@@ -172,24 +219,28 @@ In a browser, download both files from
 
 From the same working directory:
 
-### Build the selected SDK 2.4.0 kit
+### Build the selected SDK kit
 
+<!-- release-block:build-core-kit -->
 ```sh
-cmake -S sco-sdk-core-2.4.0 -B sdk-build -DCMAKE_BUILD_TYPE=Release
+SDK_DIR=sco-sdk-core-2.4.1.zip
+SDK_DIR=${SDK_DIR%.zip}   # the folder the archive extracted
+cmake -S "$SDK_DIR" -B sdk-build -DCMAKE_BUILD_TYPE=Release
 cmake --build sdk-build --config Release
 cmake --install sdk-build --config Release --prefix sdk-out
 python3 - <<'PY'
 from pathlib import Path
 import shutil
-shutil.copytree('sco-sdk-core-2.4.0/template', 'first_plugin')
+shutil.copytree(Path('sco-sdk-core-2.4.1.zip').stem + '/template', 'first_plugin')
 for name in ('plugin.c', 'plugin.ini', 'CMakeLists.txt'):
     path = Path('first_plugin') / name
     path.write_text(path.read_text().replace('my_plugin', 'first_plugin'))
 PY
-cmake -S first_plugin -B first-plugin-build -DSCO_SDK="$PWD/sco-sdk-core-2.4.0" -DCMAKE_BUILD_TYPE=Release
+cmake -S first_plugin -B first-plugin-build -DSCO_SDK="$PWD/$SDK_DIR" -DCMAKE_BUILD_TYPE=Release
 cmake --build first-plugin-build --config Release
 cmake --install first-plugin-build --config Release --prefix first-plugin-out
 ```
+<!-- /release-block:build-core-kit -->
 
 ### Name your plugin
 

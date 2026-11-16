@@ -35,13 +35,22 @@ only, with `public_header: false`. `sdk/add_host_adapter_components.py` validate
 real files/provenance before adding their exact membership; it is idempotent and
 refuses any conflicting plugin profile membership. No placeholder files are used.
 
-The RC1 kit was published as `sco-sdk-host-source-sc-2.4.0.zip` in
+The current release's kit is its `sco-sdk-host-source-sc-<version>.zip` archive:
+
+<!-- release-block:current-release-brief -->
+SDK **2.4.1** uses Star Citizen game pack **0.8.1** (checked against build
+4.10.200.58746) and plugin ABI **1.1**. Archives and their digests are on the
+[`sdk-v2.4.1` release page](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.1); the [release notes](https://github.com/scuba-sc/sco-core/blob/sdk-v2.4.1/docs/releases/sdk-v2.4.1.md) list what changed.
+<!-- /release-block:current-release-brief -->
+
+Verify it against the release's `SHA256SUMS`. The SDK 2.4.0 line published its
+RC1 kit was published as `sco-sdk-host-source-sc-2.4.0.zip` in
 [SDK 2.4.0 release candidate 1](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0-rc.1)
 (tag `sdk-v2.4.0-rc.1`, SHA-256
 `5ca76ff9dac6bbaa183c6f308d610e08d9c1b0daf6ebda6458e222277406dfc6`; see the
 [2.4.0 release notes](releases/sdk-v2.4.0.md)). The profile was first scoped by the
 [SDK 2.1.0 host-source scope decision](legal/release-decisions/2026-10-13-sdk-v2.1.0-host-source.md);
-the final `sdk-v2.4.0` release follows the candidate. The SDK workflow exercises the extracted
+the final `sdk-v2.4.0` release followed the candidate. The SDK workflow exercises the extracted
 archive on Linux and Windows/MSVC; the candidate workflow includes its zip and
 SBOM sidecar and exercises the exact candidate zip. To test an existing archive,
 set `SCO_HOST_SOURCE_ARCHIVE` when invoking the standalone archive test above.

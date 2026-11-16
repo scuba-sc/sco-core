@@ -293,8 +293,8 @@ if (api->size >= offsetof(sco_api, query_service) + sizeof(api->query_service) &
 
 - **Names** are `[a-z0-9_.]`, 1-63 characters, with no leading, trailing or doubled `.`, and must be the plugin's id or start with `<id>.`, like command names. A name already published is `SCO_BAD_ARG`. Because of that prefix, a plugin that needs your service can name it in `plugin.ini` (`requires = <id>.<name>`) and the host loads it after you; see [Load order](plugins.md#load-order-and-requires).
 - **Versions** are `(major << 16) | minor`. `query_service` answers `SCO_OK` when the service has the same major as `min_version` and is at least as new; `SCO_UNAVAILABLE` when the major differs or it is older; `SCO_NOT_FOUND` when nothing is published under that name. `out_vtable` is `NULL` unless `SCO_OK`.
-- **Withdrawing:** `release_service(self, name)` withdraws one of your services (`SCO_NOT_FOUND` if it isn't yours).
-- **Lifetime:** the host keeps the name, version and pointer, never the table's contents, and never calls into it. Once a native provider's table has been handed out, administrative unload/reload is refused for the live session. A fault withdraws lookup and scheduling but does not revoke cached raw tables or make them safe: an exposed provider becomes terminal `faulted`, retains its code and backing state without unload/resource hooks, and requires a game restart. A non-retained fault takes ordinary `crashed` resource cleanup. Terminal host shutdown closes runtime admission before teardown; built-ins-last ordering is not permission to call cached peer tables during unload. See [native service use](../sdk/docs/plugin-rules.md).
+- **Withdrawing:** `release_service(self, name)` withdraws one of your services from future lookup (`SCO_NOT_FOUND` if it isn't yours). It does not revoke pointers a caller already holds. It answers `SCO_UNAVAILABLE` in an owned session or after runtime admission has closed, and `SCO_FAILED` while the service has a live managed pin.
+- **Lifetime:** the host keeps the name, version and pointer, never the table's contents, and never calls into it. Once a native provider's table has been handed out, administrative unload/reload is refused for the live session. A fault withdraws lookup and scheduling but does not revoke cached raw tables or make them safe: an exposed provider becomes terminal `faulted`, retains its code and backing state without unload/resource hooks, and requires a game restart. A non-retained fault takes ordinary `crashed` resource cleanup. Terminal host shutdown is refused while a managed service pin is live and, once it proceeds, closes managed acquisition, publication and loader entry until the next app start; it closes runtime admission before teardown; built-ins-last ordering is not permission to call cached peer tables during unload. See [native service use](../sdk/docs/plugin-rules.md).
 - **Faults:** a call into another plugin's table runs inside the caller's callout, but a fault is blamed on the code that faulted. The host walks the faulting thread's frames (Windows, at most 32) and finds the first one inside a plugin DLL: if that is another plugin (the provider), the provider is quarantined and its services withdrawn, and the caller is not: its callout did not complete (a command answers `SCO_CRASHED`) but the caller stays loaded. An exposed provider is terminal `faulted`: `mod.log` reports state retention and a restart requirement, not safe recovery. A non-retained owner becomes `crashed` and releases its resources. A fault in the caller's own code, in game or host code, or in a built-in (which shares the product's module, so the walk can't tell it from the product) is still the callout owner's. A stack overflow is not walked and is the owner's. A provider that can't be told apart from its caller (a bad pointer the caller passed in) is blamed too: validate arguments in the provider.
 - Threads: both functions work from any thread; what thread the table's own functions may be called from is part of the provider's contract.
 - **Entity ids, never pointers.** A service that deals with game objects takes and returns entity and zone ids: opaque `uint64_t` values, as the game's own are. It resolves the id on every call, on the game thread, and answers `SCO_NOT_FOUND` (or `SCO_UNAVAILABLE`) when the entity has streamed out. It never hands out a pointer into the game: Star Citizen streams objects in and out (object container streaming), so a pointer a caller stores dangles once its object goes, and the next call through it crashes the caller, not the provider. Treat an id as a value to pass back, not a number to decode: the player's id in the sc-offline spawn test is `0xCAE11A7400000000`, a tagged value, not a small index. See [Framework § Lessons](framework.md#6-services-hand-out-ids-never-pointers).
@@ -475,14 +475,14 @@ if (api->size >= offsetof(sco_api, query_service) + sizeof(api->query_service) &
     api->has && api->has("game.vehicles.seats")) { ... }
 ```
 
-Every function returns `sco_result` and is game thread only: from another thread it answers `SCO_WRONG_THREAD` without touching the game. A function whose capability isn't ready answers `SCO_UNAVAILABLE`. Every failure leaves its reason for `last_error`. The functions that change the game take `self` first, and the game pack logs each of them with your plugin id (`[game] vehicles: <plugin>: ...`).
+Every function returns `sco_result` and is game thread only: from another thread it answers `SCO_WRONG_THREAD` without touching the game. A function whose capability isn't ready answers `SCO_UNAVAILABLE`. Every failure leaves its reason for `last_error`. The functions that change the game take `self` first, and the game pack logs each of them with your plugin id (`[game] vehicles: <plugin>: ...`). An accepted `seat` logs `seat request sent (actor ..., seat ...); the game links it on its next update`; `isLinked` is logged only when it already reads 1.
 
 | Function | What |
 |---|---|
 | `player_ship(&ship)` | The ship you're aboard. `SCO_NOT_FOUND`: in no ship; `SCO_UNAVAILABLE`: not spawned yet |
 | `seats(ship, out, max, &count, &more)` | Writes up to `max` `sc_vehicle_seat`s (96 bytes each) into your array: `index`, the seat item's `seat_id`, `occupant_id` (0: empty or unknown), `priority`, `name` (64 bytes, NUL-terminated) and `flags`; `more` is 1 when the ship has more seats than were written. `out` may be `NULL` with `max` 0 |
 | `seat_occupant(ship, seat_index, &actor)` | The actor in a seat, 0 when it's empty. `SCO_FAILED` when it's occupied by something the game pack can't decode |
-| `seat(self, actor, ship, seat_index)` | Links `actor` into the seat, out of any seat it was in. `SCO_OK` = the game accepted the link; check `seat_occupant` on a later tick |
+| `seat(self, actor, ship, seat_index)` | Links `actor` into the seat, out of any seat it was in. `SCO_OK` = the game accepted the link request; the game applies it on its next update, so check `seat_occupant` on a later tick |
 | `eject(self, actor)` | Takes `actor` out of its seat. `SCO_FAILED` when it isn't seated |
 | `power_on(self, ship)` | Sends the game's Flight Ready event to the pilot seat's dashboard (as R in the pilot seat). `SCO_FAILED` while no dashboard is streamed in yet: try again on a later tick |
 | `last_error(self, out, &size)` | The reason for the last failure, with `sco.storage`'s size handshake: on the game thread the newer of your own last failed call and the last failed query (queries carry no `self`), so ask right after the call; on another thread the refusal on that thread |
@@ -510,7 +510,7 @@ if (api->size >= offsetof(sco_api, query_service) + sizeof(api->query_service) &
     api->has && api->has("game.creative.god_mode")) { ... }
 ```
 
-Every function returns `sco_result`, takes `self` first, and is game thread only: from another thread it answers `SCO_WRONG_THREAD` without touching the game. A function whose capability isn't ready answers `SCO_UNAVAILABLE`. Every failure leaves its reason for `last_error`, and the game pack logs each change with your plugin id (`[game] creative: <plugin>: ...`).
+Every function returns `sco_result`, takes `self` first, and is game thread only: from another thread it answers `SCO_WRONG_THREAD` without touching the game. A function whose capability isn't ready answers `SCO_UNAVAILABLE`. Every failure leaves its reason for `last_error`, and the game pack logs each change with your plugin id (`[game] creative: <plugin>: ...`). A failed call is logged once per function, result and reason; repeats are not logged.
 
 | Function | What |
 |---|---|
@@ -727,8 +727,8 @@ numeric-only events. Tag-free panels retain 1.0/1.1 event layouts.
 See the [widget design](design/widgets.md), [UI guide](ui.md) and
 [SDK widget guide](../sdk/docs/widgets.md) for the contract, language routes and
 1.1–1.3 guidance. These describe source contracts; query the selected host and
-use the bindings and documentation from the selected kit. SDK 2.4.0 is stable;
-2.4.1 is an unpublished target, and source features do not establish runtime
+use the bindings and documentation from the selected kit. SDK 2.4.1 adds widgets 1.4
+(SDK 2.4.0 has 1.3), and source features do not establish runtime
 or game support.
 
 ## ABI freeze
