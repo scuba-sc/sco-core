@@ -609,8 +609,13 @@ sco_result SvcSeat(sco_plugin* self, uint64_t actor, uint64_t ship, uint32_t ind
     case Link::Fault:    return Fail(self, "seat", SCO_FAILED, "fault while linking actor %llu", static_cast<unsigned long long>(actor));
     default: break;
     }
-    Log("[game] vehicles: link actor %llu -> seat %llu: isLinked %d, occupant 0x%llx", static_cast<unsigned long long>(actor),
-        static_cast<unsigned long long>(s.id), linked, static_cast<unsigned long long>(ReadOccupantField(s.seat)));
+    // The game applies the link on its next update, so a 0 read here is "not yet", not a failure: report isLinked only when it is already 1.
+    if (linked)
+        Log("[game] vehicles: seat request sent (actor %llu, seat %llu); already linked (isLinked 1, occupant 0x%llx)",
+            static_cast<unsigned long long>(actor), static_cast<unsigned long long>(s.id), static_cast<unsigned long long>(ReadOccupantField(s.seat)));
+    else
+        Log("[game] vehicles: seat request sent (actor %llu, seat %llu); the game links it on its next update",
+            static_cast<unsigned long long>(actor), static_cast<unsigned long long>(s.id));
     return SCO_OK;
 }
 

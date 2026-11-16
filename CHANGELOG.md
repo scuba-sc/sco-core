@@ -4,6 +4,11 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+- `game.vehicles` seat log: an accepted `seat` call logs `seat request sent (actor ..., seat ...); the game links it on
+  its next update` instead of `link actor ... isLinked 0`, which read as a failure on success because the value is
+  read before the game applies the request. `isLinked` is logged only when already 1. Behaviour and return values
+  are unchanged.
+
 - Advance the unpublished development SDK coordinate to `2.4.1-dev.6`.
 
 - Signature resolution: the rows that walked the game's whole `.text` once per row for a RIP-relative
