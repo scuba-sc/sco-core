@@ -530,16 +530,18 @@ void OnTick(const char*, const void*, void*) {
 
 // ---- switching things off ----------------------------------------------------------------------
 
-void GodOff() {
+// Each switch-off logs one line, here, with who or why ("<plugin>", "owner unloaded", "stop"); a null
+// who (AmmoOff, ShipOff) clears without logging.
+void GodOff(const char* who) {
     g_god = {};
-    const Apply r = ApplyGod(false);
-    if (r == Apply::Changed) Log("[game] creative: god mode off");
+    ApplyGod(false);
+    Log("[game] creative: %s: god mode off", who);
 }
 
-void FlyOff() {
+void FlyOff(const char* who) {
     g_fly = {};
-    const Apply r = RequestFly(false);
-    if (r == Apply::Changed) Log("[game] creative: fly off");
+    RequestFly(false);
+    Log("[game] creative: %s: fly off", who);
 }
 
 void SpeedRestore() {
@@ -548,16 +550,18 @@ void SpeedRestore() {
     if (WriteFlySpeed(g_speedDefault, nullptr)) Log("[game] creative: fly speed back to %.0f", g_speedDefault);
 }
 
-void AmmoOff() {
+void AmmoOff(const char* who) {
     g_ammo = {};
     InterlockedExchange(&g_ammoOn, 0);
+    if (who) Log("[game] creative: %s: infinite ammo off", who);
 }
 
-void ShipOff() {
+void ShipOff(const char* who) {
     g_ship = {};
     InterlockedExchange(&g_shipOn, 0);
     g_partCount = 0;
     g_partsOf = 0;
+    if (who) Log("[game] creative: %s: infinite ship ammo off", who);
 }
 
 // ---- game.creative (sc_creative.h) -------------------------------------------------------------
@@ -581,8 +585,7 @@ sco_result SvcSetGodMode(sco_plugin* self, int on) {
     if (const sco_result r = Enter(self, "set_god_mode", g_c.god, kCapGod); r != SCO_OK) return r;
     if (!on) {
         if (g_god.on) {
-            Log("[game] creative: %s: god mode off", PluginName(self));
-            GodOff();
+            GodOff(PluginName(self));
         }
         return SCO_OK;
     }
@@ -600,8 +603,7 @@ sco_result SvcSetFlyMode(sco_plugin* self, int on) {
     if (const sco_result r = Enter(self, "set_fly_mode", g_c.fly, kCapFly); r != SCO_OK) return r;
     if (!on) {
         if (g_fly.on) {
-            Log("[game] creative: %s: fly off", PluginName(self));
-            FlyOff();
+            FlyOff(PluginName(self));
         }
         return SCO_OK;
     }
@@ -637,8 +639,7 @@ sco_result SvcSetInfiniteAmmo(sco_plugin* self, int on) {
     if (const sco_result r = Enter(self, "set_infinite_ammo", g_c.ammo, kCapAmmo); r != SCO_OK) return r;
     if (!on) {
         if (g_ammo.on) {
-            Log("[game] creative: %s: infinite ammo off", PluginName(self));
-            AmmoOff();
+            AmmoOff(PluginName(self));
         }
         return SCO_OK;
     }
@@ -657,8 +658,7 @@ sco_result SvcSetInfiniteShipAmmo(sco_plugin* self, int on) {
     if (const sco_result r = Enter(self, "set_infinite_ship_ammo", g_c.ship, kCapShip); r != SCO_OK) return r;
     if (!on) {
         if (g_ship.on) {
-            Log("[game] creative: %s: infinite ship ammo off", PluginName(self));
-            ShipOff();
+            ShipOff(PluginName(self));
         }
         return SCO_OK;
     }
@@ -713,11 +713,11 @@ const sc_creative_v1 kService = {
 
 // Everything off and forgotten: Stop, and a failed Start.
 bool Reset() {
-    if (g_god.on) GodOff();
-    if (g_fly.on) FlyOff();
+    if (g_god.on) GodOff("stop");
+    if (g_fly.on) FlyOff("stop");
     SpeedRestore();
-    AmmoOff();
-    ShipOff();
+    AmmoOff(g_ammo.on ? "stop" : nullptr);   // always cleared; only logged when it was on
+    ShipOff(g_ship.on ? "stop" : nullptr);
     if (!RemoveAmmoHook()) return false;
     g_god = g_fly = g_speed = {};
     g_c = {};
@@ -783,11 +783,11 @@ Result StopCreative() {
 void ReleaseCreativeOwner(const void* owner) {
     if (!g_started || !owner) return;
     ForgetErr(owner);
-    if (g_god.on && g_god.owner == owner) { Log("[game] creative: owner unloaded: god mode off"); GodOff(); }
-    if (g_fly.on && g_fly.owner == owner) { Log("[game] creative: owner unloaded: fly off"); FlyOff(); }
+    if (g_god.on && g_god.owner == owner) GodOff("owner unloaded");
+    if (g_fly.on && g_fly.owner == owner) FlyOff("owner unloaded");
     if (g_speed.on && g_speed.owner == owner) SpeedRestore();
-    if (g_ammo.on && g_ammo.owner == owner) { Log("[game] creative: owner unloaded: infinite ammo off"); AmmoOff(); }
-    if (g_ship.on && g_ship.owner == owner) { Log("[game] creative: owner unloaded: infinite ship ammo off"); ShipOff(); }
+    if (g_ammo.on && g_ammo.owner == owner) AmmoOff("owner unloaded");
+    if (g_ship.on && g_ship.owner == owner) ShipOff("owner unloaded");
 }
 
 }  // namespace sco::game::services
