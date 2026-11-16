@@ -132,29 +132,37 @@ bool RipTargetIs(const uint8_t* p, const uint8_t* target) {
 
 bool ScanIndex::Build(const Section& text) {
     if (built_ && textBase_ == text.base && textSize_ == text.size) return usable_;
-    sites_.clear();
+    sites_.reset();
+    siteCount_ = 0;
     built_ = true; usable_ = false; textBase_ = text.base; textSize_ = text.size;
     const auto base = reinterpret_cast<uintptr_t>(text.base);
     if (!text.base || text.size < 7 || text.size > maxText_ || text.size > 0xFFFFFFFFu || text.size > UINTPTR_MAX - base)
         return false;
-    try {
-        const uint8_t* const t = text.base;
-        const size_t last = text.size - 7;   // the last instruction start; its opcode byte is last + 1
+    const uint8_t* const t = text.base;
+    const size_t last = text.size - 7;   // the last instruction start; its opcode byte is last + 1
+    // Two passes over .text: count the sites, allocate once without throwing, then fill.
+    const auto forEachSite = [&](auto&& take) {
         for (const uint8_t* q = t + 1; q <= t + last + 1; ++q) {
             q = static_cast<const uint8_t*>(memchr(q, 0x8D, static_cast<size_t>(t + last + 1 - q) + 1));
             if (!q) break;
             const uint8_t* p = q - 1;
             if ((p[0] & 0xFB) != 0x48 || (p[2] & 0xC7) != 0x05) continue;
-            sites_.push_back({static_cast<uint32_t>(p - t), Rel32(p + 3)});
+            take(p);
         }
-        std::sort(sites_.begin(), sites_.end(), [](const Site& a, const Site& b) {
+    };
+    size_t count = 0;
+    forEachSite([&](const uint8_t*) { ++count; });
+    if (count) {
+        sites_.reset(new (std::nothrow) Site[count]);
+        if (!sites_) return false;   // scans fall back to walking .text
+        size_t i = 0;
+        forEachSite([&](const uint8_t* p) { sites_[i++] = {static_cast<uint32_t>(p - t), Rel32(p + 3)}; });
+        std::sort(sites_.get(), sites_.get() + count, [](const Site& a, const Site& b) {
             const int64_t ka = SiteKey(a), kb = SiteKey(b);
             return ka != kb ? ka < kb : a.off < b.off;
         });
-    } catch (const std::bad_alloc&) {
-        std::vector<Site>().swap(sites_);
-        return false;   // scans fall back to walking .text
     }
+    siteCount_ = count;
     usable_ = true;
     return true;
 }
@@ -170,8 +178,8 @@ void ScanIndex::ForEachRipImpl(const Section& text, const RipForm& form, const u
         const uintptr_t dist = ta >= tb ? ta - tb : tb - ta;
         if (dist > static_cast<uintptr_t>(INT64_MAX)) return;
         const int64_t key = ta >= tb ? static_cast<int64_t>(dist) : -static_cast<int64_t>(dist);
-        const Site* const begin = sites_.data();
-        const Site* const end = begin + sites_.size();
+        const Site* const begin = sites_.get();
+        const Site* const end = begin + siteCount_;
         const Site* b = std::lower_bound(begin, end, key, [](const Site& s, int64_t k) { return SiteKey(s) < k; });
         const Site* e = std::upper_bound(b, end, key, [](int64_t k, const Site& s) { return k < SiteKey(s); });
         b = std::lower_bound(b, e, first, [](const Site& s, size_t v) { return s.off < v; });

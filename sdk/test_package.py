@@ -1010,6 +1010,14 @@ class Refused(unittest.TestCase):
         with self.assertRaisesRegex(pkg.ManifestError, "game implementation"):
             pkg.select(m, "core-source")
 
+    def test_source_refuses_neutral_file_that_includes_the_game_pack(self):
+        m = copy.deepcopy(self.good)
+        c = self.comp(m, "tests/test_sig_index_equivalence.cpp")
+        c["profiles"] = ["core-source"]
+        c.pop("group", None)
+        with self.assertRaisesRegex(pkg.ManifestError, "include the game pack: tests/test_sig_index_equivalence.cpp"):
+            pkg.select(m, "core-source")
+
     def test_source_refuses_game_contract_membership(self):
         for source in ("include/sc_actors.h", "tests/abi_game_actors.c"):
             m = copy.deepcopy(self.good)

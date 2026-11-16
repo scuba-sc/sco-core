@@ -12,6 +12,16 @@ plugins built against 2.4.0 load unchanged. Release notes: `docs/releases/sdk-v2
 - Set the stable source version to `2.4.1` and the automatic candidate designation to
   `sdk-v2.4.1`; development archives built after this release use `2.4.2-dev.N`.
 
+- Signature resolution's per-pass scan index holds its sites in one nothrow allocation instead of
+  a `std::vector`. With MSVC checked iterators (Debug), a vector allocates in its `noexcept`
+  constructor, so an allocation failure while a resolve pass started terminated the process
+  instead of returning `OutOfMemory`; the allocation-failure capacity test now passes in Debug
+  as it did before the index. Release builds and sigcheck results are unchanged.
+
+- SDK packaging refuses a `core-source` file that unconditionally includes the game pack; the
+  signature-index equivalence test moved to the `host-source-sc` kit, so the extracted
+  `core-source` kit builds again.
+
 - `game.vehicles` seat log: an accepted `seat` call logs `seat request sent (actor ..., seat ...); the game links it on
   its next update` instead of `link actor ... isLinked 0`, which read as a failure on success because the value is
   read before the game applies the request. `isLinked` is logged only when already 1. Behaviour and return values

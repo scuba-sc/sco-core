@@ -3,6 +3,7 @@
 // inside the game and in host tools that map StarCitizen.exe from disk.
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <type_traits>
 #include <vector>
 
@@ -116,7 +117,11 @@ private:
     const uint8_t* textBase_ = nullptr;
     size_t textSize_ = 0;
     bool built_ = false, usable_ = false;
-    std::vector<Site> sites_;
+    // One nothrow allocation made by Build. Not a std::vector: checked-iterator builds allocate in
+    // vector's noexcept constructor, so a failed allocation there would terminate instead of
+    // falling back to walking .text.
+    std::unique_ptr<Site[]> sites_;
+    size_t siteCount_ = 0;
     Image memoImage_{};
     bool memoBound_ = false;
     SiteMemo memo_[static_cast<size_t>(MemoKey::kCount)];

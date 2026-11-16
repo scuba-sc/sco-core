@@ -293,6 +293,30 @@ def select(m, profile):
                 ("game-sc" in c["profiles"] and c["source"] != "LICENSE")]
         if game:
             raise ManifestError("core-source would hold game implementation or contracts: " + ", ".join(game))
+        # A neutral source file must not include the game pack: the kit omits it, so the extracted
+        # kit would not build (a test that includes sco/game/ belongs in host-source-sc).
+        # Only unconditional includes count: a guarded one (#ifndef SCO_KERNEL_ONLY and the like) is
+        # compiled out of the neutral kit.
+        game_include = re.compile(r'\s*#\s*include\s*["<](?:\.\./)*(?:src/game/|src/datacore/|sco/game/|sco/datacore)')
+        including = []
+        for c in chosen:
+            if c["source"].endswith((".c", ".cc", ".cpp", ".h", ".hpp")):
+                try:
+                    text = read(c["source"])
+                except (OSError, UnicodeError):
+                    continue
+                depth = 0
+                for line in text.splitlines():
+                    directive = line.strip()
+                    if re.match(r"#\s*if", directive):
+                        depth += 1
+                    elif re.match(r"#\s*endif", directive):
+                        depth = max(depth - 1, 0)
+                    elif depth == 0 and game_include.match(line):
+                        including.append(c["source"])
+                        break
+        if including:
+            raise ManifestError("core-source would hold files that include the game pack: " + ", ".join(including))
     seen = {}
     for c in chosen:
         dst = destination(m, profile, c)
