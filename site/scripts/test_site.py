@@ -236,8 +236,10 @@ class SiteTests(unittest.TestCase):
                 guide = output / 'src/content/docs' / (gen.guide_id('docs/releases/sdk-v2.4.0.md') + '.md')
                 self.assertIn('[sdk-v2.4.0](' + gen.RELEASES + 'sdk-v2.4.0)', guide.read_text())
                 gen.use_published_metadata(meta)
+                # Same SDK version as the release, different source: the source check must refuse.
+                mismatched = dict(catalogue, sdk_version=meta['sdk_version'])
                 with self.assertRaisesRegex(ValueError, 'Published release source does not match'):
-                    gen.generate(ROOT, catalogue, output, meta['tag'])
+                    gen.generate(ROOT, mismatched, output, meta['tag'])
         finally:
             gen.PUBLISHED_RELEASE, gen.PUBLISHED_DOWNLOAD_TAG, gen.PUBLISHED_METADATA = saved
 
@@ -715,9 +717,11 @@ class SiteTests(unittest.TestCase):
         docs = ['docs/a.md', 'docs/sub/b.md', 'docs/releases/sdk-v9.9.9.md']
         root = self.allowlist_fixture({name: '# ok\n' for name in docs}, docs)
         self.assertEqual(gen.inputs(root), sorted(docs))
-        # Only the current release's notes are published; older notes stay in the repository as history.
+        # The published release's notes and the source's own release notes are listed; older notes stay
+        # in the repository as history.
+        version = (ROOT / 'sdk/VERSION').read_text().strip()
         self.assertEqual([name for name in gen.inputs(ROOT) if name.startswith('docs/releases/')],
-                         ['docs/releases/' + gen.PUBLISHED_RELEASE + '.md'])
+                         sorted({'docs/releases/' + gen.PUBLISHED_RELEASE + '.md', 'docs/releases/sdk-v' + version + '.md'}))
         self.assertIn('docs/host-source-sc.md', gen.inputs(ROOT))
 
     def test_allowlist_refuses_unsafe_inputs(self):

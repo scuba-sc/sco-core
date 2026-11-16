@@ -1269,7 +1269,7 @@ class DevelopmentPackage(unittest.TestCase):
                     next_top, next_entries = pkg.archive_entries(m, profile, development=True)
                     self.assertEqual((top, pkg.archive_bytes(top, entries)),
                                      (next_top, pkg.archive_bytes(next_top, next_entries)))
-            self.assertEqual(pkg.sdk_version(), "2.4.0")
+            self.assertEqual(pkg.sdk_version(), pkg.read("sdk/VERSION").strip())
             self.assertNotIn(dev, pkg.archive_entries(m, "core")[0])
 
     def test_development_workflows_are_accepted_by_shipped_mcp_reader(self):

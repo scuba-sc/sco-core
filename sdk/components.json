@@ -177,6 +177,14 @@
       "why": "Release documentation readiness gate tests; not part of the kernel source kit."
     },
     {
+      "path": "tools/release_docs.py",
+      "why": "Generates release-coordinate regions in the documentation; not part of the kernel source kit."
+    },
+    {
+      "path": "tools/test_release_docs.py",
+      "why": "Release-coordinate documentation generator tests; not part of the kernel source kit."
+    },
+    {
       "path": "tools/check_live_site.py",
       "why": "Published documentation site freshness check; not part of the kernel source kit."
     },
