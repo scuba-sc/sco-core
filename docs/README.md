@@ -82,10 +82,10 @@ For the current release, consumer integration state, next horizon and contributi
    source-checkout form for maintainers.
 2. [SDK to MCP to plugin](sdk-mcp-tutorial.md): discover a contract, request a
    scaffold, validate manifest/widgets and run the native checker.
-3. [MCP server authority](../tools/sco-core-mcp/README.md): six default tools (minimal
-   profile), seven extended discovery tools plus two workflow tools (the current-source
-   SDK developer profile of fifteen, including `get_service_status` and guide search)
-   and three opt-in development tools, allowlist, provenance, limits and separate
+3. [MCP server authority](../tools/sco-core-mcp/README.md): fifteen tools by default
+   (six contract tools, seven extended discovery tools including `get_service_status` and
+   guide search, and two workflow tools), the six-tool minimal profile (`--minimal-tools`),
+   three opt-in development tools, allowlist, provenance, limits and separate
    administrator-owned runner settings.
 4. [Reference snapshots](reference-snapshots.md): bind discovery/examples to
    exact source/archive inputs; development previews are not approved releases.

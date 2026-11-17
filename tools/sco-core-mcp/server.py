@@ -171,36 +171,71 @@ def string_schema(maximum=512):
     return {"type": "string", "minLength": 1, "maxLength": maximum}
 
 
-def tool(name, description, properties=None, required=(), dependent=None):
+def tool(name, title, description, properties=None, required=(), dependent=None):
     schema = {"type": "object", "properties": properties or {},
               "required": list(required), "additionalProperties": False}
     if dependent:
         schema["dependentRequired"] = dependent
-    return {"name": name, "description": description, "inputSchema": schema,
+    return {"name": name, "title": title, "description": description, "inputSchema": schema,
             "annotations": dict(ANNOTATIONS)}
 
 
-SYMBOL = {"symbol_or_id": string_schema()}
+def described(schema, text):
+    """A copy of a property schema with the description a caller reads in tools/list."""
+    return {**schema, "description": text}
+
+
+SYMBOL_TEXT = ("A contract symbol such as sco_storage_v1.get, or a stable record id from search_api "
+               "(the id field of a search result).")
+SYMBOL = {"symbol_or_id": described(string_schema(), SYMBOL_TEXT)}
 LANGUAGE = {"type": "string", "enum": list(LANGUAGES)}
 TOOLS = [
-    tool("search_api", "Rank contracts by symbol, stable ID, service, purpose and discovery aliases; a match does not establish provider availability.",
-         {"query": string_schema(), "language": LANGUAGE, "service": string_schema(),
-          "limit": {"type": "integer", "minimum": 1, "maximum": 50, "default": 10}}, ("query",)),
-    tool("get_symbol", "Return the complete contract, table narrative and catalogue reading context.", SYMBOL, ("symbol_or_id",)),
-    tool("list_services", "List catalogue table names, services, packed table versions, x64 sizes, member counts and stability labels "
-         "(stable/experimental/unknown)."),
-    tool("get_example", "Return record-listed examples only; without a repository root return paths only.",
-         {**SYMBOL, "language": LANGUAGE}, ("symbol_or_id",)),
-    tool("get_capability_status", "Read language exposure, absent-capability contracts, recorded evidence state and the table's stability label, "
-         "not running-game status.", SYMBOL, ("symbol_or_id",)),
-    tool("check_compatibility", "Compare exact SDK/game-pack/source coordinates with catalogue metadata, optionally read historical checkout approval records "
-         "(no signature verification or publication check) and compare a service's minimum version and member extent with the catalogue table; not runtime certification.",
-         {"sdk_version": string_schema(), "game_pack_version": string_schema(),
-          "tag": {**string_schema(32), "pattern": TAG_PATTERN},
-          "source_sha": {**string_schema(40), "pattern": SHA_PATTERN},
-          "service": string_schema(128),
-          "min_version": {**string_schema(11), "pattern": VERSION_PATTERN},
-          "member_extent": {"type": "integer", "minimum": 1, "maximum": 65535}},
+    tool("search_api", "Search the SDK API",
+         "Find SDK contracts (C ABI table members and their C++, C# and Lua mappings) by symbol, stable id, service name, "
+         "purpose text or alias. Returns up to `limit` ranked summaries {id, symbol, service, purpose, score}; call get_symbol "
+         "with an id for the full contract. Start here when you know what you want to do but not the API name. A match says the "
+         "SDK declares the contract, not that a running host provides it.",
+         {"query": described(string_schema(), "Words or a symbol to look for, e.g. 'read a setting', 'sco_storage_v1' or 'spawn vehicle'."),
+          "language": described(LANGUAGE, "Keep only contracts usable from this language; records whose mapping for it is "
+                                          "'unsupported' are left out."),
+          "service": described(string_schema(), "Keep only contracts of this service, e.g. sco.storage or game.vehicles."),
+          "limit": {"type": "integer", "minimum": 1, "maximum": 50, "default": 10,
+                    "description": "Most results to return (1-50)."}}, ("query",)),
+    tool("get_symbol", "Get a contract",
+         "Return the complete contract record for one symbol or id: signature, buffer and ownership rules, thread affinity, "
+         "callback and reentrancy rules, results, cleanup, language mappings, examples and limitations, plus its table's "
+         "narrative and how to read the catalogue. Use it "
+         "after search_api, before writing code that calls the function.", SYMBOL, ("symbol_or_id",)),
+    tool("list_services", "List SDK services",
+         "List every table in the catalogue: table name, service name, packed version, x64 size, member count and stability "
+         "label (stable, experimental or unknown). Use it to see what the SDK offers or to find a service name for search_api "
+         "or get_service_status."),
+    tool("get_example", "Get code examples",
+         "Return the example source files the catalogue lists for one contract (at most 16 files), optionally only those in "
+         "one language. When the server was started without --repo-root it returns the example paths without their text.",
+         {**SYMBOL, "language": described(LANGUAGE, "Return only examples in this language (by file extension).")},
+         ("symbol_or_id",)),
+    tool("get_capability_status", "Get a contract's status",
+         "Return what the catalogue records about one contract's availability: per-language exposure, the behaviour when its "
+         "capability is absent, recorded evidence state and its table's stability label. This is static SDK metadata, not the "
+         "state of a running game.", SYMBOL, ("symbol_or_id",)),
+    tool("check_compatibility", "Check SDK compatibility",
+         "Compare version coordinates you have (SDK version, game-pack version, release tag, source commit) with this "
+         "catalogue, and optionally check that a service's minimum version and member extent fit the catalogue's table. "
+         "Returns per-field match results; historical approval records are read but signatures and publication are not "
+         "verified. Use it to confirm a plugin built against one SDK fits this one; it is not a runtime certification.",
+         {"sdk_version": described(string_schema(), "SDK version to compare, e.g. 2.4.1."),
+          "game_pack_version": described(string_schema(), "Game-pack version to compare, e.g. 0.8.1."),
+          "tag": {**string_schema(32), "pattern": TAG_PATTERN, "description": "Release tag to compare, e.g. sdk-v2.4.1."},
+          "source_sha": {**string_schema(40), "pattern": SHA_PATTERN,
+                         "description": "Full 40-hex sco-core commit the SDK was built from."},
+          "service": described(string_schema(128), "Service whose table to check, e.g. sco.storage; required with min_version "
+                                                   "or member_extent."),
+          "min_version": {**string_schema(11), "pattern": VERSION_PATTERN,
+                          "description": "Lowest table version your code needs, as major.minor (e.g. 1.2)."},
+          "member_extent": {"type": "integer", "minimum": 1, "maximum": 65535,
+                            "description": "Byte size of the table prefix your code reads (offset of the last member used "
+                                           "plus its size)."}},
          dependent={"min_version": ["service"], "member_extent": ["service"]}),
 ]
 UINT32 = {"type": "integer", "minimum": 0, "maximum": 0xFFFFFFFF}
@@ -216,40 +251,67 @@ WIDGET_NODE = {
         "value": {"type": "number"}, "minimum": {"type": "number"}, "maximum": {"type": "number"},
         "items": {"type": ["array", "null"], "maxItems": 1024, "items": {"type": "string", "maxLength": 1024}}}}
 # Extended discovery is on by default; --minimal-tools preserves the original six-name profile.
+CURSOR = {**string_schema(6), "pattern": r"^(0|[1-9][0-9]{0,5})$",
+          "description": "Paging position: omit for the first page, then pass the next_cursor of the previous result."}
 EXTENDED_TOOLS = [
-    tool("get_service_status", "Read a catalogue service's tables and complete static capability/evidence rows by service name, "
-         "including capabilities that have no method mapping. Status is usable only when the registry digest matches this catalogue; "
-         "it is not a running-host probe.",
-         {"service": string_schema(128)}, ("service",)),
-    tool("list_engine_natives", "List signature rows of sdk/native_index.json beneath --repo-root, filtered by subsystem, tier or a "
-         "case-insensitive substring of id, hash, subsystem, source or capability, one bounded page per call; symbolic hashes only.",
-         {"subsystem": string_schema(64), "tier": {"type": "integer", "minimum": 1, "maximum": 4},
-          "query": string_schema(128), "limit": {"type": "integer", "minimum": 1, "maximum": 100, "default": 25},
-          "cursor": {**string_schema(6), "pattern": r"^(0|[1-9][0-9]{0,5})$"}}),
-    tool("get_engine_native", "Return one signature row of sdk/native_index.json by row id or _0x hash with its tier meaning; "
-         "not evidence that the row resolves on a game build or ran in game.",
-         {"id_or_hash": string_schema(128)}, ("id_or_hash",)),
-    tool("validate_manifest_and_widgets", "Check plugin.ini text with sco-plugin-check's manifest rules and optional sco_widget_node "
-         "objects against the sco_widgets.h tree invariants; returns findings and touches no files.",
-         {"plugin_ini": string_schema(32768), "folder": {**string_schema(255), "pattern": r"^[^/\\]+$"},
-          "widgets": {"type": "array", "minItems": 1, "maxItems": 256, "items": WIDGET_NODE}}, ("plugin_ini",)),
-    tool("generate_plugin_scaffold", "Return, as {relative path: text}, the plugin folder sdk/tools/sco-new-plugin.py beneath --repo-root "
-         "would generate for this spec (c, cpp or csharp native plugin, or lua script; lua takes no services "
-         "beyond sco.widgets with with_menu); writes, builds and runs nothing.",
-         {"id": {**string_schema(31), "pattern": r"^[a-z0-9_]{1,31}$"},
-          "lang": {"type": "string", "enum": list(SCAFFOLD_LANGS)},
-          "with_menu": {"type": "boolean", "default": False},
+    tool("get_service_status", "Get a service's status",
+         "Return one service's tables and every capability row recorded for it (capability, default, evidence), including "
+         "capabilities that no function maps to. Rows are reported only when the status registry matches this catalogue. "
+         "Static SDK metadata; it does not probe a running host.",
+         {"service": described(string_schema(128), "Service name as list_services shows it, e.g. sco.storage or game.vehicles.")},
+         ("service",)),
+    tool("list_engine_natives", "List engine natives",
+         "Page through the game pack's signature rows (sdk/native_index.json): row id, symbolic _0x hash, subsystem, tier and "
+         "the capability that uses it, filtered by subsystem, tier or a text search. Hashes are stable names, never addresses "
+         "or patterns. Needs --repo-root.",
+         {"subsystem": described(string_schema(64), "Keep only rows of this subsystem, e.g. vehicles."),
+          "tier": {"type": "integer", "minimum": 1, "maximum": 4,
+                   "description": "Keep only rows of this tier (1-4); get_engine_native explains a row's tier."},
+          "query": described(string_schema(128), "Case-insensitive text to find in the row id, hash, subsystem, source or capability."),
+          "limit": {"type": "integer", "minimum": 1, "maximum": 100, "default": 25, "description": "Rows per page (1-100)."},
+          "cursor": CURSOR}),
+    tool("get_engine_native", "Get an engine native",
+         "Return one signature row by row id or _0x hash, with what its tier means. Listing a row is not evidence that it "
+         "resolves on any game build or that it ran in game. Needs --repo-root.",
+         {"id_or_hash": described(string_schema(128), "Row id or _0x hash as list_engine_natives returns it.")}, ("id_or_hash",)),
+    tool("validate_manifest_and_widgets", "Validate plugin.ini and widgets",
+         "Check plugin.ini text against the manifest rules sco-plugin-check applies, and optionally a list of sco_widget_node "
+         "objects against the widget tree rules of sco_widgets.h. Returns findings with line numbers; reads and writes no files. "
+         "Use it before building to catch manifest and menu-tree mistakes early.",
+         {"plugin_ini": described(string_schema(32768), "The full text of the plugin's plugin.ini."),
+          "folder": {**string_schema(255), "pattern": r"^[^/\\]+$",
+                     "description": "The plugin's folder name (one path segment). When given, a manifest id that differs "
+                                    "from it is reported, as the host requires them to match."},
+          "widgets": {"type": "array", "minItems": 1, "maxItems": 256, "items": WIDGET_NODE,
+                      "description": "Widget nodes to check, in submission order, as the plugin would pass them to "
+                                     "sco_widgets set_panel (kind by number or name)."}}, ("plugin_ini",)),
+    tool("generate_plugin_scaffold", "Generate a plugin scaffold",
+         "Return the files of a new plugin project as {relative path: text}: a native plugin in C, C++ or C#, or a Lua script, "
+         "exactly as sdk/tools/sco-new-plugin.py generates them, with build and check instructions. Writes, builds and runs "
+         "nothing; save the files yourself. Needs --repo-root.",
+         {"id": {**string_schema(31), "pattern": r"^[a-z0-9_]{1,31}$",
+                 "description": "Plugin id and folder name: lowercase letters, digits and underscores, up to 31 characters."},
+          "lang": {"type": "string", "enum": list(SCAFFOLD_LANGS), "description": "Language of the plugin."},
+          "with_menu": {"type": "boolean", "default": False,
+                        "description": "Include a small sco.widgets menu panel (a toggle, a slider and a button) "
+                                       "with its event handler."},
           "services": {"type": "array", "minItems": 0, "maxItems": 16,
-                       "items": {**string_schema(75), "pattern": SCAFFOLD_SERVICE}}}, ("id", "lang")),
-    tool("search_guides", "Rank sections of the SDK guides (sdk-guides.json: the public docs allowlist and the shipped sdk/docs "
-         "guides) by the query's whole-word terms, heading and title above body text, optionally within one doc; returns "
-         "bounded snippets with doc, heading, anchor and url, one page per call. Guide prose is not a contract record or "
-         "in-game evidence.",
-         {"query": string_schema(256), "doc": string_schema(256),
-          "limit": {"type": "integer", "minimum": 1, "maximum": 25, "default": 5},
-          "cursor": {**string_schema(6), "pattern": r"^(0|[1-9][0-9]{0,5})$"}}, ("query",)),
-    tool("get_guide_section", "Return one SDK guide section's bounded plain text by the doc and anchor search_guides returned.",
-         {"doc": string_schema(256), "anchor": string_schema(256)}, ("doc", "anchor")),
+                       "items": {**string_schema(75), "pattern": SCAFFOLD_SERVICE},
+                       "description": "Optional services to query at startup, e.g. sco.storage. A Lua plugin takes none "
+                                      "(only sco.widgets through with_menu)."}}, ("id", "lang")),
+    tool("search_guides", "Search the SDK guides",
+         "Search the SDK's guides (the public docs and the guides shipped in sdk/docs) by keywords. Returns ranked sections "
+         "with doc, heading, anchor, url and a short snippet, one page per call; read a section with get_guide_section. "
+         "Use it for how-to questions (building, packaging, menus, testing). Guides explain; contracts (get_symbol) are the "
+         "authority on API behaviour.",
+         {"query": described(string_schema(256), "Keywords, e.g. 'package a plugin' or 'widgets slider'."),
+          "doc": described(string_schema(256), "Search only this guide, by the doc path a previous result returned."),
+          "limit": {"type": "integer", "minimum": 1, "maximum": 25, "default": 5, "description": "Sections per page (1-25)."},
+          "cursor": CURSOR}, ("query",)),
+    tool("get_guide_section", "Read a guide section",
+         "Return the plain text of one guide section (bounded in length; a truncated section continues at its url).",
+         {"doc": described(string_schema(256), "The doc path from a search_guides result."),
+          "anchor": described(string_schema(256), "The anchor from the same search_guides result.")}, ("doc", "anchor")),
 ]
 # Available when the operator configures --project-root. These run programs on this machine, including the
 # plugin's and the project's own code, so they do not claim to be read-only.
@@ -258,28 +320,43 @@ DEV_ANNOTATIONS = {"readOnlyHint": False, "destructiveHint": True,
 DEV_PATH = string_schema(1024)
 
 
-def dev_tool(name, description, properties, required):
-    definition = tool(name, description, properties, required)
+def dev_tool(name, title, description, properties, required):
+    definition = tool(name, title, description, properties, required)
     definition["annotations"] = dict(DEV_ANNOTATIONS)
     return definition
 
 
 DEV_TOOLS = [
-    dev_tool("run_plugin_check", "Run the operator-configured sco-plugin-check on a built plugin folder inside a --project-root "
-             "(mode short probes a truncated 1.0-sized root prefix, not API 1.0 loader admission); returns exit code, pass/fail and FAIL lines. "
-             "Loads and runs the plugin's code against a stand-in host; not run in game.",
-             {"folder": DEV_PATH, "mode": {"type": "string", "enum": ["full", "short"], "default": "full"}}, ("folder",)),
-    dev_tool("build_plugin_project", "Configure and build a CMake plugin project inside a --project-root with the operator's cmake, "
-             "generator and SCO_SDK, into the project's build subfolder; fixed arguments, bounded output tail.",
-             {"project": DEV_PATH}, ("project",)),
-    dev_tool("test_plugin_project", "Run ctest in the build subfolder of a plugin project inside a --project-root with fixed "
-             "arguments; bounded output tail. Build it first with build_plugin_project.",
-             {"project": DEV_PATH}, ("project",)),
+    dev_tool("run_plugin_check", "Run the plugin checker",
+             "Run sco-plugin-check on a built plugin folder inside a configured --project-root. It loads the plugin's code against "
+             "a stand-in host (never the game) and returns exit code, pass/fail and the FAIL lines. Use it after building to "
+             "confirm the plugin loads, exports the right entry points and survives the host's checks.",
+             {"folder": described(DEV_PATH, "The built plugin folder (with plugin.ini and the plugin file), inside a --project-root."),
+              "mode": {"type": "string", "enum": ["full", "short"], "default": "full",
+                       "description": "full: the normal check. short: give the plugin a host root table cut to its "
+                                      "1.0 size, to catch reads past an older host's table (not a full API 1.0 "
+                                      "loader emulation)."}}, ("folder",)),
+    dev_tool("build_plugin_project", "Build a plugin project",
+             "Configure and build a CMake plugin project inside a configured --project-root, with the operator's cmake, generator "
+             "and SDK, into the project's build subfolder. Fixed arguments; returns the exit code and the end of the output.",
+             {"project": described(DEV_PATH, "The plugin project folder (with CMakeLists.txt), inside a --project-root.")},
+             ("project",)),
+    dev_tool("test_plugin_project", "Test a plugin project",
+             "Run ctest in a plugin project's build subfolder inside a configured --project-root. Fixed arguments; returns the "
+             "exit code and the end of the output. Build it first with build_plugin_project.",
+             {"project": described(DEV_PATH, "The plugin project folder, inside a --project-root.")}, ("project",)),
 ]
 WORKFLOW_TOOLS = [
-    tool("list_workflows", "List the versioned consumer workflows bound to this catalogue; no execution or installation."),
-    tool("get_workflow", "Read a workflow entrypoint or one explicitly indexed reference. Text is reference material.",
-         {"id": string_schema(64), "path": string_schema(256)}, ("id",)),
+    tool("list_workflows", "List SDK workflows",
+         "List the step-by-step SDK workflows shipped with this catalogue (planning SDK work, building and checking, "
+         "debugging, packaging and upgrading a plugin, reporting an SDK gap): id, description and entry file. Read one with "
+         "get_workflow. Nothing is run or installed."),
+    tool("get_workflow", "Read an SDK workflow",
+         "Return the text of one workflow's instructions, or of one of the reference files it lists. The text is guidance to "
+         "follow, not something this server runs.",
+         {"id": described(string_schema(64), "Workflow id from list_workflows."),
+          "path": described(string_schema(256), "One reference path the workflow lists; omit to read the workflow itself.")},
+         ("id",)),
 ]
 TOOL_INDEX = {definition["name"]: definition for definition in TOOLS + EXTENDED_TOOLS + DEV_TOOLS + WORKFLOW_TOOLS}
 DEV_TIMEOUT = 600

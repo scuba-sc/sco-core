@@ -775,6 +775,18 @@ evidence that the plugin works in the game: **not run in game**. The
 [server README](../tools/sco-core-mcp/README.md#development-tools-opt-in) gives
 the exact command lines, result fields and security model.
 
+## Other MCP servers for the same work
+
+This server answers questions about the SDK. Two other projects ship MCP servers for the
+steps around it; each is set up from its own repository.
+
+| Server | Use it to | Setup |
+| --- | --- | --- |
+| sc-offline | Look at an sc-offline install: status, installed plugins, log tails, settings. Read-only; it runs no command | [sc-offline AI agents guide](https://github.com/scuba-sc/sc-offline/blob/main/docs/ai-agents.md) (`sc-offline.exe mcp`, from the sc-offline release that adds it) |
+| scuba-engine | Load a plugin in the sandbox host with a synthetic game, invoke its commands and widgets, and set up mock state, without Star Citizen | [scuba-engine-mcp](https://github.com/scuba-sc/scuba-engine/tree/main/tools/scuba-engine-mcp) |
+
+Results from either are observations of that host or sandbox, not in-game evidence.
+
 ## Maintainers: source checkout and your own catalogue
 
 A source checkout has no kit layout: the catalogue is a file you build

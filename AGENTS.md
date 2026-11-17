@@ -28,13 +28,13 @@ Before authoring or modifying headers, mine recent commits to see how completed 
 ```bash
 # Find recent contract/service additions and SDK sync commits:
 git log -n 20 --oneline
-git log -n 5 --stat -- include/ catalogue/
-# Inspect a complete contract commit to mirror the 3-way ABI pattern (C11 header, C++20 wrapper, catalogue/tests):
+git log -n 5 --stat -- include/ sdk/contracts/
+# Inspect a complete contract commit to mirror the 3-way ABI pattern (C11 header, C++20 wrapper, sdk/contracts record and tests):
 git show <recent-contract-commit-sha>
 ```
 
 ### 2. What Belongs in `sco-core` vs. Provenance Metadata
-- **In Committed Source Files (`include/`, `src/`, `catalogue/`, `tests/`):**
+- **In Committed Source Files (`include/`, `src/`, `sdk/contracts/`, `tests/`):**
   - Pure, clean-room C11/C++20 interfaces, host provider sockets, mock implementations, and consumer tests.
   - Never hardcode raw game memory addresses, proprietary binary blobs, or unverified offsets inside public SDK headers.
 - **In the Pull Request Body or `sdk-gap` Issue Body:**

@@ -531,6 +531,24 @@ class ProtocolTests(ServerCase):
         self.result(self.start(use_env=True).call("list_services"))
 
 
+class ToolDescriptionTests(unittest.TestCase):
+    """Agents choose tools and fill arguments from tools/list alone, so every tool and every
+    argument must say what it is for."""
+
+    def test_every_tool_and_argument_is_described(self):
+        spec = importlib.util.spec_from_file_location("sco_core_mcp_server_described", SERVER)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        self.assertEqual(len(module.TOOL_INDEX), 18)
+        for name, definition in module.TOOL_INDEX.items():
+            with self.subTest(tool=name):
+                self.assertTrue(definition.get("title"))
+                self.assertGreaterEqual(len(definition["description"]), 80)
+                for key, schema in definition["inputSchema"]["properties"].items():
+                    with self.subTest(argument=key):
+                        self.assertGreaterEqual(len(schema.get("description", "")), 15)
+
+
 class ToolTests(ServerCase):
     def test_tool_list_contains_exact_read_only_surface(self):
         tools = self.start().request("tools/list")["result"]["tools"]

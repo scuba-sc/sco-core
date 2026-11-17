@@ -4,6 +4,18 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+- MCP servers: every tool now has a `title`, a description that says what it returns, when to use it and
+  its limits, and a description for each argument, so agents can pick tools and fill arguments from
+  `tools/list` alone. Covers the 18 discovery tools (`tools/sco-core-mcp`) and the six runtime tools
+  (`tools/sco-core-mcp-runtime`), which previously shared one generic sentence. Tool names, argument
+  names, schemas and results are unchanged; the skills manifest's MCP schema pins are regenerated.
+  Tests require a title and described arguments for every tool. CI now also runs the documented-launcher
+  integration test (`test_integration.py`) and the runtime server tests. Docs: `docs/README.md` no longer
+  calls the six-tool minimal profile the default, and `AGENTS.md` points at `sdk/contracts/` instead of a
+  `catalogue/` folder that does not exist. `docs/agent-integration.md` points to the sc-offline and
+  scuba-engine MCP servers, and the `sco-debug-plugin` skill tells agents to read the host's own view
+  (plugin state, logs) through MCP where the host offers it.
+
 ## sdk-v2.4.1
 
 SDK 2.4.1 with game pack 0.8.1 for Star Citizen build 4.10.200.58746. Plugin ABI stays 1.1;
