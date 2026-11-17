@@ -6,11 +6,10 @@ server](#register-the-server-in-your-client) in your client, and [verify the con
 For durable consumer procedures, see the [roadmap-driven workflow skills](agent-workflows.md).
 
 The local [`tools/sco-core-mcp`](../tools/sco-core-mcp/README.md) server exposes read-only **discovery** tools
-over stdio: fifteen by default, or the original six with `--minimal-tools`. Workflow discovery, scaffolding,
-validation, guides and API discovery are all in the default profile. It reads the same compiler-backed
-catalogue as the static reference site. It does not call SDK methods, run a game, or provide an HTTP endpoint,
-and by default it compiles nothing. GitHub Pages cannot host it. No credentials, secrets, network service or
-orchestration prompt is required.
+over stdio: 15 by default (API discovery, scaffolding, validation, guides and workflows), or the original
+six with `--minimal-tools`. It reads the same compiler-backed catalogue as the static reference site. It does
+not call SDK methods, run a game or provide an HTTP endpoint, and by default it compiles nothing. GitHub
+Pages cannot host it. It needs no credentials, network service or orchestration prompt.
 
 Runtime inspection uses the separate default-off
 [`sco-core-mcp-runtime`](../tools/sco-core-mcp-runtime/README.md) launcher: same-PC development tooling only,
@@ -29,8 +28,7 @@ releases](#earlier-releases-240-rc2-rc1).
 You need Python 3.9 or newer (check with `py -3 --version` on Windows or `python3 --version` on macOS and
 Linux) and an MCP client that supports stdio. The SDK <!--rv:sdk_version-->2.4.1<!--/rv--> kit speaks legacy
 protocol `2025-11-25` and `2026-07-28`, and advertises both through `server/discover`; a client must complete
-the handshake for a version it speaks. The kit needs no compiler, Clang, network service or credentials. The
-SDK <!--rv:sdk_version-->2.4.1<!--/rv--> kit has the fifteen-tool default and a matching workflow bundle.
+the handshake for a version it speaks. The kit needs no compiler, Clang, network service or credentials.
 
 **Release identity.** The current release:
 

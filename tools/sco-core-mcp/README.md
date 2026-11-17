@@ -1,23 +1,32 @@
 # sco-core SDK discovery MCP server
 
-[Consumer workflow discovery](../../docs/agent-workflows.md) is included in the current-source fifteen-tool profile. Start with `sco-plan-sdk-work` to tie the task to the roadmap and public SDK. It reads `sdk-workflows.json` beside the catalogue or an operator-selected `--workflows` file, requires matching SDK/source coordinates, and serves only embedded indexed text.
+Development-only, read-only discovery of the public sco-core SDK contracts over MCP
+on stdio. It needs Python 3.9 or newer (standard library only) and a generated SDK
+catalogue. It does **not** connect to a running host or game, invoke SDK methods,
+execute examples or modify the repository, and by default it compiles nothing. Three
+[development tools](#development-tools-opt-in) that build and check plugin projects
+are offered only when the operator configures `--project-root`.
 
-Development-only, read-only discovery of the public sco-core SDK contracts through
-MCP over stdio. The server uses only the standard library of Python 3.9 or newer
-and a generated SDK catalogue. It does **not** connect to a running host or game,
-invoke SDK methods, execute examples, or modify the repository. It is bundled
-development tooling, not a runtime game-service component. By default it compiles nothing; three
-[development tools](#development-tools-opt-in) that build and check plugin
-projects are offered automatically when the operator configures project roots.
+Tool profiles in current source:
 
-[Separate default-off local runtime launcher](../sco-core-mcp-runtime/README.md)
-implements the fixed runtime tool surface. This discovery executable remains
-credentials-free, with fifteen read-only discovery tools in current source. Explicit
-`--minimal-tools` retains the original six catalogue tools. The default developer
-profile includes [extended discovery](#extended-tools-default) and workflow retrieval.
-The separate launcher supersedes the historical same-server placement in the
-[runtime design](../../docs/design/runtime-mcp.md). Discovery never imports or
-enables runtime inspection. No live runtime/game acceptance is claimed.
+- **Default (SDK developer profile):** 15 read-only tools. These are the six catalogue
+  tools, [extended discovery](#extended-tools-default) (service status, engine natives,
+  manifest and widget validation, scaffold, guides) and workflow retrieval
+  (`list_workflows`, `get_workflow`). Workflow tools read `sdk-workflows.json` beside
+  the catalogue, or the file named by `--workflows`; the SDK and source coordinates
+  must match the catalogue. Start with `sco-plan-sdk-work`; see
+  [consumer workflows](../../docs/agent-workflows.md).
+- **Minimal:** `--minimal-tools` offers only the original six catalogue tools.
+- **With `--project-root`:** the default 15 plus `run_plugin_check`,
+  `build_plugin_project` and `test_plugin_project`, 18 in all.
+
+`--extended-tools` and `--workflow-tools` are accepted aliases and no longer needed;
+they cannot be combined with `--minimal-tools`.
+
+The [default-off runtime launcher](../sco-core-mcp-runtime/README.md) is a separate
+program. This server never imports it or enables runtime inspection, and no live
+runtime or game acceptance is claimed for either. The runtime launcher replaces the
+same-server placement described in the [runtime design](../../docs/design/runtime-mcp.md).
 
 The contract authority is [`docs/contracts.md`](../../docs/contracts.md), with
 per-method records in [`sdk/contracts/`](../../sdk/contracts/). The server exposes
@@ -27,23 +36,18 @@ that evidence; it does not replace the contract's reading rules or remaining gap
 
 To connect Claude Code, Codex, Cursor, VS Code or Copilot CLI to the SDK kit, follow
 [Set up the discovery server from the SDK kit](../../docs/agent-integration.md#set-up-the-discovery-server-from-the-sdk-kit).
-It downloads and verifies the kit, defines the SDK folder (the folder that directly contains
-`sdk-catalogue.json`), gives each client's configuration and says how to verify the
-connection. This README does not repeat those configurations. Two profiles are used
-in current-source examples: **SDK developer profile (recommended default)** with
-fifteen read-only tools, and **minimal profile** with explicit `--minimal-tools`
-and six catalogue tools. The legacy `--extended-tools` and `--workflow-tools` flags
-remain accepted aliases and are no longer needed; they cannot be combined with
-`--minimal-tools`.
+It covers download and verification, the SDK folder (the folder that directly contains
+`sdk-catalogue.json`), each client's configuration and how to verify the connection.
+This README does not repeat those configurations.
 
 ## Copyable SDK consumer tutorial
 
-[SDK → MCP → tutorial-owned plugin](../../docs/sdk-mcp-tutorial.md) first walks the
-standalone kit workflow with the SDK developer profile: scaffold, manifest and widget
-validation, native index, guides, and an optional build and check. Its downstream
-walkthrough then uses the six static tools, owned NPC/inspector copies, an isolated
-archive build, the checker and a named dynamic fixture. Runtime observations remain
-optional and default-off; static discovery never certifies gameplay or performs reload.
+[SDK, MCP and a tutorial-owned plugin](../../docs/sdk-mcp-tutorial.md) walks the
+standalone kit workflow with the default profile: scaffold, manifest and widget
+validation, native index, guides and an optional build and check. Its downstream
+walkthrough uses the six catalogue tools, owned NPC and inspector copies, an isolated
+archive build, the checker and a named dynamic fixture. Static discovery never
+certifies gameplay or performs reload.
 
 ## Using an extracted SDK archive
 
@@ -170,31 +174,24 @@ recorded path.
 
 ### Previous release: SDK 2.4.0
 
-The 2.4.0 combined archive is `sco-sdk-2.4.0.zip`. The material below describes that
-release and the release candidates before it; their archives keep their original bytes.
-
-
-RC2 was published on 2026-10-28; its immutable archive identity is recorded in the
-[release notes](../../docs/releases/sdk-v2.4.0.md#published-rc2-archive-identity).
-
-The [stable 2.4.0 release page](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0)
-provides the five profile archives and `SHA256SUMS`; the
+The 2.4.0 combined archive is `sco-sdk-2.4.0.zip` and unpacks to `sco-sdk-2.4.0`.
+This section describes that release and the candidates before it; their archives keep
+their original bytes. The [2.4.0 release page](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0)
+has the five profile archives and `SHA256SUMS`, and the
 [release notes](../../docs/releases/sdk-v2.4.0.md#stable-sdk-240-archive-identities)
-record the release source and all profile identities.
-The stable archive's root README describes RC2
-workflows, and its MCP README says the final release is not yet published. These
-are prepublication statements in the packaged snapshot; this source page does not
-rewrite it. The archived workflow index also retains some prepublication wording.
-Historical RC1
-has its own earlier launcher and frozen guides; see the known issue in the
-[integration guide](../../docs/agent-integration.md#set-up-the-discovery-server-from-the-sdk-kit).
+record the release source and every profile identity. RC2 was published on 2026-10-28;
+its archive identity is in the
+[RC2 section](../../docs/releases/sdk-v2.4.0.md#published-rc2-archive-identity).
 
-The stable 2.4.0 launcher has the fifteen-tool default and matching workflow index.
-The historical RC2 launcher has fourteen tools; it predates `get_service_status` and
-the schema-2 catalogue. The older RC1 launcher retains its original six-tool default
-and twelve with `--extended-tools`; it has no workflow tools/index. Those archives'
-servers speak only the legacy `2025-11-25` protocol. The 2.4.0 combined kit unpacks to
-`sco-sdk-2.4.0`.
+- **2.4.0:** 15-tool default and matching workflow index.
+- **The historical RC2 launcher:** 14 tools. It predates `get_service_status` and the schema-2 catalogue.
+- **RC1:** six-tool default, 12 with `--extended-tools`, and no workflow tools or index.
+
+These launchers speak only protocol `2025-11-25`. The 2.4.0 archive's own README files
+still carry RC2-era text, including that the final release is not yet published. That
+is prepublication wording in the packaged snapshot, not release status. RC1 has its own
+earlier launcher and frozen guides; see the known issue in the
+[integration guide](../../docs/agent-integration.md#set-up-the-discovery-server-from-the-sdk-kit).
 
 ## Run from a source checkout (maintainers)
 
@@ -347,13 +344,10 @@ methods mentioned in the returned contracts read-only or safe to invoke.
 
 <a id="extended-tools-opt-in"></a>
 
-These seven extended tools and the two workflow tools are included by default.
-`--minimal-tools` omits all nine and offers exactly the original six catalogue
-tools when no project roots are configured. The legacy `--extended-tools` and
-`--workflow-tools` flags remain compatibility aliases, not prerequisites. Add
-the default fifteen names to client allowlists explicitly.
-[The integration guide](../../docs/agent-integration.md#choose-a-profile) explains
-which reviewed generator code the developer tools can run:
+These seven extended tools and the two workflow tools are on by default.
+`--minimal-tools` omits all nine. Add the 15 default names to client allowlists
+explicitly. [The integration guide](../../docs/agent-integration.md#choose-a-profile)
+explains which reviewed generator code these tools can run:
 
 | Tool | Arguments | Purpose |
 |---|---|---|

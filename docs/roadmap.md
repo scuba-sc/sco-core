@@ -16,11 +16,10 @@ Alpha 4.10.3, build 4.10.200.58746; see [game builds](../docs/game/builds.md)) a
 [SDK 2.4.0](https://github.com/scuba-sc/sco-core/blob/sdk-v2.4.0/docs/releases/sdk-v2.4.0.md).
 <!-- /release-block:current-release -->
 
-SDK 2.4.0 was published on
-2026-11-01 from source commit `6106fa3639cbcc28f78a1ded8de2707de019f4d3`
-([release page](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0)); RC1 and RC2 remain historical records in its
-[release notes](releases/sdk-v2.4.0.md).
-The release bytes do not establish that a game capability has been verified in game.
+SDK 2.4.0 was published on 2026-11-01 from source commit `6106fa3639cbcc28f78a1ded8de2707de019f4d3`
+([release page](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0)); RC1 and RC2 remain historical
+records in its [release notes](releases/sdk-v2.4.0.md). Release bytes do not establish that a game
+capability has been verified in game.
 
 ## How to read status on this page
 
@@ -166,19 +165,19 @@ public issue links below for current source evidence.
 
 ## 3. Milestone 2: consumers and out-of-game studio
 
-SDK 2.4.1 is released; consumer integration has advanced, while full suite and gameplay acceptance
-remain separate gates.
+Consumer integration has advanced since SDK 2.4.0. Full suite and gameplay acceptance remain
+separate gates. These repositories move independently of this page, so recheck an exact ref before
+describing what a consumer has adopted.
 
-- **sc-offline:** current `main` is `e0ed7dba102b3463b04e02af1ff49a2addabe7ea`. PRs #185 and #192
-  are merged on the stable SDK baseline. [Issue #183](https://github.com/scuba-sc/sc-offline/issues/183)
+- **sc-offline:** PRs #185 and #192 are merged on the stable SDK baseline. [Issue #183](https://github.com/scuba-sc/sc-offline/issues/183)
   has synthetic VPN-range coverage; Windows firewall behavior and in-game join acceptance remain
   open.
-- **scuba-engine:** current `main` is `7d9cf369cf718d6a108dd594288dc7d46267f166`. Native runtime
+- **scuba-engine:** native runtime
   builds target Windows and Linux; the native editor is Windows-only. Browser Studio and portable
   developer tools are separate. The Studio MCP bridge is implemented with 16 tools; its presence
   does not mean every acceptance scenario is certified. Full out-of-game suite certification is
   still a next-horizon task, and mock runs do not establish gameplay behavior.
-- **sc-mp:** current `main` is `9b73627b07a4d7a585b68f38ba6a50e4fb3968fa`; integration PRs #14–#18
+- **sc-mp:** integration PRs #14–#18
   and #20 are merged. Windows/Linux CI exercises a synthetic relay and host context. Authority and
   receipts are process-rooted and volatile; durable recovery, a native game authority bridge and
   in-game co-presence have not been demonstrated.

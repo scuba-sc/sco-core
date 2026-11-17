@@ -12,9 +12,9 @@ download and checksum, each client (Claude Code, Codex, Cursor, VS Code, Copilot
 Windows and macOS/Linux launchers and how to verify the connection. For a client that
 reads an `mcpServers` object, the entry is the following. The SDK folder is the folder that
 directly contains `sdk-catalogue.json`, `sco-sdk-<version>` for the combined kit; use absolute
-paths, and on Windows `py` with `-3` as the first argument. Discovery now defaults to
-fifteen tools including service status and workflow retrieval; use `--minimal-tools` for six catalogue tools.
-Published RC2 bytes retain their fourteen-tool profile until a newer kit is approved and published.
+paths, and on Windows `py` with `-3` as the first argument. Discovery offers 15 tools by
+default, including service status and workflow retrieval; `--minimal-tools` offers the six
+catalogue tools. Published RC2 archives keep their 14-tool profile.
 
 ```json
 {

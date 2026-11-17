@@ -96,7 +96,7 @@ links follow from them. **Game-pack** targets exist only with `SCO_GAME_SC=ON`;
 | `sco_hook` | `src/hook/sco_hook.cpp`: detours and near-code memory, `sco/hook.h` (x86-64) | `Threads::Threads` |
 | `sco_engine` | `src/engine/zone.cpp`: the zone tree, `sco/engine/zone.h` (spatial math `sco/engine/types.h` is header-only) | `Threads::Threads` |
 | `sco_vfs` | `src/vfs/compose.cpp`, `table.cpp`: neutral virtual-file composition and mounts | `Threads::Threads` |
-| `sco_host` | `src/api/sco_caps.cpp`, `src/host/sco_host.cpp` | `sco_runtime`, `sco_core` |
+| `sco_host` | `src/api/sco_caps.cpp`, `src/host/sco_host.cpp`, `sco_diagnostics.cpp`, `sco_diagnostics_publisher.cpp` | `sco_runtime`, `sco_core` |
 | `sco_plugins` | `src/plugins/manifest.cpp`, `settings_ini.cpp`, `discover.cpp`, `loader.cpp`, `content.cpp`; `guard_win.cpp` on Windows only | `sco_runtime`, `sco_core`, `${CMAKE_DL_LIBS}` |
 | `sco_lua_vendor` | `plugins/lua/third_party/lua/src/*.c` without `lua.c`/`luac.c` | `m` on Unix |
 | `sco_lua` | `plugins/lua/sco_lua.c` | `sco_lua_vendor` |
@@ -109,14 +109,17 @@ links follow from them. **Game-pack** targets exist only with `SCO_GAME_SC=ON`;
 | `sco_settings` | `src/settings/settings.cpp`: typed plugin settings | `sco_host`, `sco_plugins`, `sco_storage`, `sco_ui` |
 | `sco_ipc` | `src/ipc/ipc.cpp` and `shm_win.cpp` or `shm_posix.cpp` | `sco_host`; privately `advapi32` on Windows or `rt` on non-Apple POSIX |
 | `sco_net` | `src/net/sha2.c`, `wire.cpp`, `reliable.cpp`, `core.cpp` | None |
-| `sco_net_service` | `src/net/service.cpp`, `scope.cpp` and `udp_win.cpp` or `udp_posix.cpp` | `sco_net`, `sco_host`, `Threads::Threads`; privately `ws2_32` on Windows |
+| `sco_net_service` | `src/net/service.cpp`, `scope.cpp`, `control.cpp` and `udp_win.cpp` or `udp_posix.cpp` | `sco_net`, `sco_host`, `Threads::Threads`; privately `ws2_32` on Windows |
 | `sco_datacore` (game-pack) | `src/datacore/datacore.cpp`, `patch.cpp`, `pack.cpp`: parser, patcher and packs | `sco_vfs` |
+| `sco_content` | `src/content/content.cpp`: the read-only `sco.content` host service | `sco_host`, `sco_plugins` |
 | `sco_datacore_service` (game-pack) | `src/datacore/service.cpp`: queued DataCore overrides | `sco_datacore`, `sco_host`, `sco_plugins` |
-| `sco_game_services` (game-pack, Windows) | `src/game/services/reads.cpp`, `spatial.cpp`, `spawn.cpp`, `missions.cpp`, `actors.cpp`, `vehicles.cpp`, `world.cpp`, `events.cpp`, `entities.cpp`, `creative.cpp` | `sco_game_sc`, `sco_host`, `sco_engine`, `sco_hook` |
-| `sco_app` | `src/app/sco_app.cpp`: the host kit, `sco/app.h` | `sco_host`, `sco_plugins`, `sco_core`, `sco_storage`, `sco_ui`, `sco_settings`, `sco_ipc`, `sco_net_service`; with the game pack also `sco_datacore_service`, `sco_game_sc`, and on Windows `sco_game_services` |
+| `sco_game_services` (game-pack, Windows) | The native game services under `src/game/services/` (spatial, spawn, missions, actors, vehicles, world, entities, inventory, audio and the rest listed in `CMakeLists.txt`) | `sco_game_sc`, `sco_host`, `sco_engine`, `sco_hook`, `sco_quantum`, `sco_offline_missions`, `sco_mining`, `sco_game_admission`, `sco_pak` |
+| `sco_app` | `src/app/sco_app.cpp`, `plugin_startup_snapshot.cpp`: the host kit, `sco/app.h` | `sco_host`, `sco_plugins`, `sco_core`, `sco_storage`, `sco_ui`, `sco_widgets`, `sco_settings`, `sco_content`, `sco_ipc`, `sco_net_service`, `sco_diagnostics_ipc`; with the game pack also `sco_datacore_service`, `sco_game_sc`, `sco_game_diagnostics`, `sco_private_session`, and on Windows `sco_game_services` |
 | `sco-sigcheck` (game-pack) | `tools/sco-sigcheck.cpp` | `sco_game_sc` |
 | `sco-host-sim` | `tools/sco-host-sim.cpp` | `sco_app`, `sco_lua`; with the game pack also `sco_datacore`, `sco_lua_game` |
 | `sco-dcb` (game-pack) | `tools/sco-dcb.cpp` ([docs](datacore.md)) | `sco_datacore` |
+
+Smaller game-pack libraries (`sco_game_admission`, `sco_game_diagnostics`, `sco_game_host`, `sco_private_session`, `sco_quantum`, `sco_mining`, `sco_loadout`, `sco_offline_missions`, `sco_relocation_provider`, `sco_asop_host`, `sco_asop_selection`) and the diagnostics libraries (`sco_diagnostics_ipc`, `sco_authority`) are declared next to their consumers in `CMakeLists.txt`.
 
 Project libraries expose `include/` directly or through their public links;
 vendored SQLite and Lua expose their own header directories.
