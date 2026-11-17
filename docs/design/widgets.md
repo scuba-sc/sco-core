@@ -148,6 +148,15 @@ How the adapter draws the declarative tree (layout rules live in `src/widgets/im
   ellipsis to the row (full text in a tooltip). Selection events and paging are unchanged.
 - A ROW made only of COLUMNs shares its width equally between them. A COLUMN or ROW with a
   label shows it as a section header. Pixel limits scale with the font size (16 px reference).
+- An empty label draws nothing: an unlabelled ROW, COLUMN or TABLE starts with its content, with
+  no blank line above it, so a row of buttons needs no made-up heading. A severity without a
+  label shows the severity word alone. An empty LABEL node keeps its blank line (its label is
+  its whole content).
+- A NUMBER slider shows a whole value without decimals and any other with up to three, trailing
+  zeros dropped: `30`, `0.5`, `0.125`, `1.235` for 1.23456. Dragging and keyboard steps still
+  round the value to three decimals as before, a value typed with Ctrl+click is kept as typed, and
+  clamping is unchanged, so events carry the same values as with the old `%.3f` text. Only the
+  Ctrl+click edit box changed: it starts with the value printed with six decimals.
 - Plugin text is never parsed as an ImGui label, with one exception: ImGui hides everything
   after `##` in a combo preview, so a preview containing it shows a space between the `#`s.
 

@@ -97,7 +97,7 @@ static int group_depth = 0, id_depth = 0, same_lines = 0, cells = 0;
 static int input_mode = 0;
 static int style_depth = 0, tooltips = 0;
 static std::string numeric_format;
-static double numeric_input = 74.5;
+static double numeric_input = 74.5, number_input = 0.75;
 static bool Disabled() {
     for (bool value : disabled_stack) if (value) return true;
     return false;
@@ -149,7 +149,7 @@ bool SliderScalar(const char*, ImGuiDataType type, void* value, const void* mini
         numeric_format = format; *static_cast<double*>(value) = numeric_input;
     } else {
         CHECK(type == ImGuiDataType_Double);
-        *static_cast<double*>(value) = 0.75;
+        numeric_format = format; *static_cast<double*>(value) = number_input;
     }
     return !Disabled();
 }
@@ -345,6 +345,79 @@ static void TestAdapter13() {
     std::vector<sco::widgets::Event> negative;
     renderer.Render(panel, negative);
     CHECK(negative.size() == 1 && negative[0].value == -1);
+    numeric_input = 74.5;
+}
+// NUMBER sliders show whole values without decimals and others with up to three; input is still
+// rounded to three decimals (the old "%.3f"), except typed text, and clamping is unchanged.
+static void TestNumberSlider() {
+    sco::widgets::Panel panel; panel.id = "test.number";
+    sco::widgets::Node node; node.kind = SCO_WIDGET_SLIDER; node.id = 9; node.label = "Speed";
+    node.minimum = 0; node.maximum = 100; node.presentation = SCO_WIDGET_NUMERIC_NUMBER;
+    panel.nodes.push_back(node);
+    sco::widgets::ImGuiRenderer renderer;
+    struct Case { double value; const char* shown; };
+    for (const Case c : {Case{30, "30"}, Case{0, "0"}, Case{100, "100"}, Case{0.5, "0.5"},
+                         Case{12.25, "12.25"}, Case{0.125, "0.125"}, Case{1.23456, "1.235"}}) {
+        panel.nodes[0].value = c.value; number_input = 50.0;
+        std::vector<sco::widgets::Event> events;
+        renderer.Render(panel, events);
+        CHECK(numeric_format == c.shown);
+        CHECK(events.size() == 1 && events[0].value == 50.0);
+    }
+    panel.nodes[0].value = 30;
+    std::vector<sco::widgets::Event> events;
+    number_input = 0.123456; // dragged: rounded to three decimals, as before
+    renderer.Render(panel, events);
+    CHECK(events.size() == 1 && events[0].value == 0.123);
+    events.clear(); number_input = 30.0004; // rounds back to the current value: no event
+    renderer.Render(panel, events);
+    CHECK(events.empty());
+    events.clear(); number_input = 0.123456;
+    ImGui::GetIO().WantTextInput = true; // typed with Ctrl+click: the value is kept as typed
+    renderer.Render(panel, events);
+    ImGui::GetIO().WantTextInput = false;
+    CHECK(events.size() == 1 && events[0].value == 0.123456);
+    number_input = 0.75;
+}
+// Unlabelled ROW, COLUMN and TABLE nodes draw no text line above their content; an empty LABEL
+// keeps its line (its label is its content), and severity stays visible without a label.
+static void TestEmptyLabels() {
+    sco::widgets::Panel panel; panel.id = "test.rows"; panel.title = "Title";
+    auto add = [&](uint32_t kind, uint32_t id, uint32_t parent, const char* label) -> sco::widgets::Node& {
+        panel.nodes.emplace_back();
+        auto& node = panel.nodes.back();
+        node.kind = kind; node.id = id; node.parent = parent; node.label = label;
+        return node;
+    };
+    add(SCO_WIDGET_COLUMN, 1, 0, "");
+    add(SCO_WIDGET_ROW, 2, 1, "");
+    add(SCO_WIDGET_BUTTON, 3, 2, "Save");
+    add(SCO_WIDGET_BUTTON, 4, 2, "Load");
+    auto& grid = add(SCO_WIDGET_TABLE, 5, 1, ""); grid.columns = 2; grid.items = {"a", "b"};
+    sco::widgets::ImGuiRenderer renderer;
+    std::vector<sco::widgets::Event> events;
+    texts.clear(); captions.clear(); cells = 0; same_lines = 0;
+    renderer.Render(panel, events);
+    bool blank = false; for (const auto& t : texts) blank |= t.empty();
+    CHECK(!blank); // no blank line above the column, the button row or the table
+    CHECK(texts.size() == 3 && texts[0] == "Title" && texts[1] == "a" && texts[2] == "b");
+    CHECK(captions.size() == 2 && captions[0] == "Save" && captions[1] == "Load");
+    CHECK(same_lines == 1 && cells == 2);
+    CHECK(id_depth == 0 && group_depth == 0 && disabled_stack.empty() && style_depth == 0);
+    // Severity without a label: the severity word only, with nothing after it on its line.
+    panel.nodes[1].severity = SCO_WIDGET_SEVERITY_WARNING;
+    texts.clear(); same_lines = 0; events.clear();
+    renderer.Render(panel, events);
+    blank = false; for (const auto& t : texts) blank |= t.empty();
+    CHECK(!blank && texts.size() == 4 && texts[1] == "Warning:" && same_lines == 1 && style_depth == 0);
+    // A labelled row still has its section header; an empty LABEL keeps its blank line.
+    panel.nodes[1].severity = 0; panel.nodes[1].label = "Actions";
+    add(SCO_WIDGET_LABEL, 6, 1, "");
+    texts.clear(); events.clear();
+    renderer.Render(panel, events);
+    size_t empties = 0, headers = 0;
+    for (const auto& t : texts) { empties += t.empty(); headers += t == "Actions"; }
+    CHECK(empties == 1 && headers == 1 && texts.back().empty());
 }
 #endif
 int main() {
@@ -489,6 +562,8 @@ int main() {
     TestAdapter();
     TestAdapter11();
     TestAdapter13();
+    TestNumberSlider();
+    TestEmptyLabels();
     TestButtonCaptions();
 #endif
     std::printf("widgets SDK: %d passed, %d failed\n", pass, fail);
