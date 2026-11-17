@@ -19,6 +19,17 @@ from issue302_fixtures_offline import setup as offline_setup
 from issue302_fixtures_world import setup as world_setup
 
 BASELINE = '5b010dc0697535f10e9264235494b667ea850ea6'
+# Rows whose layout was changed on purpose after BASELINE for a newer game build. Their old
+# fixtures no longer describe valid input, so they are not parity rows: each is covered instead by
+# the named valid-input test, which this script checks is still present, registered in CTest and
+# still mentions the row (its id, or the resolver it calls).
+INTENTIONAL_LAYOUT_CHANGES = {
+    'atc.clear_token': ('build 4.10.200 ATC layout', 'tests/test_issue302_remaining_row_census.cpp', 'atc.clear_token'),
+    'contracts.hauling_assign': ('build 4.10.200 hauling layout', 'tests/test_contracts_bounds_302.cpp', 'contracts.hauling_assign'),
+    'offline.restricted_area_impound': ('build 4.10.200 impound frame layout', 'tests/test_issue302_offline_bounds.cpp', 'ResolveFn<kImpound>'),
+    'quantum.drive_input': ('build 4.10.200 quantum action range', 'tests/test_world_bounds_302.cpp', 'quantum.drive_input'),
+    'quantum.on_action': ('build 4.10.200 quantum action range', 'tests/test_world_bounds_302.cpp', 'quantum.on_action'),
+}
 ROOT = Path(__file__).resolve().parents[1]
 
 def run(cmd, **kw):
@@ -30,6 +41,7 @@ COMMON = r'''
 #include "sco/signature_registry.h"
 #endif
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <cstdarg>
 #include <map>
@@ -229,6 +241,14 @@ def generate(source, build):
     (build/'source-hashes.json').write_text(json.dumps(source_hashes,indent=2)+'\n')
     return [json.loads(line) for line in output.splitlines()],metadata
 
+def check_intentional_layout_changes(ids):
+    # Each exemption must name a row this run saw and a valid-input test that CTest runs.
+    cmake=(ROOT/'CMakeLists.txt').read_text()
+    for row_id,(why,test,token) in INTENTIONAL_LAYOUT_CHANGES.items():
+        assert row_id in ids, f'intentional layout change names an unknown row: {row_id}'
+        assert (ROOT/test).is_file() and Path(test).name in cmake, f'{row_id}: covering test {test} missing or not in CTest'
+        assert token in (ROOT/test).read_text(), f'{row_id}: {test} does not exercise this row ({token})'
+
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--out',type=Path,required=True)
@@ -243,15 +263,19 @@ def main():
     b,c=results['baseline'],results['current']
     key=lambda r:(r['file'],r['id'],r['fixture'])
     bm={key(r):r for r in b};cm={key(r):r for r in c}
-    diffs=[{'key':k,'baseline':bm.get(k),'current':cm.get(k)} for k in sorted(bm.keys()|cm.keys()) if bm.get(k)!=cm.get(k)]
     rows=[r for r in c if r['file']!='registry'];ids={r['id'] for r in rows}
+    check_intentional_layout_changes(ids)
+    intentional=set(INTENTIONAL_LAYOUT_CHANGES)
+    all_diffs=[{'key':k,'baseline':bm.get(k),'current':cm.get(k)} for k in sorted(bm.keys()|cm.keys()) if bm.get(k)!=cm.get(k)]
+    diffs=[d for d in all_diffs if d['key'][1] not in intentional]
+    intentional_diffs=[d for d in all_diffs if d['key'][1] in intentional]
     shared_rip=sorted(r['id'] for r in rows if r['fixture'].startswith('shared-Rip:'))
     successful=sorted({r['id'] for r in c if r['state']=='OK' and bm.get(key(r))==r})
     coverage=[]
     for r in rows:
         positives=[x for x in c if x['id']==r['id'] and x['state']=='OK' and bm.get(key(x))==x]
         coverage.append({'id':r['id'],'source':r['file'],'synthetic_fixture':r['fixture'],'positive_parity':bool(positives),'positive_fixtures':sorted({x['fixture'] for x in positives}),'probe_state':r['state'],'probe_reason':r['reason']})
-    report={'baseline':BASELINE,'current_head':run(['git','-C',ROOT,'rev-parse','HEAD'],stdout=subprocess.PIPE).stdout.strip(),'source_audits':audits,'source_file_count':len(audits['current']),'row_count':len(rows),'unique_row_count':len(ids),'shared_rip_consumer_count':len(shared_rip),'shared_rip_consumer_ids':shared_rip,'shared_fn_consumer_ids':sorted(r['id'] for r in rows if r['fixture'].startswith('shared-Fn:')),'observations_per_build':len(c),'equal_observation_count':sum(bm.get(key(r))==r for r in c),'differences':diffs,'successful_resolution_parity_count':len(successful),'successful_resolution_parity_ids':successful,'coverage_gap_ids':sorted(ids-set(successful)),'coverage':coverage,'limitations':['Independent per-row synthetic fixtures stub declared dependency addresses; existing positive core fixtures also run the production registry.','Pattern/check materialization is not proof of real game behavior; failed extra validators are explicit coverage gaps.','Non-OK matching outputs do not count as successful resolution parity.','Synthetic fixtures only; no proprietary executable bytes.']}
+    report={'baseline':BASELINE,'current_head':run(['git','-C',ROOT,'rev-parse','HEAD'],stdout=subprocess.PIPE).stdout.strip(),'source_audits':audits,'source_file_count':len(audits['current']),'row_count':len(rows),'unique_row_count':len(ids),'shared_rip_consumer_count':len(shared_rip),'shared_rip_consumer_ids':shared_rip,'shared_fn_consumer_ids':sorted(r['id'] for r in rows if r['fixture'].startswith('shared-Fn:')),'observations_per_build':len(c),'equal_observation_count':sum(bm.get(key(r))==r for r in c),'differences':diffs,'successful_resolution_parity_count':len(successful),'successful_resolution_parity_ids':successful,'coverage_gap_ids':sorted(ids-set(successful)-intentional),'intentional_layout_changes':{k:{'reason':v[0],'covered_by':v[1],'evidence_token':v[2]} for k,v in sorted(INTENTIONAL_LAYOUT_CHANGES.items())},'intentional_layout_change_differences':intentional_diffs,'coverage':coverage,'limitations':['Independent per-row synthetic fixtures stub declared dependency addresses; existing positive core fixtures also run the production registry.','Pattern/check materialization is not proof of real game behavior; failed extra validators are explicit coverage gaps.','Non-OK matching outputs do not count as successful resolution parity.','Synthetic fixtures only; no proprietary executable bytes.']}
     report['fixture_generator_hashes'] = {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in [Path(__file__), *sorted(Path(__file__).parent.glob('issue302_fixtures_*.py'))]}
     report['per_source_row_count'] = dict(sorted(collections.Counter(x['source'] for x in coverage).items()))
     report['synthetic_case_parity_proven'] = not diffs and not report['coverage_gap_ids']
@@ -260,6 +284,6 @@ def main():
     report['fixture_hash_method'] = 'FNV-1a 64-bit over complete synthetic image; in-image .rdata pointer slots normalized to RVAs'
     (out/'scope-census.json').write_text(json.dumps(report,indent=2)+'\n')
     print(json.dumps({k:report[k] for k in ['row_count','source_file_count','shared_rip_consumer_count','observations_per_build','equal_observation_count','successful_resolution_parity_count']},indent=2))
-    print('differences:',len(diffs));print('coverage gaps:',len(report['coverage_gap_ids']));print('report:',out/'scope-census.json')
+    print('differences:',len(diffs));print('intentional layout changes (not parity rows):',len(intentional));print('coverage gaps:',len(report['coverage_gap_ids']));print('report:',out/'scope-census.json')
     return 1 if diffs or report['coverage_gap_ids'] else 0
 if __name__=='__main__':raise SystemExit(main())

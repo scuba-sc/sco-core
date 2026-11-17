@@ -5,6 +5,7 @@
 #include "sco/log.h"
 #include "sco/signature_registry.h"
 #include "../src/owned_shutdown_access.h"
+#include "../src/game/services/process_retained.h"
 #include <atomic>
 #include <chrono>
 #include <future>
@@ -75,6 +76,13 @@ Result Stop() {
 Result FinalizeStopAfterQuiescence() {
     calls.emplace_back("finalize");
     return mode == "finalize-fail" ? Result::Failed : Result::Ok;
+}
+namespace detail {
+// This fixture never starts a process-retained runtime, so this entry must stay unreached.
+Result StartProcessRetained(const ProcessRetainedStart&) {
+    calls.emplace_back("start-process-retained");
+    return Result::Unavailable;
+}
 }
 }
 int main(int argc, char** argv) {

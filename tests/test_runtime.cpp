@@ -47,6 +47,10 @@ void* operator new(std::size_t size) {
 }
 void operator delete(void* p) noexcept { std::free(p); }
 void operator delete(void* p, std::size_t) noexcept { std::free(p); }
+// The nothrow forms must come from the same allocator as the replaced delete: the runtime
+// allocates pending commands with new (std::nothrow) and frees them with plain delete.
+void* operator new(std::size_t size, const std::nothrow_t&) noexcept { return std::malloc(size ? size : 1); }
+void operator delete(void* p, const std::nothrow_t&) noexcept { std::free(p); }
 #endif
 
 static int g_fail = 0, g_pass = 0;
