@@ -309,6 +309,44 @@ int main() {
     CHECK(table->cancel(self, ticket) == SCO_OK && State(ticket).state == SC_RELOCATION_COMPLETE);
     CHECK(Cap());
 
+    // Already at the target when asked (saved a moment ago): complete at once, no move.
+    Begin(&good);
+    w.poseValid = true;
+    ticket = Admit();
+    CHECK(State(ticket).state == SC_RELOCATION_COMPLETE && State(ticket).applied == 0 && w.moves == 0);
+    w.now = 1100;
+    S::TickRelocation();
+    CHECK(w.moves == 0 && State(ticket).state == SC_RELOCATION_COMPLETE);
+    // Same spot, orientation turned 2 degrees: not there yet, so it moves once.
+    Begin(&good);
+    w.poseValid = true;
+    w.rot[2] = 0.017453292519943295;  // sin(1 degree): a 2 degree turn about z
+    w.rot[3] = 0.9998476951563913;
+    ticket = Admit();
+    CHECK(State(ticket).state == SC_RELOCATION_PENDING);
+    w.now = 1100;
+    S::TickRelocation();
+    CHECK(w.moves == 1 && State(ticket).applied == 1);
+    // The game ends up 0.5 degree off, with the quaternion sign flipped: that is arrival.
+    w.rot[0] = 0; w.rot[1] = 0; w.rot[2] = -0.004363309284746; w.rot[3] = -0.99999048;
+    w.now = 1200;
+    S::TickRelocation();
+    CHECK(State(ticket).state == SC_RELOCATION_COMPLETE && w.moves == 1);
+    // Applied and streamed but the pose never settles: timeout with applied=1, and no second move.
+    Begin(&good);
+    ticket = Admit();
+    w.poseValid = true;
+    w.pos[0] = 1.5;
+    w.now = 1100;
+    S::TickRelocation();
+    CHECK(w.moves == 1);
+    for (int i = 0; i < 5; ++i) { w.now += 100; S::TickRelocation(); }
+    CHECK(w.moves == 1 && State(ticket).state == SC_RELOCATION_PENDING);
+    w.now = 2000;
+    S::TickRelocation();
+    Failed(ticket, SC_RELOCATION_REASON_TIMEOUT, 1);
+    CHECK(w.moves == 1);
+
     Begin(&good);
     ticket = Admit();
     w.streamed = false;

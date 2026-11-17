@@ -32,9 +32,10 @@ owner, offline admission, player/session/system, fault and thread guards apply.
 
 This is position mutation as well as position completion. Only an explicit
 position apply callback is used. The provider never creates a quaternion or
-falls back to FullPose or owned-entity movement. A later tick after initiation
-must freshly observe finite player coordinates in the admitted target frame
-within 0.05 m. It does not read or compare rotation. This requests no
+falls back to FullPose or owned-entity movement. If the player is already within 0.05 m when the request is made, it completes
+at once with `applied` 0 and no apply call. Otherwise a later tick after
+initiation must freshly observe finite player coordinates in the admitted target
+frame within 0.05 m. It does not read or compare rotation. This requests no
 reorientation; it does not certify unrelated engine/physics orientation effects.
 Dispatch failure is terminal, without retry. A request that fails while pending, for
 either method, logs one `[game] relocation: request failed (<reason>) after <n> ms`

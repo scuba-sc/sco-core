@@ -4,6 +4,22 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+- `game.relocation`: a request made when the player is already at the target now completes at once
+  and moves nothing (`applied` stays 0). Before, it waited for a move and, in the case reported
+  from the game, timed out after 30 s even though the saved spot was one second old. Position-only
+  requests do the same within 0.05 m.
+- `game.relocation`: the full-pose arrival test accepts an orientation within 1 degree of the target
+  (it was about 0.16 degrees). `q` and `-q` are still one orientation. The 0.05 m position limit
+  is unchanged.
+- `game.relocation`: the failure log line now says `timeout, applied but arrival not confirmed` when
+  the move ran, the target was streamed and the pose never settled, and adds `pose_read`,
+  `position_near` and `rotation_near` flags. Status, reason codes and the ABI are unchanged: such a
+  request still ends `FAILED` with `TIMEOUT` and `applied` 1, and plugins tell it from a move that
+  never ran by that `applied` value. The log also gives `off_by` in metres and degrees. A pose that
+  settles on the tick the deadline passes now counts as arrived. The move is still applied once per
+  request; it is not retried.
+- Not run in game. Covered by the synthetic relocation tests only.
+
 ## sdk-v2.4.1
 
 SDK 2.4.1 with game pack 0.8.1 for Star Citizen build 4.10.200.58746. Plugin ABI stays 1.1;

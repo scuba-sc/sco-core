@@ -10,7 +10,15 @@ struct Evidence {
     uint64_t session, playerId, currentSystem, targetSystem;
     bool streamed, arrived, applied, fault;
     uint64_t targetEpoch = 0, targetInstance = 0;
+    // Why `arrived` is false, for the failure log. Set only when the pose was checked this tick.
+    bool poseRead = false, positionNear = false, rotationNear = false;
+    // How far the pose was from the target when read: metres and degrees, or -1 when not measured.
+    // Numbers only, so the failure log can show a small steady offset without printing coordinates.
+    double metres = -1, degrees = -1;
 };
+// How close the player must be to the target to count as arrived.
+inline constexpr double kArrivalMetres = 0.05;
+inline constexpr double kArrivalDegrees = 1.0;
 // What was and was not true at the moment a pending request failed, for one diagnostic log line.
 // Booleans only: no coordinates, ids or addresses.
 struct Diagnosis {
@@ -21,35 +29,65 @@ struct Diagnosis {
     bool offline = false, player = false, transport = false, fault = false;
     bool sessionMatches = false, playerMatches = false, systemMatches = false, targetSystemMatches = false;
     bool targetInstanceMatches = false;   // meaningful for position-only requests
+    bool poseRead = false, positionNear = false, rotationNear = false;
+    double metres = -1, degrees = -1;
+    // A timeout after the move was applied and the target was streamed, with no arrival seen.
+    bool arrivalUnconfirmed = false;
 };
 inline bool PositionRequest(const sc_relocation_position_request& r) {
     if(r.size<sizeof(r)||!r.zone_id||!r.target_epoch||!r.timeout_ms||r.timeout_ms>60000)return false;
     for(double x:r.pos)if(!std::isfinite(x)||std::abs(x)>1e12)return false;
     return true;
 }
-inline bool ArrivedPosition(const sc_relocation_position_request& r,const double p[3]) {
-    if(!p)return false;
+// One arrival check of a full pose. read is false when the pose or the target was unusable.
+struct Arrival {
+    bool read = false, positionNear = false, rotationNear = false;
+    double metres = -1, degrees = -1;   // -1 when not measured
+    bool Near() const { return read && positionNear && rotationNear; }
+};
+// Distance in metres to the target, or -1 when the position is unusable.
+inline double PositionDistance(const sc_relocation_position_request& r,const double p[3]) {
+    if(!p)return -1;
     double distance=0;
     for(int i=0;i<3;++i) {
-        if(!std::isfinite(p[i])||!std::isfinite(r.pos[i]))return false;
+        if(!std::isfinite(p[i])||!std::isfinite(r.pos[i]))return -1;
         distance=std::hypot(distance,p[i]-r.pos[i]);
     }
-    return distance<=0.05;
+    return distance;
 }
-inline bool Arrived(const sc_relocation_request& r, const double p[3], const double q[4]) {
-    if (!p || !q) return false;
+inline bool PositionNear(const sc_relocation_position_request& r,const double p[3]) {
+    const double distance=PositionDistance(r,p);
+    return distance>=0&&distance<=kArrivalMetres;
+}
+inline bool ArrivedPosition(const sc_relocation_position_request& r,const double p[3]) {
+    return PositionNear(r,p);
+}
+// Position within kArrivalMetres and orientation within kArrivalDegrees. A quaternion and its negative
+// are the same orientation, so the angle uses the absolute dot product: 2*acos(|dot|) <= tolerance.
+inline Arrival CheckArrival(const sc_relocation_request& r, const double p[3], const double q[4]) {
+    Arrival a;
+    if (!p || !q) return a;
     double distance=0, norm=0, targetNorm=0, dot=0;
     for (int i=0;i<3;++i) {
-        if (!std::isfinite(p[i]) || !std::isfinite(r.pos[i])) return false;
+        if (!std::isfinite(p[i]) || !std::isfinite(r.pos[i])) return a;
         distance=std::hypot(distance,p[i]-r.pos[i]);
     }
     for (int i=0;i<4;++i) {
-        if (!std::isfinite(q[i]) || !std::isfinite(r.rot_xyzw[i])) return false;
+        if (!std::isfinite(q[i]) || !std::isfinite(r.rot_xyzw[i])) return a;
         norm=std::hypot(norm,q[i]); targetNorm=std::hypot(targetNorm,r.rot_xyzw[i]);
     }
-    if (!std::isfinite(norm) || !std::isfinite(targetNorm) || norm<1e-12 || targetNorm<1e-12) return false;
+    if (!std::isfinite(norm) || !std::isfinite(targetNorm) || norm<1e-12 || targetNorm<1e-12) return a;
     for (int i=0;i<4;++i) dot+=(q[i]/norm)*(r.rot_xyzw[i]/targetNorm);
-    return distance<=0.05 && std::abs(dot)>=0.999999;
+    const double minDot=std::cos(kArrivalDegrees*3.14159265358979323846/360.0);
+    a.read=true;
+    a.metres=distance;
+    a.degrees=2.0*std::acos(std::fmin(1.0,std::abs(dot)))*180.0/3.14159265358979323846;
+    a.positionNear=distance<=kArrivalMetres;
+    a.rotationNear=std::abs(dot)>=minDot;
+    return a;
+}
+inline bool Arrived(const sc_relocation_request& r, const double p[3], const double q[4]) {
+    return CheckArrival(r,p,q).Near();
 }
 // The game's zone accessors, passed in so the system classifier below is portable and testable.
 struct ZoneOps {
@@ -162,6 +200,8 @@ public:
         if(admitted!=SCO_OK)return admitted;
         chosen->request = r;
         for (double& x : chosen->request.rot_xyzw) x /= norm;
+        // Already at the target when asked: done, with nothing applied.
+        if (e.arrived) chosen->status.state=SC_RELOCATION_COMPLETE;
         *ticket=chosen->status.ticket;
         return SCO_OK;
     }
@@ -174,6 +214,7 @@ public:
         if(admitted!=SCO_OK)return admitted;
         chosen->position=r;chosen->position.size=sizeof(chosen->position);
         chosen->positionOnly=true;chosen->targetInstance=e.targetInstance;
+        if(e.arrived)chosen->status.state=SC_RELOCATION_COMPLETE;
         *ticket=chosen->status.ticket;
         return SCO_OK;
     }
@@ -207,13 +248,18 @@ public:
         else if (!e.transport) reason = SC_RELOCATION_REASON_TRANSPORT;
         else if (s->positionOnly && e.streamed && (!e.targetInstance || e.targetInstance!=s->targetInstance))
             reason = SC_RELOCATION_REASON_TARGET;
-        else if (now < s->since || now-s->since >= (s->positionOnly?s->position.timeout_ms:s->request.timeout_ms))
+        // A pose that settles on the tick the deadline passes counts as arrived, not as a timeout.
+        else if ((now < s->since || now-s->since >= (s->positionOnly?s->position.timeout_ms:s->request.timeout_ms)) &&
+                 !(s->status.applied && e.streamed && e.arrived))
             reason = SC_RELOCATION_REASON_TIMEOUT;
         if (reason) {
             s->status.state=SC_RELOCATION_FAILED; s->status.reason=reason;
             if (why) {
                 why->reason=reason; why->elapsedMs=now>=s->since ? now-s->since : 0; why->positionOnly=s->positionOnly;
                 why->applied=s->status.applied!=0; why->streamed=e.streamed; why->arrived=e.arrived;
+                why->poseRead=e.poseRead; why->positionNear=e.positionNear; why->rotationNear=e.rotationNear;
+                why->metres=e.metres; why->degrees=e.degrees;
+                why->arrivalUnconfirmed=reason==SC_RELOCATION_REASON_TIMEOUT && why->applied && e.streamed && !e.arrived;
                 why->offline=e.offline; why->player=e.player; why->transport=e.transport; why->fault=e.fault;
                 why->sessionMatches=e.session && s->session==e.session;
                 why->playerMatches=e.playerId && s->player==e.playerId;
