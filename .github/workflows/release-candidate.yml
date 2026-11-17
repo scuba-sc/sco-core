@@ -29,7 +29,14 @@ permissions:
 
 jobs:
   readiness:
-    if: github.event_name == 'workflow_run'
+    # Only a successful push to main can lead to a candidate. Other completions (pull requests,
+    # the daily docs-site schedule, failed runs) skip this job instead of reporting a refusal as a
+    # failure. tools/release_promote.py still re-validates every condition from the API.
+    if: >-
+      github.event_name == 'workflow_run'
+      && github.event.workflow_run.event == 'push'
+      && github.event.workflow_run.head_branch == 'main'
+      && github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     concurrency:

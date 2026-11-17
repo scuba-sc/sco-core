@@ -40,7 +40,7 @@ if (!chrome) {
   process.exit(77);
 }
 const root = path.resolve(process.argv[2] ?? 'site/dist');
-const profile = await fs.mkdtemp(path.join(os.tmpdir(), 'sco-docs-browser-'));
+let profile;
 let failSearchIndex = false;
 let particleWorkerFailure = null;
 const server = http.createServer(async (req, res) => {
@@ -70,27 +70,90 @@ const server = http.createServer(async (req, res) => {
 });
 await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
 const origin = `http://127.0.0.1:${server.address().port}`;
-const child = spawn(chrome, ['--headless=new', '--remote-debugging-port=0', '--no-first-run',
-  '--no-default-browser-check', '--disable-background-networking', `--user-data-dir=${profile}`, 'about:blank'],
-  // Own process group: Chrome's helpers (renderer, GPU, crashpad) keep writing the profile after the
-  // browser process exits, so teardown must end the whole group before removing the profile.
-  { stdio: ['ignore', 'ignore', 'pipe'], detached: process.platform !== 'win32' });
+const version = await new Promise(resolve => {
+  const probe = spawn(chrome, ['--version'], { stdio: ['ignore', 'pipe', 'ignore'] });
+  let out = '';
+  probe.stdout.on('data', data => { out += data; });
+  probe.once('error', () => resolve('unknown'));
+  probe.once('exit', () => resolve(out.trim() || 'unknown'));
+});
+console.log(`OBSERVED browser ${version}`);
+
+// Every flag below removes startup work that varies between runs (component and policy
+// downloads, sync, extensions, keychain prompts); none changes how pages render.
+const BROWSER_FLAGS = ['--headless=new', '--remote-debugging-port=0', '--no-first-run',
+  '--no-default-browser-check', '--disable-background-networking', '--disable-component-update',
+  '--disable-sync', '--disable-extensions', '--disable-default-apps', '--no-service-autorun',
+  '--password-store=basic', '--use-mock-keychain'];
+const STARTUP_MS = 45000;
+const STARTUP_ATTEMPTS = 2;
+
+function stopBrowser(proc) {
+  const groupAlive = () => {
+    if (!proc.pid) return false;
+    try { process.kill(-proc.pid, 0); return true; } catch (error) {
+      if (error.code === 'ESRCH') return false;
+      // A permission refusal still means the group exists; keep waiting for its exit.
+      if (error.code === 'EPERM') return true;
+      throw error;
+    }
+  };
+  return (async () => {
+    if (process.platform === 'win32') proc.kill();
+    else if (groupAlive()) process.kill(-proc.pid, 'SIGTERM');
+    await new Promise(resolve => { if (proc.exitCode !== null || proc.signalCode !== null) resolve(); else proc.once('exit', resolve); });
+    if (process.platform !== 'win32') {
+      for (let wait = 0; groupAlive(); wait++) {
+        if (wait === 50) process.kill(-proc.pid, 'SIGKILL');
+        if (wait > 100) throw Error('Chrome helper processes outlived SIGKILL');
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+    }
+  })();
+}
+
+// Start the browser and wait for its DevTools endpoint. A launch that prints nothing within
+// STARTUP_MS is stopped and retried once with a fresh profile; no page has been tested at that
+// point, so a retry cannot hide a page failure. A browser that exits or never starts still fails.
+async function launchBrowser() {
+  for (let attempt = 1; ; attempt++) {
+    profile = await fs.mkdtemp(path.join(os.tmpdir(), 'sco-docs-browser-'));
+    const proc = spawn(chrome, [...BROWSER_FLAGS, `--user-data-dir=${profile}`, 'about:blank'],
+      // Own process group: Chrome's helpers (renderer, GPU, crashpad) keep writing the profile after the
+      // browser process exits, so teardown must end the whole group before removing the profile.
+      { stdio: ['ignore', 'ignore', 'pipe'], detached: process.platform !== 'win32' });
+    const started = Date.now();
+    try {
+      const url = await new Promise((resolve, reject) => {
+        const timer = setTimeout(() => reject(Error(`Chrome startup timeout (${STARTUP_MS / 1000} s)`)), STARTUP_MS);
+        let text = '';
+        proc.stderr.on('data', data => {
+          text += data;
+          const match = text.match(/DevTools listening on (ws:\/\/\S+)/);
+          if (match) { clearTimeout(timer); resolve(match[1]); }
+        });
+        proc.once('error', error => { clearTimeout(timer); reject(error); });
+        proc.once('exit', code => { clearTimeout(timer); reject(Error(`Chrome exited ${code}`)); });
+      });
+      console.log(`OBSERVED browser startup ${Date.now() - started} ms (attempt ${attempt})`);
+      return { proc, url };
+    } catch (error) {
+      await stopBrowser(proc);
+      await fs.rm(profile, { recursive: true, force: true });
+      profile = undefined;
+      if (attempt >= STARTUP_ATTEMPTS || !/startup timeout/.test(error.message)) throw error;
+      console.log(`RETRY browser startup: ${error.message}`);
+    }
+  }
+}
+
+let child;
 let socket;
 let failures = [];
 try {
-  const browserURL = await new Promise((resolve, reject) => {
-    // Hosted runners have taken over 15 s to print the DevTools line on a cold start; 60 s
-    // still fails a browser that never starts.
-    const timer = setTimeout(() => reject(Error('Chrome startup timeout (60 s)')), 60000);
-    let text = '';
-    child.stderr.on('data', data => {
-      text += data;
-      const match = text.match(/DevTools listening on (ws:\/\/\S+)/);
-      if (match) { clearTimeout(timer); resolve(match[1]); }
-    });
-    child.once('error', reject);
-    child.once('exit', code => { clearTimeout(timer); reject(Error(`Chrome exited ${code}`)); });
-  });
+  const launched = await launchBrowser();
+  child = launched.proc;
+  const browserURL = launched.url;
   const port = new URL(browserURL).port;
   const targets = await (await fetch(`http://127.0.0.1:${port}/json/list`)).json();
   socket = new WebSocket(targets.find(t => t.type === 'page').webSocketDebuggerUrl);
@@ -397,25 +460,7 @@ try {
   console.log('PASS long reference tables/code at 1280px and 390px; zero script exceptions or nonlocal requests');
 } finally {
   if (socket) socket.close();
-  const groupAlive = () => {
-    if (!child.pid) return false;
-    try { process.kill(-child.pid, 0); return true; } catch (error) {
-      if (error.code === 'ESRCH') return false;
-      // A permission refusal still means the group exists; keep waiting for its exit.
-      if (error.code === 'EPERM') return true;
-      throw error;
-    }
-  };
-  if (process.platform === 'win32') child.kill();
-  else if (groupAlive()) process.kill(-child.pid, 'SIGTERM');
-  await new Promise(resolve => { if (child.exitCode !== null || child.signalCode !== null) resolve(); else child.once('exit', resolve); });
-  if (process.platform !== 'win32') {
-    for (let wait = 0; groupAlive(); wait++) {
-      if (wait === 50) process.kill(-child.pid, 'SIGKILL');
-      if (wait > 100) throw Error('Chrome helper processes outlived SIGKILL');
-      await new Promise(resolve => setTimeout(resolve, 100));
-    }
-  }
+  if (child) await stopBrowser(child);
   await new Promise(resolve => server.close(resolve));
-  await fs.rm(profile, { recursive: true, force: true });
+  if (profile) await fs.rm(profile, { recursive: true, force: true });
 }
