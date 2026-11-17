@@ -77,6 +77,7 @@ SCHEMA_KEYWORDS = {"$schema", "$id", "title", "type", "properties", "required", 
 # 116 entries, 1,334,638 bytes uncompressed in total, its largest entry 426,845 bytes and its best
 # compression 8.2:1). A release that outgrows them raises these constants on purpose.
 MAX_ENTRIES = 464            # 4 x 116
+SOURCE_MAX_ENTRIES = 2048    # core-source and host-source-sc kits
 MAX_ENTRY_BYTES = 1_707_380  # 4 x 426,845
 # SDK 2.4 workflow/guide metadata grows the combined kit to about 5.4 MB.
 # Keep a finite 8 MiB total budget without changing the other plugin-archive bounds.
@@ -433,7 +434,9 @@ def audit_zip(archive, profile, root=ROOT, sbom_path=None, report_path=None, dev
             fails.append(f"development archive root {top!r} does not match {dev_top!r}")
         # The source kit ships the 9+ MiB SQLite amalgamation. Keep existing plugin
         # profile limits unchanged; source-only bounds remain finite and checked.
-        limits = (1024, 16 * 1024 * 1024, 64 * 1024 * 1024, 64) if profile in ("core-source", "host-source-sc") else None
+        # The entry bound has headroom over the kit's own size (host-source-sc: 1025 entries
+        # at 2.4.1) so adding a file to the kit does not trip a limit meant for hostile archives.
+        limits = (SOURCE_MAX_ENTRIES, 16 * 1024 * 1024, 64 * 1024 * 1024, 64) if profile in ("core-source", "host-source-sc") else None
         entry_limit = limits[1] if limits else MAX_ENTRY_BYTES
         problems, readable = structure_problems(infos, top, pkg.safe_rel, limits)
         fails += problems
