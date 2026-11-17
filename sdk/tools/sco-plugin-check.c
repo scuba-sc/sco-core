@@ -2,6 +2,8 @@
  * sco-plugin-check: checks a built plugin folder on a dev machine, without the game.
  *
  *   sco-plugin-check <plugin folder> [--cap NAME]... [--short-tables] [--invoke NAME [ARG]...]
+ *   sco-plugin-check <plugin folder> --no-load
+ *   sco-plugin-check --manifest-stdin <plugin-folder-name>
  *
  * For every kind it reads plugin.ini with the same rules as the host (id, name, version, api,
  * kind, entry, requires and the [settings] section) and checks the folder name matches the id. A requires name is a
@@ -14,13 +16,16 @@
  *           sco_api, fires game.ready and a few ticks, runs every command that takes no
  *           arguments (and the one given with --invoke), then sco_plugin_unload. Retained
  *           sco.widgets panels get one deterministic headless interaction pass before commands.
+ * --no-load validates the folder identity, manifest and entry-file presence (or data-pack inventory)
+ * without loading or executing plugin code. It is not a safety, binary ABI, provider, or runtime check.
+ * --no-load cannot be combined with the dynamic-only --cap, --short-tables, or --invoke options.
  * --cap NAME makes has(NAME) answer 1 (default: only the built-in sco.widgets service is present). Give a --cap for a
  * capability or a host or game service the plugin requires; a plugin id or another plugin's
  * service is only found by the real host, which sees the other plugins.
  * --short-tables serves sco_api at its 1.0 extent (size = offsetof(sco_api, provide_service), minor 0),
  * as a 1.0 host does: calling a 1.1 member (provide_service .. register_raw) without first checking
  * size >= offsetof(sco_api, member) + sizeof(member) fails the check (docs/contracts.md, size / since).
- * sco.widgets is served at 1.1 by default (update_nodes, remove_nodes, capabilities, 1.1 node tails)
+ * sco.widgets is served at 1.4 by default (updates, capabilities, numeric nodes and tagged events)
  * and at its 1.0 extent (size 24, tails ignored) under --short-tables, where calling a 1.1 member
  * without checking the widgets table's size fails the same way. An unchecked query_service under
  * --short-tables fails the check but still answers, so later unchecked widgets calls are reported too.
@@ -41,12 +46,15 @@
 #if defined(_WIN32)
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
+#include <fcntl.h>
+#include <io.h>
 #else
 #include <dirent.h>
 #include <dlfcn.h>
 #include <sys/stat.h>
 #endif
 #include <ctype.h>
+#include <errno.h>
 #include <math.h>
 #include <stdarg.h>
 #include <stddef.h>
@@ -75,6 +83,46 @@ static void fail(const char* fmt, ...) {
 #define MAX_MANIFEST_BYTES (16 * 1024)
 #define MAX_SETTINGS 32
 #define MAX_PACK_FILES 4096
+#define MAX_PACK_SCAN_ENTRIES 16384u
+#define MAX_PACK_SCAN_PATH_BYTES 4096u
+#define MAX_PACK_SCRIPT_DEPTH 16u
+#define MAX_SAFE_PATH_DISPLAY_BYTES (4u * (MAX_PACK_SCAN_PATH_BYTES + 1u) + 1u)
+
+/* Keep terminal output safe for control bytes and undecodable path/manifest bytes. */
+static const char* safe_text_span(const char* text, size_t length, char* escaped, size_t cap) {
+    static const char too_long[] = "<text omitted: display limit>";
+    static const char hex[] = "0123456789ABCDEF";
+    const unsigned char* p = (const unsigned char*)text;
+    size_t written = 0;
+    size_t i;
+    if (!text) return "<null text>";
+    if (!escaped || !cap) return too_long;
+    for (i = 0; i < length; ++i, ++p) {
+        const unsigned char c = *p;
+        if (c >= 0x20 && c <= 0x7e && c != '\\' && c != '"') {
+            if (written + 1u >= cap) return too_long;
+            escaped[written++] = (char)c;
+        } else if (c == '\\' || c == '"') {
+            if (written + 2u >= cap) return too_long;
+            escaped[written++] = '\\';
+            escaped[written++] = (char)c;
+        } else {
+            if (written + 4u >= cap) return too_long;
+            escaped[written++] = '\\';
+            escaped[written++] = 'x';
+            escaped[written++] = hex[c >> 4];
+            escaped[written++] = hex[c & 0x0f];
+        }
+    }
+    escaped[written] = '\0';
+    return escaped;
+}
+
+static const char* safe_path_text(const char* path) {
+    static char escaped[MAX_SAFE_PATH_DISPLAY_BYTES];
+    if (!path) return "<null path>";
+    return safe_text_span(path, strlen(path), escaped, sizeof escaped);
+}
 
 /* One [settings] declaration, as far as the checker reports it. */
 typedef struct setting { char name[32]; char type[16]; } setting;
@@ -347,7 +395,14 @@ static int check_setting(const sdecl* d, strv text, char* why, size_t cap) {
 }
 
 static int setting_bad(int line, strv name, const char* what, const char* detail) {
-    fail("plugin.ini line %d: setting '%.*s': %s%s", line, (int)name.n, name.p, what, detail ? detail : "");
+    char safe_name[4u * 32u + 1u];
+    char safe_what[4u * 512u + 1u];
+    char safe_detail[4u * 512u + 1u];
+    safe_text_span(name.p, name.n, safe_name, sizeof safe_name);
+    safe_text_span(what, strlen(what), safe_what, sizeof safe_what);
+    if (detail) safe_text_span(detail, strlen(detail), safe_detail, sizeof safe_detail);
+    else safe_detail[0] = '\0';
+    fail("plugin.ini line %d: setting '%s': %s%s", line, safe_name, safe_what, safe_detail);
     return 0;
 }
 
@@ -474,19 +529,13 @@ static int setting_line(strv line, manifest* m, int lineno) {
     return 1;
 }
 
-static int read_manifest(const char* path, manifest* m) {
+static int parse_manifest_bytes(const char* buf, size_t len, manifest* m, int check_discovery_rules) {
     enum { K_ID, K_NAME, K_VERSION, K_AUTHOR, K_API, K_KIND, K_ENTRY, K_REQUIRES, K_COUNT };
     static const char* const keys[K_COUNT] = { "id", "name", "version", "author", "api", "kind", "entry", "requires" };
-    static char buf[MAX_MANIFEST_BYTES + 1];
     int seen[K_COUNT] = { 0 };
     int line = 0, k, i;
     int section = 0, seen_settings = 0;   /* 0 top level, 1 [settings], 2 another section */
-    size_t len;
     strv all;
-    FILE* f = fopen(path, "rb");
-    if (!f) { fail("%s: can't open", path); return 0; }
-    len = fread(buf, 1, sizeof buf, f);
-    fclose(f);
     memset(m, 0, sizeof *m);
     if (len > MAX_MANIFEST_BYTES) { fail("plugin.ini: too big (over %d bytes)", MAX_MANIFEST_BYTES); return 0; }
     all.p = buf;
@@ -593,20 +642,69 @@ static int read_manifest(const char* path, manifest* m) {
     if (!strcmp(m->kind, "data") && seen[K_ENTRY]) { fail("plugin.ini: a data pack has no entry"); return 0; }
     if (strcmp(m->kind, "data") && !seen[K_ENTRY]) { fail("plugin.ini: missing key 'entry'"); return 0; }
     if (!strcmp(m->kind, "data") && m->nsettings) { fail("plugin.ini: a data pack has no settings"); return 0; }
-    /* A plugin that requires itself or one of its own services is a requires cycle (discover.cpp). */
-    for (i = 0; i < m->nrequires; ++i) {
-        const size_t n = strlen(m->id);
-        if (!strncmp(m->requires_[i], m->id, n) && (m->requires_[i][n] == 0 || m->requires_[i][n] == '.')) {
-            fail("plugin.ini: requires '%s' names the plugin itself (a requires cycle)", m->requires_[i]);
+    if (check_discovery_rules) {
+        /* A plugin that requires itself or one of its own services is a requires cycle (discover.cpp). */
+        for (i = 0; i < m->nrequires; ++i) {
+            const size_t n = strlen(m->id);
+            if (!strncmp(m->requires_[i], m->id, n) && (m->requires_[i][n] == 0 || m->requires_[i][n] == '.')) {
+                fail("plugin.ini: requires '%s' names the plugin itself (a requires cycle)", m->requires_[i]);
+                return 0;
+            }
+        }
+        /* What discovery checks next (src/plugins/discover.cpp). */
+        if (m->api_major != SCO_API_MAJOR || m->api_minor > SCO_API_MINOR) {
+            fail("plugin.ini: api %s, but this SDK is %d.%d", m->api, SCO_API_MAJOR, SCO_API_MINOR);
             return 0;
         }
     }
-    /* What discovery checks next (src/plugins/discover.cpp). */
-    if (m->api_major != SCO_API_MAJOR || m->api_minor > SCO_API_MINOR) {
-        fail("plugin.ini: api %s, but this SDK is %d.%d", m->api, SCO_API_MAJOR, SCO_API_MINOR);
+    return 1;
+}
+
+static int read_manifest(const char* path, manifest* m) {
+    static char buf[MAX_MANIFEST_BYTES + 1];
+    size_t len;
+    FILE* f = fopen(path, "rb");
+    if (!f) { fail("%s: can't open", safe_path_text(path)); return 0; }
+    len = fread(buf, 1, sizeof buf, f);
+    if (ferror(f)) { fclose(f); fail("%s: can't read", safe_path_text(path)); return 0; }
+    fclose(f);
+    return parse_manifest_bytes(buf, len, m, 1);
+}
+
+/* The archive verifier feeds only the bounded plugin.ini bytes here. This path applies the same
+ * syntax/settings parser as the folder checker, but deliberately skips discovery/runtime checks. */
+static int read_manifest_stdin(manifest* m) {
+    static char buf[MAX_MANIFEST_BYTES + 1];
+    size_t len;
+#if defined(_WIN32)
+    /* Match fopen(..., "rb") used for folders: text-mode stdin otherwise treats
+     * Ctrl-Z as EOF and translates CRLF, changing the manifest being validated. */
+    if (_setmode(_fileno(stdin), _O_BINARY) == -1) {
+        fail("plugin.ini: can't set standard input to binary mode");
         return 0;
     }
-    return 1;
+#endif
+    len = fread(buf, 1, sizeof buf, stdin);
+    if (ferror(stdin)) { fail("plugin.ini: can't read standard input"); return 0; }
+    return parse_manifest_bytes(buf, len, m, 0);
+}
+
+static int manifest_stdin_mode(const char* expected_folder) {
+    manifest m;
+    int i;
+    if (!expected_folder || !expected_folder[0] || strchr(expected_folder, '/') || strchr(expected_folder, '\\')) {
+        fprintf(stderr, "usage: sco-plugin-check --manifest-stdin <plugin-folder-name>\n");
+        return 2;
+    }
+    if (read_manifest_stdin(&m)) {
+        if (strcmp(expected_folder, m.id)) fail("id '%s' does not match folder '%s'", m.id, expected_folder);
+        if (!failures) {
+            printf("id\t%s\nkind\t%s\napi\t%s\nentry\t%s\n", m.id, m.kind, m.api,
+                   safe_path_text(m.entry));
+            for (i = 0; i < m.nrequires; ++i) printf("requires\t%s\n", m.requires_[i]);
+        }
+    }
+    return failures ? 1 : 0;
 }
 
 /* ---- files -------------------------------------------------------------- */
@@ -616,6 +714,47 @@ static int file_exists(const char* path) {
     if (!f) return 0;
     fclose(f);
     return 1;
+}
+
+/* The no-load path promises an ordinary file, not a directory or an entry symlink. */
+static int regular_file_exists(const char* path) {
+#if defined(_WIN32)
+    const DWORD attributes = GetFileAttributesA(path);
+    return attributes != INVALID_FILE_ATTRIBUTES &&
+           !(attributes & (FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_REPARSE_POINT | FILE_ATTRIBUTE_DEVICE));
+#else
+    struct stat st;
+    return lstat(path, &st) == 0 && S_ISREG(st.st_mode);
+#endif
+}
+
+/* The caller-selected plugin root is also part of the no-load path boundary. Strip trailing
+ * separators before lstat/GetFileAttributes so a path like "plugin-link/" cannot hide a link. */
+static int regular_directory_exists(const char* path) {
+    char checked[1024];
+    size_t length;
+    if (!path || (length = strlen(path)) == 0) return 0;
+    /* The following plugin.ini path check emits the precise shared buffer-limit error. */
+    if (length >= sizeof checked) return 1;
+    memcpy(checked, path, length + 1);
+    while (length > 1 && (checked[length - 1] == '/' || checked[length - 1] == '\\')) {
+#if defined(_WIN32)
+        if (length == 3 && checked[1] == ':') break;
+#endif
+        checked[--length] = '\0';
+    }
+#if defined(_WIN32)
+    {
+        const DWORD attributes = GetFileAttributesA(checked);
+        return attributes != INVALID_FILE_ATTRIBUTES &&
+               (attributes & FILE_ATTRIBUTE_DIRECTORY) && !(attributes & FILE_ATTRIBUTE_REPARSE_POINT);
+    }
+#else
+    {
+        struct stat st;
+        return lstat(checked, &st) == 0 && S_ISDIR(st.st_mode);
+    }
+#endif
 }
 
 static const char* base_name(const char* path) {
@@ -652,7 +791,7 @@ static int list_content(const char* dir, const char* sub, const char* ext, int d
             if (fd.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) continue;
             snprintf(rel, sizeof rel, "%s/%s", sub, fd.cFileName);
             if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) { if (deep) count += list_content(dir, rel, ext, deep); }
-            else if (ends_with_nocase(fd.cFileName, ext)) { printf("  content %s\n", rel); ++count; }
+            else if (ends_with_nocase(fd.cFileName, ext)) { printf("  content %s\n", safe_path_text(rel)); ++count; }
         } while (FindNextFileA(h, &fd));
         FindClose(h);
     }
@@ -669,12 +808,206 @@ static int list_content(const char* dir, const char* sub, const char* ext, int d
             snprintf(full, sizeof full, "%s/%s", dir, rel);
             if (lstat(full, &st) != 0 || S_ISLNK(st.st_mode)) continue; /* the host skips symlinks */
             if (S_ISDIR(st.st_mode)) { if (deep) count += list_content(dir, rel, ext, deep); }
-            else if (ends_with_nocase(e->d_name, ext)) { printf("  content %s\n", rel); ++count; }
+            else if (ends_with_nocase(e->d_name, ext)) { printf("  content %s\n", safe_path_text(rel)); ++count; }
         }
         closedir(d);
     }
 #endif
     return count;
+}
+
+static int no_load_join_path(char* out, size_t cap, const char* left, const char* right) {
+    const int written = snprintf(out, cap, "%s/%s", left, right);
+    return written >= 0 && (size_t)written < cap;
+}
+
+static int mission_declaration_name(const char* relative) {
+    const size_t length = strlen(relative);
+    const char* id;
+    size_t id_length, i;
+    if (strncmp(relative, "missions/", 9) || length < 15 || strcmp(relative + length - 5, ".scom")) return 0;
+    id = relative + 9;
+    id_length = length - 14;
+    if (!id_length || id_length > 100) return 0;
+    for (i = 0; i < id_length; ++i)
+        if (!((id[i] >= 'a' && id[i] <= 'z') || (id[i] >= '0' && id[i] <= '9') || id[i] == '_')) return 0;
+    return 1;
+}
+
+static int no_load_scan_budget(unsigned* scanned) {
+    if (*scanned >= MAX_PACK_SCAN_ENTRIES) {
+        fail("data pack inventory exceeds scan limit of %u filesystem entries", MAX_PACK_SCAN_ENTRIES);
+        return 0;
+    }
+    ++*scanned;
+    return 1;
+}
+
+/* Static preflight inventory. Match the host's non-following symlink and script-depth rules,
+ * while bounding work for folders containing large numbers of irrelevant entries. */
+static int no_load_list_content(const char* dir, const char* sub, const char* ext, int deep,
+                                unsigned depth, int mission_declaration, unsigned* scanned) {
+    char path[MAX_PACK_SCAN_PATH_BYTES + 1u];
+    int count = 0;
+    if (!no_load_join_path(path, sizeof path, dir, sub)) {
+        fail("data pack path exceeds the %u-byte preflight path limit", MAX_PACK_SCAN_PATH_BYTES);
+        return -1;
+    }
+#if defined(_WIN32)
+    {
+        const DWORD attributes = GetFileAttributesA(path);
+        char pattern[MAX_PACK_SCAN_PATH_BYTES + 4u];
+        WIN32_FIND_DATAA fd;
+        HANDLE h;
+        DWORD error;
+        int written;
+        if (strlen(path) >= MAX_PATH) {
+            fail("data pack path exceeds the Windows path limit: %s", safe_path_text(sub));
+            return -1;
+        }
+        if (attributes == INVALID_FILE_ATTRIBUTES) {
+            error = GetLastError();
+            if (error == ERROR_FILE_NOT_FOUND || error == ERROR_PATH_NOT_FOUND) return 0;
+            fail("cannot inspect data pack folder %s (Windows error %lu)", safe_path_text(sub), (unsigned long)error);
+            return -1;
+        }
+        if ((attributes & FILE_ATTRIBUTE_REPARSE_POINT) || !(attributes & FILE_ATTRIBUTE_DIRECTORY)) return 0;
+        written = snprintf(pattern, sizeof pattern, "%s/*", path);
+        if (written < 0 || (size_t)written >= sizeof pattern || strlen(pattern) >= MAX_PATH) {
+            fail("data pack search path exceeds the Windows path limit: %s", safe_path_text(sub));
+            return -1;
+        }
+        h = FindFirstFileA(pattern, &fd);
+        if (h == INVALID_HANDLE_VALUE) {
+            error = GetLastError();
+            if (error == ERROR_FILE_NOT_FOUND) return 0;
+            fail("cannot read data pack folder %s (Windows error %lu)", safe_path_text(sub), (unsigned long)error);
+            return -1;
+        }
+        for (;;) {
+            char relative[MAX_PACK_SCAN_PATH_BYTES + 1u];
+            char full[MAX_PACK_SCAN_PATH_BYTES + 1u];
+            if (strcmp(fd.cFileName, ".") && strcmp(fd.cFileName, "..")) {
+                if (!no_load_scan_budget(scanned)) { FindClose(h); return -1; }
+                if (!no_load_join_path(relative, sizeof relative, sub, fd.cFileName) ||
+                    !no_load_join_path(full, sizeof full, dir, relative)) {
+                    fail("data pack relative path exceeds the %u-byte preflight path limit", MAX_PACK_SCAN_PATH_BYTES);
+                    FindClose(h);
+                    return -1;
+                }
+                if (strlen(full) >= MAX_PATH) {
+                    fail("data pack path exceeds the Windows path limit: %s", safe_path_text(relative));
+                    FindClose(h);
+                    return -1;
+                }
+                if (!(fd.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT)) {
+                    if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
+                        if (deep && depth < MAX_PACK_SCRIPT_DEPTH) {
+                            const int child_count = no_load_list_content(dir, relative, ext, deep, depth + 1u,
+                                                                         mission_declaration, scanned);
+                            if (child_count < 0) { FindClose(h); return -1; }
+                            count += child_count;
+                        }
+                    } else if (!(fd.dwFileAttributes & FILE_ATTRIBUTE_DEVICE) &&
+                               ends_with_nocase(fd.cFileName, ext) &&
+                               (!mission_declaration || mission_declaration_name(relative))) {
+                        printf("  content %s\n", safe_path_text(relative));
+                        ++count;
+                    }
+                }
+            }
+            if (!FindNextFileA(h, &fd)) {
+                error = GetLastError();
+                if (error != ERROR_NO_MORE_FILES) {
+                    fail("cannot finish reading data pack folder %s (Windows error %lu)", safe_path_text(sub), (unsigned long)error);
+                    FindClose(h);
+                    return -1;
+                }
+                break;
+            }
+        }
+        FindClose(h);
+    }
+#else
+    {
+        struct stat root_stat;
+        DIR* d;
+        struct dirent* e;
+        if (lstat(path, &root_stat) != 0) {
+            if (errno == ENOENT || errno == ENOTDIR) return 0;
+            fail("cannot inspect data pack folder %s (errno %d)", safe_path_text(sub), errno);
+            return -1;
+        }
+        if (S_ISLNK(root_stat.st_mode) || !S_ISDIR(root_stat.st_mode)) return 0;
+        d = opendir(path);
+        if (!d) {
+            fail("cannot read data pack folder %s (errno %d)", safe_path_text(sub), errno);
+            return -1;
+        }
+        for (;;) {
+            errno = 0;
+            e = readdir(d);
+            if (!e) {
+                if (errno) {
+                    fail("cannot finish reading data pack folder %s (errno %d)", safe_path_text(sub), errno);
+                    closedir(d);
+                    return -1;
+                }
+                break;
+            }
+            if (strcmp(e->d_name, ".") && strcmp(e->d_name, "..")) {
+                char relative[MAX_PACK_SCAN_PATH_BYTES + 1u];
+                char full[MAX_PACK_SCAN_PATH_BYTES + 1u];
+                struct stat st;
+                if (!no_load_scan_budget(scanned)) { closedir(d); return -1; }
+                if (!no_load_join_path(relative, sizeof relative, sub, e->d_name) ||
+                    !no_load_join_path(full, sizeof full, dir, relative)) {
+                    fail("data pack relative path exceeds the %u-byte preflight path limit", MAX_PACK_SCAN_PATH_BYTES);
+                    closedir(d);
+                    return -1;
+                }
+                if (lstat(full, &st) != 0) {
+                    fail("cannot inspect data pack path %s (errno %d)", safe_path_text(relative), errno);
+                    closedir(d);
+                    return -1;
+                }
+                if (S_ISLNK(st.st_mode)) continue;
+                if (S_ISDIR(st.st_mode)) {
+                    if (deep && depth < MAX_PACK_SCRIPT_DEPTH) {
+                        const int child_count = no_load_list_content(dir, relative, ext, deep, depth + 1u,
+                                                                     mission_declaration, scanned);
+                        if (child_count < 0) { closedir(d); return -1; }
+                        count += child_count;
+                    }
+                } else if (S_ISREG(st.st_mode) && ends_with_nocase(e->d_name, ext) &&
+                           (!mission_declaration || mission_declaration_name(relative))) {
+                    printf("  content %s\n", safe_path_text(relative));
+                    ++count;
+                }
+            }
+        }
+        closedir(d);
+    }
+#endif
+    return count;
+}
+
+static int no_load_data_inventory(const char* dir) {
+    unsigned scanned = 0;
+    int total = 0, count;
+#define ADD_NO_LOAD_CONTENT(sub, ext, deep, mission) do { \
+        count = no_load_list_content(dir, sub, ext, deep, 0, mission, &scanned); \
+        if (count < 0) return -1; \
+        total += count; \
+    } while (0)
+    ADD_NO_LOAD_CONTENT("missions", ".cwmission", 0, 0);
+    ADD_NO_LOAD_CONTENT("missions", ".scom", 0, 1);
+    ADD_NO_LOAD_CONTENT("rules", ".rules", 0, 0);
+    ADD_NO_LOAD_CONTENT("scripts", ".xml", 1, 0);
+    ADD_NO_LOAD_CONTENT("lists", ".txt", 0, 0);
+    ADD_NO_LOAD_CONTENT("datacore", ".toml", 0, 0);
+#undef ADD_NO_LOAD_CONTENT
+    return total;
 }
 
 /* ---- stand-in host ------------------------------------------------------ */
@@ -763,6 +1096,7 @@ typedef struct widget_panel_copy {
     uint64_t generation;
     sco_widget_event_fn fn;
     void* ctx;
+    int tagged_events; /* sticky until a successful full panel replacement */
 } widget_panel_copy;
 
 static widget_panel_copy* widget_panels[SCO_WIDGETS_MAX_PANELS];
@@ -1003,6 +1337,12 @@ static int widget_extended(const widget_panel_copy* panel) {
     return 0;
 }
 
+static int widget_tagged(const widget_panel_copy* panel) {
+    uint32_t i;
+    for (i = 0; i < panel->count; ++i) if (panel->nodes[i].tag[0]) return 1;
+    return 0;
+}
+
 static sco_result widget_set_panel(sco_plugin* self, const char* id, const char* title,
                                    const sco_widget_node* nodes, uint32_t count, uint32_t stride,
                                    sco_widget_event_fn fn, void* ctx) {
@@ -1038,6 +1378,7 @@ static sco_result widget_set_panel(sco_plugin* self, const char* id, const char*
     r = widget_parse(nodes, count, stride, 0, 0, NULL, 0, 0, panel->nodes);
     if (r != SCO_OK) { widget_free(panel); return r; }
     widget_inherit(panel->nodes, count);
+    panel->tagged_events = widget_tagged(panel);
     /* Publish only after every validation/allocation has succeeded. */
     old = widget_panels[slot];
     panel->generation = ++widget_generation;
@@ -1143,6 +1484,7 @@ static sco_result widget_update_nodes(sco_plugin* self, const char* panel_id, co
     widget_total_nodes = widget_total_nodes - panel->count + total;
     panel->nodes = tree;
     panel->count = total;
+    panel->tagged_events |= widget_tagged(panel);
     panel->generation = ++widget_generation;
     printf("  widgets update %s root=%u nodes=%u total=%u generation=%llu\n", panel->id, (unsigned)nodes->id,
            (unsigned)count, (unsigned)total, (unsigned long long)panel->generation);
@@ -1188,7 +1530,7 @@ static sco_result widget_remove_nodes(sco_plugin* self, const char* panel_id, co
 #define WIDGET_FEATURES (SCO_WIDGETS_FEATURE_UPDATE_NODES | SCO_WIDGETS_FEATURE_REMOVE_NODES | \
     SCO_WIDGETS_FEATURE_SEVERITY | SCO_WIDGETS_FEATURE_TOOLTIP | SCO_WIDGETS_FEATURE_PAGING | \
     SCO_WIDGETS_FEATURE_EVENT_ROW | SCO_WIDGETS_FEATURE_COALESCED_RENDER | SCO_WIDGETS_FEATURE_STABLE_TAGS | \
-    SCO_WIDGETS_FEATURE_NUMERIC_PRESENTATION)
+    SCO_WIDGETS_FEATURE_NUMERIC_PRESENTATION | SCO_WIDGETS_FEATURE_EVENT_TAG)
 
 /* Advertises what the real host does (src/widgets/widgets.cpp), with the 1.0 limit macros. */
 static sco_result widget_capabilities(sco_plugin* self, uint32_t* out) {
@@ -1237,7 +1579,7 @@ static sco_result short_capabilities(sco_plugin* self, uint32_t* out) {
     return SCO_UNAVAILABLE;
 }
 
-/* sco.widgets 1.1 by default; under --short-tables the 1.0 extent (size 24), as a 1.0 host serves. */
+/* sco.widgets 1.4 by default; under --short-tables the 1.0 extent (size 24), as a 1.0 host serves. */
 static const sco_widgets_v1 widget_api = {
     (uint32_t)sizeof(sco_widgets_v1), 0, widget_set_panel, widget_remove_panel,
     widget_update_nodes, widget_remove_nodes, widget_capabilities
@@ -1451,7 +1793,7 @@ static sco_result provide_service(sco_plugin* self, const char* name, uint32_t v
 }
 
 static sco_result widgets_lookup(const char* name, uint32_t min_version, const void** out) {
-    const uint32_t served = short_tables ? SCO_WIDGETS_VERSION_1_0 : SCO_WIDGETS_VERSION_1_3;
+    const uint32_t served = short_tables ? SCO_WIDGETS_VERSION_1_0 : SCO_WIDGETS_VERSION_1_4;
     if (!name || !out) return SCO_BAD_ARG;
     remember_name(queried, &nqueried, name);
     if (strcmp(name, SCO_WIDGETS_NAME)) return SCO_NOT_FOUND;
@@ -1583,8 +1925,10 @@ typedef struct widget_pending_event {
     uint64_t generation;
     char panel_id[SCO_WIDGETS_MAX_ID + 1u];
     char text[SCO_WIDGETS_MAX_TEXT + 1u];
+    char tag[SCO_WIDGETS_MAX_TAG + 1u];
     sco_widget_event event;
     int extended;   /* the panel holds a 1.1 node: deliver a sco_widget_event_1_1 */
+    int tagged_events;
     int32_t row;
 } widget_pending_event;
 
@@ -1625,6 +1969,8 @@ static void widget_simulate(void) {
             p->event.size = sizeof p->event;
             p->event.node_id = n->id; p->event.kind = n->kind;
             p->extended = widget_extended(panel);
+            p->tagged_events = panel->tagged_events;
+            memcpy(p->tag, node->tag, sizeof p->tag);
             p->row = -1;
             switch (n->kind) {
                 case SCO_WIDGET_TOGGLE: p->event.value = n->value == 0 ? 1 : 0; break;
@@ -1658,7 +2004,7 @@ static void widget_simulate(void) {
         widget_node_copy* node;
         sco_widget_event_fn fn;
         void* ctx;
-        sco_widget_event_1_1 wire;
+        sco_widget_event_1_4 wire;
         char row_text[48] = "";
         int before_failures = failures;
         uint32_t before_logs = widget_callback_logs, before_invokes = widget_callback_invokes;
@@ -1669,18 +2015,23 @@ static void widget_simulate(void) {
         if (p->event.kind == SCO_WIDGET_TEXT_INPUT) strcpy(node->text, p->text);
         fn = panel->fn; ctx = panel->ctx;
         memset(&wire, 0, sizeof wire);
-        wire.base = p->event;
-        if (p->extended) {
-            wire.base.size = sizeof wire;
-            wire.row = p->row;
-            snprintf(row_text, sizeof row_text, " size=%u row=%d", (unsigned)wire.base.size, (int)wire.row);
+        wire.base.base = p->event;
+        if (p->extended || p->tagged_events) {
+            wire.base.base.size = sizeof wire.base;
+            wire.base.row = p->row;
         }
+        if (p->tagged_events) {
+            wire.base.base.size = sizeof wire;
+            wire.tag = p->tag[0] ? p->tag : NULL;
+        }
+        if (p->extended || p->tagged_events)
+            snprintf(row_text, sizeof row_text, " size=%u row=%d", (unsigned)wire.base.base.size, (int)wire.base.row);
         printf("  widgets event %s node=%u kind=%u(%s) value=%.17g index=%d text=\"%s\"%s\n",
                p->panel_id, (unsigned)p->event.node_id, (unsigned)p->event.kind,
                widget_kind_name(p->event.kind), p->event.value, (int)p->event.index, p->event.text ? p->event.text : "",
                row_text);
         widget_dispatching = 1;
-        fn(p->panel_id, &wire.base, ctx);
+        fn(p->panel_id, &wire.base.base, ctx);
         widget_dispatching = 0;
         ++delivered;
         /* Never dereference panel/node/fn/ctx after the plugin callout: the
@@ -1723,10 +2074,12 @@ static void check_native(const char* dir, const manifest* m, const char* invoke_
     sco_api api;
     sco_result r;
     int i;
+    char safe_path[MAX_SAFE_PATH_DISPLAY_BYTES];
 #if defined(_WIN32)
     HMODULE mod;
 #else
     void* mod;
+    char safe_error[MAX_SAFE_PATH_DISPLAY_BYTES];
 #endif
 
     snprintf(path, sizeof path, "%s/%s", dir, m->entry);
@@ -1734,16 +2087,29 @@ static void check_native(const char* dir, const manifest* m, const char* invoke_
     {
         /* LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR needs a full path, as the host passes. */
         char full[MAX_PATH];
-        if (GetFullPathNameA(path, sizeof full, full, NULL) - 1u >= sizeof full - 1u) { fail("%s: path too long", path); return; }
+        if (GetFullPathNameA(path, sizeof full, full, NULL) - 1u >= sizeof full - 1u) {
+            fail("%s: path too long", safe_text_span(path, strlen(path), safe_path, sizeof safe_path));
+            return;
+        }
         strncpy(path, full, sizeof path - 1);
         path[sizeof path - 1] = '\0';
     }
     mod = LoadLibraryExA(path, NULL, LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR | LOAD_LIBRARY_SEARCH_SYSTEM32);
-    if (!mod) { fail("%s: can't load (error %lu)", path, (unsigned long)GetLastError()); return; }
+    if (!mod) {
+        fail("%s: can't load (error %lu)", safe_text_span(path, strlen(path), safe_path, sizeof safe_path),
+             (unsigned long)GetLastError());
+        return;
+    }
 #define SYM(name) ((void*)GetProcAddress(mod, name))
 #else
     mod = dlopen(path, RTLD_NOW | RTLD_LOCAL);
-    if (!mod) { fail("%s: can't load (%s)", path, dlerror()); return; }
+    if (!mod) {
+        const char* error = dlerror();
+        if (!error) error = "unknown loader error";
+        fail("%s: can't load (%s)", safe_text_span(path, strlen(path), safe_path, sizeof safe_path),
+             safe_text_span(error, strlen(error), safe_error, sizeof safe_error));
+        return;
+    }
 #define SYM(name) dlsym(mod, name)
 #endif
     /* Object to function pointer: same size on every platform the SDK targets (abi_v1.c). */
@@ -1757,7 +2123,8 @@ static void check_native(const char* dir, const manifest* m, const char* invoke_
     }
 #undef SYM
     if (!query || !load || !unload) {
-        fail("%s: missing export (needs sco_plugin_query, sco_plugin_load, sco_plugin_unload)", m->entry);
+        fail("%s: missing export (needs sco_plugin_query, sco_plugin_load, sco_plugin_unload)",
+             safe_path_text(m->entry));
         return;
     }
 
@@ -1850,14 +2217,31 @@ int main(int argc, char** argv) {
     const char* dir = NULL;
     const char* invoke_name = NULL;
     char** invoke_args = NULL;
-    int ninvoke_args = 0, i;
+    int ninvoke_args = 0, i, no_load = 0;
     char path[1024], folder[256];
+    int path_written;
     manifest m;
 
+    /* Static manifest mode for sco-plugin-verify. It consumes only bounded stdin text and returns
+     * parsed metadata; it never opens a plugin folder, entry file, or native/script code. */
+    if (argc > 1 && !strcmp(argv[1], "--manifest-stdin")) {
+        if (argc != 3) {
+            fprintf(stderr, "usage: sco-plugin-check --manifest-stdin <plugin-folder-name>\n");
+            return 2;
+        }
+        return manifest_stdin_mode(argv[2]);
+    }
+
+    /* --invoke consumes every remaining argument, including option-like strings. */
     for (i = 1; i < argc; ++i) {
         if (!strcmp(argv[i], "--cap") && i + 1 < argc && ncaps < 32) caps[ncaps++] = argv[++i];
         else if (!strcmp(argv[i], "--short-tables")) short_tables = 1;
+        else if (!strcmp(argv[i], "--no-load")) no_load = 1;
         else if (!strcmp(argv[i], "--invoke") && i + 1 < argc) {
+            if (no_load) {
+                fprintf(stderr, "--no-load cannot be combined with --invoke\n");
+                return 2;
+            }
             invoke_name = argv[++i];
             invoke_args = argv + i + 1;
             ninvoke_args = argc - i - 1;
@@ -1865,41 +2249,80 @@ int main(int argc, char** argv) {
         } else if (!dir && argv[i][0] != '-') dir = argv[i];
         else { dir = NULL; break; }
     }
+    if (no_load && (ncaps || short_tables)) {
+        fprintf(stderr, "--no-load cannot be combined with --cap or --short-tables\n");
+        return 2;
+    }
     if (!dir) {
-        fprintf(stderr, "usage: sco-plugin-check <plugin folder> [--cap NAME]... [--short-tables] [--invoke NAME [ARG]...]\n");
+        fprintf(stderr, "usage: sco-plugin-check <plugin folder> [--no-load] [--cap NAME]... [--short-tables] [--invoke NAME [ARG]...]\n"
+                        "       sco-plugin-check --manifest-stdin <plugin-folder-name>\n");
         return 2;
     }
 
     snprintf(folder, sizeof folder, "%s", base_name(dir));
     for (i = (int)strlen(folder); i > 0 && (folder[i - 1] == '/' || folder[i - 1] == '\\'); --i) folder[i - 1] = 0;
-    printf("%s\n", dir);
-    snprintf(path, sizeof path, "%s/plugin.ini", dir);
-    if (read_manifest(path, &m)) {
+    printf("%s\n", safe_path_text(dir));
+    if (no_load) printf("  mode    no-load; plugin code will not be loaded or executed\n");
+    if (no_load && !regular_directory_exists(dir))
+        fail("plugin folder is not a regular non-symlink directory");
+    path_written = snprintf(path, sizeof path, "%s/plugin.ini", dir);
+    if (no_load && failures) {
+        /* Do not follow a rejected plugin-root symlink to read its manifest. */
+    } else if (no_load && (path_written < 0 || (size_t)path_written >= sizeof path))
+        fail("plugin.ini path exceeds the checker path-buffer limit");
+    else if (no_load && !regular_file_exists(path))
+        fail("plugin.ini is not a regular non-symlink file or was not found");
+    else if (read_manifest(path, &m)) {
         snprintf(plugin_id, sizeof plugin_id, "%s", m.id);
-        printf("  ini     id=%s kind=%s api=%s%s%s\n", m.id, m.kind, m.api, m.entry[0] ? " entry=" : "", m.entry);
-        if (strcmp(folder, m.id)) fail("id '%s' does not match folder '%s'", m.id, folder);
-        for (i = 0; i < m.nrequires; ++i)
-            printf("  needs   %s%s\n", m.requires_[i], has(m.requires_[i]) ? "" : " (no --cap: the host checks it, loading this plugin after the plugin that provides it)");
+        printf("  ini     id=%s kind=%s api=%s%s%s\n", m.id, m.kind, m.api,
+               m.entry[0] ? " entry=" : "", safe_path_text(m.entry));
+        if (strcmp(folder, m.id)) fail("id '%s' does not match folder '%s'", m.id, safe_path_text(folder));
+        for (i = 0; i < m.nrequires; ++i) {
+            if (no_load)
+                printf("  needs   %s (declared; provider availability not checked)\n", m.requires_[i]);
+            else
+                printf("  needs   %s%s\n", m.requires_[i], has(m.requires_[i]) ? "" : " (no --cap: the host checks it, loading this plugin after the plugin that provides it)");
+        }
         for (i = 0; i < m.nsettings; ++i)
             printf("  setting %s (%s)\n", m.settings[i].name, m.settings[i].type);
         if (m.entry[0]) {
-            snprintf(path, sizeof path, "%s/%s", dir, m.entry);
-            if (!file_exists(path)) fail("entry '%s' not found", m.entry);
+            path_written = snprintf(path, sizeof path, "%s/%s", dir, m.entry);
+            if (no_load) {
+                if (path_written < 0 || (size_t)path_written >= sizeof path)
+                    fail("entry '%s' path exceeds the checker path-buffer limit", safe_path_text(m.entry));
+                else if (!regular_file_exists(path))
+                    fail("entry '%s' is not a regular non-symlink file or was not found", safe_path_text(m.entry));
+                else printf("  entry   %s present; not loaded or executed\n", safe_path_text(m.entry));
+            } else if (!file_exists(path)) fail("entry '%s' not found", safe_path_text(m.entry));
         }
         if (!failures && !strcmp(m.kind, "data")) {
-            int n = list_content(dir, "missions", ".cwmission", 0) + list_content(dir, "rules", ".rules", 0) +
-                    list_content(dir, "scripts", ".xml", 1) + list_content(dir, "lists", ".txt", 0);
-            /* .toml files in datacore: indexed here; their syntax and names are checked by sco-dcb lint and check. */
-            int dcb = list_content(dir, "datacore", ".toml", 0);
-            if (dcb) printf("  datacore %d file(s) indexed; check them with sco-dcb lint (syntax) and sco-dcb check (against Game2.dcb)\n", dcb);
-            n += dcb;
-            if (n == 0) fail("data pack has no content (missions/*.cwmission, rules/*.rules, scripts/**.xml, lists/*.txt, datacore/*.toml)");
-            else if (n > MAX_PACK_FILES) fail("data pack has %d content files; the host refuses more than %d", n, MAX_PACK_FILES);
-            else printf("  pack    %d file(s)\n", n);
-        } else if (!failures && !strcmp(m.kind, "native")) {
+            if (no_load) {
+                const int n = no_load_data_inventory(dir);
+                if (!failures) {
+                    if (n == 0) fail("data pack has no content (missions/*.cwmission, missions/<id>.scom, rules/*.rules, scripts/**.xml, lists/*.txt, datacore/*.toml)");
+                    else if (n > MAX_PACK_FILES) fail("data pack has %d content files; the host refuses more than %d", n, MAX_PACK_FILES);
+                    else printf("  pack    %d file(s); scan limit %u entries, scripts depth %u\n",
+                                n, MAX_PACK_SCAN_ENTRIES, MAX_PACK_SCRIPT_DEPTH);
+                }
+            } else {
+                int n = list_content(dir, "missions", ".cwmission", 0) + list_content(dir, "rules", ".rules", 0) +
+                        list_content(dir, "scripts", ".xml", 1) + list_content(dir, "lists", ".txt", 0);
+                /* .toml files in datacore: indexed here; their syntax and names are checked by sco-dcb lint and check. */
+                int dcb = list_content(dir, "datacore", ".toml", 0);
+                if (dcb) printf("  datacore %d file(s) indexed; check them with sco-dcb lint (syntax) and sco-dcb check (against Game2.dcb)\n", dcb);
+                n += dcb;
+                if (n == 0) fail("data pack has no content (missions/*.cwmission, rules/*.rules, scripts/**.xml, lists/*.txt, datacore/*.toml)");
+                else if (n > MAX_PACK_FILES) fail("data pack has %d content files; the host refuses more than %d", n, MAX_PACK_FILES);
+                else printf("  pack    %d file(s)\n", n);
+            }
+        } else if (!failures && !no_load && !strcmp(m.kind, "native")) {
             check_native(dir, &m, invoke_name, invoke_args, ninvoke_args);
         }
     }
-    printf("%s: %d failure(s)\n", failures ? "FAILED" : "OK", failures);
+    if (no_load)
+        printf("%s: %d failure(s) (folder checks only; plugin code not executed)\n",
+               failures ? "NO-LOAD FAILED" : "NO-LOAD OK", failures);
+    else
+        printf("%s: %d failure(s)\n", failures ? "FAILED" : "OK", failures);
     return failures ? 1 : 0;
 }

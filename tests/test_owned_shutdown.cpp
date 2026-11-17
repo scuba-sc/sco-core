@@ -9,6 +9,7 @@
 #define CHECK(expr) do { if (!(expr)) { std::fprintf(stderr, "CHECK failed: %s:%d: %s\n", __FILE__, __LINE__, #expr); std::abort(); } } while (0)
 #include <chrono>
 #include <future>
+#include <optional>
 #include <stdexcept>
 using namespace std::chrono_literals;
 
@@ -104,7 +105,176 @@ struct DrainFromDestructor {
     void operator()(const std::function<bool()>&) { entered->set_value(); release.wait(); }
 };
 
+// Deferred execution: these cases exercise the close/request boundary using
+// actual leases and worker-start reservations, not a success-only drain stub.
+static void TestStopRequest() {
+    {
+        sco::OwnedShutdown owner;
+        CHECK(owner.drain_state() == sco::OwnedShutdown::DrainState::Open);
+        {
+            auto read = owner.try_read(); CHECK(read);
+            owner.request_stop(); // must return while this same-thread read exists
+            owner.request_stop();
+            CHECK(owner.closed() && !owner.open() && !owner.ready());
+            CHECK(owner.drain_state() == sco::OwnedShutdown::DrainState::Requested);
+            CHECK(!owner.try_read() && !owner.start_worker([](const auto&) {}));
+        }
+        CHECK(owner.drain_until(std::chrono::steady_clock::now() + 1s));
+        CHECK(owner.drain_state() == sco::OwnedShutdown::DrainState::Drained);
+        owner.request_stop();
+        CHECK(owner.ready()); // a repeated request cannot revoke or invent proof
+        owner.fault();
+        owner.request_stop();
+        CHECK(!owner.ready()); // it cannot clear a later fault either
+        CHECK(owner.drain_state() == sco::OwnedShutdown::DrainState::Retained);
+    }
+    {
+        sco::OwnedShutdown owner;
+        std::promise<void> requested;
+        std::atomic<bool> tlsDestroyed{false};
+        struct Tail {
+            std::atomic<bool>* destroyed;
+            ~Tail() { destroyed->store(true); }
+        };
+        CHECK(owner.start_worker([&](const auto& stop) {
+            thread_local Tail tail{&tlsDestroyed}; (void)tail;
+            owner.request_stop(); // a worker can request without self-draining
+            CHECK(stop() && !owner.try_read());
+            requested.set_value();
+        }));
+        CHECK(requested.get_future().wait_for(1s) == std::future_status::ready);
+        CHECK(owner.drain_state() == sco::OwnedShutdown::DrainState::Requested);
+        CHECK(owner.drain_until(std::chrono::steady_clock::now() + 1s));
+        CHECK(owner.ready() && tlsDestroyed.load());
+        CHECK(owner.drain_state() == sco::OwnedShutdown::DrainState::Drained);
+        CHECK(sco::OwnedShutdownTestAccess::handles_reaped(owner));
+    }
+    {
+        sco::OwnedShutdown owner;
+        std::promise<void> constructing, release;
+        auto released = release.get_future().share();
+        auto start = std::async(std::launch::async, [&] {
+            return owner.start_worker(BlockingMove(&constructing, released));
+        });
+        CHECK(constructing.get_future().wait_for(1s) == std::future_status::ready);
+        owner.request_stop(); // callable construction is outside the owner mutex
+        CHECK(owner.closed() && !owner.ready());
+        release.set_value();
+        CHECK(!start.get()); // reserved construction cancels before body launch
+        CHECK(owner.drain_until(std::chrono::steady_clock::now() + 1s));
+    }
+    {
+        sco::OwnedShutdown owner;
+        CHECK(sco::OwnedShutdownHostAccess::begin_startup(owner));
+        std::atomic<int> phase{0};
+        {
+            auto transition = sco::OwnedShutdownHostAccess::transition(owner);
+            CHECK(transition);
+            owner.request_stop();
+            CHECK(!transition.valid_for(owner));
+            CHECK(!transition.publish_and_open(phase, 0, 1));
+        }
+        CHECK(phase.load() == 0 && !owner.try_read());
+        CHECK(owner.drain_until(std::chrono::steady_clock::now() + 1s));
+    }
+    {
+        sco::OwnedShutdown owner;
+        std::promise<void> entered, release;
+        auto released = release.get_future().share();
+        std::thread reader([&] {
+            auto read = owner.try_read(); CHECK(read);
+            entered.set_value(); released.wait();
+        });
+        CHECK(entered.get_future().wait_for(1s) == std::future_status::ready);
+        owner.request_stop();
+        CHECK(!owner.drain_until(std::chrono::steady_clock::now() + 1ms));
+        release.set_value(); reader.join();
+        owner.request_stop();
+        CHECK(owner.reap_retained_until(std::chrono::steady_clock::now() + 1s) ==
+              sco::OwnedShutdown::ReapResult::ReapedRetained);
+        CHECK(!owner.ready() && !owner.try_read());
+    }
+}
+
+static void TestAbandonedReaders() {
+    using Reap = sco::OwnedShutdown::ReapResult;
+    {
+        sco::OwnedShutdown owner;
+        auto read = owner.try_read(); CHECK(read);
+        const auto deadline = std::chrono::steady_clock::now() + 5s;
+        auto draining = std::async(std::launch::async, [&] { return owner.drain_until(deadline); });
+        CHECK(owner.wait_until_closed(std::chrono::steady_clock::now() + 1s));
+        CHECK(draining.wait_for(0ms) == std::future_status::timeout);
+        std::thread foreign([lease = std::move(read)] { (void)lease; });
+        foreign.join();
+        CHECK(draining.wait_for(1s) == std::future_status::ready);
+        CHECK(std::chrono::steady_clock::now() < deadline && !draining.get());
+        CHECK(owner.closed() && !owner.ready());
+        CHECK(owner.reap_retained_until(std::chrono::steady_clock::now() + 1s) == Reap::Refused);
+        auto other = std::async(std::launch::async, [&] {
+            return owner.reap_retained_until(std::chrono::steady_clock::now() + 1s);
+        });
+        CHECK(other.get() == Reap::ReapedRetained && !owner.ready());
+    }
+    {
+        // Keep both origin threads alive and acquire every lease before the
+        // first foreign release closes admission. Each has a second active
+        // lease: releasing it must not erase the abandoned origin record.
+        sco::OwnedShutdown owner;
+        auto first = owner.try_read(); CHECK(first);
+        std::optional<sco::OwnedShutdown::Read> nested;
+        nested.emplace(owner.try_read()); CHECK(*nested);
+        std::promise<std::unique_ptr<sco::OwnedShutdown::Read>> otherLease;
+        auto otherLeaseFuture = otherLease.get_future();
+        std::promise<void> releaseNested, nestedReleased, testOrigin, finishOrigin;
+        std::promise<Reap> originResult;
+        auto nestedReleasedFuture = nestedReleased.get_future();
+        auto originResultFuture = originResult.get_future();
+        std::thread otherOrigin([&] {
+            auto firstOther = owner.try_read(); CHECK(firstOther);
+            std::optional<sco::OwnedShutdown::Read> otherNested;
+            otherNested.emplace(owner.try_read()); CHECK(*otherNested);
+            otherLease.set_value(std::make_unique<sco::OwnedShutdown::Read>(std::move(firstOther)));
+            releaseNested.get_future().wait();
+            otherNested.reset();
+            nestedReleased.set_value();
+            testOrigin.get_future().wait();
+            originResult.set_value(owner.reap_retained_until(std::chrono::steady_clock::now() + 1s));
+            finishOrigin.get_future().wait();
+        });
+        CHECK(otherLeaseFuture.wait_for(1s) == std::future_status::ready);
+        auto otherRead = otherLeaseFuture.get();
+        std::thread foreign([one = std::move(first), two = std::move(otherRead)] { (void)one; (void)two; });
+        foreign.join();
+        nested.reset();
+        releaseNested.set_value();
+        CHECK(nestedReleasedFuture.wait_for(1s) == std::future_status::ready);
+        auto draining = std::async(std::launch::async, [&] {
+            return owner.drain_until(std::chrono::steady_clock::now() + 2s);
+        });
+        CHECK(draining.wait_for(1s) == std::future_status::ready && !draining.get());
+        CHECK(!owner.ready());
+        CHECK(owner.reap_retained_until(std::chrono::steady_clock::now() + 1s) == Reap::Refused);
+        testOrigin.set_value();
+        CHECK(originResultFuture.wait_for(1s) == std::future_status::ready);
+        CHECK(originResultFuture.get() == Reap::Refused);
+        auto control = std::async(std::launch::async, [&] {
+            return owner.reap_retained_until(std::chrono::steady_clock::now() + 1s);
+        });
+        CHECK(control.get() == Reap::ReapedRetained && !owner.ready());
+        finishOrigin.set_value();
+        otherOrigin.join();
+    }
+    {
+        sco::OwnedShutdown owner;
+        { auto first = owner.try_read(); auto moved = std::move(first); CHECK(!first && moved); }
+        CHECK(owner.drain_until(std::chrono::steady_clock::now() + 1s) && owner.ready());
+    }
+}
+
 int main() {
+    TestAbandonedReaders();
+    TestStopRequest();
     using Reap = sco::OwnedShutdown::ReapResult;
     {
         sco::OwnedShutdown fresh;
@@ -290,6 +460,58 @@ int main() {
             CHECK(!owner.try_read()); // still closed until transition leaves
         }
         CHECK(owner.try_read() && phase == 1);
+    }
+    {
+        // A same-thread move preserves the acquiring thread and normal release.
+        sco::OwnedShutdown owner;
+        {
+            auto first = sco::OwnedShutdownHostAccess::transition(owner);
+            auto moved = std::move(first);
+            CHECK(!first && moved && !owner.open());
+        }
+        CHECK(owner.open());
+        CHECK(owner.drain_until(std::chrono::steady_clock::now() + 1s));
+        CHECK(owner.ready());
+    }
+    {
+        // A waiting drain must not turn a foreign release into readiness.
+        sco::OwnedShutdown owner;
+        auto transition = sco::OwnedShutdownHostAccess::transition(owner);
+        CHECK(transition);
+        const auto deadline = std::chrono::steady_clock::now() + 5s;
+        auto draining = std::async(std::launch::async, [&] {
+            return owner.drain_until(deadline);
+        });
+        CHECK(owner.wait_until_closed(std::chrono::steady_clock::now() + 1s));
+        CHECK(draining.wait_for(0ms) == std::future_status::timeout);
+        std::thread transfer([lease = std::move(transition)] { (void)lease; });
+        transfer.join();
+        CHECK(draining.wait_for(1s) == std::future_status::ready);
+        CHECK(std::chrono::steady_clock::now() < deadline);
+        CHECK(!draining.get());
+        CHECK(owner.closed() && !owner.ready());
+        CHECK(owner.drain_state() == sco::OwnedShutdown::DrainState::Retained);
+        // The acquiring thread still cannot join its own obligation.
+        CHECK(owner.reap_retained_until(std::chrono::steady_clock::now() + 1s) ==
+              sco::OwnedShutdown::ReapResult::Refused);
+        auto maintenance = std::async(std::launch::async, [&] {
+            return owner.reap_retained_until(std::chrono::steady_clock::now() + 1s);
+        });
+        CHECK(maintenance.get() == sco::OwnedShutdown::ReapResult::ReapedRetained);
+        CHECK(!owner.ready());
+    }
+    {
+        // Destruction on a different thread invalidates the ownership proof.
+        sco::OwnedShutdown owner;
+        auto transition = sco::OwnedShutdownHostAccess::transition(owner);
+        CHECK(transition);
+        std::thread transfer([lease = std::move(transition)] { (void)lease; });
+        transfer.join();
+        CHECK(owner.closed() && !owner.open() && !owner.ready());
+        CHECK(owner.drain_state() == sco::OwnedShutdown::DrainState::Retained);
+        CHECK(!owner.try_read() && !owner.start_worker([](const auto&) {}));
+        CHECK(!owner.drain_until(std::chrono::steady_clock::now() + 20ms));
+        CHECK(!owner.ready());
     }
     {
         sco::OwnedShutdown owner;

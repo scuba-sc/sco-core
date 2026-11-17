@@ -365,8 +365,8 @@ bool LoadScript(Plugin& p, const sco_api* api, sco_plugin* self, const ScriptRun
 // Faulted or already-quarantined owners are refused with a restart-required reason even
 // before their queued state verdict. Other owners with no handed-out table pass. This is
 // advisory only: BeginUnload makes the atomic admission decision again before actual
-// teardown; CanUnload is not a reservation. Host shutdown (UnloadAll) does not ask: it
-// tears down still-Loaded instances in reverse load order, never Faulted instances.
+// teardown; CanUnload is not a reservation. Terminal shutdown uses a separate group reservation and refuses active managed pins or
+// quarantined owners; raw handouts do not block it and are not drained by it.
 bool CanUnload(const Plugin& p, std::string& why);
 
 // Atomically reserve service admission for all owners before a reload group's first teardown.
@@ -386,14 +386,15 @@ void CancelUnload(const std::vector<Plugin*>& group);
 // refusal for still-Loaded instances; Faulted instances remain retained.
 void UnloadOne(Plugin& p, const ModuleOps& ops = PlatformModuleOps(), const ScriptRuntime* runtime = nullptr);
 
-// Failed or quarantined code aborts shutdown before any unload; a fault during teardown stops
+// Active managed pins, failed or quarantined code abort shutdown before any unload; a fault during teardown stops
 // the remaining peers. Returns false on refusal or incomplete teardown, true on success.
+// The caller must exclude direct concurrent mutation of the supplied vector and its entries.
 // Healthy handed-out providers still bypass the mid-session refusal. Data packs are unchanged.
 bool TryUnloadAll(std::vector<Plugin>& list, const ModuleOps& ops = PlatformModuleOps(),
                const ScriptRuntime* runtime = nullptr);
 // Historical void-return API retained for typed function-pointer consumers.
-// This keeps the legacy best-effort behavior; new retirement code must use
-// TryUnloadAll and handle its failure.
+// Uses the same terminal group gate; new retirement code must use TryUnloadAll
+// and handle its failure. Raw calls and native engine activity are not drained.
 void UnloadAll(std::vector<Plugin>& list, const ModuleOps& ops = PlatformModuleOps(),
                const ScriptRuntime* runtime = nullptr);
 

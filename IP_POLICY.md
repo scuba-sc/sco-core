@@ -57,6 +57,11 @@ Git history is never rewritten to hide where something came from.
 
 - `sdk/components.json`: every SDK file's origin, licence and release profile.
 - `docs/legal/provenance.json`: source, origin and licence metadata by path for package attribution and audits. A `needs-review` status does not require a separate per-file release decision; `unresolved` remains blocked by the audit.
+  The first matching rule selects attribution, except that **any** matching `unresolved`
+  rule blocks that file in the repository audit and SDK packaging, even if an earlier
+  rule says `reviewed`. Narrow or resolve an obsolete disputed rule rather than relying
+  on an earlier exception. Patterns without `/` match top-level files only; unmatched
+  rules do not block files and are not reported as errors.
 - `docs/legal/third-party-inventory.md`: vendored code with versions and hashes.
 - `docs/legal/release-hardening-baseline.md`: the starting point of this work.
 - `REUSE.toml` and `LICENSES/`: the same record in the [REUSE](https://reuse.software/) format, generated from `provenance.json` (`tools/ip_audit.py reuse-toml`).

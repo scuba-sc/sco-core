@@ -90,6 +90,7 @@ HUB_DOCS = {
         ('docs/game-services.md', 'Services the Star Citizen game pack publishes under the reserved owner `game`.'),
         ('docs/game/relocation-position.md', 'Explicit position-only relocation requests, completion evidence and unavailable native producer boundaries.'),
         ('docs/game/status.md', 'Status of every `game.*` table.'),
+        ('docs/game/builds.md', 'Every Star Citizen patch the game pack was checked against, and which rows each one changed.'),
         ('docs/storage.md', 'Per-plugin key-value and SQL storage over SQLite.'),
         ('docs/ui.md', 'Renderer-neutral `sco.widgets` and the legacy `sco.ui` service.'),
         ('docs/ipc.md', 'Local IPC through one named shared-memory mapping.'),
@@ -103,7 +104,8 @@ HUB_DOCS = {
         ('docs/agent-integration.md', 'Read-only MCP discovery tools for agents and IDEs.'),
         ('docs/sdk-mcp-tutorial.md', 'Discover a contract, request a scaffold, validate manifest/widgets and run a native checker.'),
         ('docs/host-source-sc.md', 'Build the Star Citizen host from the generated host-source kit.'),
-        ('docs/releases/sdk-v2.4.0.md', 'SDK 2.4.0 release notes, candidate status and archives.'),
+        ('docs/releases/sdk-v2.4.1.md', 'SDK 2.4.1 release notes: what is new, compatibility and evidence.'),
+        ('docs/releases/sdk-v2.4.0.md', 'SDK 2.4.0 release notes, candidate history and archives.'),
         ('docs/reference-snapshots.md', 'Snapshots that bind reference content to SDK inputs.'),
     ),
 }
@@ -279,7 +281,26 @@ def published_stage():
     return 'Published release', 'published assets; verify their identity'
 
 
+def documents_published_release(catalogue):
+    """True when the catalogue's SDK and game-pack versions are the published final release's."""
+    return bool(PUBLISHED_METADATA
+                and PUBLISHED_METADATA['tag'] == 'sdk-v' + catalogue['sdk_version']
+                and PUBLISHED_METADATA['sdk_version'] == catalogue['sdk_version']
+                and PUBLISHED_METADATA['game_pack_version'] == catalogue['game_pack_version'])
+
+
 def banner(catalogue, release_tag, category):
+    if not release_tag and documents_published_release(catalogue):
+        # The deployed source documents the published release; later main commits may only fix docs.
+        tag = PUBLISHED_METADATA['tag']
+        return ('<div data-pagefind-ignore="index">\n\n:::note[SDK ' + catalogue['sdk_version'] + ']\n'
+                + 'Documents SDK **' + catalogue['sdk_version'] + '** · game pack **' + catalogue['game_pack_version']
+                + '**, published as [' + tag + '](' + RELEASES + quote(tag, safe='') + '). Built from source `'
+                + catalogue['source_sha'] + '`'
+                + ('' if catalogue['source_sha'] == PUBLISHED_METADATA['source_sha']
+                   else ', which may include changes made after the release') + '.\n'
+                + '<span data-pagefind-filter="Type:' + esc(category) + '">Source-backed inventory is not a runtime '
+                + 'or in-game verification claim.</span>\n:::\n\n</div>\n\n')
     label = 'release ' + release_tag if release_tag else 'development preview'
     published = release_tag or PUBLISHED_DOWNLOAD_TAG
     stage = 'published assets; verify their identity' if release_tag else published_stage()[1]
@@ -289,8 +310,11 @@ def banner(catalogue, release_tag, category):
     if not PUBLISHED_METADATA and not release_tag:
         stage = 'offline fixture; not current publication data'
     return ('<div data-pagefind-ignore="index">\n\n:::caution[Catalogue snapshot — ' + label + ']\n'
-            + 'SDK **' + catalogue['sdk_version'] + '** · game pack **' + catalogue['game_pack_version']
+            + 'Source catalogue SDK **' + catalogue['sdk_version'] + '** · game pack **' + catalogue['game_pack_version']
             + '** · source `' + catalogue['source_sha'] + '`\n'
+            + ('' if release_tag else 'Development archives may use a different SDK version for this source; '
+               'check `COMPATIBILITY.json` (or `COMPATIBILITY.json.game-sc` for the standalone game overlay), '
+               '`VERSION` or `sdk/VERSION` where present, and the archive checksum.\n')
             + release_label + ': [' + published + '](' + RELEASES + quote(published, safe='') + ')' + published_source
             + (' (' + stage + ').\n' if release_tag
                else ' (' + stage + '; this development preview is not an approved release).\n')
@@ -410,14 +434,16 @@ def release_portal(root, catalogue, release_tag, doc_routes):
         note = 'This site build was generated from the commit its release tag identifies.'
     else:
         label, title = 'Mainline development preview', 'This documentation build'
-        note = 'Not an approved release. Pages describe this source commit.'
+        note = ('Not an approved release. Pages describe this source commit. Development archive versions '
+                'may differ from the source catalogue; check COMPATIBILITY.json (COMPATIBILITY.json.game-sc '
+                'for the standalone game overlay), VERSION or sdk/VERSION where present, and the archive checksum.')
     preview = [
         '<section class="sco-track" data-od-id="release-build" data-track="' + ('release' if release_tag else 'preview')
         + '" data-source-sha="' + esc(sha) + '" aria-labelledby="track-build">',
         '<span class="sco-status sco-status--' + ('published' if release_tag else 'preview') + '">' + esc(label) + '</span>',
         '<h3 id="track-build">' + esc(title) + '</h3>',
         facts([('Source', '<a href="' + esc(COMMITS + sha) + '">' + esc(sha) + '</a>'),
-               ('SDK', esc(catalogue['sdk_version'])), ('Game pack', esc(catalogue['game_pack_version']))]),
+               ('Source catalogue SDK', esc(catalogue['sdk_version'])), ('Game pack', esc(catalogue['game_pack_version']))]),
         '<p class="sco-track__note">' + esc(note) + '</p>',
         '</section>']
     profile_source = PUBLISHED_METADATA['source_sha'] if PUBLISHED_METADATA else sha
@@ -525,8 +551,8 @@ def hub_cards(groups):
 
 def native_index(root):
     """sdk/native_index.json, validated: symbolic names and readiness only, never patterns or addresses."""
-    text = (root / NATIVE_INDEX).read_text(encoding='utf-8')
-    data = json.loads(text)
+    raw = (root / NATIVE_INDEX).read_bytes()
+    data = json.loads(raw.decode('utf-8'))
     entries = data.get('entries') if isinstance(data, dict) else None
     tiers = data.get('tiers') if isinstance(data, dict) else None
     if (data.get('schema_version') != 1 or not isinstance(entries, list) or not entries
@@ -550,7 +576,7 @@ def native_index(root):
             raise ValueError('Duplicate native index hash or id: ' + entry['id'])
         hashes.add(entry['hash'])
         ids.add(entry['id'])
-    return data, text
+    return data, raw
 
 
 def tier_name(tiers, tier):
@@ -853,7 +879,7 @@ def generate(root, catalogue, output, release_tag=None):
     docs = inputs(root)
     hub_docs(docs)
     doc_routes = {name: guide_id(name) for name in docs}
-    natives, natives_text = native_index(root)
+    natives, natives_bytes = native_index(root)
     records = sorted(catalogue['records'], key=lambda item: item['id'])
     ids = [r['id'] for r in records]
     if not records or len(ids) != len(set(ids)) or any(not re.fullmatch(r'[a-z0-9-]+', id_) for id_ in ids):
@@ -894,7 +920,7 @@ def generate(root, catalogue, output, release_tag=None):
         text = re.sub(r'^#\s+[^\n]+\n', '', text, count=1, flags=re.M)
         text = rewrite_links(text, name, catalogue['source_sha'], doc_routes)
         if PUBLISHED_METADATA and name in {
-                'docs/releases/sdk-v2.4.0.md', 'docs/roadmap.md',
+                'docs/releases/' + PUBLISHED_RELEASE + '.md', 'docs/roadmap.md',
                 'docs/game/status.md',
                 'docs/agent-integration.md'}:
             text = ('> **Current published SDK:** [' + PUBLISHED_METADATA['tag'] + ']('
@@ -953,7 +979,7 @@ def generate(root, catalogue, output, release_tag=None):
         release_metadata_path.unlink(missing_ok=True)
     (public / 'sdk-catalogue.json').write_text(json.dumps(catalogue, sort_keys=True, indent=2, ensure_ascii=False) + '\n', encoding='utf-8')
     # The validated index, byte for byte: the page and the download state the same rows.
-    (public / NATIVE_DOWNLOAD).write_text(natives_text, encoding='utf-8')
+    (public / NATIVE_DOWNLOAD).write_bytes(natives_bytes)
     return len(records), len(services), len(pages)
 
 

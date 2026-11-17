@@ -42,6 +42,7 @@ struct Db {
     std::string id;
     fs::path    dir, file;
     Options     opts;
+    uint64_t    generation = 0;               // immutable storage Start epoch
     // Under lock:
     sqlite3*    db = nullptr;
     bool        closed = false;
@@ -54,6 +55,8 @@ struct Db {
 
 std::mutex                       g_lock;
 bool                             g_started = false;
+bool                             g_metadataReady = false;
+uint64_t                         g_generation = 0;
 Options                          g_opts;
 std::vector<std::shared_ptr<Db>> g_dbs;          // one per owner that has called since Start
 std::atomic<uint64_t>            g_nextCursor{ 1 };
@@ -247,6 +250,7 @@ Result Enter(sco_plugin* self, Call& call, bool open = true) {
             d->owner = self;
             d->id = id;
             d->opts = g_opts;
+            d->generation = g_generation;
             d->dir = g_opts.dataRoot / "storage";
             d->file = d->dir / (d->id + ".db");
             g_dbs.push_back(d);
@@ -262,6 +266,34 @@ Result Enter(sco_plugin* self, Call& call, bool open = true) {
     }
     d.deadline = Clock::now() + std::chrono::milliseconds(d.opts.budgetMs);
     return Result::Ok;
+}
+
+// A metadata call must not allocate an owner entry or open a connection. In particular,
+// Enter(..., false) is unsuitable: it still allocates an unopened Db as a side effect.
+Result EnterMetadata(sco_plugin* self, Call& call) {
+    if (!host::PluginId(self)) return Result::BadArg;
+    {
+        std::lock_guard<std::mutex> hold(g_lock);
+        if (!g_started || !g_metadataReady) return Result::Unavailable;
+        if (detail::Released(self)) return Result::BadArg;
+        for (const auto& d : g_dbs)
+            if (d->owner == self) { call.db = d; break; }
+        if (!call.db) return Result::Unavailable;
+    }
+    call.hold = std::unique_lock<std::mutex>(call.db->lock);
+    Db& d = *call.db;
+    if (d.closed) return d.closedResult;
+    if (!d.db) return Result::Unavailable;
+    d.deadline = Clock::now() + std::chrono::milliseconds(d.opts.budgetMs);
+    return Result::Ok;
+}
+
+// Check after releasing the database lock, before touching plugin output memory. A copied
+// result from a source replaced while SQL was running must not escape into the next epoch.
+Result CheckMetadataEpoch(sco_plugin* self, uint64_t generation) {
+    std::lock_guard<std::mutex> hold(g_lock);
+    if (!g_started || !g_metadataReady || generation != g_generation) return Result::Unavailable;
+    return detail::Released(self) ? Result::BadArg : Result::Ok;
 }
 
 #ifdef SCO_OWNED_TABLE_TESTING
@@ -378,9 +410,9 @@ struct HostStmt {
     Db&           d;
     sqlite3_stmt* s = nullptr;
     int           rc;
-    HostStmt(Db& db, const char* sql) : d(db) {
+    HostStmt(Db& db, const char* sql, unsigned flags = 0) : d(db) {
         d.trusted = true;
-        rc = sqlite3_prepare_v3(d.db, sql, -1, 0, &s, nullptr);
+        rc = sqlite3_prepare_v3(d.db, sql, -1, flags, &s, nullptr);
     }
     ~HostStmt() {
         sqlite3_finalize(s);
@@ -879,6 +911,185 @@ const sco_storage_v1 kTable = {
     LastError, NextTable, NextColumn,
 };
 
+// ---- separate metadata service ---------------------------------------------------------------
+
+// rootpage excludes views and virtual tables without preparing either. PRAGMA table_list is
+// deliberately avoided: SQLite initializes every view/virtual table's columns while preparing
+// that pragma, even if a later WHERE clause would exclude the object.
+constexpr const char* kOwnTables =
+    " FROM main.sqlite_master AS own WHERE own.type = 'table' AND own.rootpage > 0"
+    " AND lower(substr(own.name,1,4)) <> 'sco_' AND lower(substr(own.name,1,7)) <> 'sqlite_'"
+    // Shadow classification belongs to the virtual module. Do not connect it just to ask:
+    // conservatively reserve each declared virtual table's name + literal '_' prefix.
+    " AND NOT EXISTS (SELECT 1 FROM main.sqlite_master AS vt WHERE vt.type = 'table'"
+    " AND vt.rootpage = 0 AND lower(substr(own.name,1,length(vt.name)+1)) = lower(vt.name || '_'))";
+
+Result MetadataScalar(Db& d, const char* sql, uint64_t& value, unsigned flags = 0, bool bindTrue = false) {
+    HostStmt q(d, sql, flags);
+    if (q.rc != SQLITE_OK) return Fail(d, q.rc, Result::Failed);
+    if (bindTrue) {
+        const int bind = sqlite3_bind_int(q.s, 1, 1);
+        if (bind != SQLITE_OK) return Fail(d, bind, Result::Failed);
+    }
+    const int rc = sqlite3_step(q.s);
+    if (rc != SQLITE_ROW) return Fail(d, rc, Result::Failed);
+    const sqlite3_int64 n = sqlite3_column_int64(q.s, 0);
+    if (n < 0 || sqlite3_column_type(q.s, 0) != SQLITE_INTEGER) return Result::Failed;
+    value = static_cast<uint64_t>(n);
+    return Result::Ok;
+}
+
+Result MetadataHasTable(Db& d, const std::string& table) {
+    const std::string sql = std::string("SELECT 1") + kOwnTables + " AND own.name = ?1 COLLATE BINARY";
+    HostStmt q(d, sql.c_str());
+    if (q.rc != SQLITE_OK) return Fail(d, q.rc, Result::Failed);
+    const int bind = sqlite3_bind_text(q.s, 1, table.data(), static_cast<int>(table.size()), SQLITE_STATIC);
+    if (bind != SQLITE_OK) return Fail(d, bind, Result::Failed);
+    const int rc = sqlite3_step(q.s);
+    if (rc == SQLITE_DONE) return Result::NotFound;
+    return rc == SQLITE_ROW ? Result::Ok : Fail(d, rc, Result::Failed);
+}
+
+std::string QuoteMetadataName(const std::string& name) {
+    std::string quoted = "\"";
+    for (char c : name) {
+        if (c == '"') quoted += '"';
+        quoted += c;
+    }
+    quoted += '"';
+    return quoted;
+}
+
+Result MetadataColumns(Db& d, const std::string& validatedTable, uint64_t& count) {
+    // Only called after the name has been selected from ordinary main-schema tables.
+    const std::string sql = "PRAGMA main.table_xinfo(" + QuoteMetadataName(validatedTable) + ")";
+    HostStmt q(d, sql.c_str());
+    if (q.rc != SQLITE_OK) return Fail(d, q.rc, Result::Failed);
+    uint64_t n = 0;
+    int rc;
+    while ((rc = sqlite3_step(q.s)) == SQLITE_ROW) ++n;
+    if (rc != SQLITE_DONE) return Fail(d, rc, Result::Failed);
+    count = n;
+    return Result::Ok;
+}
+
+sco_result MetadataOwnerInfo(sco_plugin* self, sco_storage_owner_info* out) {
+    return Guard([&] {
+        if (!out || out->size < sizeof(*out)) return Result::BadArg;
+        sco_storage_owner_info value{ sizeof(value), SCO_STORAGE_OWNER_OPENED, 0, 0, 0 };
+        {
+            Call call;
+            if (const Result r = EnterMetadata(self, call); r != Result::Ok) return r;
+            Db& d = *call.db;
+            value.session_generation = d.generation;
+            value.cursor_count = d.cursors.size();
+            const std::string sql = std::string("SELECT count(*)") + kOwnTables;
+            if (const Result r = MetadataScalar(d, sql.c_str(), value.table_count); r != Result::Ok) return r;
+        }
+        if (const Result r = CheckMetadataEpoch(self, value.session_generation); r != Result::Ok) return r;
+        std::memcpy(out, &value, sizeof(value));
+        return Result::Ok;
+    });
+}
+
+sco_result MetadataNextTable(sco_plugin* self, const char* after, char* out, uint32_t* io,
+                             sco_storage_table_info* info) {
+    return Guard([&] {
+        if (!io || !info || info->size < sizeof(*info)) return Result::BadArg;
+        const uint32_t capacity = *io;
+        if (!out && capacity) return Result::BadArg;
+        std::string a, name;
+        if (after && !CopySchemaName(after, a)) return Result::BadArg;
+        uint64_t generation = 0;
+        sco_storage_table_info value{ sizeof(value), 0, 0 };
+        {
+            Call call;
+            if (const Result r = EnterMetadata(self, call); r != Result::Ok) return r;
+            Db& d = *call.db;
+            generation = d.generation;
+            std::string sql = std::string("SELECT own.name") + kOwnTables;
+            if (after) sql += " AND own.name > ?1 COLLATE BINARY";
+            sql += " ORDER BY own.name COLLATE BINARY LIMIT 1";
+            {
+                HostStmt q(d, sql.c_str());
+                if (q.rc != SQLITE_OK) return Fail(d, q.rc, Result::Failed);
+                if (after) {
+                    const int bind = sqlite3_bind_text(q.s, 1, a.data(), static_cast<int>(a.size()), SQLITE_STATIC);
+                    if (bind != SQLITE_OK) return Fail(d, bind, Result::Failed);
+                }
+                const int rc = sqlite3_step(q.s);
+                if (rc == SQLITE_DONE) return Result::NotFound;
+                if (rc != SQLITE_ROW) return Fail(d, rc, Result::Failed);
+                const auto* nm = sqlite3_column_text(q.s, 0);
+                if (!nm) return Fail(d, SQLITE_NOMEM, Result::TooMany);
+                name.assign(reinterpret_cast<const char*>(nm), static_cast<size_t>(sqlite3_column_bytes(q.s, 0)));
+            }
+            if (const Result r = MetadataColumns(d, name, value.column_count); r != Result::Ok) return r;
+        }
+        if (const Result r = CheckMetadataEpoch(self, generation); r != Result::Ok) return r;
+        if (name.size() >= UINT32_MAX) return Result::TooMany;
+        const auto need = static_cast<uint32_t>(name.size() + 1);
+        if (capacity < need) { *io = need; return Result::TooMany; }
+        std::memcpy(out, name.c_str(), need);
+        *io = need;
+        std::memcpy(info, &value, sizeof(value));
+        return Result::Ok;
+    });
+}
+
+sco_result MetadataRowCount(sco_plugin* self, const char* table, uint64_t* out) {
+    return Guard([&] {
+        std::string name;
+        if (!out || !CopySchemaName(table, name)) return Result::BadArg;
+        uint64_t count = 0, generation = 0;
+        {
+            Call call;
+            if (const Result r = EnterMetadata(self, call); r != Result::Ok) return r;
+            Db& d = *call.db;
+            generation = d.generation;
+            if (const Result r = MetadataHasTable(d, name); r != Result::Ok) return r;
+            // SQLite's optimized OP_Count walks the entire B-tree without progress callbacks.
+            // A bound true predicate keeps COUNT(*) in the VM's interruptible aggregate loop.
+            const std::string sql = "SELECT count(*) FROM main." + QuoteMetadataName(name) + " WHERE ?1";
+            if (const Result r = MetadataScalar(d, sql.c_str(), count, SQLITE_PREPARE_NO_VTAB, true); r != Result::Ok) return r;
+        }
+        if (const Result r = CheckMetadataEpoch(self, generation); r != Result::Ok) return r;
+        *out = count;
+        return Result::Ok;
+    });
+}
+
+sco_result MetadataQuotaInfo(sco_plugin* self, sco_storage_quota_info* out) {
+    return Guard([&] {
+        if (!out || out->size < sizeof(*out)) return Result::BadArg;
+        uint64_t generation = 0;
+        sco_storage_quota_info value{ sizeof(value), 0, 0, 0, 0, 0 };
+        {
+            Call call;
+            if (const Result r = EnterMetadata(self, call); r != Result::Ok) return r;
+            Db& d = *call.db;
+            generation = d.generation;
+            value.configured_bytes = d.opts.quotaBytes;
+            uint64_t pageSize = 0, maxPages = 0, pages = 0;
+            if (const Result r = MetadataScalar(d, "PRAGMA main.page_size", pageSize); r != Result::Ok) return r;
+            if (const Result r = MetadataScalar(d, "PRAGMA main.max_page_count", maxPages); r != Result::Ok) return r;
+            if (const Result r = MetadataScalar(d, "PRAGMA main.page_count", pages); r != Result::Ok) return r;
+            if (!pageSize || maxPages > UINT64_MAX / pageSize || pages > maxPages) return Result::Failed;
+            value.effective_bytes = maxPages * pageSize;
+            value.allocated_bytes = pages * pageSize;
+            value.free_bytes = value.effective_bytes - value.allocated_bytes;
+        }
+        if (const Result r = CheckMetadataEpoch(self, generation); r != Result::Ok) return r;
+        std::memcpy(out, &value, sizeof(value));
+        return Result::Ok;
+    });
+}
+
+const sco_storage_v2 kMetadataTable = {
+    sizeof(sco_storage_v2), 0,
+    MetadataOwnerInfo, MetadataNextTable, MetadataRowCount, MetadataQuotaInfo,
+};
+
 // ---- lifetime ---------------------------------------------------------------------------------
 
 void CloseDb(Db& d, Result why) {
@@ -921,22 +1132,34 @@ static Result StartImpl(const Options& opts, const sco::detail::StartupPublish* 
     {
         std::lock_guard<std::mutex> hold(g_lock);
         if (g_started) return Result::BadArg;
+        if (g_generation == UINT64_MAX) return Result::TooMany;
         try {
             g_opts = opts;
         } catch (...) {
             return Result::TooMany;
         }
         g_started = true;
+        g_metadataReady = false;
+        ++g_generation;
     }
     Result r = sco::detail::AddReleaseHookOwned(cap, OnRelease);
+    bool metadataPublished = false;
+    if (r == Result::Ok) {
+        r = sco::detail::PublishHostOwned(cap, SCO_STORAGE_V2_NAME, SCO_STORAGE_V2_VERSION_2_0, &kMetadataTable);
+        metadataPublished = r == Result::Ok;
+    }
     if (r == Result::Ok) {
         r = sco::detail::PublishHostOwned(cap, SCO_STORAGE_NAME, SCO_STORAGE_VERSION_1_1, &kTable);
-        if (r != Result::Ok && !cap) sco::detail::RemoveReleaseHookOwned(cap, OnRelease);
     }
     if (r != Result::Ok) {
         if (cap) return r; // retain partial owned startup for terminal fault handling
+        if (metadataPublished) host::WithdrawHostService(SCO_STORAGE_V2_NAME);
+        sco::detail::RemoveReleaseHookOwned(cap, OnRelease);
         std::lock_guard<std::mutex> hold(g_lock);
         g_started = false;
+    } else {
+        std::lock_guard<std::mutex> hold(g_lock);
+        g_metadataReady = true;
     }
     return r;
 }
@@ -967,9 +1190,11 @@ void Stop() {
         std::lock_guard<std::mutex> hold(g_lock);
         if (!g_started) return;
         g_started = false;
+        g_metadataReady = false;
         dbs.swap(g_dbs);
     }
     host::WithdrawHostService(SCO_STORAGE_NAME);
+    host::WithdrawHostService(SCO_STORAGE_V2_NAME);
     for (const auto& d : dbs) CloseDb(*d, Result::Unavailable);
     RemoveReleaseHook(OnRelease);
 }
@@ -983,6 +1208,27 @@ const sco_storage_v1* Table() {
     sco::detail::RuntimeLease admission;
     if (!admission || admission.startup() || (admission.owned() && sco::detail::RuntimeStopping())) return nullptr;
     return &kTable;
+}
+
+std::optional<MetadataSnapshot> CopyMetadata() {
+    try {
+        sco::detail::RuntimeObservation observation;
+        if (!observation) return std::nullopt;
+        std::lock_guard<std::mutex> hold(g_lock);
+        if (!g_started || !g_metadataReady) return std::nullopt;
+        MetadataSnapshot result;
+        result.generation = g_generation;
+        result.owners.reserve(g_dbs.size() < 1024 ? g_dbs.size() : 1024);
+        for (const auto& d : g_dbs) {
+            if (detail::Released(d->owner)) continue;
+            if (result.owners.size() == 1024) { result.truncated = true; break; }
+            MetadataOwner owner;
+            owner.ownerId = d->id;
+            owner.quotaBytes = d->opts.quotaBytes;
+            result.owners.push_back(std::move(owner));
+        }
+        return result;
+    } catch (...) { return std::nullopt; }
 }
 
 fs::path DatabasePath(const char* id) {

@@ -1,5 +1,12 @@
 # Registry ownership follow-up — HOLD
 
+> **Status at SDK 2.4.1 (2026-11-16):** this hold no longer blocks merging. The repaired form of this work is on
+> the release branch: `void plugins::UnloadAll` is kept next to the checked `TryUnloadAll`, `sdk/components.json`
+> lists the owned-shutdown header and tests, and the full suite passes (legacy fixtures that cannot run under the
+> contract return CTest's skip code). What stays held is the owner decision below: the strict (default) owned
+> composition keeps refusing native activation until reader and worker shutdown is proven, with no fail-stop
+> termination. Products that run in game use `Composition::ProcessRetained` instead ([game host](../game/host.md)).
+
 This branch is separate from core #304 and offline #184. It is a synthetic
 host-source candidate, not a merge, release, game result or native barrier proof.
 Its held reference head was `cf3b62679dbd4e065984e32d58662ab9be0c60b1`.

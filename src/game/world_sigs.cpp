@@ -49,13 +49,14 @@ int RipRefs(const Image& img, uint8_t r1, uint8_t r2, const uint8_t* target, siz
     if (!text.base || tail < 7 || lead > text.size || tail > text.size - lead) return 0;
     const size_t last = text.size - tail;
     int n = 0;
-    for (size_t off = lead; off <= last; ++off) {
+    ScanIndexRef index(img);
+    index->ForEachRip(text, RipForm::Exact(0x48, r1, r2), target, lead, last, [&](size_t off) {
         uint8_t* p = text.base + off;
-        if (p[0] != 0x48 || p[1] != r1 || p[2] != r2) continue;
-        if (CheckedRip(img, p, 3, 7) != target || !ok(p)) continue;
+        if (!ok(p)) return true;
         if (n < max) out[n] = p;
         ++n;
-    }
+        return true;
+    });
     return n;
 }
 
@@ -379,6 +380,23 @@ SigResult ResolveReferenceIntMethod(const Image& img, const SigResolveContext& c
     return method ? SigOk(method) : SigFail("integer method outside image");
 }
 
+// The observed action-range bound differs between captured builds. Keep
+// the scan unique and reject every bound except those checked, rather than
+// accepting an arbitrary byte in this position.
+template <size_t Offset>
+const char* QuantumActionRange(const Image& img, const uint8_t* at, const SigResolveContext&) {
+    const auto* bound = TextAt(img, at, static_cast<ptrdiff_t>(Offset), 1);
+    return bound && (*bound == 0x77 || *bound == 0x78) ? nullptr : "quantum action range changed";
+}
+constexpr rows::FnSpec kQuantumOnAction{
+    "40 53 41 56 48 83 EC 68 8D 82 2F FE FF FF 45 33 F6 83 F8 ?? 0F 87",
+    nullptr, 0, QuantumActionRange<19>
+};
+constexpr rows::FnSpec kQuantumDriveInput{
+    "48 83 EC 28 8B 02 05 2F FE FF FF 83 F8 ?? 0F 87",
+    nullptr, 0, QuantumActionRange<13>
+};
+
 constexpr const char* kFreeCam[] = { "build.free_cam_on", "build.free_cam_off", "build.free_cam_flag" };
 constexpr const char* kGroundRay[] = {
     "build.ray_tag", "build.ground_ray", "build.phys_world", "build.release_grid",
@@ -466,9 +484,9 @@ extern const SigDef kWorldSignatures[] = {
     { "cvars.qdrive_logging",         nullptr, 0, 0, ResolveCVar<4>, {} },
     { "cvars.target_lock_angular",    nullptr, 0, 0, ResolveCVar<5>, {} },
     { "cvars.target_lock_linear",     nullptr, 0, 0, ResolveCVar<6>, {} },
-    { "quantum.on_action",     "40 53 41 56 48 83 EC 68 8D 82 2F FE FF FF 45 33 F6 83 F8 77 0F 87", 0, 0, nullptr, {} },
+    { "quantum.on_action",     nullptr, 0, 0, rows::ResolveFn<kQuantumOnAction>, {} },
     { "quantum.start_use",     "40 55 53 56 57 41 54 41 55 41 56 41 57 48 8B EC 48 83 EC 48 48 8B 02 4C 8D B9 40 FE FF FF", 0, 0, nullptr, {} },
-    { "quantum.drive_input",   "48 83 EC 28 8B 02 05 2F FE FF FF 83 F8 77 0F 87", 0, 0, nullptr, {} },
+    { "quantum.drive_input",   nullptr, 0, 0, rows::ResolveFn<kQuantumDriveInput>, {} },
     { "quantum.effect_update", "48 8B C4 C5 FA 11 50 18 55 53 56 57 41 57 48 8D A8 B8 FC FF FF 48 81 EC 20 04 00 00", 0, 0, nullptr, {} },
     { "quantum.charge",        "48 8B C4 53 57 48 81 EC B8 00 00 00 48 89 70 E8 41 0F B6 F9 C5 F8 29 70 D8 C5 F8 29 78 C8", 0, 0, nullptr, {} },
     { "quantum.spline_get_y",  "48 89 5C 24 10 55 48 8D 6C 24 A9 48 81 EC 90 00 00 00 48 8B D9 C7 45 F7 00 29 00 00 33 C9", 0, 0, nullptr, {} },

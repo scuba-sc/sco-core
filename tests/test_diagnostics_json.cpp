@@ -78,14 +78,24 @@ void Serialization() {
     LifecycleMetadata game; game.lastTickMs = 90; game.lifecycle = "ready"; game.offlineAdmission = "authorized";
     game.gameServicesRequested = true; game.gameServicesBuilt = false; game.gameServicesPublished = false;
     OptionalSources sources; sources.gamePack = GamePackMetadata{"fixture-pack-1", "fixture-game-1"};
+    SnapshotStore withoutMetadata;
+    JSON_CHECK(withoutMetadata.Begin(plugins, host, game, 100, sources));
+    size_t baselineSteps = 0; while (!withoutMetadata.Advance(100)) JSON_CHECK(++baselineSteps < 2048);
+    sources.profile = ProfileMetadata{"profile_metadata_sentinel", 718293, 87, 31, 29, true};
+    sources.storage = StorageMetadata{819273, 86, {{"storage_metadata_sentinel", 7123, 8234, 9345, 10456}}, true};
     JSON_CHECK(store.Begin(plugins, host, game, 100, sources));
     size_t steps = 0; while (!store.Advance(100)) JSON_CHECK(++steps < 2048);
+    JSON_CHECK(store.Latest()->sources.profile && store.Latest()->sources.storage);
     JSON_CHECK(capture.Start(100)); int key = 0; JSON_CHECK(capture.AssignKey(&key, "fixture_0"));
     capture.RecordHost(&key, HostEvent::Loaded, 100);
     const char* requests[]{"{}", "{\"limit\":1}", "{\"plugin_id\":\"fixture_0\"}", "{}", "{}", "{}"};
     for (uint16_t opcode = 0x100; opcode <= 0x105; ++opcode) {
         Object input; JSON_CHECK(Parse(requests[opcode - 0x100], input));
         auto response = Serialize(opcode, input, store, capture, session, 1, 200);
+        // New host-only facts cannot expand or otherwise alter any JSON v1 opcode.
+        JSON_CHECK(response == Serialize(opcode, input, withoutMetadata, capture, session, 1, 200));
+        for (const auto* sentinel : {"profile_metadata_sentinel", "storage_metadata_sentinel", "718293", "819273", "10456"})
+            JSON_CHECK(response.find(sentinel) == std::string::npos);
         JSON_CHECK(response.find("\"status\":\"ok\"") != std::string::npos);
         JSON_CHECK(response.find("\"session_id\":\"" + session + "\"") != std::string::npos);
         JSON_CHECK(response.find("\"generation\":\"1\"") != std::string::npos);

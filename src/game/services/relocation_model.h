@@ -11,6 +11,17 @@ struct Evidence {
     bool streamed, arrived, applied, fault;
     uint64_t targetEpoch = 0, targetInstance = 0;
 };
+// What was and was not true at the moment a pending request failed, for one diagnostic log line.
+// Booleans only: no coordinates, ids or addresses.
+struct Diagnosis {
+    uint32_t reason = 0;
+    uint64_t elapsedMs = 0;
+    bool positionOnly = false;
+    bool applied = false, streamed = false, arrived = false;
+    bool offline = false, player = false, transport = false, fault = false;
+    bool sessionMatches = false, playerMatches = false, systemMatches = false, targetSystemMatches = false;
+    bool targetInstanceMatches = false;   // meaningful for position-only requests
+};
 inline bool PositionRequest(const sc_relocation_position_request& r) {
     if(r.size<sizeof(r)||!r.zone_id||!r.target_epoch||!r.timeout_ms||r.timeout_ms>60000)return false;
     for(double x:r.pos)if(!std::isfinite(x)||std::abs(x)>1e12)return false;
@@ -182,7 +193,8 @@ public:
         return SCO_OK;
     }
     // Provider calls Tick before any move; only a still-admitted request can be applied.
-    bool Tick(uint64_t now, const Evidence& e) {
+    // why, when given, is filled in only when this call fails the request.
+    bool Tick(uint64_t now, const Evidence& e, Diagnosis* why = nullptr) {
         Slot* s = Active(); if (!s) return false;
         uint32_t reason = 0;
         if (e.fault) reason = SC_RELOCATION_REASON_FAULT;
@@ -197,7 +209,20 @@ public:
             reason = SC_RELOCATION_REASON_TARGET;
         else if (now < s->since || now-s->since >= (s->positionOnly?s->position.timeout_ms:s->request.timeout_ms))
             reason = SC_RELOCATION_REASON_TIMEOUT;
-        if (reason) { s->status.state=SC_RELOCATION_FAILED; s->status.reason=reason; return false; }
+        if (reason) {
+            s->status.state=SC_RELOCATION_FAILED; s->status.reason=reason;
+            if (why) {
+                why->reason=reason; why->elapsedMs=now>=s->since ? now-s->since : 0; why->positionOnly=s->positionOnly;
+                why->applied=s->status.applied!=0; why->streamed=e.streamed; why->arrived=e.arrived;
+                why->offline=e.offline; why->player=e.player; why->transport=e.transport; why->fault=e.fault;
+                why->sessionMatches=e.session && s->session==e.session;
+                why->playerMatches=e.playerId && s->player==e.playerId;
+                why->systemMatches=e.currentSystem && e.currentSystem==s->system;
+                why->targetSystemMatches=e.targetSystem && e.targetSystem==s->system;
+                why->targetInstanceMatches=e.targetInstance && e.targetInstance==s->targetInstance;
+            }
+            return false;
+        }
         if (s->status.applied && e.streamed && e.arrived) { s->status.state=SC_RELOCATION_COMPLETE; return false; }
         return e.streamed && !s->status.applied;
     }

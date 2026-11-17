@@ -101,7 +101,8 @@ verify_zip() {   # verify_zip <zip>: unpack into its own folder; its SHA256SUMS 
   sums=$(cd "$top" && ls SHA256SUMS* 2>/dev/null || true)
   [ -n "$sums" ] && [ "$(printf '%s\n' "$sums" | wc -l)" -eq 1 ] \
     || { echo "$(basename "$2"): expected exactly one SHA256SUMS* file, found: ${sums:-none}"; exit 1; }
-  ( cd "$top" && if sha256sum --version 2>/dev/null | grep -q GNU; then sha256sum -c --quiet "$sums"; else shasum -a 256 -c --quiet "$sums"; fi )
+  # Consume the version output: grep -q can give sha256sum SIGPIPE under pipefail.
+  ( cd "$top" && if sha256sum --version 2>/dev/null | grep GNU >/dev/null; then sha256sum -c --quiet "$sums"; else shasum -a 256 -c --quiet "$sums"; fi )
   listed=$(wc -l < "$top/$sums")
   actual=$(cd "$top" && find . -type f ! -name 'SHA256SUMS*' | wc -l)
   [ "$listed" -eq "$actual" ] || { echo "$sums lists $listed files, $(basename "$2") has $actual"; exit 1; }
@@ -252,7 +253,9 @@ fi
 cmake --build "$WORK/build" --config Release
 cmake --install "$WORK/build" --config Release --prefix "$WORK/out"
 CHECK="$WORK/out/bin/sco-plugin-check"
+[ -f "$CHECK.exe" ] && CHECK="$CHECK.exe"
 P="$WORK/out/data/plugins"
+"$PY" "$SDK/test_plugin_verify.py" --checker "$CHECK" --packaged-sdk "$ROOT"
 if [ "$GAME" = 1 ]; then
   ROUTES="$WORK/out/bin/sdk-language-routes"
   [ -f "$ROUTES.exe" ] && ROUTES="$ROUTES.exe"
@@ -304,10 +307,11 @@ if [ "${SCO_SDK_CSHARP:-0}" = 1 ]; then
   # The NativeAOT build finds Visual Studio with vswhere, which Git Bash may not have on PATH.
   VSW="/c/Program Files (x86)/Microsoft Visual Studio/Installer"
   if [ -d "$VSW" ]; then PATH="$PATH:$VSW"; fi
+  # LIB is exported by MSVC: keep its library search paths intact for NativeAOT.
   case "$(uname -s)" in
-    MINGW*|MSYS*|CYGWIN*) RID=win-x64; LIB=cs_hello.dll ;;
-    Darwin) RID=osx-$(uname -m | sed 's/x86_64/x64/'); LIB=cs_hello.dylib ;;
-    *) RID=linux-x64; LIB=cs_hello.so ;;
+    MINGW*|MSYS*|CYGWIN*) RID=win-x64; CS_LIB=cs_hello.dll ;;
+    Darwin) RID=osx-$(uname -m | sed 's/x86_64/x64/'); CS_LIB=cs_hello.dylib ;;
+    *) RID=linux-x64; CS_LIB=cs_hello.so ;;
   esac
   dotnet run -c Release --project "$ROOT/csharp/Sco.Sdk.Tests" | tee "$WORK/cs_tests.txt"
   grep -q '^Sco.Sdk.Tests: OK' "$WORK/cs_tests.txt"
@@ -332,7 +336,7 @@ PY
   fi
   dotnet publish "$ROOT/examples/cs_hello/cs_hello.csproj" -c Release -r "$RID" "${AOT_FLAGS[@]+"${AOT_FLAGS[@]}"}" -o "$WORK/cs_publish"
   mkdir -p "$WORK/cs/cs_hello"
-  cp "$WORK/cs_publish/$LIB" "$WORK/cs/cs_hello/cs_hello.dll"
+  cp "$WORK/cs_publish/$CS_LIB" "$WORK/cs/cs_hello/cs_hello.dll"
   cp "$ROOT/examples/cs_hello/plugin.ini" "$WORK/cs/cs_hello/"
   "$CHECK" "$WORK/cs/cs_hello" --invoke cs_hello.wave "Pilot One" | tee "$WORK/cs_hello.txt"
   grep -q 'invoke  cs_hello.wave -> ok "Hello, Pilot One"' "$WORK/cs_hello.txt"
@@ -345,7 +349,7 @@ PY
   dotnet publish "$WORK/scaf_cs/scaf_cs.csproj" -c Release -r "$RID" "${AOT_FLAGS[@]+"${AOT_FLAGS[@]}"}" -p:ScoSdk="$ROOT" \
     -o "$WORK/scaf_cs_publish"
   mkdir -p "$WORK/cs/scaf_cs"
-  cp "$WORK/scaf_cs_publish/scaf_cs.${LIB##*.}" "$WORK/cs/scaf_cs/scaf_cs.dll"
+  cp "$WORK/scaf_cs_publish/scaf_cs.${CS_LIB##*.}" "$WORK/cs/scaf_cs/scaf_cs.dll"
   cp "$WORK/scaf_cs_publish/plugin.ini" "$WORK/cs/scaf_cs/"
   "$CHECK" "$WORK/cs/scaf_cs" | tee "$WORK/scaf_cs.txt"
   grep -q 'invoke  scaf_cs.ping -> ok "pong (0 of 1 services)"' "$WORK/scaf_cs.txt"
@@ -355,6 +359,31 @@ PY
   echo "C#: the generated C# scaffold ($RID, NativeAOT) checked"
 else
   echo "C#: skipped (SCO_SDK_CSHARP=1 runs it)"
+fi
+
+# Optional experimental Rust ABI tests and native example, built solely from the extracted kit.
+if [ "${SCO_SDK_RUST:-0}" = 1 ]; then
+  export CARGO_TARGET_DIR="$WORK/rust-target"
+  cargo test --offline --locked --manifest-path "$ROOT/rust/sco-sdk/Cargo.toml"
+  cargo test --offline --locked --manifest-path "$ROOT/examples/rust_hello/Cargo.toml"
+  cargo build --offline --locked --release --manifest-path "$ROOT/examples/rust_hello/Cargo.toml"
+  case "$(uname -s)" in
+    MINGW*|MSYS*|CYGWIN*) RUST_LIB=rust_hello.dll ;;
+    Darwin*) RUST_LIB=librust_hello.dylib ;;
+    *) RUST_LIB=librust_hello.so ;;
+  esac
+  mkdir -p "$WORK/rust/rust_hello"
+  cp "$CARGO_TARGET_DIR/release/$RUST_LIB" "$WORK/rust/rust_hello/rust_hello.dll"
+  cp "$ROOT/examples/rust_hello/plugin.ini" "$WORK/rust/rust_hello/"
+  for mode in normal short; do
+    args=(--invoke rust_hello.ping)
+    [ "$mode" = normal ] || args=(--short-tables "${args[@]}")
+    "$CHECK" "$WORK/rust/rust_hello" "${args[@]}" | tee "$WORK/rust-$mode.txt"
+    grep -q 'invoke  rust_hello.ping -> ok "pong"' "$WORK/rust-$mode.txt"
+  done
+  echo "Rust: experimental rust_hello checked"
+else
+  echo "Rust: skipped (SCO_SDK_RUST=1 runs it)"
 fi
 
 # sco-plugin-check reads plugin.ini with the host's rules (src/plugins/manifest.cpp): it refuses

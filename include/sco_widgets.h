@@ -19,6 +19,7 @@ extern "C" {
 #define SCO_WIDGETS_VERSION_1_1 0x00010001u /* + update_nodes, remove_nodes, capabilities */
 #define SCO_WIDGETS_VERSION_1_2 0x00010002u /* + stable node tags */
 #define SCO_WIDGETS_VERSION_1_3 0x00010003u /* + numeric slider presentation */
+#define SCO_WIDGETS_VERSION_1_4 0x00010004u /* + canonical callback event tags */
 #define SCO_WIDGETS_MAX_PANELS 64u
 #define SCO_WIDGETS_MAX_NODES 256u
 #define SCO_WIDGETS_MAX_TOTAL_NODES 4096u
@@ -117,8 +118,11 @@ typedef struct sco_widget_event_1_1 {
  * stable automation identifier for the node, [A-Za-z0-9._-]{1..63},
  * NULL/empty = untagged. Tags are unique within the panel: a set/update whose
  * resulting tree would carry two nodes with the same non-empty tag is
- * BAD_ARG and leaves the panel untouched. Tags are host metadata only:
- * adapters never render them and event routing stays numeric by node id.
+ * BAD_ARG and leaves the panel untouched. In 1.2 tags supply host metadata;
+ * adapters never render them. Event routing and validation retain numeric
+ * node_id in every version. A 1.4 host also copies the canonical target tag
+ * into the guarded sco_widget_event_1_4 tail described below. Older hosts
+ * may ignore node tails and deliver numeric-only events.
  * _reserved must be zero. Check node->size >= sizeof(sco_widget_node_1_2)
  * before casting, after the 1.1 check.
  * capabilities: SCO_WIDGETS_CAP_MAX_TAG is the host's tag byte limit.
@@ -140,6 +144,22 @@ typedef struct sco_widget_node_1_3 {
     uint32_t presentation;
     uint32_t _reserved[3];
 } sco_widget_node_1_3;
+/* 1.4 event extension: no service-table or node layout changes. A panel enters tagged-event
+ * mode after a successful set/update submits any nonempty node tag. The mode persists across
+ * subtree updates/removals, including removal of the last tag; a complete set_panel replacement
+ * starts the mode afresh. In this mode every callback receives this 48-byte event, with the
+ * unchanged 1.0/1.1 prefixes. tag is the validated target node's canonical copied tag, or NULL
+ * for an untagged target. It is borrowed only through this callback, including reentrant panel
+ * replacement/removal; copy it before retaining it. Never supplied by the renderer.
+ * Tag-free panels keep the exact 32/40-byte event behavior. Require version 1.4 and
+ * SCO_WIDGETS_FEATURE_EVENT_TAG as well as STABLE_TAGS for this tagged-event guarantee;
+ * older hosts may accept tagged node tails while still returning numeric-only events.
+ * Check event->size >= sizeof(sco_widget_event_1_4) before casting.
+ */
+typedef struct sco_widget_event_1_4 {
+    sco_widget_event_1_1 base;
+    const char* tag;
+} sco_widget_event_1_4;
 /* capabilities(self, caps): caps[SCO_WIDGETS_CAP_COUNT] is the array length on
  * entry (>= 2) and the number of elements written on return; the host fills
  * the indices below that it knows, up to that length. Limits are the running
@@ -166,6 +186,7 @@ typedef struct sco_widget_node_1_3 {
 #define SCO_WIDGETS_FEATURE_COALESCED_RENDER 0x40u /* <= 1 snapshot rebuild per panel render pass */
 #define SCO_WIDGETS_FEATURE_STABLE_TAGS 0x80u    /* sco_widget_node_1_2 tag field */
 #define SCO_WIDGETS_FEATURE_NUMERIC_PRESENTATION 0x100u /* sco_widget_node_1_3 */
+#define SCO_WIDGETS_FEATURE_EVENT_TAG 0x200u /* sco_widget_event_1_4 canonical tag */
 typedef void (*sco_widget_event_fn)(const char* panel_id, const sco_widget_event* event, void* ctx);
 typedef struct sco_widgets_v1 {
     uint32_t size;

@@ -49,6 +49,24 @@ class RealManifest(unittest.TestCase):
     def tearDownClass(cls):
         shutil.rmtree(cls.tmp)
 
+    def test_archive_executable_bits_follow_git_index_not_host_access(self):
+        modes = pkg.index_executable_modes(pkg.ROOT, required=True)
+        selected = pkg.select(self.m, "core")
+        ordinary = next(c for c in selected if modes[c["source"]] == b"100644")
+        with unittest.mock.patch.object(pkg.os, "access", return_value=True):
+            _, core = pkg.archive_entries(self.m, "core")
+        self.assertFalse(core[pkg.destination(self.m, "core", ordinary)][1])
+        executables = [c for c in selected if modes[c["source"]] == b"100755"]
+        for component in executables:
+            self.assertTrue(core[pkg.destination(self.m, "core", component)][1])
+
+    def test_overlay_binds_index_mode_core_archive(self):
+        with unittest.mock.patch.object(pkg.os, "access", return_value=True):
+            core_top, core = pkg.archive_entries(self.m, "core")
+            _, overlay = pkg.archive_entries(self.m, "game-sc")
+        descriptor = json.loads(overlay["COMPATIBILITY.json.game-sc"][0])
+        self.assertEqual(descriptor["base_core_sha256"], hashlib.sha256(pkg.archive_bytes(core_top, core)).hexdigest())
+
     def test_startup_snapshot_sources_follow_app_into_source_kits(self):
         paths = {'src/app/plugin_startup_snapshot.cpp', 'src/app/plugin_startup_snapshot.h',
                  'tests/test_plugin_startup_snapshot.cpp'}
@@ -80,6 +98,33 @@ class RealManifest(unittest.TestCase):
                                  ({"origin": "unknown"}, "manifest and provenance disagree")):
             with self.subTest(changes=changes), self.assertRaisesRegex(pkg.ManifestError, message):
                 records_with(**changes)
+
+    def test_shadowed_unresolved_blocks_but_pending_keeps_first_attribution(self):
+        provenance = json.loads(pkg.read("docs/legal/provenance.json"))
+        component = next(c for c in pkg.select(self.m, "core") if c["source"] == "include/sco_api.h")
+        original_read = pkg.read
+        def records_with(status, broad=False):
+            doc = copy.deepcopy(provenance)
+            if broad:
+                doc["entries"].insert(0, {"path": component["source"], "origin": component["origin"],
+                                          "license": component["license"], "copyright": "test holder",
+                                          "status": "reviewed"})
+            self.assertEqual(next(e for e in doc["entries"] if pkg.provenance_matches(
+                e["path"], component["source"]))["status"], "reviewed")
+            doc["entries"].append({"path": "include/**" if broad else component["source"],
+                                   "origin": component["origin"],
+                                   "license": component["license"], "copyright": "test holder",
+                                   "status": status, "issue": "synthetic dispute"})
+            def read(path):
+                return json.dumps(doc).encode() if path == "docs/legal/provenance.json" else original_read(path)
+            with unittest.mock.patch.object(pkg, "read", side_effect=read):
+                return pkg.attributions(self.m, "core")
+        record = records_with("needs-review")[pkg.destination(self.m, "core", component)]
+        self.assertEqual(record["status"], "reviewed")
+        with self.assertRaisesRegex(pkg.ManifestError, "unresolved provenance"):
+            records_with("unresolved")
+        with self.assertRaisesRegex(pkg.ManifestError, "unresolved provenance"):
+            records_with("unresolved", broad=True)
 
     def test_rc2_discovery_metadata_profile_selection(self):
         # The RC2 scope decision retains both files in the game-bearing kits only.
@@ -330,6 +375,31 @@ class RealManifest(unittest.TestCase):
     def test_archive_build_refuses_checkout_include(self):
         archive = pkg.build(self.m, "core", os.path.join(self.tmp, "include-leak"))
         env = dict(os.environ, CFLAGS="-I" + os.path.join(pkg.ROOT, "include"), SCO_SDK_NO_LUA="1")
+        r = subprocess.run(["bash", os.path.join(HERE, "test-zip.sh"), archive],
+                           capture_output=True, text=True, env=env)
+        self.assertNotEqual(r.returncode, 0, "archive test silently used checkout include path")
+        self.assertIn("archive-only include violation", r.stdout + r.stderr)
+
+    def test_archive_gnu_version_probe_consumes_output(self):
+        probe = subprocess.run(["bash", "-c", "sha256sum --version"],
+                               capture_output=True, text=True)
+        if probe.returncode or "GNU" not in probe.stdout:
+            self.skipTest("GNU sha256sum is required for the SIGPIPE regression")
+        archive = pkg.build(self.m, "core", os.path.join(self.tmp, "gnu-version"))
+        startup = Path(self.tmp, "gnu-version-env.sh")
+        # A version banner larger than a pipe makes an early reader close fail reliably.
+        # Checksum verification still delegates to the real sha256sum executable.
+        startup.write_text('''sha256sum() {
+  if [ "$1" = --version ]; then
+    "$PYTHON" -c 'import sys; sys.stdout.write("sha256sum (GNU coreutils) regression\\n"); sys.stdout.flush(); sys.stdout.write("version detail\\n" * 100000); sys.stdout.flush()'
+  else
+    command sha256sum "$@"
+  fi
+}
+shasum() { echo "unexpected shasum fallback" >&2; return 86; }
+''', encoding="utf-8")
+        env = dict(os.environ, CFLAGS="-I" + os.path.join(pkg.ROOT, "include"),
+                   SCO_SDK_NO_LUA="1", BASH_ENV=str(startup), PYTHON=sys.executable)
         r = subprocess.run(["bash", os.path.join(HERE, "test-zip.sh"), archive],
                            capture_output=True, text=True, env=env)
         self.assertNotEqual(r.returncode, 0, "archive test silently used checkout include path")
@@ -650,7 +720,8 @@ class RealManifest(unittest.TestCase):
         selected = {c["source"] for c in pkg.select(self.m, "core-source")}
         self.assertFalse(selected & game, sorted(selected & game))
         for path in ("tests/abi_datacore.c", "tests/abi_game_actors.c",
-                     "tests/abi_spatial.c", "tests/abi_spawn.c", "tests/test_game_host_reports.cpp"):
+                     "tests/abi_spatial.c", "tests/abi_spawn.c", "tests/test_game_host_reports.cpp",
+                     "tests/test_legacy_quit_owner.cpp", "src/game/quit_owner_gate.h"):
             self.assertIn(path, game)
         with zipfile.ZipFile(pkg.build(self.m, "core-source", self.tmp)) as z:
             files = {n.split("/", 1)[1] for n in z.namelist()}
@@ -658,6 +729,8 @@ class RealManifest(unittest.TestCase):
         with zipfile.ZipFile(pkg.build(self.m, "host-source-sc", self.tmp)) as z:
             files = {n.split("/", 1)[1] for n in z.namelist()}
             self.assertIn("tests/test_game_host_reports.cpp", files)
+            self.assertIn("tests/test_legacy_quit_owner.cpp", files)
+            self.assertIn("src/game/quit_owner_gate.h", files)
 
     def test_core_source_builds_from_extracted_root(self):
         """CI and local runs exercise every neutral CTest, with no checkout include paths."""
@@ -811,13 +884,29 @@ class RealManifest(unittest.TestCase):
                 self.assertFalse(pkg.linux_uapi_header_link(link, target, system, root, checkout))
                 with unittest.mock.patch.object(pkg, 'protected_system_path', return_value=True):
                     self.assertTrue(pkg.linux_uapi_header_link(link, target, system, root, checkout))
+                    # GCC may report the physical target instead of the include symlink.
+                    self.assertTrue(pkg.linux_uapi_header_link(target, target, system, root, checkout))
                     self.assertFalse(pkg.linux_uapi_header_link(link, target, [], root, checkout))
+                    self.assertFalse(pkg.linux_uapi_header_link(target, target, [], root, checkout))
                     self.assertFalse(pkg.linux_uapi_header_link(link, target, [Path('/')], root, checkout))
                     self.assertFalse(pkg.linux_uapi_header_link(link, target, system, source_dir.parent, checkout))
                     self.assertFalse(pkg.linux_uapi_header_link(link, target, system, target_dir, checkout))
+                    self.assertFalse(pkg.linux_uapi_header_link(target, target, system, target_dir, checkout))
                     self.assertFalse(pkg.linux_uapi_header_link(link, target, system, root, target_dir))
+                    self.assertFalse(pkg.linux_uapi_header_link(target, target, system, root, target_dir))
                     self.assertFalse(pkg.linux_uapi_header_link(link, checkout / target.name, system, root, checkout))
+                    for unsafe in (source_dir, target, target_dir):
+                        with self.subTest(unsafe=unsafe), unittest.mock.patch.object(
+                                pkg, 'protected_system_path', side_effect=lambda p: p != unsafe):
+                            self.assertFalse(pkg.linux_uapi_header_link(target, target, system, root, checkout))
+                    unlinked = target_dir / 'unlinked.h'
+                    unlinked.write_text('/* no corresponding include link */\n')
+                    self.assertFalse(pkg.linux_uapi_header_link(unlinked, unlinked, system, root, checkout))
+                    link.unlink()
                     self.assertFalse(pkg.linux_uapi_header_link(target, target, system, root, checkout))
+                    link.symlink_to(unlinked)
+                    self.assertFalse(pkg.linux_uapi_header_link(target, target, system, root, checkout))
+                    self.assertFalse(pkg.linux_uapi_header_link(link, unlinked, system, root, checkout))
 
     def test_protected_system_path_rejects_foreign_or_shared_writable_paths(self):
         def info(owner, mode):
@@ -919,6 +1008,14 @@ class Refused(unittest.TestCase):
                                 "destination": "src/game/rows.cpp", "profiles": ["core-source"],
                                 "origin": "project-authored", "license": "GPL-3.0-only"})
         with self.assertRaisesRegex(pkg.ManifestError, "game implementation"):
+            pkg.select(m, "core-source")
+
+    def test_source_refuses_neutral_file_that_includes_the_game_pack(self):
+        m = copy.deepcopy(self.good)
+        c = self.comp(m, "tests/test_sig_index_equivalence.cpp")
+        c["profiles"] = ["core-source"]
+        c.pop("group", None)
+        with self.assertRaisesRegex(pkg.ManifestError, "include the game pack: tests/test_sig_index_equivalence.cpp"):
             pkg.select(m, "core-source")
 
     def test_source_refuses_game_contract_membership(self):
@@ -1074,6 +1171,188 @@ class Cli(unittest.TestCase):
                                capture_output=True, text=True)
         self.assertNotEqual(r.returncode, 0)
         self.assertIn("unknown profile nope", r.stderr)
+
+
+class IndexModes(unittest.TestCase):
+    def test_exact_checkout_modes_and_no_git_fallback(self):
+        with tempfile.TemporaryDirectory() as root:
+            self.assertIsNone(pkg.index_executable_modes(root))
+            with self.assertRaisesRegex(pkg.ManifestError, "requires a Git checkout index"):
+                pkg.index_executable_modes(root, required=True)
+            subprocess.run(["git", "init", "-q", root], check=True)
+            for name in ("ordinary", "executable"):
+                Path(root, name).write_bytes(b"same bytes\n")
+            subprocess.run(["git", "-C", root, "add", "ordinary", "executable"], check=True)
+            subprocess.run(["git", "-C", root, "update-index", "--chmod=+x", "executable"], check=True)
+            modes = pkg.index_executable_modes(root, required=True)
+            self.assertEqual(modes["ordinary"], b"100644")
+            self.assertEqual(modes["executable"], b"100755")
+            with unittest.mock.patch.object(pkg.os, "access", return_value=False):
+                self.assertTrue(pkg.component_executable(str(Path(root, "executable")),
+                                                         {"id": "script", "source": "executable"}, modes))
+            # An unpacked source directory nested inside a checkout is not that checkout.
+            nested = Path(root, "unpacked"); nested.mkdir()
+            self.assertIsNone(pkg.index_executable_modes(str(nested)))
+
+    def test_index_failure_and_unmerged_entries_refuse(self):
+        with tempfile.TemporaryDirectory() as root:
+            Path(root, ".git").mkdir()
+            with unittest.mock.patch.object(pkg.subprocess, "run", side_effect=OSError("unavailable")):
+                with self.assertRaisesRegex(pkg.ManifestError, "cannot read packaging checkout index"):
+                    pkg.index_executable_modes(root)
+            replies = [SimpleNamespace(stdout=os.fsencode(root)),
+                       SimpleNamespace(stdout=b"100644 abc 1\tconflicted\0")]
+            with unittest.mock.patch.object(pkg.subprocess, "run", side_effect=replies):
+                with self.assertRaisesRegex(pkg.ManifestError, "unmerged"):
+                    pkg.index_executable_modes(root, required=True)
+
+    def test_git_root_line_ending_preserves_path_spaces(self):
+        root = "checkout with trailing space "
+        replies = [SimpleNamespace(stdout=(root + "\n").encode()), SimpleNamespace(stdout=b"")]
+        with unittest.mock.patch.object(pkg.os.path, "lexists", return_value=True), \
+             unittest.mock.patch.object(pkg.os.path, "realpath", side_effect=lambda path: path), \
+             unittest.mock.patch.object(pkg.subprocess, "run", side_effect=replies):
+            self.assertEqual(pkg.index_executable_modes(root, required=True), {})
+
+    def test_git_root_uses_filesystem_path_decoding(self):
+        root = "checkout"
+        replies = [SimpleNamespace(stdout=b"checkout-\xff\n"), SimpleNamespace(stdout=b"")]
+        with unittest.mock.patch.object(pkg.os.path, "lexists", return_value=True), \
+             unittest.mock.patch.object(pkg.os.path, "realpath", side_effect=lambda path: path), \
+             unittest.mock.patch.object(pkg.os, "fsdecode", return_value=root) as decode, \
+             unittest.mock.patch.object(pkg.subprocess, "run", side_effect=replies):
+            self.assertEqual(pkg.index_executable_modes(root, required=True), {})
+            decode.assert_called_once_with(b"checkout-\xff\n")
+
+    def test_selected_missing_or_nonregular_index_entry_refuses(self):
+        manifest = pkg.load_manifest()
+        component = pkg.select(manifest, "core")[0]
+        for mode in (None, b"120000", b"160000"):
+            with self.subTest(mode=mode), \
+                 unittest.mock.patch.object(pkg, "require_clean_development_source"), \
+                 unittest.mock.patch.object(pkg, "index_executable_modes", return_value={component["source"]: mode}):
+                with self.assertRaisesRegex(pkg.ManifestError, "missing or not a regular index file"):
+                    pkg.archive_entries(manifest, "core", development=True)
+
+
+class DevelopmentPackage(unittest.TestCase):
+    def test_development_all_profiles_have_consistent_private_coordinates(self):
+        m = pkg.load_manifest()
+        dev = pkg.development_version()
+        commit = pkg.source_commit()
+        minimal = pkg.json_bytes({"sdk_version": pkg.sdk_version(), "source_sha": commit})
+        with unittest.mock.patch.object(pkg, "require_clean_development_source"), \
+             unittest.mock.patch.object(pkg, "developer_catalogue", side_effect=lambda p: minimal if p in ("game-sc", "legacy", "host-source-sc") else None), \
+             unittest.mock.patch.object(pkg, "developer_guides", side_effect=lambda p: minimal if p in ("game-sc", "legacy", "host-source-sc") else None):
+            core_top, core = pkg.archive_entries(m, "core", development=True)
+            core_sha = hashlib.sha256(pkg.archive_bytes(core_top, core)).hexdigest()
+            for profile in m["profiles"]:
+                with self.subTest(profile=profile):
+                    top, entries = pkg.archive_entries(m, profile, development=True)
+                    self.assertFalse(any("synthetic_native_evidence" in path for path in entries))
+                    self.assertIn(dev, top)
+                    names = pkg.metadata_names(m, profile)
+                    desc = json.loads(entries[names[2]][0])
+                    self.assertEqual(desc["core_sdk_version"], dev)
+                    self.assertEqual(desc["source_commits"]["core"], commit)
+                    if profile == "game-sc":
+                        self.assertEqual(desc["game_overlay_version"], pkg.game_pack()[0])
+                        self.assertEqual(desc["base_core_sha256"], core_sha)
+                    else:
+                        version_path = "sdk/VERSION" if profile in ("core-source", "host-source-sc") else "VERSION"
+                        self.assertEqual(entries[version_path][0], (dev + "\n").encode())
+                    notice = entries[names[0]][0].decode("ascii")
+                    self.assertIn("UNPUBLISHED DEVELOPMENT SDK " + dev, notice)
+                    self.assertIn(commit, notice)
+                    self.assertIn("No release tag is implied", notice)
+                    self.assertNotIn("tag sdk-v" + dev, notice)
+                    sbom = json.loads(entries[names[4]][0])
+                    self.assertEqual(sbom["packages"][0]["downloadLocation"], "NOASSERTION")
+                    self.assertIn(commit, sbom["creationInfo"]["comment"])
+                    for name in ("sdk-catalogue.json", "sdk-guides.json", "sdk-workflows.json"):
+                        if name in entries:
+                            metadata = json.loads(entries[name][0])
+                            self.assertEqual(metadata["sdk_version"], dev)
+                            self.assertEqual(metadata["source_sha"], commit)
+                    next_top, next_entries = pkg.archive_entries(m, profile, development=True)
+                    self.assertEqual((top, pkg.archive_bytes(top, entries)),
+                                     (next_top, pkg.archive_bytes(next_top, next_entries)))
+            self.assertEqual(pkg.sdk_version(), pkg.read("sdk/VERSION").strip())
+            self.assertNotIn(dev, pkg.archive_entries(m, "core")[0])
+
+    def test_development_workflows_are_accepted_by_shipped_mcp_reader(self):
+        spec = importlib.util.spec_from_file_location("development_mcp", os.path.join(pkg.ROOT, "tools/sco-core-mcp/server.py"))
+        server = importlib.util.module_from_spec(spec); spec.loader.exec_module(server)
+        with unittest.mock.patch.object(pkg, "require_clean_development_source"):
+            _, entries = pkg.archive_entries(pkg.load_manifest(), "core", development=True)
+        workflow = json.loads(entries["sdk-workflows.json"][0])
+        catalogue = {"sdk_version": pkg.development_version(), "source_sha": pkg.source_commit()}
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "sdk-workflows.json")
+            def check(index, cat):
+                with open(path, "wb") as f: f.write(pkg.json_bytes(index))
+                return server.load_workflows(path, cat)
+            result, _ = check(workflow, catalogue)
+            self.assertEqual(result["sdk_version"], catalogue["sdk_version"])
+            for field, value in (("sdk_version", "2.4.1-dev.0"), ("sdk_version", "2.4.1-rc.1"),
+                                 ("bundle_version", "1.0.0-dev.1"), ("baseline_sdk", "2.4.0-dev.1")):
+                bad = dict(workflow); bad[field] = value
+                with self.subTest(field=field, value=value), self.assertRaisesRegex(ValueError, "Invalid workflow version"):
+                    check(bad, catalogue)
+            with self.assertRaisesRegex(ValueError, "does not match catalogue"):
+                check(workflow, {**catalogue, "source_sha": "f" * 40})
+            prefix, serial = catalogue["sdk_version"].rsplit(".", 1)
+            mismatched_version = f"{prefix}.{int(serial) + 1}"
+            self.assertNotEqual(mismatched_version, catalogue["sdk_version"])
+            with self.assertRaisesRegex(ValueError, "does not match catalogue"):
+                check(workflow, {**catalogue, "sdk_version": mismatched_version})
+
+    def test_invalid_development_versions_refuse(self):
+        original = pkg.read
+        for value in ("2.4.0-dev.1", "2.4.1", "2.4.1-dev.0", "2.4.1-dev.01", "../2.5.0-dev.1"):
+            with self.subTest(value=value), unittest.mock.patch.object(pkg, "read", side_effect=lambda path: value if path == "sdk/DEVELOPMENT_VERSION" else original(path)):
+                with self.assertRaises(pkg.ManifestError):
+                    pkg.development_version()
+
+    def test_development_refuses_dirty_or_changed_source(self):
+        with unittest.mock.patch.object(pkg.subprocess, "run", return_value=SimpleNamespace(stdout=" M sdk/VERSION\n")):
+            with self.assertRaisesRegex(pkg.ManifestError, "clean Git checkout"):
+                pkg.require_clean_development_source()
+        with tempfile.TemporaryDirectory() as out, \
+             unittest.mock.patch.object(pkg, "source_commit", side_effect=["a" * 40, "b" * 40]), \
+             unittest.mock.patch.object(pkg, "require_clean_development_source"), \
+             unittest.mock.patch.object(pkg, "archive_entries", return_value=("candidate", {})):
+            with self.assertRaisesRegex(pkg.ManifestError, "changed while packaging"):
+                pkg.build({}, "core", out, development=True)
+            self.assertEqual(os.listdir(out), [])
+
+    def test_ignored_catalogue_input_is_refused_but_build_output_is_not(self):
+        with tempfile.TemporaryDirectory(prefix="development-inputs-") as root:
+            os.makedirs(os.path.join(root, "include"))
+            os.makedirs(os.path.join(root, "sdk", "contracts"))
+            subprocess.run(["git", "init", "-q", root], check=True)
+            with open(os.path.join(root, ".gitignore"), "w") as f:
+                f.write("*.generated.h\nsdk/contracts/*.generated.json\nbuild/\n")
+            subprocess.run(["git", "-C", root, "add", ".gitignore"], check=True)
+            subprocess.run(["git", "-C", root, "-c", "user.name=Test", "-c", "user.email=test@example.invalid",
+                            "commit", "-qm", "fixture"], check=True)
+            os.mkdir(os.path.join(root, "build"))
+            with open(os.path.join(root, "build", "output"), "w") as f: f.write("ignored")
+            with unittest.mock.patch.object(pkg, "ROOT", root):
+                pkg.require_clean_development_source()
+                for relative in ("include/hidden.generated.h", "sdk/contracts/hidden.generated.json"):
+                    path = os.path.join(root, relative)
+                    with open(path, "w") as f: f.write("ignored input")
+                    with self.assertRaisesRegex(pkg.ManifestError, "refuses ignored files"):
+                        pkg.require_clean_development_source()
+                    os.unlink(path)
+                pkg.require_clean_development_source()
+
+    def test_development_flag_cannot_modify_release_gates(self):
+        result = subprocess.run([sys.executable, os.path.join(HERE, "package.py"), "--development", "--check"],
+                                capture_output=True, text=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("only valid when building an archive", result.stderr)
 
 
 if __name__ == "__main__":

@@ -1,16 +1,26 @@
 # Roadmap and direction
 
 sco-core is the SDK that Star Citizen offline mods are built on. This page says where the platform
-is today, what stable SDK 2.4.0 delivers, and where the platform goes next. It is a direction, not a
+is today, what SDK <!--rv:sdk_version-->2.4.1<!--/rv--> delivers, and where the platform goes next. It is a direction, not a
 release promise: there are no dates, and a feature named here exists only when its contract,
 implementation and evidence say so in [game capability status](game/status.md) and the release notes.
 
-SDK 2.4.0 is the current stable release, published on 2026-11-01 from source
-commit `6106fa3639cbcc28f78a1ded8de2707de019f4d3`. The release includes five
-profile archives, `SHA256SUMS`, SPDX records and release documentation. See the
-[stable release page](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0).
-RC1 and RC2 remain historical records in the [release notes](releases/sdk-v2.4.0.md).
-The published bytes do not establish that a game capability has been verified in game.
+The current release includes five profile archives, `SHA256SUMS`, SPDX records and release
+documentation:
+
+<!-- release-block:current-release -->
+SDK **2.4.1** uses Star Citizen game pack **0.8.1** (checked against Star Citizen
+Alpha 4.10.3, build 4.10.200.58746; see [game builds](../docs/game/builds.md)) and plugin ABI **1.1**. Download it from the
+[`sdk-v2.4.1` release page](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.1) and verify each archive against that release's
+`SHA256SUMS`; the [release notes](https://github.com/scuba-sc/sco-core/blob/sdk-v2.4.1/docs/releases/sdk-v2.4.1.md) list what changed. The previous release is
+[SDK 2.4.0](https://github.com/scuba-sc/sco-core/blob/sdk-v2.4.0/docs/releases/sdk-v2.4.0.md).
+<!-- /release-block:current-release -->
+
+SDK 2.4.0 was published on
+2026-11-01 from source commit `6106fa3639cbcc28f78a1ded8de2707de019f4d3`
+([release page](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0)); RC1 and RC2 remain historical records in its
+[release notes](releases/sdk-v2.4.0.md).
+The release bytes do not establish that a game capability has been verified in game.
 
 ## How to read status on this page
 
@@ -54,7 +64,7 @@ separate requirements.
 
 For a first out-of-game contribution, follow this path:
 
-1. Download `sco-sdk-2.4.0.zip` and `SHA256SUMS` from the [stable release](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0), verify the archive, and build the first plugin with [the getting-started guide](getting-started.md).
+1. Download the combined archive and `SHA256SUMS` from the current release page (linked in the introduction), verify the archive, and build the first plugin with [the getting-started guide](getting-started.md).
 2. Use the bundled `sco-core-mcp` to discover a contract, generate a scaffold, and check the plugin with the [SDK and MCP tutorial](sdk-mcp-tutorial.md).
 3. Exercise the plugin against `scuba-engine` mock services outside the game. Its native runtime targets Windows and Linux; the native editor is Windows-only, while Browser Studio and portable tools are separate. Mock results are not gameplay evidence.
 4. When a community mod suggests a missing SDK capability, submit a clean-room gap report through a public SDK issue. Describe observed behavior and the requested contract without uploading game files, dumps, mod binaries or leaked source.
@@ -129,13 +139,34 @@ acceptance work concerns consumer coverage and human gameplay evidence; it does 
 release identity. Keep contract, implementation, availability and evidence separate. The product
 and studio states below describe their current public source, not an in-game certification.
 
+### SDK 2.4.1 release
+
+The 2.4.1 changes are listed under `sdk-v2.4.1` in the [changelog](../CHANGELOG.md) and the
+[release notes](releases/sdk-v2.4.1.md). They were checked by synthetic tests, not in game by this
+repository.
+
+- **Game host:** the opt-in `Composition::ProcessRetained` option, where the shell retains code until
+  process exit and `Stop` closes admission without unloading ([game host](game/host.md)). The strict
+  default is unchanged.
+- **App shutdown:** `app::Stop` refuses while a managed service pin is live, then closes managed
+  acquisition, service publication and plugin loader entry until the next `app::Start`
+  ([plugins](plugins.md#unloading)).
+- **Contracts:** the separate `sco.storage.metadata` 2.0 interface ([storage metadata](storage-metadata.md))
+  and `sco.widgets` 1.4 tagged events ([widgets](../sdk/docs/widgets.md)), plus layout changes in the
+  optional ImGui renderer.
+- **Signature scanning and diagnostics:** a faster `FindPattern` and a per-pass index of RIP-relative
+  `lea` instructions with unchanged results, and startup diagnostics in the game pack logs.
+- **Experimental Rust bindings** and a sample plugin ([Rust support](../sdk/rust/README.md)); they do
+  not gate the release.
+- **Game pack 0.8.1** for build 4.10.200.58746; its locators are static-checked only.
+
 The [interactive one-page roadmap](https://scuba-sc.github.io/sco-core/roadmap/) is a companion
 status view. This document is the maintained contributor roadmap; follow the release page and
 public issue links below for current source evidence.
 
 ## 3. Milestone 2: consumers and out-of-game studio
 
-SDK 2.4.0 is stable; consumer integration has advanced, while full suite and gameplay acceptance
+SDK 2.4.1 is released; consumer integration has advanced, while full suite and gameplay acceptance
 remain separate gates.
 
 - **sc-offline:** current `main` is `e0ed7dba102b3463b04e02af1ff49a2addabe7ea`. PRs #185 and #192
@@ -161,7 +192,7 @@ remain separate gates.
 
 Planned work is to close the remaining acceptance gaps in evidence order:
 
-1. Owner-run, one-launch SDK 2.4.0 acceptance on the named game build, including the recorded V-row
+1. Owner-run, one-launch SDK 2.4.1 acceptance on the named game build, including the recorded V-row
    observations. No row becomes verified in game until its run evidence is recorded.
 2. Durable sc-mp authority/recovery and a native ghost bridge, followed by normal in-game validation.
 3. A complete out-of-game suite certification across the bundled plugins, mock providers, scenario

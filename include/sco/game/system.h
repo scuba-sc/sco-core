@@ -4,8 +4,9 @@
 //   system.quit  CSystem::Quit, the function that logs "CSystem::Quit invoked with - cause=$$, ..."
 //                (found from that string, start at lea-0xA3, 9 layout checks plus the second
 //                reference at +0x176). With ExitOnQuit the process ends inside it ("System Fast
-//                Shutdown"), without WM_QUIT, so a host that must run shutdown work (sco::app::Stop)
-//                hooks its entry and does it on the calling thread before the original runs.
+//                Shutdown"), without WM_QUIT. The current Core detour only requests
+//                closure of a published legacy product owner before forwarding; it
+//                does not establish a product or engine teardown barrier.
 #include <cstddef>
 #include <cstdint>
 

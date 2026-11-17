@@ -347,6 +347,11 @@ SigRegistryStatus SignatureRegistry::ResolveImpl(const Image& image, std::shared
             return r.state == SigState::Ok ? r.at : nullptr;
         };
         SigResolveContext ctx(&state, lookup);
+        // Resolvers see the image through this copy, which carries the pass's scan index (built on
+        // first use, gone when the pass ends).
+        ScanIndex scanIndex;
+        Image pass = image;
+        pass.index = &scanIndex;
         // A NotRun callback may be attempted again by a later root or dependent, but
         // each individual parent must inspect the result after its child returns.
         struct Frame { size_t row, next; bool attempted; };
@@ -391,7 +396,7 @@ SigRegistryStatus SignatureRegistry::ResolveImpl(const Image& image, std::shared
                     continue;
                 }
                 SigResult r;
-                if (row.resolve) r = row.resolve(image, ctx);
+                if (row.resolve) r = row.resolve(pass, ctx);
                 else if (row.hasPattern) {
                     r = SigPattern(image.text, row.pattern.c_str());
         if (r.state == SigState::Ok && row.ripDisp > 0) {

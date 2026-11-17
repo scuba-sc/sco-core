@@ -67,12 +67,10 @@ const uint8_t* LeaTo(const Image& img, const uint8_t* target, const uint8_t* fro
     const auto b = reinterpret_cast<uintptr_t>(text.base);
     const auto f = from ? reinterpret_cast<uintptr_t>(from) : b;
     if (f < b || f - b > text.size) return nullptr;
-    for (size_t i = f - b; i <= text.size - 7; ++i) {
-        const uint8_t* p = TextOffset(img, text.base, i, 7);
-        if ((p[0] & 0xFB) == 0x48 && p[1] == 0x8D && (p[2] & 0xC7) == 0x05 &&
-            CheckedRip(img, p, 3, 7) == target) return p;
-    }
-    return nullptr;
+    // The sites for `target` come from the pass's index (one walk of .text for every lookup).
+    ScanIndexRef index(img);
+    const size_t at = index->FindRip(text, RipForm::AnyLea(), target, f - b);
+    return at == ScanIndex::kNone ? nullptr : text.base + at;
 }
 const uint8_t* ExactLeaTo(const Image& img, const uint8_t* target) {
     for (const uint8_t* p = LeaTo(img, target, nullptr); p; ) {
@@ -372,6 +370,16 @@ constexpr const char* kPhaseActivateSite =
 constexpr CallSpec kPhaseActivate{ "contracts.phase_activate_site", 33, "41 56 48 83 EC 30 41 83 79 04 01" };
 constexpr const char* kHaulingAssignSite = "38 42 68 0F 85 ?? ?? ?? ?? 48 8D 4D ?? E8 ?? ?? ?? ?? 48 85 FF 0F 84";
 constexpr CallSpec kHaulingAssign{ "contracts.hauling_assign_site", 13, "48 89 5C 24 08 57 48 83 EC 20 48 8B FA 48 8B D9 E8" };
+constexpr const char* kHaulingAssign200 = "48 89 5C 24 08 48 89 74 24 10 57 48 83 EC 20 48 8B FA 48 8B D9 E8";
+SigResult ResolveHaulingAssign(const Image& img, const SigResolveContext& ctx) {
+    const auto* from = ctx.Sig(kHaulingAssign.from);
+    if (!from) return SigFail("source row missing");
+    const auto* target = CallAt(img, TextOffset(img, from, kHaulingAssign.off, 5));
+    if (!target) return SigFail("no call at the expected offset");
+    if (!Matches(img, target, kHaulingAssign.prologue) && !Matches(img, target, kHaulingAssign200))
+        return SigFail("callee prologue changed at +0x000");
+    return SigOk(target);
+}
 constexpr InRangeSpec kCopyDetailsSite{ "contracts.add_mission", 0x400, "48 8B D6 48 8D 4C 24 ?? 48 89 44 24 ?? C5 F8 11 44 24 ?? E8", nullptr };
 constexpr CallSpec kCopyDetails{ "contracts.copy_details_site", 19, "48 89 5C 24 08 48 89 6C 24 10 48 89 74 24 18 48 89 7C 24 20 41 56" };
 
@@ -646,7 +654,7 @@ extern const SigDef kContractsSignatures[] = {
     SCO_PAT("contracts.phase_activate_site", kPhaseActivateSite),
     { "contracts.phase_activate",           nullptr, 0, 0, ResolveCall<kPhaseActivate>,     { "contracts.phase_activate_site" } },
     SCO_PAT("contracts.hauling_assign_site", kHaulingAssignSite),
-    { "contracts.hauling_assign",           nullptr, 0, 0, ResolveCall<kHaulingAssign>,     { "contracts.hauling_assign_site" } },
+    { "contracts.hauling_assign",           nullptr, 0, 0, ResolveHaulingAssign,             { "contracts.hauling_assign_site" } },
     { "contracts.copy_details_site",        nullptr, 0, 0, ResolveInRange<kCopyDetailsSite>, { "contracts.add_mission" } },
     { "contracts.copy_details",             nullptr, 0, 0, ResolveCall<kCopyDetails>,       { "contracts.copy_details_site" } },
     { "contracts.add_player",               nullptr, 0, 0, ResolveAddPlayer,                { "contracts.add_mission" } },

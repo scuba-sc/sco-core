@@ -36,7 +36,8 @@ struct Event {
 class Renderer {
 public:
     virtual ~Renderer() = default;
-    // Append candidate events only. Host validates them and dispatches after return.
+    // Append numeric candidate events only. Host validates them and dispatches after return;
+    // callback tags are copied from the authoritative live node, never renderer event data.
     virtual void Render(const Panel& panel, std::vector<Event>& events) = 0;
 };
 // Start/Stop and table mutations/render are game-thread only. Stop off-thread is a no-op.

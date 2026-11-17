@@ -6,6 +6,7 @@
 #include "sco/game/host.h"
 #include "sco/host.h"
 #include "sco/caps.h"
+#include "sco/log.h"
 #include "../../api/internal.h"
 #include <atomic>
 #include <chrono>
@@ -259,6 +260,30 @@ sco_result SetRelocationBackendV2(const sco_relocation_backend_v2* backend) {
     const RelocationPositionBackend position{true,backend->position_target,backend->apply_position,backend->observe_position};
     return static_cast<sco_result>(StartRelocationV2(&be,&position));
 }
+const char* ReasonName(uint32_t reason) {
+    switch (reason) {
+    case SC_RELOCATION_REASON_TIMEOUT: return "timeout";
+    case SC_RELOCATION_REASON_SESSION: return "session";
+    case SC_RELOCATION_REASON_SAFETY: return "safety";
+    case SC_RELOCATION_REASON_SYSTEM: return "system";
+    case SC_RELOCATION_REASON_TRANSPORT: return "transport";
+    case SC_RELOCATION_REASON_FAULT: return "fault";
+    case SC_RELOCATION_REASON_TARGET: return "target";
+    default: return "unknown";
+    }
+}
+// One line for a request that failed while pending: which completion and admission conditions held
+// at that moment. Completion needs applied plus streamed and arrived; the rest must keep holding.
+void LogFailure(const relocation::Diagnosis& d) {
+    const auto yn = [](bool v) { return v ? "yes" : "no"; };
+    sco::Log("[game] relocation: request failed (%s) after %llu ms: applied=%s streamed=%s arrived=%s "
+             "offline=%s player=%s transport=%s fault=%s session_same=%s player_same=%s system_same=%s "
+             "target_system_same=%s%s%s",
+             ReasonName(d.reason), static_cast<unsigned long long>(d.elapsedMs), yn(d.applied), yn(d.streamed),
+             yn(d.arrived), yn(d.offline), yn(d.player), yn(d.transport), yn(d.fault), yn(d.sessionMatches),
+             yn(d.playerMatches), yn(d.systemMatches), yn(d.targetSystemMatches),
+             d.positionOnly ? " target_instance_same=" : "", d.positionOnly ? yn(d.targetInstanceMatches) : "");
+}
 void TickRelocation() {
     if (!g_started || g_inBackend) return;
     const void* owner=g_requests.PendingOwner();
@@ -276,7 +301,11 @@ void TickRelocation() {
     UpdateCapability(evidence);
     owner=g_requests.PendingOwner();
     if(owner&&detail::Released(owner)){g_requests.Release(owner);return;}
-    if (!g_requests.Tick(now,evidence)) return;
+    relocation::Diagnosis failure;
+    if (!g_requests.Tick(now,evidence,&failure)) {
+        if (failure.reason) LogFailure(failure);
+        return;
+    }
     if(!operation.Current()){Abandon(operation,evidence);return;}
     const int moved=Guarded([&] {
         if(operation.position)return g_position.apply(&positionCopy,instance)?1:0;
@@ -284,6 +313,8 @@ void TickRelocation() {
     });
     if(!operation.Current()){Abandon(operation,Evidence{});return;}
     g_requests.Applied(moved==1,moved<0);
+    if (moved!=1) sco::Log("[game] relocation: the backend apply %s; request failed (%s)",
+                           moved<0 ? "faulted" : "returned failure", moved<0 ? "fault" : "transport");
     if (moved<0) UpdateCapability(Evidence{});
 }
 void StopRelocation() {

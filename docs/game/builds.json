@@ -1,0 +1,75 @@
+{
+  "schema_version": 1,
+  "about": "Register of the Star Citizen builds the game pack's signature rows were checked against, oldest first. Public facts only: the patch name, the four-part file version and changelist the launcher and build_manifest.id show, dates, the game pack and SDK releases pinned to each build, and which rows changed from the previous build. tools/release_docs.py renders docs/game/builds.md from this file and refuses a verified build (SCO_GAME_PACK_VERIFIED_BUILD) that is not the newest entry here.",
+  "builds": [
+    {
+      "build": "4.10.193.11644",
+      "patch": "Alpha 4.10.1",
+      "channel": "LIVE",
+      "changelist": "12660092",
+      "live_date": "2026-09-16",
+      "name_source": "community",
+      "name_note": "A deployment log lists 4.10.1-live.12660092; one patch summary gives 12650677 instead.",
+      "game_packs": [],
+      "sdk_releases": [],
+      "changed_rows": [],
+      "changes": [
+        "The first build the signature rows were written against, before the game pack recorded a verified build."
+      ]
+    },
+    {
+      "build": "4.10.196.36804",
+      "patch": "Alpha 4.10.2",
+      "channel": "LIVE",
+      "changelist": "12881860",
+      "live_date": "2026-10-09",
+      "name_source": "community",
+      "name_note": "Launcher build string 4.10.2-LIVE.12881860.",
+      "game_packs": ["0.3.0", "0.4.0", "0.5.0", "0.6.0"],
+      "sdk_releases": ["sdk-v2.0.0", "sdk-v2.1.0", "sdk-v2.2.0", "sdk-v2.3.0"],
+      "changed_rows": ["teleport.to_camera"],
+      "changes": [
+        "`teleport.to_camera`: the four camera fields its handler loads moved by 8 bytes. The row's checks now pin the instructions and wildcard the field offset (SDK 1.1.0); it resolves on 4.10.193 and 4.10.196.",
+        "The first build recorded as the game pack's verified build."
+      ]
+    },
+    {
+      "build": "4.10.197.2878",
+      "patch": "Alpha 4.10.2 hotfix",
+      "channel": "LIVE",
+      "changelist": "12913470",
+      "live_date": "2026-10-14",
+      "name_source": "community",
+      "name_note": "Hotfix of 4.10.2; the patch name stayed 4.10.2.",
+      "game_packs": ["0.8.0"],
+      "sdk_releases": ["sdk-v2.4.0"],
+      "changed_rows": [],
+      "changes": [
+        "No signature row moved: every row resolved in a static `sco-sigcheck` run (317/317). The launcher and CrashHandler are byte-identical to 4.10.196.36804."
+      ]
+    },
+    {
+      "build": "4.10.200.58746",
+      "patch": "Alpha 4.10.3",
+      "channel": "LIVE",
+      "changelist": "13165946",
+      "live_date": "2026-11-12",
+      "name_source": "community",
+      "name_note": "Launcher build string 4.10.3-LIVE.13165946. The game reports branch sc-alpha-4.10.0 and file version 4.10.200.58746.",
+      "game_packs": ["0.8.1"],
+      "sdk_releases": ["sdk-v2.4.1"],
+      "changed_rows": [
+        "atc.clear_token",
+        "contracts.hauling_assign",
+        "offline.restricted_area_impound",
+        "quantum.drive_input",
+        "quantum.on_action"
+      ],
+      "changes": [
+        "Five rows changed layout and were re-anchored, each with a bounds test: ATC clear token, hauling assignment, restricted-area impound and the two quantum action rows. Their updated locators also resolve on 4.10.197.2878.",
+        "Every row resolved in a static `sco-sigcheck` run (347/347). Every other row gives the same result as before on the synthetic parity fixtures (`tests/issue302_valid_parity.py`).",
+        "Hauling semantics on this build are not verified."
+      ]
+    }
+  ]
+}

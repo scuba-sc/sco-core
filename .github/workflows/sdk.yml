@@ -42,7 +42,7 @@ jobs:
 
       # The C# structs against the pins of tests/abi_*.c, line for line (the zip's copy runs below).
       - name: C# SDK layout test against tests/abi_*.c
-        run: dotnet run -c Release --project sdk/csharp/Sco.Sdk.Tests -- tests/abi_v1.c tests/abi_storage.c tests/abi_ui.c tests/abi_settings.c tests/abi_datacore.c tests/abi_game_actors.c tests/abi_game_vehicles.c tests/abi_game_world.c tests/abi_game_events.c tests/abi_game_entities.c tests/abi_game_creative.c
+        run: dotnet run -c Release --project sdk/csharp/Sco.Sdk.Tests -- tests/abi_v1.c tests/abi_storage.c tests/abi_storage_v2.c tests/abi_widgets.c tests/abi_ui.c tests/abi_settings.c tests/abi_datacore.c tests/abi_game_actors.c tests/abi_game_vehicles.c tests/abi_game_world.c tests/abi_game_events.c tests/abi_game_entities.c tests/abi_game_creative.c
 
       # sdk/components.json: every file classified, profiles valid, each profile reproducible, core
       # free of game files, and every refusal path refuses (sdk/test_package.py).

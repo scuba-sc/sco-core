@@ -185,7 +185,11 @@ def header_inventory(root, clang=None):
                         require(versions, 'no base version macro for ' + name)
                     version_macro = sorted(versions, key=version_key)[-1]
                     prefix = re.sub(r'_v\d+(?:_\d+)?$', '', name).upper()
-                    names = [m for m in own_macros if m in {prefix + '_NAME', prefix + '_SERVICE_NAME'}]
+                    # A separately named major-version table can expose a new
+                    # service without changing the original major's route.
+                    names = [m for m in own_macros if m in {name.upper() + '_NAME', name.upper() + '_SERVICE_NAME'}]
+                    if not names:
+                        names = [m for m in own_macros if m in {prefix + '_NAME', prefix + '_SERVICE_NAME'}]
                     require(len(names) == 1, 'ambiguous service name macro for ' + name)
                     name_macro = names[0]
                 tables[name] = {

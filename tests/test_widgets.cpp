@@ -36,6 +36,9 @@ static void TestLifecycle(const sco_api* api) {
     CHECK(W::Start() == Result::BadArg);
     CHECK(W::Started());
     CHECK(api->query_service(SCO_WIDGETS_NAME, SCO_WIDGETS_VERSION_1_0, &out) == SCO_OK);
+    CHECK(api->query_service(SCO_WIDGETS_NAME, SCO_WIDGETS_VERSION_1_4, &out) == SCO_OK);
+    CHECK(api->query_service(SCO_WIDGETS_NAME, 0x00010005u, &out) == SCO_UNAVAILABLE);
+    CHECK(api->query_service(SCO_WIDGETS_NAME, SCO_WIDGETS_VERSION_1_0, &out) == SCO_OK);
     CHECK(out == W::Table()); table = W::Table();
     CHECK(table->size == sizeof(sco_widgets_v1) && table->_pad == 0);
     auto n = Node(SCO_WIDGET_LABEL);
@@ -335,15 +338,21 @@ static void TestLifetimeAndThreads(const sco_api* api) {
     CHECK(W::RenderPanel("alpha.main", mutating) == Result::Failed);
     CHECK(table->remove_panel(alpha, "alpha.main") == SCO_OK);
     // Unload inside callback removes state and never calls freed ctx again.
+    sco_widget_node_1_2 tagged{};
+    tagged.base.base = n; tagged.base.base.size = sizeof(tagged); tagged.tag = "lifetime.action";
     sco_plugin* unload = sco::host::NewPlugin("unload");
     unsigned unloadedCalls = 0;
-    auto unloadFn = [](const char*, const sco_widget_event*, void* p) {
+    auto unloadFn = [](const char*, const sco_widget_event* event, void* p) {
         auto* state = static_cast<std::pair<sco_plugin*, unsigned*>*>(p);
+        CHECK(event->size == sizeof(sco_widget_event_1_4));
+        const char* tag = event->size >= sizeof(sco_widget_event_1_4) ?
+            reinterpret_cast<const sco_widget_event_1_4*>(event)->tag : nullptr;
         ++*state->second; CHECK(sco::Release(state->first) == Result::Ok);
         delete state;
+        CHECK(tag && std::strcmp(tag, "lifetime.action") == 0);
     };
     auto* state = new std::pair<sco_plugin*, unsigned*>{unload, &unloadedCalls};
-    CHECK(table->set_panel(unload, "unload.main", "Unload", &n, 1, sizeof(n), unloadFn, state) == SCO_OK);
+    CHECK(table->set_panel(unload, "unload.main", "Unload", &tagged.base.base, 1, sizeof(tagged), unloadFn, state) == SCO_OK);
     r.candidates = {{1,SCO_WIDGET_BUTTON}, {1,SCO_WIDGET_BUTTON}};
     CHECK(W::RenderPanel("unload.main", r) == Result::Crashed && unloadedCalls == 1);
     CHECK(W::Panels().empty() && W::RenderPanel("unload.main", r) == Result::NotFound);
@@ -355,8 +364,15 @@ static void TestLifetimeAndThreads(const sco_api* api) {
     CHECK(api->provide_service(retained, "retained.test", 0x10000, &backing) == SCO_OK);
     const void* tableOut = nullptr; CHECK(api->query_service("retained.test", 0x10000, &tableOut) == SCO_OK && tableOut == &backing);
     unsigned faultCalls = 0;
-    auto faultFn = [](const char*, const sco_widget_event*, void* p) { ++*static_cast<unsigned*>(p); throw 1; };
-    CHECK(table->set_panel(retained, "retained.main", "Retained", &n, 1, sizeof(n), faultFn, &faultCalls) == SCO_OK);
+    auto faultFn = [](const char*, const sco_widget_event* event, void* p) {
+        CHECK(event->size == sizeof(sco_widget_event_1_4));
+        if (event->size >= sizeof(sco_widget_event_1_4)) {
+            const auto* full = reinterpret_cast<const sco_widget_event_1_4*>(event);
+            CHECK(full->tag && std::strcmp(full->tag, "lifetime.action") == 0);
+        }
+        ++*static_cast<unsigned*>(p); throw 1;
+    };
+    CHECK(table->set_panel(retained, "retained.main", "Retained", &tagged.base.base, 1, sizeof(tagged), faultFn, &faultCalls) == SCO_OK);
     guardOwner = retained; sco::SetCalloutGuard(CallGuard);
     CHECK(W::RenderPanel("retained.main", r) == Result::Crashed && faultCalls == 1);
     auto rendered = r.recorded.size();
@@ -366,7 +382,7 @@ static void TestLifetimeAndThreads(const sco_api* api) {
     sco::SetCalloutGuard(nullptr);
     // A non-provider fault runs resource hooks; other owners are unaffected.
     sco_plugin* faulty = sco::host::NewPlugin("faulty");
-    CHECK(table->set_panel(faulty, "faulty.main", "Faulty", &n, 1, sizeof(n), faultFn, &faultCalls) == SCO_OK);
+    CHECK(table->set_panel(faulty, "faulty.main", "Faulty", &tagged.base.base, 1, sizeof(tagged), faultFn, &faultCalls) == SCO_OK);
     CHECK(Set(n) == SCO_OK);
     guardOwner = faulty; sco::SetCalloutGuard(CallGuard);
     CHECK(W::RenderPanel("faulty.main", r) == Result::Crashed && faultCalls == 2);

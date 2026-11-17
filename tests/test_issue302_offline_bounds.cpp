@@ -117,6 +117,29 @@ void extras() {
     sco::dependency = nullptr;
     assert(issue302_context::RunExtra(f.img, p, AsopGateOpenExtra));
 }
+void impoundLayouts() {
+    using namespace sco; using namespace sco::game;
+    Fixture f(512);
+    auto* message = f.str(0, "$$: Vehicle '$$' [$$] impounded (or destroyed) by restricted area '$$' [$$]");
+    auto* tag = f.str(128, "Boundary Violation");
+    const uint8_t prologue[] = {0x40,0x55,0x53,0x56,0x57,0x41,0x54,0x41,0x55,0x41,0x56,0x41,0x57,
+        0x48,0x8d,0xac,0x24,0x38,0xfe,0xff,0xff,0x48,0x81,0xec,0xc8,0x02,0x00,0x00,0x33,0xd2,0x48,0x8b,0xf1,0xe8};
+    std::memcpy(f.img.text.base, prologue, sizeof(prologue));
+    f.rip(0x59, message, 0x4c, 0x0d); f.rip(0x79, tag, 0x4c, 0x05);
+    const auto resolve = [&]() { return issue302_context::Run(f.img, rows::ResolveFn<kImpound>); };
+    assert(resolve().state == SigState::Ok);
+    f.bytes[17] = 0x48; f.bytes[24] = 0xb8; assert(resolve().state == SigState::Ok);
+    f.bytes[24] = 0xc8; assert(resolve().state != SigState::Ok); // mixed frames
+    f.bytes[17] = 0x39; f.bytes[24] = 0xc8; assert(resolve().state != SigState::Ok);
+    f.bytes[17] = 0x48; f.bytes[24] = 0xb8;
+    auto* duplicateTag = f.str(256, "Boundary Violation");
+    assert(resolve().state == SigState::Ok); // duplicate text retains existing first-string binding
+    f.rip(0x79, duplicateTag, 0x4c, 0x05); assert(resolve().state != SigState::Ok);
+    f.rip(0x79, message, 0x4c, 0x05); assert(resolve().state != SigState::Ok);
+    f.rip(0x79, tag, 0x4c, 0x05);
+    std::memcpy(f.img.text.base + 256, f.img.text.base, sizeof(prologue));
+    assert(resolve().state != SigState::Ok); // duplicate locator candidates
+}
 void megamap() {
     Fixture f(7); auto* help = f.str(0, "Load a map, same usage as 'megamap' cvar.");
     f.rip(0, help); f.rip(7, f.img.text.base + 64, 0x4c, 0x05);
@@ -255,6 +278,7 @@ int main(int argc, char** argv) {
     if (mode == "all" || mode == "boot") boot();
     if (mode == "all" || mode == "short") shortScans();
     if (mode == "all" || mode == "extras") extras();
+    if (mode == "all" || mode == "impound") impoundLayouts();
     if (mode == "all" || mode == "megamap") megamap();
     if (mode == "all" || mode == "lea") { finalLea(); adjacentLeas(); }
 }

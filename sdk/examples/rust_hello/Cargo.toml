@@ -1,0 +1,15 @@
+[package]
+name = "rust_hello"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.99"
+license = "GPL-3.0-only"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+sco-sdk-raw = { path = "../../rust/sco-sdk" }
+
+[profile.release]
+panic = "abort"

@@ -13,6 +13,7 @@ import shutil
 import subprocess
 import tempfile
 import unittest
+from unittest import mock
 from urllib.parse import unquote, urlsplit
 import zlib
 
@@ -235,8 +236,10 @@ class SiteTests(unittest.TestCase):
                 guide = output / 'src/content/docs' / (gen.guide_id('docs/releases/sdk-v2.4.0.md') + '.md')
                 self.assertIn('[sdk-v2.4.0](' + gen.RELEASES + 'sdk-v2.4.0)', guide.read_text())
                 gen.use_published_metadata(meta)
+                # Same SDK version as the release, different source: the source check must refuse.
+                mismatched = dict(catalogue, sdk_version=meta['sdk_version'])
                 with self.assertRaisesRegex(ValueError, 'Published release source does not match'):
-                    gen.generate(ROOT, catalogue, output, meta['tag'])
+                    gen.generate(ROOT, mismatched, output, meta['tag'])
         finally:
             gen.PUBLISHED_RELEASE, gen.PUBLISHED_DOWNLOAD_TAG, gen.PUBLISHED_METADATA = saved
 
@@ -332,6 +335,64 @@ class SiteTests(unittest.TestCase):
         page = gen.page('Title', 'Indexed contract purpose', self.catalogue, None, 'APIs')
         self.assertIn(notice + 'Indexed contract purpose', page)
         self.assertEqual(page.count('data-pagefind-ignore'), 1)
+
+    def test_preview_distinguishes_source_catalogue_from_archive_version(self):
+        catalogue = deepcopy(self.catalogue)
+        source_version = (ROOT / 'sdk/VERSION').read_text().strip()
+        archive_version = (ROOT / 'sdk/DEVELOPMENT_VERSION').read_text().strip()
+        self.assertNotEqual(source_version, archive_version)
+        catalogue['sdk_version'] = source_version
+        archive = {'core_sdk_version': archive_version,
+                   'source_commits': {'core': catalogue['source_sha']}}
+        self.assertEqual(archive['source_commits']['core'], catalogue['source_sha'])
+
+        notice = gen.banner(catalogue, None, 'Guides')
+        self.assertIn('Source catalogue SDK **' + source_version + '**', notice)
+        self.assertIn('Development archives may use a different SDK version for this source', notice)
+        self.assertIn('`COMPATIBILITY.json.game-sc`', notice)
+        self.assertIn('`sdk/VERSION`', notice)
+        self.assertNotIn(archive_version, notice)
+        routes = {name: gen.guide_id(name) for name in gen.inputs(ROOT)}
+        portal = gen.release_portal(ROOT, catalogue, None, routes)
+        preview = portal.split('data-od-id="release-build"', 1)[1].split('</section>', 1)[0]
+        published = portal.split('data-od-id="release-published"', 1)[1].split('</section>', 1)[0]
+        self.assertIn('<dt>Source catalogue SDK</dt><dd>' + source_version + '</dd>', preview)
+        self.assertIn('Development archive versions may differ from the source catalogue', preview)
+        self.assertIn('COMPATIBILITY.json.game-sc', preview)
+        self.assertIn('sdk/VERSION', preview)
+        self.assertIn('<dt>SDK</dt>', published)
+        self.assertNotIn('Source catalogue SDK', published)
+
+        release_notice = gen.banner(catalogue, 'sdk-v' + source_version, 'Guides')
+        self.assertNotIn('Development archives may use a different SDK version', release_notice)
+        release_portal = gen.release_portal(ROOT, catalogue, 'sdk-v' + source_version, routes)
+        self.assertNotIn('Development archive versions may differ', release_portal)
+
+    def test_banner_follows_published_release_data(self):
+        catalogue = deepcopy(self.catalogue)
+        catalogue['sdk_version'], catalogue['game_pack_version'] = '9.8.7', '6.5.4'
+        meta = {'tag': 'sdk-v9.8.7', 'sdk_version': '9.8.7', 'game_pack_version': '6.5.4', 'source_sha': 'e' * 40}
+        saved = gen.PUBLISHED_METADATA
+        try:
+            gen.PUBLISHED_METADATA = meta
+            notice = gen.banner(catalogue, None, 'Guides')
+            self.assertTrue(notice.startswith('<div data-pagefind-ignore="index">\n\n:::note[SDK 9.8.7]'))
+            self.assertIn('published as [sdk-v9.8.7]', notice)
+            self.assertIn(catalogue['source_sha'], notice)
+            self.assertIn('not a runtime or in-game verification claim', notice)
+            self.assertNotIn('development preview', notice)
+            self.assertNotIn('Development archives may use', notice)
+            self.assertIn('may include changes made after the release', notice)
+            gen.PUBLISHED_METADATA = dict(meta, source_sha=catalogue['source_sha'])
+            self.assertNotIn('may include changes', gen.banner(catalogue, None, 'Guides'))
+            gen.PUBLISHED_METADATA = meta
+            for key, value in (('sdk_version', '9.8.8'), ('game_pack_version', '6.5.5')):
+                moved = dict(catalogue, **{key: value})
+                self.assertIn('development preview', gen.banner(moved, None, 'Guides'))
+            gen.PUBLISHED_METADATA = dict(meta, tag='sdk-v9.8.7-rc.1')
+            self.assertIn('development preview', gen.banner(catalogue, None, 'Guides'))
+        finally:
+            gen.PUBLISHED_METADATA = saved
 
     def test_mapping_status_is_authoritative(self):
         record = deepcopy(self.catalogue['records'][0])
@@ -660,9 +721,11 @@ class SiteTests(unittest.TestCase):
         docs = ['docs/a.md', 'docs/sub/b.md', 'docs/releases/sdk-v9.9.9.md']
         root = self.allowlist_fixture({name: '# ok\n' for name in docs}, docs)
         self.assertEqual(gen.inputs(root), sorted(docs))
-        # Only the current release's notes are published; older notes stay in the repository as history.
+        # The published release's notes and the source's own release notes are listed; older notes stay
+        # in the repository as history.
+        version = (ROOT / 'sdk/VERSION').read_text().strip()
         self.assertEqual([name for name in gen.inputs(ROOT) if name.startswith('docs/releases/')],
-                         ['docs/releases/' + gen.PUBLISHED_RELEASE + '.md'])
+                         sorted({'docs/releases/' + gen.PUBLISHED_RELEASE + '.md', 'docs/releases/sdk-v' + version + '.md'}))
         self.assertIn('docs/host-source-sc.md', gen.inputs(ROOT))
 
     def test_allowlist_refuses_unsafe_inputs(self):
@@ -890,6 +953,20 @@ class SiteTests(unittest.TestCase):
             body = text[text.index('Every signature row'):]
             self.assertNotRegex(body, r'https?://(?!github\.com/scuba-sc/sco-core/blob/[0-9a-f]{40}/)')
             self.assertIn('tableOfContents: false', text)
+
+    def test_native_index_download_preserves_input_newlines(self):
+        original = (ROOT / gen.NATIVE_INDEX).read_bytes().replace(b'\r\n', b'\n')
+        for ending in (b'\n', b'\r\n'):
+            with self.subTest(ending=ending), tempfile.TemporaryDirectory(prefix='site-native-bytes-') as work:
+                root = Path(work)
+                index = root / 'input.json'
+                expected = original.replace(b'\n', ending)
+                index.write_bytes(expected)
+                output = root / 'output'
+                with mock.patch.object(gen, 'NATIVE_INDEX', str(index)):
+                    self.generate(ROOT, output)
+                self.assertEqual((output / 'public' / gen.NATIVE_DOWNLOAD).read_bytes(), expected)
+                self.assertEqual(index.read_bytes(), expected)
 
     def test_native_index_fails_closed(self):
         good = json.loads((ROOT / gen.NATIVE_INDEX).read_text())

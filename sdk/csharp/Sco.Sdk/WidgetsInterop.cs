@@ -17,11 +17,13 @@ namespace Sco.Sdk
         public const uint WidgetsVersion1_1 = 0x00010001u;
         public const uint WidgetsVersion1_2 = 0x00010002u;
         public const uint WidgetsVersion1_3 = 0x00010003u;
+        public const uint WidgetsVersion1_4 = 0x00010004u;
         public const uint WidgetsMaxPanels = 64, WidgetsMaxNodes = 256, WidgetsMaxTotalNodes = 4096;
         public const uint WidgetsMaxItems = 256, WidgetsMaxColumns = 16, WidgetsMaxText = 255;
         public const uint WidgetsMaxId = 63, WidgetsMaxTitle = 63, WidgetsMaxEvents = 256;
         public const uint WidgetsFeatureStableTags = 0x80, WidgetsCapMaxTag = 9, WidgetsCaps1_2 = 10, WidgetsMaxTag = 63;
         public const uint WidgetsFeatureNumericPresentation = 0x100;
+        public const uint WidgetsFeatureEventTag = 0x200;
         public const uint WidgetSeverityNone = 0, WidgetSeverityInfo = 1, WidgetSeverityWarning = 2, WidgetSeverityError = 3;
         public const uint WidgetEventPage = 0x100;
         public const uint WidgetsCapCount = 0, WidgetsCapFeatures = 1, WidgetsCapMaxPanels = 2, WidgetsCapMaxNodes = 3;
@@ -87,6 +89,13 @@ namespace Sco.Sdk.Interop
         public ScoWidgetEvent @base;
         public int row;
         public uint _reserved;
+    }
+    /// <summary>sco_widget_event_1_4: 48 bytes; canonical tag is borrowed only during callback.</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public unsafe struct ScoWidgetEvent14
+    {
+        public ScoWidgetEvent11 @base;
+        public byte* tag;
     }
     /// <summary>sco_widgets_v1: 48 bytes; 24-byte1.0 prefix. Check each member extent before reading it.</summary>
     [StructLayout(LayoutKind.Sequential)]

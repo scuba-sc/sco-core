@@ -1,0 +1,82 @@
+name: experimental-rust-qualification
+
+# Pull-request and manual development qualification. This workflow is not a release gate,
+# does not upload artifacts, and must not be used to publish an SDK.
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  archive-check:
+    name: Experimental Rust archive check (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            python: python3
+            toolchain: 1.99.1-x86_64-unknown-linux-gnu
+            cmake_platform: ''
+          - os: windows-2025
+            python: python
+            toolchain: 1.99.1-x86_64-pc-windows-msvc
+            cmake_platform: x64
+          - os: macos-15
+            python: python3
+            toolchain: 1.99.1
+            cmake_platform: ''
+    steps:
+      - name: Preserve exact checkout bytes
+        shell: bash
+        run: git config --global core.autocrlf false
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - name: Verify exact source revision
+        shell: bash
+        env:
+          EXPECTED_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_COMMIT"
+
+      - name: Select Rust 1.99.1
+        shell: bash
+        run: |
+          rustup toolchain install '${{ matrix.toolchain }}' --profile minimal
+          rustup default '${{ matrix.toolchain }}'
+          rustc -vV
+          cargo --version
+
+      - name: Build and check experimental archives
+        shell: bash
+        env:
+          PYTHON: ${{ matrix.python }}
+          CMAKE_GENERATOR_PLATFORM: ${{ matrix.cmake_platform }}
+          SCO_SDK_NO_LUA: '1'
+          SCO_SDK_RUST: '1'
+        run: |
+          # Package outside the checkout so each development build sees a clean tree.
+          temp_dir="$RUNNER_TEMP"
+          if command -v cygpath >/dev/null; then temp_dir="$(cygpath -u "$temp_dir")"; fi
+          out="$temp_dir/rust-sdk-qualification"
+          mkdir -p "$out/legacy" "$out/profiles"
+          "$PYTHON" sdk/package.py --development --profile legacy --out "$out/legacy"
+          "$PYTHON" sdk/package.py --development --profile core --out "$out/profiles"
+          "$PYTHON" sdk/package.py --development --profile game-sc --out "$out/profiles"
+          if [[ "$RUNNER_OS" == macOS ]]; then
+            /bin/bash --version
+            /bin/bash sdk/test-zip.sh "$out"/legacy/sco-sdk-*.zip
+            /bin/bash sdk/test-zip.sh "$out"/profiles/sco-sdk-core-*.zip
+            /bin/bash sdk/test-zip.sh "$out"/profiles/sco-sdk-core-*.zip "$out"/profiles/sco-sdk-game-sc-*.zip
+          else
+            bash sdk/test-zip.sh "$out"/legacy/sco-sdk-*.zip
+            bash sdk/test-zip.sh "$out"/profiles/sco-sdk-core-*.zip
+            bash sdk/test-zip.sh "$out"/profiles/sco-sdk-core-*.zip "$out"/profiles/sco-sdk-game-sc-*.zip
+          fi

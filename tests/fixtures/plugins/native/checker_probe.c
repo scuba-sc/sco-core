@@ -186,6 +186,104 @@ static sco_result UseWidgets11(const sco_widgets_v1* w) {
 }
 #endif
 
+#if PROBE_MODE == PROBE_W11_CHECKED
+static const sco_widgets_v1* g_tag_widgets;
+static unsigned g_tag_expected, g_tag_seen;
+static const unsigned g_tag_modes[] = { 0, 1, 2, 3, 4 };
+
+static void TagCheck(int condition, const char* message) {
+    if (!condition) { g_wrong = 1; g_api->log(g_self, SCO_LOG_ERROR, message); }
+}
+
+static void TaggedEvent(const char* panel, const sco_widget_event* event, void* ctx) {
+    const unsigned mode = *(const unsigned*)ctx;
+    const sco_widget_event_1_4* tagged;
+    const char* borrowed;
+    sco_widget_node_1_2 changed;
+    ++g_tag_seen;
+    if (mode >= 3) {
+        TagCheck(event && event->size == (mode == 3 ? sizeof(sco_widget_event) : sizeof(sco_widget_event_1_1)),
+                 "tagged full replacement did not reset legacy event size");
+        return;
+    }
+    TagCheck(event && event->size >= sizeof(sco_widget_event_1_4), "tagged event tail missing");
+    if (!event || event->size < sizeof(sco_widget_event_1_4)) return;
+    tagged = (const sco_widget_event_1_4*)event;
+    if (mode != 0) {
+        TagCheck(event->node_id == 32 && event->kind == SCO_WIDGET_BUTTON && tagged->base.row == -1 && tagged->tag == NULL,
+                 "sticky tagged event target must carry null tag");
+        g_api->log(g_self, SCO_LOG_INFO, mode == 1 ? "tagged update retained null tag" : "tagged removal retained null tag");
+        return;
+    }
+    TagCheck(event->node_id == 31 && event->kind == SCO_WIDGET_LIST && tagged->base.row == 1 &&
+             tagged->tag && strcmp(tagged->tag, "probe.rows") == 0, "tagged event canonical identity mismatch");
+    borrowed = tagged->tag;
+    memset(&changed, 0, sizeof changed);
+    changed.base = Node11(SCO_WIDGET_LIST, 31, 30, "changed");
+    changed.base.base.size = sizeof changed;
+    changed.base.base.items = g_rows; changed.base.base.item_count = 3;
+    changed.tag = "probe.changed";
+    Expect("tagged callback update", g_tag_widgets->update_nodes(g_self, panel, &changed.base.base, 1, sizeof changed), SCO_OK);
+    TagCheck(borrowed && strcmp(borrowed, "probe.rows") == 0, "tagged event bytes changed during update");
+    Expect("tagged callback remove", g_tag_widgets->remove_panel(g_self, panel), SCO_OK);
+    TagCheck(borrowed && strcmp(borrowed, "probe.rows") == 0, "tagged event bytes expired during removal");
+    g_api->log(g_self, SCO_LOG_INFO, "tagged event size=48 tag=probe.rows reentrant preserved");
+}
+
+static sco_result UseTaggedEvents(const sco_widgets_v1* w) {
+    const void* table = NULL;
+    uint32_t caps[SCO_WIDGETS_CAPS_1_2] = { SCO_WIDGETS_CAPS_1_2 };
+    sco_widget_node_1_2 tree[3];
+    sco_widget_node_1_1 untagged;
+    sco_widget_node legacy, legacy_tree[2];
+    uint32_t removed = 33;
+    if (g_api->query_service(SCO_WIDGETS_NAME, SCO_WIDGETS_VERSION_1_4, &table) != SCO_OK || table != w ||
+        w->capabilities(g_self, caps) != SCO_OK || caps[0] != SCO_WIDGETS_CAPS_1_2 ||
+        (caps[SCO_WIDGETS_CAP_FEATURES] & (SCO_WIDGETS_FEATURE_STABLE_TAGS | SCO_WIDGETS_FEATURE_EVENT_TAG)) !=
+            (SCO_WIDGETS_FEATURE_STABLE_TAGS | SCO_WIDGETS_FEATURE_EVENT_TAG) || !caps[SCO_WIDGETS_CAP_MAX_TAG])
+        return SCO_UNAVAILABLE;
+    g_tag_widgets = w;
+    memset(tree, 0, sizeof tree);
+    tree[0].base = Node11(SCO_WIDGET_COLUMN, 30, 0, NULL);
+    tree[1].base = Node11(SCO_WIDGET_LIST, 31, 30, "rows");
+    tree[1].base.base.items = g_rows; tree[1].base.base.item_count = 3;
+    tree[1].tag = "probe.rows";
+    tree[2].base = Node11(SCO_WIDGET_BUTTON, 32, 30, "stale");
+    tree[0].base.base.size = tree[1].base.base.size = tree[2].base.base.size = sizeof tree[0];
+    Expect("set tagged events", w->set_panel(g_self, PROBE_ID ".tagged_events", "Tagged", &tree[0].base.base,
+           3, sizeof tree[0], TaggedEvent, (void*)&g_tag_modes[0]), SCO_OK);
+
+    tree[1] = tree[2]; tree[1].tag = "probe.old";
+    Expect("set tagged sticky update", w->set_panel(g_self, PROBE_ID ".sticky_update", "Sticky update", &tree[0].base.base,
+           2, sizeof tree[0], TaggedEvent, (void*)&g_tag_modes[1]), SCO_OK);
+    legacy_tree[0] = tree[0].base.base; legacy_tree[0].size = sizeof legacy_tree[0];
+    legacy_tree[1] = tree[1].base.base; legacy_tree[1].size = sizeof legacy_tree[1];
+    Expect("remove final tag and extended nodes by update", w->update_nodes(g_self, PROBE_ID ".sticky_update",
+           legacy_tree, 2, sizeof legacy_tree[0]), SCO_OK);
+
+    tree[1].tag = NULL;
+    tree[2].base = Node11(SCO_WIDGET_LABEL, 33, 30, "removed tag");
+    tree[2].base.base.size = sizeof tree[2]; tree[2].tag = "probe.removed";
+    Expect("set tagged sticky remove", w->set_panel(g_self, PROBE_ID ".sticky_remove", "Sticky remove", &tree[0].base.base,
+           3, sizeof tree[0], TaggedEvent, (void*)&g_tag_modes[2]), SCO_OK);
+    Expect("remove final tagged node", w->remove_nodes(g_self, PROBE_ID ".sticky_remove", &removed, 1), SCO_OK);
+
+    tree[1].base.base.parent = 0; tree[1].tag = "probe.reset";
+    Expect("set tagged reset 1.0", w->set_panel(g_self, PROBE_ID ".reset10", "Reset", &tree[1].base.base,
+           1, sizeof tree[1], TaggedEvent, (void*)&g_tag_modes[3]), SCO_OK);
+    legacy = tree[1].base.base; legacy.size = sizeof legacy;
+    Expect("full replacement 1.0", w->set_panel(g_self, PROBE_ID ".reset10", "Reset", &legacy,
+           1, sizeof legacy, TaggedEvent, (void*)&g_tag_modes[3]), SCO_OK);
+    Expect("set tagged reset 1.1", w->set_panel(g_self, PROBE_ID ".reset11", "Reset", &tree[1].base.base,
+           1, sizeof tree[1], TaggedEvent, (void*)&g_tag_modes[4]), SCO_OK);
+    untagged = Node11(SCO_WIDGET_BUTTON, 32, 0, "untagged");
+    Expect("full replacement 1.1", w->set_panel(g_self, PROBE_ID ".reset11", "Reset", &untagged.base,
+           1, sizeof untagged, TaggedEvent, (void*)&g_tag_modes[4]), SCO_OK);
+    g_tag_expected = 5;
+    return g_wrong ? SCO_FAILED : SCO_OK;
+}
+#endif
+
 #if PROBE_MODE == PROBE_W13_CHECKED
 static const sco_api* numeric_api;
 static sco_plugin* numeric_self;
@@ -284,10 +382,20 @@ SCO_EXPORT sco_result sco_plugin_load(const sco_api* api, sco_plugin* self) {
         api->log(self, SCO_LOG_INFO, "widgets 1.0 table: set_panel only");
         return SCO_OK;
     }
-    return UseWidgets11(w);
+    {
+        const sco_result result = UseWidgets11(w);
+        return result == SCO_OK ? UseTaggedEvents(w) : result;
+    }
 #else
 #error "unknown PROBE_MODE"
 #endif
 }
 
-SCO_EXPORT void sco_plugin_unload(void) {}
+SCO_EXPORT void sco_plugin_unload(void) {
+#if PROBE_MODE == PROBE_W11_CHECKED
+    if (g_tag_expected) {
+        TagCheck(g_tag_seen == g_tag_expected, "tagged event delivery count or stale-generation suppression mismatch");
+        if (!g_wrong) g_api->log(g_self, SCO_LOG_INFO, "tagged event probes 5/5");
+    }
+#endif
+}

@@ -11,6 +11,13 @@ fi
 CXX=${CXX:-$(command -v clang++ || command -v g++)}
 CC=${CC:-$(command -v clang || command -v gcc)}
 
+# Pure, synthetic exact-build selector: no game files or native activation.
+"$CC" -std=c11 -Wall -Wextra -Werror -I "$ROOT/include" -c "$ROOT/src/net/sha2.c" -o "$OUT/profile_sha2.o"
+"$CXX" -std=c++20 -Wall -Wextra -Werror -I "$ROOT/include" \
+  "$ROOT/tests/test_exact_build_profile.cpp" "$ROOT/src/game/exact_build_profile.cpp" \
+  "$OUT/profile_sha2.o" -o "$OUT/test_exact_build_profile"
+"$OUT/test_exact_build_profile" "$ROOT/tests/fixtures/exact_build_profile/fixture.synthetic.canonical.json"
+
 # Critical resolver boundaries also run under sanitizers in this standalone path.
 # The complete issue302 matrix is registered by CMake/CTest.
 RESOLVER_FLAGS=(-std=c++20 -O1 -g -Wall -Wextra -Werror -fsanitize=address,undefined -fno-omit-frame-pointer -I "$ROOT/include")
@@ -47,6 +54,14 @@ PYTHON=${PYTHON:-python3}
 clang   --target=x86_64-pc-windows-msvc -ffreestanding -std=c11   "${ABI[@]}" "$ROOT/tests/abi_storage.c"
 clang++ --target=x86_64-pc-windows-msvc -ffreestanding -std=c++20 "${ABI[@]}" -x c++ "$ROOT/tests/abi_storage.c"
 echo "abi_storage: layout pinned (C11, C++20, -fshort-enums, x86_64-pc-windows-msvc)"
+
+# The separate storage metadata table (tests/abi_storage_v2.c), the same five ways.
+"$CC"  -std=c11   "${ABI[@]}" "$ROOT/tests/abi_storage_v2.c"
+"$CXX" -std=c++20 "${ABI[@]}" -x c++ "$ROOT/tests/abi_storage_v2.c"
+"$CC"  -std=c11   "${ABI[@]}" -fshort-enums "$ROOT/tests/abi_storage_v2.c"
+clang   --target=x86_64-pc-windows-msvc -ffreestanding -std=c11   "${ABI[@]}" "$ROOT/tests/abi_storage_v2.c"
+clang++ --target=x86_64-pc-windows-msvc -ffreestanding -std=c++20 "${ABI[@]}" -x c++ "$ROOT/tests/abi_storage_v2.c"
+echo "abi_storage_v2: layout pinned (C11, C++20, -fshort-enums, x86_64-pc-windows-msvc)"
 # The sco.ui table (tests/abi_ui.c), the same five ways.
 "$CC"  -std=c11   "${ABI[@]}" "$ROOT/tests/abi_ui.c"
 "$CXX" -std=c++20 "${ABI[@]}" -x c++ "$ROOT/tests/abi_ui.c"
@@ -544,6 +559,8 @@ SQLITE_TSAN=$OUT/sqlite3_tsan.o
 "$CC" -std=gnu11 -O1 -g0 -w -fsanitize=thread "${SQLITE_DEFS[@]}" -c "$ROOT/third_party/sqlite/sqlite3.c" -o "$SQLITE_TSAN"
 "$CXX" "${FLAGS[@]}" -fsanitize=address,undefined "$ROOT/tests/test_storage.cpp" $(obj asan "$ROOT/src/storage/storage.cpp") "${HOST_ASAN[@]}" "$SQLITE_ASAN" -lm -o "$OUT/test_storage"
 "$OUT/test_storage" "$OUT"
+"$CXX" "${FLAGS[@]}" -fsanitize=address,undefined "$ROOT/tests/test_storage_metadata_sdk.cpp" "${HOST_ASAN[@]}" -lm -o "$OUT/test_storage_metadata_sdk"
+"$OUT/test_storage_metadata_sdk"
 "$CXX" "${FLAGS[@]}" -fsanitize=thread "$ROOT/tests/test_storage.cpp" $(obj tsan "$ROOT/src/storage/storage.cpp") "${HOST_TSAN[@]}" "$SQLITE_TSAN" -lm -o "$OUT/test_storage_tsan"
 "$OUT/test_storage_tsan" "$OUT"
 
@@ -877,6 +894,6 @@ if [ -f "$ROOT/src/game/host.cpp" ]; then
   cmake -S "$ROOT" -B "$OUT/game-host-reports" -DCMAKE_BUILD_TYPE=Debug \
     -DCMAKE_C_COMPILER="$CC" -DCMAKE_CXX_COMPILER="$CXX" \
     -DSCO_GAME_SC=ON -DSCO_BUILD_TESTS=ON -DSCO_SANITIZE=address,undefined
-  cmake --build "$OUT/game-host-reports" --target test_game_host_reports --parallel 4
-  ctest --test-dir "$OUT/game-host-reports" --output-on-failure -R '^game_host_report_'
+  cmake --build "$OUT/game-host-reports" --target test_game_host_reports test_legacy_quit_owner --parallel 4
+  ctest --test-dir "$OUT/game-host-reports" --output-on-failure -R '^(game_host_report_|legacy_quit_owner_)'
 fi

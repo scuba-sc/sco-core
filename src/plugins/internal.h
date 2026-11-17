@@ -7,6 +7,20 @@
 
 namespace sco::plugins::detail {
 
+// Process-wide loader admission. No mutex is held across plugin callbacks.
+bool BeginAppShutdown();
+void ResetAppShutdown();
+bool TryAppShutdownUnloadAll(std::vector<Plugin>& list, const ModuleOps& ops, const ScriptRuntime* runtime);
+class LoaderEntry {
+    bool entered_ = false;
+public:
+    LoaderEntry();
+    ~LoaderEntry();
+    LoaderEntry(const LoaderEntry&) = delete;
+    LoaderEntry& operator=(const LoaderEntry&) = delete;
+    explicit operator bool() const { return entered_; }
+};
+
 // plugin.ini [settings] (settings.cpp). A comment in a settings line starts at ';' or '#' outside
 // double quotes, at the start of the line or after a space or tab.
 std::string_view StripSettingsComment(std::string_view line);

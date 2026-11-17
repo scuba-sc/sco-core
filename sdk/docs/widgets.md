@@ -1,7 +1,8 @@
 # Widgets without renderer dependencies
 
 For new native plugin UI, use the host-owned `sco.widgets` service (1.0 with additive 1.1,
-1.2 and 1.3 extensions). Include
+1.2, 1.3 and 1.4 extensions). The 1.4 callback-tag behavior and its typed binding
+support are in unpublished 2.4.1 source and absent from stable SDK 2.4.0. Include
 `include/sco_widgets.h` (C) or `include/scosdk/widgets.hpp` (C++20); no renderer
 header, renderer library, GPU or game data is needed to build the example.
 Frozen `sco_api` 1.1 discovers the optional service with `query_service`.
@@ -123,8 +124,9 @@ copies the tag; it is not inline caller storage. The tag is
 a stable automation identifier, `[A-Za-z0-9._-]{1..63}`, NULL/empty means
 untagged. Tags are host metadata: they appear in panel snapshots (the C++
 `Node::tag`) so renderers, bridges and automation can target nodes by a name
-that survives node-id churn, but adapters never render them and event routing
-stays numeric. Tags are unique per panel: a `set_panel`/`update_nodes` whose
+that survives node-id churn. Adapters never render them; routing remains numeric.
+A 1.4 provider can also deliver the canonical target tag in callbacks, as below.
+Tags are unique per panel: a `set_panel`/`update_nodes` whose
 resulting tree would carry the same non-empty tag twice is `BAD_ARG` and
 leaves the panel untouched; a malformed tag (charset, over 63 bytes, nonzero
 reserved) is `BAD_ARG`. A host reports support with
@@ -151,17 +153,37 @@ the complete capabilities member before submitting this tail. The C++ wrapper's
 `"integer_percent"`) refuse an older or unsupported provider; they do not
 silently fall back to a double slider.
 
+## Canonical callback tags (1.4)
+
+In unpublished 2.4.1 source, a successful set/update containing a nonempty tag
+enters tagged-event mode. It persists through subtree updates/removals even when
+the last tag disappears; a full replacement resets the mode based on its new
+tree. Every callback in that mode carries a 48-byte `sco_widget_event_1_4`;
+its tag is the canonical target node's copied tag, or NULL for an untagged target.
+Tag-free legacy panels retain their 32/40-byte event behavior. Numeric IDs still
+route and validate events; tags are not labels.
+
+C callers requiring this guarantee query 1.4, guard the full extent and non-NULL
+pointer of every used method, and require both `SCO_WIDGETS_FEATURE_STABLE_TAGS`
+and `SCO_WIDGETS_FEATURE_EVENT_TAG` plus a usable `SCO_WIDGETS_CAP_MAX_TAG`
+from capabilities. Check `event->size >= sizeof(sco_widget_event_1_4)` before
+casting. The C event and tag are borrowed only for the callback, including during
+reentrant replacement/removal; copy them to retain them. C++
+`SetPanelTagged`/`UpdateNodesTagged` provide guarded routes for 1.2 node trees.
+Older or short/null providers cannot guarantee callback tags: unguarded raw calls
+may accept unknown tails while producing numeric-only events.
+
 ## Language coverage and legacy UI
 
-The typed C#/Lua 1.1/1.2/1.3 routes below describe current source/development kits.
-The published `sdk-v2.4.0-rc.1` archive retains its earlier bindings; use the
-documentation and wrappers from the same selected kit. Frozen plugin ABI 1.1
+The typed C#/Lua 1.4 routes below describe unpublished 2.4.1 source and are
+absent from stable SDK 2.4.0; use the documentation and wrappers from the same
+selected kit. Frozen plugin ABI 1.1
 is unchanged.
 
 C, C++20, C# and Lua support set/remove and the 1.1 update/remove subtree and
 capability routes. C/C++ submit extended records with the matching stride; the
 C++ wrapper checks complete tail member extents. Typed C# and Lua negotiate
-1.3, then 1.2, 1.1 and 1.0, falling back only for an absent/incompatible version.
+1.4, then 1.3, 1.2, 1.1 and 1.0, falling back only for an absent/incompatible version.
 Unsupported requested presentation features return an explicit refusal.
 All existing provider admission, thread and owner lifetime rules still apply.
 
@@ -198,8 +220,11 @@ loaded owner can use that state; reload requires a new panel submission.
 Index and other ordinary events set to -1. A paging event uses `WidgetKind.Page`
 and its new first row in `Row`; Page is never a valid node kind. Truncated tails,
 invalid fields, removed nodes and stale replacement contexts are dropped. The
-host generation controls pending events after partial updates. Tags remain
-metadata; numeric node IDs continue to route events.
+host generation controls pending events after partial updates. `WidgetEvent.Tag`
+is copied and validated against the retained target; it is null for an untagged
+target. A nonempty input tag requires 1.4 and both stable-tag and event-tag
+features with a usable maximum tag length; an unsupported provider is refused.
+Numeric node IDs continue to route events.
 
 The core archive includes `examples/cs_widgets` and its test driver:
 `dotnet run -c Release --project csharp/Sco.Sdk.Tests -- --widgets`.
@@ -228,8 +253,10 @@ use the native bounds and feature admission. Unknown fields still refuse.
 The optional `presentation` field accepts `"number"`, `"integer"`, or
 `"integer_percent"` and uses the 1.3 feature check.
 Extended events include `row` only after the complete 40-byte extent is present;
-PAGE has `kind="page"` and its new first row in `row`. Stable tags never replace
-numeric event IDs. Lua retains strings within its allocation budget and uses
+PAGE has `kind="page"` and its new first row in `row`. A nonempty input tag
+requires 1.4, stable-tag and event-tag features and a usable maximum tag length;
+unsupported providers are refused. `event.tag` is a copied validated tag when
+present, and omitted for untagged targets. Numeric IDs still route events. Lua retains strings within its allocation budget and uses
 opaque callback identities to reject callbacks from replaced panels or old
 owner sessions.
 

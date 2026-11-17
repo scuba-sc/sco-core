@@ -2,32 +2,33 @@
 
 ## Standalone developer-kit workflow
 
-**Stable SDK 2.4.0** is the published release for this workflow. Download the combined
-developer kit (`sco-sdk-2.4.0.zip`) from the [stable release page](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0)
-and verify its digest against that release's `SHA256SUMS` and the [recorded archive identity](releases/sdk-v2.4.0.md#stable-archive-identity).
-The downloaded archive's checksum must match the release's `SHA256SUMS`; the [release notes](releases/sdk-v2.4.0.md#stable-archive-identity)
-record its source and profile identities. A tag or candidate artifact alone does not establish publication.
+The current SDK release is the release for this workflow:
+
+<!-- release-block:current-release-brief -->
+SDK **2.4.1** uses Star Citizen game pack **0.8.1** (checked against Star Citizen
+Alpha 4.10.3, build 4.10.200.58746; see [game builds](../docs/game/builds.md)) and plugin ABI **1.1**. Archives and their digests are on the
+[`sdk-v2.4.1` release page](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.1); the [release notes](https://github.com/scuba-sc/sco-core/blob/sdk-v2.4.1/docs/releases/sdk-v2.4.1.md) list what changed.
+<!-- /release-block:current-release-brief -->
+
+Download the combined developer kit from that release page and verify its digest against that
+release's `SHA256SUMS`. A tag or candidate artifact alone does not establish a release.
 The combined kit, composed
 core-plus-game overlay and host-source kit supply the discovery launcher,
 `sdk-catalogue.json` and `sdk-guides.json`. This is packaging behavior, not a
 gameplay acceptance claim. Core-only profiles do not contain the game catalogue.
 
-For the published RC1 route, verify the combined kit (`sco-sdk-2.4.0.zip`)
-against RC1 `SHA256SUMS` and retain its compatibility inventory. RC1 provides six
-default discovery tools, or twelve with `--extended-tools`; it does not provide
-the workflow bundle described below.
-
-The complete workflow uses the published stable combined kit, which includes the
-matching catalogue and workflow index. Verify the archive against stable `SHA256SUMS`
+The complete workflow uses the SDK <!--rv:sdk_version-->2.4.1<!--/rv--> combined kit, which includes the
+matching catalogue and workflow index. Verify the archive against the release's `SHA256SUMS`
 and extract it to an empty directory. For a source checkout, build matching
 metadata as described in the
 [discovery README](../tools/sco-core-mcp/README.md) and
 [workflow guide](agent-workflows.md#archive-and-source-discovery). A local build
 is not the published release asset or permission to distribute it. Do not pair
-RC1 or RC2 archive bytes with the site's changing mainline catalogue or a different index.
+a release archive's bytes with the site's changing mainline catalogue or a different index.
 
-Prerequisites for discovery: Python 3.9 or newer and a stdio MCP client supporting
-protocol `2025-11-25`. Building a scaffold additionally needs CMake 3.20+ and a
+Prerequisites for discovery: Python 3.9 or newer and a stdio MCP client. The
+SDK <!--rv:sdk_version-->2.4.1<!--/rv--> kit supports legacy protocol `2025-11-25` and the metadata-based protocol
+`2026-07-28`. Building a scaffold additionally needs CMake 3.20+ and a
 64-bit C/C++ compiler (for a `csharp` scaffold, the .NET 8 SDK and the NativeAOT
 toolchain; a `lua` scaffold builds only `sco-plugin-check`). Clang is required to produce a source catalogue, not to
 consume a bundled one.
@@ -35,43 +36,40 @@ consume a bundled one.
 ### Connect the client
 
 Follow [Set up the discovery server from the SDK kit](agent-integration.md#set-up-the-discovery-server-from-the-sdk-kit),
-using the published stable SDK 2.4.0 combined kit for the steps below. Set
+using the SDK <!--rv:sdk_version-->2.4.1<!--/rv--> combined kit for the steps below. Set
 `SDK_ROOT` to the folder that directly contains its `sdk-catalogue.json` and
 `sdk-workflows.json`; register `sco-core-sdk` in your client and verify the
-connection. The stable SDK 2.4.0 archive uses the **SDK developer profile**: fifteen
+connection. The SDK <!--rv:sdk_version-->2.4.1<!--/rv--> archive uses the **SDK developer profile**: fifteen
 read-only tools by default, including `get_service_status` and its schema-2 catalogue.
-Historical RC2 has fourteen and predates that tool/schema. Explicit `--minimal-tools` retains the six catalogue tools and
+Explicit `--minimal-tools` retains the six catalogue tools and
 leaves out scaffolding, validation, native/guide and workflow discovery. The
 legacy `--extended-tools` and `--workflow-tools` aliases are no longer needed.
-The published RC1 server is unchanged: append `--extended-tools` for its twelve
-tools; workflow tools and the fifteen-tool default are in the stable 2.4.0 kit.
 
 To start the server by hand, with absolute paths on the machine running the client:
 
 ```sh
-python3 /absolute/path/to/sdk-2.4.0-root/tools/sco-core-mcp/server.py \
-  --catalogue /absolute/path/to/sdk-2.4.0-root/sdk-catalogue.json \
-  --repo-root /absolute/path/to/sdk-2.4.0-root
+python3 /absolute/path/to/sdk-root/tools/sco-core-mcp/server.py \
+  --catalogue /absolute/path/to/sdk-root/sdk-catalogue.json \
+  --repo-root /absolute/path/to/sdk-root
 ```
 
 This command waits for MCP messages on stdin; it is not a shell prompt. On
 Windows use `py -3` with drive-qualified paths, for example
-`C:/absolute/path/to/sdk-2.4.0-root/tools/sco-core-mcp/server.py`. On macOS/Linux use
+`C:/absolute/path/to/sdk-root/tools/sco-core-mcp/server.py`. On macOS/Linux use
 `python3`, or an absolute Python executable if the client does not inherit shell `PATH`.
 
-The stable release's fifteen default tools do not add runtime access; list their exact names in
-client allowlists. Current-source schema-2 catalogues also bind static status rows to
+The release's fifteen default tools do not add runtime access; list their exact names in
+client allowlists. Schema-2 catalogues also bind static status rows to
 the registry bytes. A root permits bounded example/metadata reads and lets the scaffold
 tool, and the guide tools when no `sdk-guides.json` is present, execute that root's
 reviewed generator code in-process.
 
 ### Start with the roadmap workflow
 
-On the stable SDK 2.4.0 kit call `list_workflows {}`, then
+On the SDK <!--rv:sdk_version-->2.4.1<!--/rv--> kit call `list_workflows {}`, then
 `get_workflow {"id":"sco-plan-sdk-work"}`. Read its returned references as needed,
 map the task to the pinned roadmap goal and public contracts, and record observable
-acceptance before continuing below. This workflow bundle is absent from published
-RC1. If the default index is missing, the names remain listed but return
+acceptance before continuing below. If the default index is missing, the names remain listed but return
 `Workflow index unavailable`; obtain or build matching index bytes rather than
 combining snapshots. A selected missing or present invalid/mismatched index
 refuses startup. These tools serve embedded reference text and execute no code.
@@ -201,12 +199,7 @@ more hits. The kit's `sdk-guides.json` beside its catalogue answers these calls;
 its `guides.source_sha` should equal the catalogue's. A section's text stops at
 4000 characters (`truncated: true`); read the rest at its `url`. Guide prose is
 not a contract record: confirm a method with `get_symbol` before relying on it.
-Nothing in a guide is evidence that code ran in game. The guides inside the release
-candidate 1 kit predate its publication and can say that 2.4.0 is not on the release
-page, and their `url` values name a previous docs-site address that no longer opens
-(use `scuba-sc.github.io` with the same path). The docs site supersedes them (see the
-known issue in
-[the setup section](agent-integration.md#set-up-the-discovery-server-from-the-sdk-kit)).
+Nothing in a guide is evidence that code ran in game.
 
 ### Build and check outside MCP
 
@@ -317,12 +310,28 @@ manifest. DataCore changes can also require restart. See [plugin lifecycle and
 hot reload](plugins.md#hot-reload); native plugins are not sandboxed and a fault
 has no promised safe in-process recovery. **Not run in game.**
 
+<a id="previous-release-sdk-240"></a>
+
+## Previous release: SDK 2.4.0 notes
+
+These notes applied to the SDK 2.4.0 archives and their release candidates and are kept
+for reference. The stable 2.4.0 combined kit (`sco-sdk-2.4.0.zip`) is verified against that
+release's `SHA256SUMS` and the [recorded archive identity](releases/sdk-v2.4.0.md#stable-sdk-240-archive-identities).
+The stable 2.4.0 archive had fifteen default discovery tools and workflow discovery;
+its server supports legacy protocol `2025-11-25` only. Release candidate 1 provides six
+default discovery tools, or twelve with `--extended-tools`, and no workflow bundle;
+release candidate 2 has fourteen default tools and predates `get_service_status` and
+the schema-2 catalogue. The guides inside the RC1 kit predate its publication and can say
+that 2.4.0 is not on the release page; their `url` values name a previous docs-site
+address that no longer opens (use `scuba-sc.github.io` with the same path). Do not pair
+RC1 or RC2 archive bytes with the site's mainline catalogue or a different index.
+
 ## Historical downstream NPC/inspector walkthrough
 
 The following workflow uses a separate sc-offline checkout and downstream proof
 helpers. It is not a prerequisite for the standalone kit workflow above. Its
 commands and external fixtures require verification against that downstream
-revision; the evidence ledger below does not certify the 2.4.0 release candidate archive path.
+revision; the evidence ledger below does not certify the release archive path.
 
 This command-first tutorial creates **your own** `tutorial_npc` and
 `tutorial_inspector` folders from sc-offline's public-SDK consumers. These IDs do
@@ -357,8 +366,9 @@ python3 tools/sco-core-mcp/tutorial.py --catalogue dist/sdk-catalogue.json \
 ```
 
 The transcript contains real requests/responses to the existing `server.py`
-launcher over stdio, using protocol `2025-11-25`, without a runtime flag or
+launcher over stdio, deliberately using legacy protocol `2025-11-25`, without a runtime flag or
 repository-content sharing. Pass condition: `static MCP tutorial: PASS`.
+Current source also accepts modern `2026-07-28` requests with per-request metadata.
 `check_compatibility` compares the catalogue with the checkout's own `sdk/VERSION`
 and `SCO_GAME_PACK_VERSION` by default. To check the catalogue against the archive
 you will build with (section 2), pass that archive's `VERSION` as `--sdk-version`
@@ -476,18 +486,23 @@ marker only by explicit owner choice. Tutorial folders are not shipped defaults.
 Use only the existing offline launcher, never official connectivity or EAC
 manipulation. Unknown offline/admission state means no mutation.
 
-Through the host's game-thread command registry, the owner invokes
-`tutorial_npc.spawn <owner-chosen-archetype> 1`, `.observe`, `.remove <owned-id>`
-and `.clear`; `tutorial_inspector.read` is read-only. `synthetic_actor` belongs
-only to fixtures, not the game. Removal success means initiation, not disappearance;
+The command registry is not itself a console or UI. The inspected sc-offline
+development candidate does not establish a generic command-entry route and
+refuses native activation while lifetime safety is unverified. For a compatible
+build with a verified host-specific caller or plugin-defined surface, the
+example commands are `tutorial_npc.spawn <owner-chosen-archetype> 1`, `.observe`,
+`.remove <owned-id>` and `.clear`; `tutorial_inspector.read` is read-only.
+Commands execute on the game thread. `synthetic_actor` belongs only to fixtures,
+not the game. Removal success means initiation, not disappearance;
 `alive=0` is not death, removal or authority. Only actors-owned IDs may be removed
 through `game.actors`. Missing services have no private fallback; maximum health
 zero stays unknown.
 
-For a normal command-only external consumer, `sco.reload tutorial_inspector` or
-`sco.reload tutorial_npc` unloads/reloads through the existing host route. Check
-command withdrawal/re-registration and NPC owner cleanup with the exact host/game
-build. Rebuild/replace files only with the DLL unloaded or game closed. Folder
+If that running host provides a verified caller, `sco.reload tutorial_inspector`
+or `sco.reload tutorial_npc` requests reload through the host command registry;
+registration alone does not supply a product UI. Check command withdrawal and
+re-registration and NPC owner cleanup with the exact host/game build.
+Rebuild/replace files only with the DLL unloaded or game closed. Folder
 disable takes effect at next start; `plugins = off` blocks external features.
 Queried native **providers** can be session-lifetime/restart-only; DataCore changes
 need restart; built-ins cannot be hot-reloaded. A native fault is restart-required,
@@ -497,8 +512,8 @@ command invocation or gameplay mutation.
 ## Optional runtime observations — default OFF, separate acceptance
 
 The historical walkthrough above uses **only the six static discovery tools** (the
-minimal profile when explicitly launched with `--minimal-tools`); stable SDK 2.4.0 offers
-fifteen default discovery tools and historical RC2 offers fourteen. Runtime MCP is an optional independently implemented/reviewed
+minimal profile when explicitly launched with `--minimal-tools`); the SDK <!--rv:sdk_version-->2.4.1<!--/rv--> kit offers
+fifteen default discovery tools. Runtime MCP is an optional independently implemented/reviewed
 feature under
 [runtime MCP design](design/runtime-mcp.md); do not enable it to make the example
 compile. The default launcher advertises no `runtime_*` names. Consult `tools/list`

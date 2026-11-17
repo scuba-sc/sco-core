@@ -162,6 +162,85 @@ class SpdxIdentifiers(unittest.TestCase):
         self.assertNotEqual(a["documentNamespace"], document("a" * 40, "2")["documentNamespace"])
 
 
+class UnresolvedPrecedence(unittest.TestCase):
+    """A matching dispute blocks even when an earlier attribution wins."""
+
+    def test_matching_rules_agree_between_audit_and_packager(self):
+        for pattern, path, expected in (
+            ("include/**", "include/sco_api.h", True),
+            ("include/**", "include-extra/sco_api.h", False),
+            ("*container_contents*", "tests/test_container_contents.cpp", False),
+            ("*container_contents*", "test_container_contents.cpp", True),
+            ("tests/*container_contents*", "tests/test_container_contents.cpp", True),
+        ):
+            with self.subTest(pattern=pattern, path=path):
+                self.assertEqual(audit.match([{"path": pattern}], path) is not None, expected)
+                self.assertEqual(pkg.provenance_matches(pattern, path), expected)
+
+    def test_shadowed_unresolved_blocks_repository_package_and_zip_audit(self):
+        scratch = Scratch()
+        try:
+            path = "include/sco_api.h"
+            with tempfile.TemporaryDirectory(prefix="ip-precedence-") as dest:
+                archive = package(scratch.dir, "core", os.path.join(dest, "before"))
+                dev_dir = os.path.join(dest, "development-before")
+                initial = subprocess.run([sys.executable, scratch.path("sdk/package.py"),
+                                          "--development", "--profile", "core", "--out", dev_dir],
+                                         text=True, capture_output=True, cwd=scratch.dir)
+                self.assertEqual(initial.returncode, 0, initial.stdout + initial.stderr)
+                development_archive, = [os.path.join(dev_dir, n) for n in os.listdir(dev_dir) if n.endswith(".zip")]
+                def add_dispute(doc):
+                    self.assertEqual(audit.match(doc["entries"], path)["status"], "reviewed")
+                    doc["entries"].append({"path": path, "origin": "project-authored",
+                                           "license": "GPL-3.0-only", "copyright": "test holder",
+                                           "status": "unresolved", "issue": "synthetic dispute"})
+                scratch.edit_json(audit.PROVENANCE, add_dispute)
+                with open(scratch.path(audit.PROVENANCE), encoding="utf-8") as f:
+                    provenance = json.load(f)
+                with open(scratch.path("REUSE.toml"), "w", encoding="utf-8") as f:
+                    f.write(audit.reuse_toml(provenance["entries"]))
+                code, output = run("repo", root=scratch.dir)
+                self.assertEqual(code, 1, output)
+                self.assertIn(f"{path}: provenance unresolved", output)
+                code, output = run("zip", archive, "--profile", "core", root=scratch.dir)
+                self.assertEqual(code, 1, output)
+                self.assertIn(f"({path}): provenance unresolved", output)
+                target = os.path.join(dest, "after")
+                result = subprocess.run([sys.executable, scratch.path("sdk/package.py"),
+                                         "--profile", "core", "--out", target],
+                                        text=True, capture_output=True, cwd=scratch.dir)
+                self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertIn("unresolved provenance", result.stdout + result.stderr)
+                self.assertFalse(os.path.isdir(target) and any(n.endswith(".zip") for n in os.listdir(target)))
+                subprocess.run(["git", "-C", scratch.dir, "add", audit.PROVENANCE, "REUSE.toml"], check=True)
+                subprocess.run(["git", "-C", scratch.dir, "-c", "user.name=test",
+                                "-c", "user.email=fixture", "commit", "-qm", "synthetic dispute"],
+                               check=True)
+                code, output = run("zip", development_archive, "--profile", "core", "--development",
+                                   root=scratch.dir)
+                self.assertNotEqual(code, 0, output)
+                self.assertIn("unresolved provenance", output)
+        finally:
+            scratch.close()
+
+    def test_unmatched_unresolved_rule_does_not_block_existing_files(self):
+        scratch = Scratch()
+        try:
+            def add_unmatched(doc):
+                doc["entries"].append({"path": "docs/not-a-tracked-synthetic-file.md",
+                                       "origin": "project-authored", "license": "GPL-3.0-only",
+                                       "copyright": "test holder", "status": "unresolved"})
+            scratch.edit_json(audit.PROVENANCE, add_unmatched)
+            with open(scratch.path(audit.PROVENANCE), encoding="utf-8") as f:
+                provenance = json.load(f)
+            with open(scratch.path("REUSE.toml"), "w", encoding="utf-8") as f:
+                f.write(audit.reuse_toml(provenance["entries"]))
+            code, output = run("repo", root=scratch.dir)
+            self.assertEqual(code, 0, output)
+        finally:
+            scratch.close()
+
+
 class ReuseGeneration(unittest.TestCase):
     def test_distinct_copyright_holders_remain_separate(self):
         import tomllib
@@ -934,6 +1013,56 @@ class Negative(unittest.TestCase):
         code, out = run("release", "--approval", s.path(path), "--tag", "sdk-v9.9.9", root=s.dir)
         self.assertEqual(code, 1, out)
         self.assertIn("changed since outside", out)
+
+
+class DevelopmentAudit(unittest.TestCase):
+    def test_development_audit_rejects_mode_only_tampering(self):
+        with tempfile.TemporaryDirectory(prefix="dev-mode-audit-") as out, \
+             mock.patch.object(pkg, "require_clean_development_source"), \
+             mock.patch.object(audit, "load_package", return_value=pkg):
+            archive = pkg.build(pkg.load_manifest(), "core", out, development=True)
+            self.assertEqual(audit.audit_zip(archive, "core", development=True).failures, [])
+            bad = os.path.join(out, "wrong-mode.zip")
+            changed = False
+            with zipfile.ZipFile(archive) as src, zipfile.ZipFile(bad, "w") as dst:
+                for info in src.infolist():
+                    data = src.read(info)
+                    if info.filename.endswith("/include/sco_api.h"):
+                        self.assertEqual(info.external_attr >> 16, 0o100644)
+                        info.external_attr = 0o100755 << 16
+                        changed = True
+                    dst.writestr(info, data)
+            self.assertTrue(changed)
+            report = audit.audit_zip(bad, "core", development=True)
+            self.assertTrue(any("ZIP mode differs from exact development source" in failure
+                                for failure in report.failures), report.failures)
+
+    def test_explicit_development_audit_binds_source_and_rejects_tampering(self):
+        with tempfile.TemporaryDirectory(prefix="dev-audit-") as out, \
+             mock.patch.object(pkg, "require_clean_development_source"), \
+             mock.patch.object(audit, "load_package", return_value=pkg):
+            archive = pkg.build(pkg.load_manifest(), "core", out, development=True)
+            report = audit.audit_zip(archive, "core", development=True)
+            self.assertEqual(report.failures, [])
+            self.assertTrue(any(c["check"] == "development identity and generated metadata" for c in report.checks))
+            self.assertTrue(audit.audit_zip(archive, "core").failures, "release mode must not accept development VERSION")
+            bad = os.path.join(out, "altered.zip")
+            def mutate(entries):
+                top = next(iter(entries)).split("/", 1)[0]
+                name = top + "/COMPATIBILITY.json"
+                desc = json.loads(entries[name])
+                desc["source_commits"]["core"] = "f" * 40
+                entries[name] = pkg.json_bytes(desc)
+                refresh_generated_metadata(entries, "core")
+            rezip(archive, bad, mutate)
+            bad_report = audit.audit_zip(bad, "core", development=True)
+            self.assertTrue(any("development version or source mismatch" in f for f in bad_report.failures), bad_report.failures)
+
+    def test_development_audit_refuses_dirty_source(self):
+        with mock.patch.object(audit, "load_package", return_value=pkg), \
+             mock.patch.object(pkg, "require_clean_development_source", side_effect=pkg.ManifestError("dirty source")):
+            with self.assertRaisesRegex(audit.AuditError, "dirty source"):
+                audit.audit_zip("unused.zip", "core", development=True)
 
 
 if __name__ == "__main__":

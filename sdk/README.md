@@ -6,11 +6,23 @@ Build plugins for [sc-offline](https://github.com/scuba-sc/sc-offline), the Star
 
 | Kind | What it is | Example |
 |---|---|---|
-| `native` | A 64-bit Windows DLL written in C against `sco_api.h`, in C++20 with the `include/scosdk/` headers, or in C# with `csharp/Sco.Sdk` (NativeAOT) | [`examples/hello`](examples/hello), [`examples/cpp_hello`](examples/cpp_hello), [`examples/cs_hello`](examples/cs_hello); two plugins sharing a service: [`examples/counter_service`](examples/counter_service) and [`examples/counter_panel`](examples/counter_panel) |
+| `native` | A 64-bit Windows DLL written in C against `sco_api.h`, in C++20 with the `include/scosdk/` headers, or in C# with `csharp/Sco.Sdk` (NativeAOT). Current development core and combined plugin kits also include experimental raw Rust bindings. | [`examples/hello`](examples/hello), [`examples/cpp_hello`](examples/cpp_hello), [`examples/cs_hello`](examples/cs_hello), [`examples/rust_hello`](examples/rust_hello); two plugins sharing a service: [`examples/counter_service`](examples/counter_service) and [`examples/counter_panel`](examples/counter_panel) |
 | `data` | Files only: missions, rules, scripts, lists and game-data overrides (`datacore\*.toml`). Runs no code | [`examples/travel_pack`](examples/travel_pack), [`examples/quantum_pack`](examples/quantum_pack) |
 | `lua` | A Lua 5.4 script, run in a sandbox by sc-offline's bundled Lua runtime | [`examples/greeter`](examples/greeter), [`examples/notebook`](examples/notebook) (storage) |
 
-> **Stable SDK 2.4.0**, Star Citizen game pack **0.8.0**, plugin ABI **1.1** unchanged. The stable [`sdk-v2.4.0` release](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0) was published on 2026-11-01 from source `6106fa3639cbcc28f78a1ded8de2707de019f4d3`; it provides five profile archives with `SHA256SUMS` and `release.json` ([archive identities](../docs/releases/sdk-v2.4.0.md#stable-archive-identity)). Check `COMPATIBILITY.json`, the archive checksum and source revision for the kit in hand. RC1 and RC2 are historical releases; their archive bytes remain unchanged. This current source guide does not rewrite the published archive snapshot. An archive built locally is not a release asset. The ABI only grows, but plugins must still check service versions, sized extents, capabilities and manifest requirements. In sc-offline, plugin loading is on by default (`plugins = on` in `sc-offline.ini`); optional folders can ship disabled. That product default is not kernel policy. See the [SDK/MCP tutorial](../docs/sdk-mcp-tutorial.md).
+> **Identify the kit in hand:** check `COMPATIBILITY.json` for its versions, profile and source revisions (`COMPATIBILITY.json.game-sc` for the standalone game overlay). Where present, the SDK version is also in `VERSION`, or `sdk/VERSION` in source-layout kits. A development archive can have different coordinates from the published stable release and is not itself a release asset.
+
+<!-- release-block:current-release -->
+SDK **2.4.1** uses Star Citizen game pack **0.8.1** (checked against Star Citizen
+Alpha 4.10.3, build 4.10.200.58746; see [game builds](../docs/game/builds.md)) and plugin ABI **1.1**. Download it from the
+[`sdk-v2.4.1` release page](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.1) and verify each archive against that release's
+`SHA256SUMS`; the [release notes](https://github.com/scuba-sc/sco-core/blob/sdk-v2.4.1/docs/releases/sdk-v2.4.1.md) list what changed. The previous release is
+[SDK 2.4.0](https://github.com/scuba-sc/sco-core/blob/sdk-v2.4.0/docs/releases/sdk-v2.4.0.md).
+<!-- /release-block:current-release -->
+
+> The release provides five profile archives with `SHA256SUMS` and `release.json`; an earlier release's archive bytes are unchanged. The ABI only grows, but plugins must still check service versions, sized extents, capabilities and manifest requirements. In sc-offline, plugin loading is on by default (`plugins = on` in `sc-offline.ini`); optional folders can ship disabled. That product default is not kernel policy. See the [SDK/MCP tutorial](../docs/sdk-mcp-tutorial.md).
+
+> **Repository-source context at this documentation revision:** the full source tree records `sdk/VERSION` as <!--rv:sdk_version-->2.4.1<!--/rv-->, `sdk/DEVELOPMENT_VERSION` as the next development coordinate, and `include/sc_game_pack.h` as game pack <!--rv:game_pack_version-->0.8.1<!--/rv-->. These are source inputs, not universal extracted-kit contents. Opt-in development packaging writes the selected development coordinate to the generated kit `VERSION` and metadata and excludes `sdk/DEVELOPMENT_VERSION`; the game-neutral `core-source` kit omits the game header. SDK 2.4.0 used game pack 0.8.0. Since SDK 2.4.1 the SDK includes separate [`sco.storage.metadata` 2.0](../docs/storage-metadata.md) and [`sco.widgets` 1.4 tagged events](../docs/design/widgets.md#tagged-events-and-old-provider-refusal-14); these features are absent from SDK 2.4.0. These source and synthetic-test facts do not establish native activation, product-host availability or in-game acceptance. For an extracted kit, use its own `COMPATIBILITY.json`, `VERSION`/`VERSIONS.txt`, available indexes and checksums to establish what it contains.
 
 **Native plugins run with the game's full rights.** Only install plugins you trust; sc-offline doesn't review them. Plugins never connect to Cloud Imperium Games' servers; the only connections allowed are local IPC (`sco.ipc`) and private LAN/VPN co-presence through `sco.net`, both host services: see [Plugin rules](docs/plugin-rules.md).
 
@@ -19,14 +31,16 @@ Build plugins for [sc-offline](https://github.com/scuba-sc/sc-offline), the Star
 | Path | What |
 |---|---|
 | `include/sco_api.h` | The frozen root plugin ABI; include public service headers for the services used |
-| `include/sco_*.h` | The host services' tables: `sco_storage.h`, `sco_ui.h`, `sco_ui_surfaces.h`, `sco_widgets.h`, `sco_settings.h`, `sco_ipc.h`, `sco_net.h` (core); `sco_datacore.h` (Star Citizen extension) |
+| `include/sco_*.h` | The host services' tables: `sco_storage.h`, `sco_ui.h`, `sco_ui_surfaces.h`, `sco_widgets.h`, `sco_settings.h`, `sco_ipc.h`, `sco_net.h` (core). Since SDK 2.4.1 the SDK adds `sco_storage_v2.h` for separate `sco.storage.metadata` 2.0 ([contract and limits](../docs/storage-metadata.md)); it is absent from SDK 2.4.0. The game-capable extension also has `sco_datacore.h` |
 | `include/sc_*.h` | Core: the MIT wires and bridge layouts (`sc_ipc.h`, `sc_net.h`, `sc_titanlink.h`, `sc_voxel_bridge.h`). Star Citizen extension: the game pack's service tables and events (`sc_spatial.h`, `sc_spawn.h`, `sc_actors.h`, `sc_vehicles.h`, `sc_world.h`, `sc_entities.h`, `sc_creative.h`, `sc_game_events.h`; [game services](../docs/game-services.md), [status](../docs/game/status.md)) and its version (`sc_game_pack.h`) |
 | `include/scosdk/` | The C++20 layer over `sco_api.h`, header-only: [C++ plugins](#c-plugins). `scosdk/game/` and `scosdk/datacore.hpp` come with the Star Citizen extension |
-| `csharp/` | The C# layer (`Sco.Sdk`, .NET 8, NativeAOT) and its layout test: [C# plugins](#c-plugins-1). `Sco.Sdk/Game/`, `DataCore*.cs` and the tests' `Game*.cs` come with the Star Citizen extension; the project compiles whichever are present |
+| `rust/` | Experimental raw Rust bindings and a native example in the core and combined plugin kits since SDK 2.4.1; see [Rust plugin support](rust/README.md). The standalone source kits, game overlay and SDK 2.4.0 archives do not contain them. The broader Rust refactor is deferred to 2.5.0 |
+| `csharp/` | The C# layer (`Sco.Sdk`, .NET 8, NativeAOT) and its layout test: [C# plugins](#c-plugins). `Sco.Sdk/Game/`, `DataCore*.cs` and the tests' `Game*.cs` come with the Star Citizen extension; the project compiles whichever are present |
 | `cmake/sco-plugin.cmake` | `sco_add_plugin()` and `sco_add_pack()`: build a plugin and lay it out |
 | `template/` | A native plugin to copy and rename |
 | `examples/` | `hello` (native C), `counter_service` and `counter_panel` (native C: a provider and a consumer of one service table), `widgets` (native C, retained neutral UI), `cpp_hello` (native C++20), `cs_hello` (native C#, NativeAOT), `greeter` (Lua), `notebook` (Lua: storage with `sco.store`); the Star Citizen extension adds `travel_pack` (data) and `quantum_pack` (data: DataCore overrides) |
 | `tools/sco-plugin-check.c` | Checks a built plugin folder on your machine, without the game |
+| `tools/sco-plugin-verify.py` | Read-only check of a plugin ZIP's structure and manifest, without extracting it: [Verify a plugin archive](#verify-a-plugin-archive) |
 | `tools/lua-check.lua` | Runs a Lua plugin against a stand-in `sco` table, without the game |
 | `docs/` | [plugin.ini](docs/plugin-ini.md), [data packs](docs/data-packs.md), [Lua](docs/lua.md), [plugin rules](docs/plugin-rules.md), [API reference](../docs/api-v1.md), [C++ SDK](../docs/sdk-cpp.md), [C# SDK](../docs/sdk-csharp.md) |
 | `VERSIONS.txt` | The kernel, plugin ABI and game-pack versions and the verified game builds (in the zip only). The extension zip keeps its own as `VERSIONS.txt.game-sc`, so unpacking it over the core overwrites nothing |
@@ -44,10 +58,16 @@ public headers of a profile).
 | Zip | Holds |
 |---|---|
 | `sco-sdk-core-source-<version>.zip` | Kernel source-development kit in repository layout: host/runtime, loaders, required vendored Lua/SQLite, CMake build, tools and synthetic tests. Build with `-DSCO_GAME_SC=OFF`; no game implementation, game ABI headers, game layout pins or game-contract fixtures |
-| `sco-sdk-host-source-sc-<version>.zip` | Standalone Star Citizen host source in repository layout: all `core-source` components plus complete game implementation, DataCore, headers and synthetic test dependencies. Build with `-DSCO_GAME_SC=ON`; [host-source guide](../docs/host-source-sc.md). Published in SDK 2.4.0 release candidate 1 (`sdk-v2.4.0-rc.1`) |
-| `sco-sdk-core-<version>.zip` | The game-neutral SDK: `sco_api.h`, the host services, the C++, C# and Lua layers, the generic examples and tools. Its version is `sdk/VERSION` alone |
+| `sco-sdk-host-source-sc-<version>.zip` | Standalone Star Citizen host source in repository layout: all `core-source` components plus complete game implementation, DataCore, headers and synthetic test dependencies. Build with `-DSCO_GAME_SC=ON`; [host-source guide](../docs/host-source-sc.md). Published first in SDK 2.4.0 RC1 and included in the SDK 2.4.0 and 2.4.1 releases ([2.4.0 archive identities](../docs/releases/sdk-v2.4.0.md#stable-archive-identity)) |
+| `sco-sdk-core-<version>.zip` | The game-neutral SDK: `sco_api.h`, the host services, the C++, C# and Lua layers, the generic examples and tools. Normal packages take their coordinate from source `sdk/VERSION`; opt-in development packages read source `sdk/DEVELOPMENT_VERSION`, write the selected value to the generated kit `VERSION` and metadata, and exclude `sdk/DEVELOPMENT_VERSION` |
 | `sco-sdk-game-sc-<game pack version>.zip` | The optional Star Citizen extension: the game pack's tables and events, DataCore, their C++ and C# wrappers, `travel_pack` and `quantum_pack`. Unpack it over the core SDK its `VERSIONS.txt.game-sc` names; it keeps its own `VERSIONS.txt.game-sc` and `SHA256SUMS.game-sc`, so nothing of the core is overwritten |
 | `sco-sdk-<version>.zip` | Both in one zip, the shape `sdk-v1.1.0` shipped. Releases use it until consumers move to the two zips |
+
+A locally built normal package can share the published stable archive's version
+and filename without having identical bytes. Stable release identity requires
+matching the archive digest recorded in the published release's `SHA256SUMS`;
+version or filename alone is not enough. The `core-source` profile is game-neutral
+and does not include `include/sc_game_pack.h`, so it has no game-pack coordinate.
 
 The `core-source` and `host-source-sc` kits exclude the separately packaged runtime MCP
 peer. Keep `SCO_BUILD_RUNTIME_MCP=OFF` in these kits; building that peer requires a full
@@ -100,16 +120,21 @@ it ships from SDK 2.1.0. Frozen plugin ABI 1.1 is unchanged.
 ## Renderer-neutral widget UI
 
 New plugins use `sco.widgets` (`sco_widgets.h`, `scosdk/widgets.hpp`), with a 1.0
-base and additive 1.1/1.2 extensions:
+base and additive versions through 1.4 in the current source:
 retained copied trees, typed game-thread events and no plugin renderer linkage.
 The [widget guide](docs/widgets.md) and `examples/widgets` show all eight widgets
 plus ROW/COLUMN layout with synthetic data. `sco-plugin-check` supplies deterministic
-headless interaction coverage. Current source/development kits include typed C#
-and Lua subtree update/removal, capabilities, tooltip/severity/paging fields,
-row events and stable tags. These bindings negotiate 1.2, then 1.1, then 1.0,
-check complete member extents and feature bits, and refuse unsupported requested
-features. The published RC1 archive is unchanged and retains its earlier bindings;
-use the guide and wrappers from the same selected kit.
+headless interaction coverage. Current source and opt-in development packages
+include typed C# and Lua subtree update/removal, capabilities,
+tooltip/severity/paging fields, row events, stable tags and numeric presentation.
+Their wrappers query service versions in descending order: 1.4, 1.3, 1.2, 1.1,
+then 1.0. They check complete member extents and required feature bits. Tagged
+callback routes additionally require service 1.4 and both stable-tag and
+event-tag features; older providers refuse these requests before mutation. The
+tagged-event route is new in SDK 2.4.1 and absent from
+SDK 2.4.0. This current-source description does not establish which earlier
+minor bindings, including 1.3, are present in a frozen release archive; check
+the selected kit's own headers, wrappers and guide.
 The optional host-only adapter is source-kit code, never a public plugin header.
 
 ## Optional ImGui: a host-specific third-party ABI
@@ -212,12 +237,15 @@ cmake --install build --prefix out
 ## Check a plugin
 
 ```sh
+out/bin/sco-plugin-check out/data/plugins/hello --no-load
 out/bin/sco-plugin-check out/data/plugins/hello
 out/bin/sco-plugin-check out/data/plugins/hello --cap teleport --invoke hello.wave "Pilot One"
 lua5.4 tools/lua-check.lua examples/greeter --invoke greeter.greet "Pilot One" true
 ```
 
-`sco-plugin-check` reads `plugin.ini` with the host's rules. For a native plugin it then loads the DLL, calls `sco_plugin_query` and `sco_plugin_load` against a stand-in host that enforces the documented rules, fires `game.ready` and a few `tick`s, runs every command that takes no arguments (and the one you name with `--invoke`), and unloads. For a data pack it lists the files the host would index. `--cap NAME` makes `has(NAME)` answer 1; by default every capability is missing, as on a game build the mod doesn't support yet. Exit code 0 means every check passed.
+`--no-load` validates `plugin.ini` with the host's folder-check rules, the manifest id against the folder name, and a regular, non-symlink plugin folder, manifest and entry file. For a data pack it inventories recognized files in host-indexed locations, skips symlinks and non-regular files, and bounds work to 4,096 indexed files, 16,384 filesystem entries examined and 16 script-directory levels. Manifest/entry paths are limited by the checker's 1,023-byte buffer; data-scan paths are limited to 4,096 bytes, and Windows paths also obey the OS path limit. Displayed paths escape control, quote, backslash and non-ASCII bytes. This folder scan reads names and filesystem metadata; it does not inspect content syntax. The mode does not load or execute plugin code. A passing check does not establish code safety, binary ABI compatibility, provider availability or runtime compatibility. `--no-load` cannot be combined with dynamic-only `--cap`, `--short-tables` or `--invoke` options.
+
+Without `--no-load`, `sco-plugin-check` keeps its normal dynamic behavior: for a native plugin it loads the DLL, calls `sco_plugin_query` and `sco_plugin_load` against a stand-in host that enforces the documented rules, fires `game.ready` and a few `tick`s, runs every command that takes no arguments (and the one you name with `--invoke`), and unloads. This executes native plugin code with the checker's user rights. Every argument after `--invoke NAME` is passed to that command, even if it looks like an option such as `--no-load`. For a data pack it lists the files the host would index. `--cap NAME` makes `has(NAME)` answer 1; by default every capability is missing, as on a game build the mod doesn't support yet. Exit code 0 means every check passed.
 
 An automatic no-argument call may return `SCO_NOT_FOUND` when there is no current resource, such as an equip job. The checker prints that observation without counting it as a structural failure; it does not report the command as successful. An explicitly named `--invoke` still fails on `SCO_NOT_FOUND`, including a missing command name. `SCO_FAILED`, `SCO_BAD_ARG`, unknown results and API misuse remain failures.
 
@@ -225,15 +253,47 @@ An automatic no-argument call may return `SCO_NOT_FOUND` when there is no curren
 
 `--short-tables` hands the plugin a synthetic 1.0-sized `sco_api` prefix: `size` 88 (`offsetof(sco_api, provide_service)`) and `minor` 0. Calling a 1.1 member (`provide_service`, `query_service`, `release_service`, `invoke_raw`, `register_raw`) without first checking `api->size >= offsetof(sco_api, member) + sizeof(api->member)` fails the check, with the size the call needed. Use it to exercise size guards; actual host admission separately requires the exported API version to be supported.
 
-The stand-in serves `sco.widgets` 1.2 by default. It validates complete preorder trees, subtree updates/removals, 1.1 tooltip/severity/paging tails and 1.2 stable tags, including resulting-panel tag uniqueness. Each node is read only through its advertised size; capability readback reports features and limits. Under `--short-tables` the widgets table is its 1.0 extent (`size` 24), with extension tails ignored. Calling later table members without complete-member extent and non-null checks fails the checker. An unchecked `query_service` under that short root table also fails, while returning the stand-in table so subsequent unchecked calls can be diagnosed.
+The stand-in serves `sco.widgets` 1.4 by default. It validates complete preorder trees, subtree updates/removals, 1.1 tooltip/severity/paging tails, 1.2 stable tags, 1.3 numeric presentation and 1.4 tagged events, including resulting-panel tag uniqueness. Each node is read only through its advertised size; capability readback reports features and limits. Under `--short-tables` the widgets table is its 1.0 extent (`size` 24), with extension tails ignored. Calling later table members without complete-member extent and non-null checks fails the checker. An unchecked `query_service` under that short root table also fails, while returning the stand-in table so subsequent unchecked calls can be diagnosed.
 
 The stand-in host is not the game: it has no game thread, no crash guard and no game features. A plugin that passes still needs a run in the game.
+
+## Verify a plugin archive
+
+Before sharing a plugin ZIP, run the read-only archive verifier. The ZIP must contain exactly one
+top-level folder named for the plugin id, with `plugin.ini` directly inside it. For native and Lua
+plugins, the manifest's `entry` must exactly match a regular file directly inside that folder.
+Archive paths must be safe and unique across case-insensitive and Unicode-normalized filesystems.
+Windows-invalid characters, alternate-data-stream syntax, reserved device names, trailing dots or
+spaces, symlinks, special files, encrypted entries, ZIP64 archives, and compression methods beyond
+stored/deflate are refused.
+
+```sh
+python3 tools/sco-plugin-verify.py ../pilot.zip --checker out/bin/sco-plugin-check
+python3 tools/sco-plugin-verify.py ../pilot.zip --checker out/bin/sco-plugin-check --json
+```
+
+It prints the archive SHA-256, a SHA-256 for each file, the parsed plugin id and kind, the API value
+declared in `plugin.ini`, and the dependency names declared by `requires`. The verifier streams
+archive contents for hashing and sends only bounded `plugin.ini` text to `sco-plugin-check`'s
+manifest-only parser. That mode parses stdin and returns before the checker's folder inspection or
+dynamic-loader paths. The verifier never writes archive entries to disk or opens an entry as code.
+It checks declared resource bounds before hashing archive bytes or opening members. Resource bounds are
+256 MiB compressed archive, 4,096 entries, 128 MiB per file, 512 MiB total uncompressed data, a
+200:1 maximum compression ratio, an 8 MiB central directory, a 16 KiB manifest, and 4,194,304
+aggregate Unicode characters of original/NFC-casefold/NFKC-casefold path-prefix material for collision checks.
+
+This establishes archive structure, manifest syntax, folder identity and declared-entry presence.
+The reported API and dependencies are not compared with a host or resolved. Passing does not test
+runtime compatibility or provider behavior, inspect native-code safety, or establish trust. It is
+separate from `sco-plugin-check`, which loads native plugins in its stand-in host.
 
 ## Install a plugin
 
 1. Copy the plugin's folder, for example `out\data\plugins\hello`, into sc-offline's `data\plugins\` folder, so you have `data\plugins\hello\plugin.ini`.
 2. In `sc-offline.ini` set `plugins = on`.
-3. Play. `data\mod.log` lists every plugin with its state: `loaded`, `off`, `disabled`, `crashed`, `faulted` or `refused: <reason>`. `sc-offline.exe status` shows the same list. `faulted` means a provider fault retained backing state and resources rather than releasing them: restart the game; cached service tables are not safe to call, and no recovery is guaranteed.
+3. Run `sc-offline.exe status` for installation and configuration checks; it does not report plugin load states. If sc-offline reaches host startup reporting, it may record discovered plugin states in `data\mod.log`. The log can be absent or from an earlier run. When plugins are off, `sco::app` skips external discovery, so its report is not an inventory of every installed folder. The launcher's optional last-startup snapshot can also be missing or stale; it is not a live host query. Enabling plugins does not guarantee that the host starts or loads a plugin.
+
+If a host report marks a plugin `faulted`, the host can retain backing state and resources after a fault. Cached service tables are not safe to call; restart the host before retrying, but recovery is not guaranteed.
 
 To switch one plugin off, create an empty file named `disabled` in its folder.
 
@@ -347,3 +407,18 @@ copy plugin.ini out\cs_hello\
 ## License
 
 GPL-3.0-only ([LICENSE](../LICENSE)), like sco-core. The project expects plugins that include its headers or compile its SDK sources to be distributed under GPL-3.0-compatible terms. Whether the GPL applies to a particular plugin depends on how it is built and on applicable law; this is not legal advice. No linking exception is granted. Third-party notices: [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md).
+
+## Private development packages
+
+For a private source-bound package from a clean Git checkout, run
+`python3 sdk/package.py --development --profile host-source-sc --out <directory>`
+(or choose another declared profile). This opt-in mode uses the committed
+`sdk/DEVELOPMENT_VERSION` as an input coordinate in archive names and generated
+SDK metadata, writes that coordinate to the generated kit `VERSION`, excludes
+the development-version input file, records the exact source commit, and does not
+imply a tag or release. The game-sc overlay keeps its actual game-pack version
+and adds the development SDK identifier to its archive name. Normal local
+packaging can share the released version and filename while producing
+different bytes; published archive identity is its recorded checksum. A
+successful package build does not authorize native activation or establish game
+or plugin runtime safety.

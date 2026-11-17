@@ -38,4 +38,4 @@ does not activate it. See the [public service](mining-service.md).
 
 ## Uniqueness in 4.10.196.36804
 
-The label string occurs once in the image and is loaded by one `lea` in .text; the function is `mining.cell` = 0x265FB10. The row reports `AMBIG` if a patch adds a second load. Checked with `sco-sigcheck -v` on the mining branch (all 311 rows OK in `sigcheck-mining.txt`; the merged tree has 316 rows, see [status](status.md)) and with one checked byte changed in a copy of the exe (`mining.cell` fails with the reason of the `+0x441` check).
+The label string occurs once in the image and is loaded by one `lea` in .text; the function is `mining.cell` = 0x265FB10. The row reports `AMBIG` if a patch adds a second load. Checked with `sco-sigcheck -v` on the mining branch (all 311 rows OK in `sigcheck-mining.txt`; the merged tree then had 316 rows on 4.10.196.36804; current counts are in [verified game builds](../game-pack.md#verified-game-builds)) and with one checked byte changed in a copy of the exe (`mining.cell` fails with the reason of the `+0x441` check).

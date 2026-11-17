@@ -86,7 +86,7 @@ bool g_started = false;
 bool g_prefabsPublished = false;
 bool g_prefabFaulted = false; // process-lifetime latch; service reopen cannot clear an engine fault
 bool g_canTransform = false, g_canSpawn = false, g_canClass = false, g_canQuery = false, g_canWatch = false;
-char g_whyTransform[128] = "", g_whySpawn[128] = "", g_whyClass[128] = "", g_whyQuery[160] = "", g_whyWatch[160] = "";
+char g_whyTransform[256] = "", g_whySpawn[256] = "", g_whyClass[256] = "", g_whyQuery[256] = "", g_whyWatch[256] = "";
 bool g_diag = false;
 struct EntityHook { uint8_t* at = nullptr; bool removalFailed = false; };
 EntityHook g_sinksHook, g_deleteHook;
@@ -110,21 +110,51 @@ template <typename R, typename... A> R VCall(uintptr_t obj, size_t off, A... a) 
     return reinterpret_cast<Fn>(Rd<uintptr_t>(Rd<uintptr_t>(obj) + off))(obj, a...);
 }
 
+// Each distinct refusal is logged once, so a plugin that retries a refused call every frame cannot
+// flood the log (last_error always holds the latest). Digit runs count as one reason: "zone 12 isn't
+// streamed in" and "zone 99 isn't streamed in" are the same refusal; a different entity class
+// name is a different one. Called with g_errLock held; bounded, and quiet once full.
+constexpr size_t kSeenMax = 48, kSeenLen = 160;
+char   g_seen[kSeenMax][kSeenLen];
+size_t g_seenCount = 0;
+
+bool FirstRefusal(const char* text, Result r) {
+    char key[kSeenLen];
+    size_t k = 0;
+    key[k++] = static_cast<char>('0' + static_cast<int>(r) % 10);
+    for (const char* p = text; *p && k + 1 < sizeof(key); ++p) {
+        const bool digit = *p >= '0' && *p <= '9';
+        if (digit && (*(p + 1) >= '0' && *(p + 1) <= '9')) continue;
+        key[k++] = digit ? '#' : *p;
+    }
+    key[k] = 0;
+    for (size_t i = 0; i < g_seenCount; ++i)
+        if (strcmp(g_seen[i], key) == 0) return false;
+    if (g_seenCount == kSeenMax) return false;
+    memcpy(g_seen[g_seenCount++], key, k + 1);
+    return true;
+}
+
 sco_result Fail(const void* owner, Result r, const char* fmt, ...) {
     char text[sizeof(Err::text)];
     va_list ap;
     va_start(ap, fmt);
     vsnprintf(text, sizeof(text), fmt, ap);
     va_end(ap);
-    std::lock_guard<std::mutex> hold(g_errLock);
-    Err* e = nullptr;
-    for (Err& x : g_errors)
-        if (x.owner == owner) e = &x;
-    if (!e && g_errors.size() < g_errors.capacity()) {   // never reallocates: nothing throws here
-        g_errors.push_back({ owner, {} });
-        e = &g_errors.back();
+    bool first;
+    {
+        std::lock_guard<std::mutex> hold(g_errLock);
+        Err* e = nullptr;
+        for (Err& x : g_errors)
+            if (x.owner == owner) e = &x;
+        if (!e && g_errors.size() < g_errors.capacity()) {   // never reallocates: nothing throws here
+            g_errors.push_back({ owner, {} });
+            e = &g_errors.back();
+        }
+        if (e) memcpy(e->text, text, sizeof(text));
+        first = FirstRefusal(text, r);
     }
-    if (e) memcpy(e->text, text, sizeof(text));
+    if (first) Log("[game] game.entities: refused (%s): %s (first occurrence; repeats are not logged)", ResultName(r), text);
     return static_cast<sco_result>(r);
 }
 
@@ -142,17 +172,23 @@ template <class C> void AddRows(const C* caps, size_t n, const char* name, std::
         if (strcmp(caps[i].name, name) == 0) out.insert(out.end(), caps[i].rows, caps[i].rows + caps[i].count);
 }
 
-// True when every row is OK and the teleport.* reads are ready; else why names the first that
-// isn't.
+// True when every row is OK and the teleport.* reads are ready; else why names the rows that
+// aren't (the first as before, then the others, as far as the buffer holds).
 bool RowsReady(const std::vector<const char*>& rows, char* why, size_t n) {
     const auto signatures = AcquireHostSignatureSnapshot();
     why[0] = 0;
     if (!signatures) { snprintf(why, n, "signature snapshot unavailable"); return false; }
+    size_t used = 0;
     for (const char* id : rows) {
         const SigResult* s = (signatures ? signatures->Lookup(id) : nullptr);
-        if (!s) { snprintf(why, n, "unknown signature %s", id); return false; }
-        if (s->state != SigState::Ok) { snprintf(why, n, "needs %s (%s)", id, SigStateName(s->state)); return false; }
+        if (s && s->state == SigState::Ok) continue;
+        char part[96];
+        if (!s) snprintf(part, sizeof(part), "unknown signature %s", id);
+        else snprintf(part, sizeof(part), "%s%s (%s)", used ? "" : "needs ", id, SigStateName(s->state));
+        const int wrote = snprintf(why + used, n - used, "%s%s", used ? "; " : "", part);
+        if (wrote > 0) used = (std::min)(used + static_cast<size_t>(wrote), n - 1);
     }
+    if (used) return false;
     if (!reads::Ready()) { snprintf(why, n, "the teleport.* reads aren't ready"); return false; }
     return true;
 }

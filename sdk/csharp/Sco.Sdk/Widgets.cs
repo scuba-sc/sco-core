@@ -37,6 +37,7 @@ namespace Sco.Sdk
     public readonly record struct WidgetEvent(uint NodeId, WidgetKind Kind, int Index, double Value, string? Text)
     {
         public int Row { get; init; } = -1;
+        public string? Tag { get; init; }
     }
 
     /// <summary>Copied provider limits and feature bits. These do not change the SDK's bounded input limits.</summary>
@@ -72,8 +73,13 @@ namespace Sco.Sdk
             if (!plugin.IsLoaded) return ScoResult.BadArg;
             ScoApi* api = plugin.Api;
             if (api == null || api->size < ApiOffset.query_service + 8 || api->query_service == null) return ScoResult.Unavailable;
-            uint version = Abi.WidgetsVersion1_3;
+            uint version = Abi.WidgetsVersion1_4;
             ScoResult r = plugin.Query(Abi.WidgetsName, version, out ServiceRef<ScoWidgetsV1> s);
+            if (r is ScoResult.Unavailable or ScoResult.NotFound)
+            {
+                version = Abi.WidgetsVersion1_3;
+                r = plugin.Query(Abi.WidgetsName, version, out s);
+            }
             if (r is ScoResult.Unavailable or ScoResult.NotFound)
             {
                 version = Abi.WidgetsVersion1_2;
@@ -215,18 +221,22 @@ namespace Sco.Sdk
                 if (n.Tooltip != null) features |= Abi.WidgetsFeatureTooltip;
                 if (n.Severity != 0) features |= Abi.WidgetsFeatureSeverity;
                 if (n.VisibleRows != 0) features |= Abi.WidgetsFeaturePaging | Abi.WidgetsFeatureEventRow;
-                if (!string.IsNullOrEmpty(n.Tag)) { features |= Abi.WidgetsFeatureStableTags; version = Math.Max(version, Abi.WidgetsVersion1_2); }
+                if (!string.IsNullOrEmpty(n.Tag)) { features |= Abi.WidgetsFeatureStableTags | Abi.WidgetsFeatureEventTag; version = Math.Max(version, Abi.WidgetsVersion1_2); }
                 if (n.Presentation != WidgetNumericPresentation.Number) { features |= Abi.WidgetsFeatureNumericPresentation; version = Abi.WidgetsVersion1_3; }
             }
             if (features != 0 && version < Abi.WidgetsVersion1_1) version = Abi.WidgetsVersion1_1;
             if (features != 0)
             {
                 Require(Version >= version, ScoResult.Unavailable);
+                if ((features & Abi.WidgetsFeatureEventTag) != 0) Require(Version >= Abi.WidgetsVersion1_4, ScoResult.Unavailable);
                 ScoResult r = Capabilities(out WidgetCapabilities caps);
                 Require(r == ScoResult.Ok, r);
                 Require((caps.Features & features) == features, ScoResult.Unavailable);
                 if ((features & Abi.WidgetsFeatureStableTags) != 0)
+                {
+                    Require(caps.MaxTag != 0, ScoResult.Unavailable);
                     foreach (WidgetNode n in nodes) Require((uint)(n.Tag?.Length ?? 0) <= caps.MaxTag, ScoResult.TooMany);
+                }
             }
             return version;
         }
@@ -298,10 +308,11 @@ namespace Sco.Sdk
         private sealed class CallbackEntry : Entry
         {
             public CallbackEntry(Plugin p, string id, WidgetNode[] nodes, Action<string, WidgetEvent>? fn) : base(p)
-            { Id = id; Nodes = nodes; Fn = fn; }
+            { Id = id; Nodes = nodes; Fn = fn; TaggedEvents = Array.Exists(nodes, n => !string.IsNullOrEmpty(n.Tag)); }
             public string Id { get; }
             public WidgetNode[] Nodes { get; set; }
             public Action<string, WidgetEvent>? Fn { get; }
+            public bool TaggedEvents { get; set; }
         }
         private CallbackEntry Panel(string id)
         {
@@ -368,7 +379,11 @@ namespace Sco.Sdk
                 Array.Copy(tree, end, merged, begin + fragment.Length, tree.Length - end);
                 merged = CopyNodes(merged);
                 ScoResult result = _t->update_nodes(_plugin.SelfPtr, arena.Add(id), native, (uint)fragment.Length, stride);
-                if (result == ScoResult.Ok) entry.Nodes = merged;
+                if (result == ScoResult.Ok)
+                {
+                    entry.Nodes = merged;
+                    entry.TaggedEvents |= Array.Exists(fragment, n => !string.IsNullOrEmpty(n.Tag));
+                }
                 return result;
             }
             catch (InvalidInput e) { return e.Result; }
@@ -426,7 +441,10 @@ namespace Sco.Sdk
             {
                 CallbackEntry? entry = Registry.Get<CallbackEntry>(ctx);
                 if (entry == null || entry.Fn == null || !entry.Owner.IsLoaded || ev == null || ev->size < sizeof(ScoWidgetEvent)) return;
+                if (!entry.Owner.WidgetCallbacks.TryGetValue(entry.Id, out nint active) || active != (nint)ctx) return;
                 if (ReadBounded(panel, 63) != entry.Id) return;
+                if ((ev->size > sizeof(ScoWidgetEvent) && ev->size < sizeof(ScoWidgetEvent11)) ||
+                    (ev->size > sizeof(ScoWidgetEvent11) && ev->size < sizeof(ScoWidgetEvent14))) return;
                 WidgetNode node = default;
                 bool enabled = true;
                 foreach (WidgetNode n in entry.Nodes) if (n.Id == ev->node_id) { node = n; break; }
@@ -434,6 +452,19 @@ namespace Sco.Sdk
                 if (node.Id == 0 || (!page && (uint)node.Kind != ev->kind)) return;
                 bool extended = Array.Exists(entry.Nodes, n => n.Extended);
                 if (extended && ev->size < sizeof(ScoWidgetEvent11)) return;
+                if (entry.TaggedEvents && ev->size < sizeof(ScoWidgetEvent14)) return;
+                string? tag = null;
+                if (ev->size >= sizeof(ScoWidgetEvent14))
+                {
+                    byte* source = ((ScoWidgetEvent14*)ev)->tag;
+                    if (source != null)
+                    {
+                        tag = ReadBounded(source, (int)Abi.WidgetsMaxTag);
+                        if (tag.Length == 0) return;
+                        foreach (char c in tag) if (!(c is >= 'A' and <= 'Z' or >= 'a' and <= 'z' or >= '0' and <= '9' or '.' or '_' or '-')) return;
+                    }
+                    if (!string.Equals(tag, string.IsNullOrEmpty(node.Tag) ? null : node.Tag, StringComparison.Ordinal)) return;
+                }
                 int row = -1;
                 if (ev->size >= sizeof(ScoWidgetEvent11))
                 {
@@ -455,7 +486,7 @@ namespace Sco.Sdk
                     uint rows = node.Kind == WidgetKind.Table && node.Columns > 0 ? (uint)(node.Items?.Length ?? 0) / node.Columns : (uint)(node.Items?.Length ?? 0);
                     if (!extended || node.Kind is not (WidgetKind.List or WidgetKind.Table) || node.VisibleRows == 0 ||
                         row < 0 || (uint)row >= rows || ev->index != 0 || ev->value != 0 || ev->text != null) return;
-                    try { entry.Fn(entry.Id, new WidgetEvent(node.Id, WidgetKind.Page, 0, 0, null) { Row = row }); }
+                    try { entry.Fn(entry.Id, new WidgetEvent(node.Id, WidgetKind.Page, 0, 0, null) { Row = row, Tag = tag }); }
                     catch (Exception ex) { entry.Owner.ReportException("widget " + entry.Id, ex); }
                     return;
                 }
@@ -477,7 +508,7 @@ namespace Sco.Sdk
                     case WidgetKind.TextInput: text = ReadBounded(ev->text, 255); break;
                     default: return;
                 }
-                try { entry.Fn(entry.Id, new WidgetEvent(node.Id, node.Kind, ev->index, ev->value, text) { Row = row }); }
+                try { entry.Fn(entry.Id, new WidgetEvent(node.Id, node.Kind, ev->index, ev->value, text) { Row = row, Tag = tag }); }
                 catch (Exception ex) { entry.Owner.ReportException("widget " + entry.Id, ex); }
             }
             catch { /* neither decoding nor callbacks may escape into native code */ }

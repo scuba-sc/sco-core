@@ -47,49 +47,50 @@ optional and default-off; static discovery never certifies gameplay or performs 
 
 ## Using an extracted SDK archive
 
-RC2 was published on 2026-10-28; its immutable archive identity is recorded in the
-[release notes](../../docs/releases/sdk-v2.4.0.md#published-rc2-archive-identity).
-Use matching source, archive, catalogue and workflow identities for any supplied kit.
+The current release:
 
-Stable SDK 2.4.0 is the current published release. The [stable release page](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0)
-provides the five profile archives and `SHA256SUMS`. Download `sco-sdk-2.4.0.zip`
-and check the downloaded file against that manifest; the [release notes](../../docs/releases/sdk-v2.4.0.md#stable-archive-identity)
-record the release source and all profile identities.
-The published bytes are immutable. The archived README and workflow index retain
-some prepublication wording; this current source page corrects its release status,
-but does not rewrite the packaged snapshot.
-The combined kit (`sco-sdk-2.4.0.zip`), matching `game-sc` overlay and
-`host-source-sc` kit include the discovery launcher,
-compiler-built `sdk-catalogue.json` and matching `sdk-guides.json`. Historical RC1
-has its own earlier launcher and frozen guides; see the known issue in the
-[integration guide](../../docs/agent-integration.md#set-up-the-discovery-server-from-the-sdk-kit).
+<!-- release-block:current-release-brief -->
+SDK **2.4.1** uses Star Citizen game pack **0.8.1** (checked against Star Citizen
+Alpha 4.10.3, build 4.10.200.58746; see [game builds](../../docs/game/builds.md)) and plugin ABI **1.1**. Archives and their digests are on the
+[`sdk-v2.4.1` release page](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.1); the [release notes](https://github.com/scuba-sc/sco-core/blob/sdk-v2.4.1/docs/releases/sdk-v2.4.1.md) list what changed.
+<!-- /release-block:current-release-brief -->
+
+The release page lists the five profile archives, their SBOMs, `SHA256SUMS` and `release.json`.
+Use matching source, archive, catalogue and workflow identities for any supplied kit.
+Check `COMPATIBILITY.json` for the kit's versions, profile and source revisions
+(`COMPATIBILITY.json.game-sc` for the standalone game overlay). Where present,
+the SDK version is also in `VERSION`, or `sdk/VERSION` in source-layout kits.
+A development archive may have different coordinates from the release
+and is not itself a release asset.
+
+To use the combined kit, download the combined archive from the release page and check
+it against the release's `SHA256SUMS`. The combined kit,
+matching `game-sc` overlay and `host-source-sc` kit include the discovery launcher,
+compiler-built `sdk-catalogue.json` and matching `sdk-guides.json`. Earlier releases
+are covered under [Previous release](#previous-release-sdk-240) below.
 
 Use the combined kit directly, or compose the game overlay over the exact core
 kit required by its compatibility metadata ([archive composition](../../sdk/README.md#zips)).
 In this README the **SDK folder** is the folder
 that directly contains `sdk-catalogue.json` (for the combined kit,
-`<extract folder>/sco-sdk-2.4.0`). Set `--repo-root` to the SDK folder, not to the parent
+`<extract folder>/sco-sdk-<version>`). Set `--repo-root` to the SDK folder, not to the parent
 extraction directory or an uncomposed overlay. The
 `host-source-sc` archive retains repository layout. Core and core-source profiles
 remain game-neutral and contain neither this game catalogue nor its launcher.
 
-The stable 2.4.0 launcher has the fifteen-tool default and matching workflow index.
-The historical RC2 launcher has fourteen tools; it predates `get_service_status` and
-the schema-2 catalogue. The older RC1 launcher retains its original six-tool default
-and twelve with `--extended-tools`; it has no workflow tools/index. These release
-archives retain their original bytes and behavior.
-Append `--extended-tools` to a developer
-launcher for RC1 compatibility and expect twelve. For an updated-source kit, this
-command uses the default developer profile (append `--minimal-tools` for six):
+The SDK <!--rv:sdk_version-->2.4.1<!--/rv--> launcher has the fifteen-tool default and matching workflow index. Earlier
+release archives retain their original bytes and behavior. Append `--extended-tools` to
+an RC1 developer launcher for compatibility and expect twelve. For an updated-source
+kit, this command uses the default developer profile (append `--minimal-tools` for six):
 
 ```sh
-python3 /absolute/path/to/sco-sdk-2.4.0/tools/sco-core-mcp/server.py \
-  --catalogue /absolute/path/to/sco-sdk-2.4.0/sdk-catalogue.json \
-  --repo-root /absolute/path/to/sco-sdk-2.4.0
+python3 /absolute/path/to/sco-sdk-<version>/tools/sco-core-mcp/server.py \
+  --catalogue /absolute/path/to/sco-sdk-<version>/sdk-catalogue.json \
+  --repo-root /absolute/path/to/sco-sdk-<version>
 ```
 
 On Windows use `py -3` instead of `python3`, with drive-qualified paths such as
-`C:/absolute/path/to/sco-sdk-2.4.0`. Default discovery includes scaffold, native,
+`C:/absolute/path/to/sco-sdk-<version>`. Default discovery includes scaffold, native,
 manifest/widget, guide and workflow tools. Guide tools read `sdk-guides.json`
 beside the catalogue; workflow tools use matching `sdk-workflows.json`. Compiler probes run during packaging, not when the client connects.
 Verify the zip against the release `SHA256SUMS`, and compare the first result's
@@ -167,6 +168,34 @@ layout) is read only at recorded paths. A file missing there is reported as
 unavailable, never served from the other layout. Results still report the
 recorded path.
 
+### Previous release: SDK 2.4.0
+
+The 2.4.0 combined archive is `sco-sdk-2.4.0.zip`. The material below describes that
+release and the release candidates before it; their archives keep their original bytes.
+
+
+RC2 was published on 2026-10-28; its immutable archive identity is recorded in the
+[release notes](../../docs/releases/sdk-v2.4.0.md#published-rc2-archive-identity).
+
+The [stable 2.4.0 release page](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0)
+provides the five profile archives and `SHA256SUMS`; the
+[release notes](../../docs/releases/sdk-v2.4.0.md#stable-sdk-240-archive-identities)
+record the release source and all profile identities.
+The stable archive's root README describes RC2
+workflows, and its MCP README says the final release is not yet published. These
+are prepublication statements in the packaged snapshot; this source page does not
+rewrite it. The archived workflow index also retains some prepublication wording.
+Historical RC1
+has its own earlier launcher and frozen guides; see the known issue in the
+[integration guide](../../docs/agent-integration.md#set-up-the-discovery-server-from-the-sdk-kit).
+
+The stable 2.4.0 launcher has the fifteen-tool default and matching workflow index.
+The historical RC2 launcher has fourteen tools; it predates `get_service_status` and
+the schema-2 catalogue. The older RC1 launcher retains its original six-tool default
+and twelve with `--extended-tools`; it has no workflow tools/index. Those archives'
+servers speak only the legacy `2025-11-25` protocol. The 2.4.0 combined kit unpacks to
+`sco-sdk-2.4.0`.
+
 ## Run from a source checkout (maintainers)
 
 A kit already contains its catalogue; build one yourself only from a source checkout.
@@ -199,10 +228,13 @@ A kit already contains its catalogue; build one yourself only from a source chec
    [checkout form in the integration guide](../../docs/agent-integration.md#maintainers-source-checkout-and-your-own-catalogue).
 
 The process reads MCP messages on stdin and writes protocol responses on stdout;
-it is not an interactive shell. Use a client that supports stdio MCP. The only
-supported protocol version is **2025-11-25**. Initialization may offer that version
-as a fallback when a client requests another version; the client must accept it or
-disconnect. This is not support for older protocol semantics.
+it is not an interactive shell. Use a client that supports stdio MCP. The current
+source supports **2026-07-28** and legacy **2025-11-25**. Modern clients can begin
+with `server/discover`, then include `io.modelcontextprotocol/protocolVersion` and
+`io.modelcontextprotocol/clientCapabilities` in each request's `_meta`; they do not
+send `initialize`. Legacy clients keep the `initialize` and
+`notifications/initialized` handshake. Archives from before 2.4.1 retain their
+original 2025-only server.
 
 `--catalogue` is required unless `SCO_CORE_CATALOGUE` supplies its path. Client
 configurations pass it explicitly to avoid dependence on inherited
@@ -260,8 +292,8 @@ the result only when supplied, so existing callers see the same fields:
 | `min_version` | `MAJOR.MINOR`; requires `service` | `version_satisfies`: equal major and catalogue minor at least the requested minor (the `query_service` rule) |
 | `member_extent` | integer bytes 1-65535; requires `service` | `extent_within_catalogue_size`: the extent fits the catalogue table size |
 
-The `tag` pattern has no pre-release suffix, so the release candidate tag
-`sdk-v2.4.0-rc.1` and `sdk-v2.4.0-rc.2` are refused as not matching the advertised pattern, including on current source. Compare `sdk_version`, `game_pack_version` and `source_sha` instead, and verify the archive digest separately. The input schema advertises the
+The `tag` pattern has no pre-release suffix, so a release candidate tag
+with an `-rc.N` suffix is refused as not matching the advertised pattern, including on current source. Compare `sdk_version`, `game_pack_version` and `source_sha` instead, and verify the archive digest separately. The input schema advertises the
 patterns and `dependentRequired`. Arguments outside it, a malformed value,
 `min_version`/`member_extent` without `service`, or an unknown service are refused
 as tool errors. `service_table` describes the
@@ -447,6 +479,13 @@ these arguments:
 | `lang` | yes | `c`, `cpp`, `csharp` or `lua`. |
 | `with_menu` | no | `true` adds a `sco.widgets` panel. Default `false`. |
 | `services` | no | Up to 16 `NAME` or `NAME@MAJOR.MINOR` strings, looked up as optional services on `game.ready`. Refused for `lua` (the sandbox has no service lookup), except `sco.widgets` with `with_menu`. |
+
+The SDK <!--rv:sdk_version-->2.4.1<!--/rv--> core and combined plugin kits include an experimental
+raw Rust example; the standalone source kits and game overlay do not. Neither
+this scaffold tool nor the CLI generator creates Rust plugins. MCP
+language-filtered API and example searches advertise `c`, `cpp`, `csharp` and
+`lua`, not Rust. Read the development kit's `rust/README.md` and
+`examples/rust_hello` directly; earlier archives lack these files.
 
 The display name and author take the generator's defaults; there is no output
 path. Any other argument, or a value outside the schema, is refused as a tool
@@ -770,15 +809,16 @@ tools. Consult the linked GitHub documentation for current UI and runner behavio
 | `can't open file '.../server.py'`, exit code 2 | Python could not find the launcher, so the path to `server.py` is wrong. Use the SDK folder, the one that directly contains `sdk-catalogue.json`, not the extract folder above it; check it with [Find the SDK folder](../../docs/agent-integration.md#find-the-sdk-folder), and quote a path that contains a space when you type it in a shell. |
 | `catalogue refused: FileNotFoundError`, exit code 1 | `server.py` started, but the `--catalogue` file does not exist. In a kit it is `SDK/sdk-catalogue.json` and there is no `dist/` folder; in a checkout, build `dist/sdk-catalogue.json` first. For other refusals check absolute paths, UTF-8, schema and source/version coordinates. |
 | Process waits without a prompt | Expected: it reads newline-delimited MCP JSON-RPC on stdin, not shell commands. Keep stdout protocol-only and inspect client logs. |
-| Initialization fails | Negotiate `2025-11-25`, then send `notifications/initialized` before tool calls. |
-| Developer/workflow tool is unknown | Remove `--minimal-tools` and grant the fifteen exact stable SDK 2.4.0 names in the client. Historical RC2 has fourteen; RC1 needs `--extended-tools` for twelve tools and has no workflow tools. |
+| Protocol negotiation fails | The current source advertises `2026-07-28` and `2025-11-25` through `server/discover`. For legacy 2025 clients, negotiate that version and send `notifications/initialized` before tool calls; archives from before 2.4.1 may support only that legacy version. |
+| Developer/workflow tool is unknown | Remove `--minimal-tools` and grant the fifteen exact SDK <!--rv:sdk_version-->2.4.1<!--/rv--> names in the client. Historical RC2 has fourteen; RC1 needs `--extended-tools` for twelve tools and has no workflow tools. |
 | Development tool is unknown or refused | Configure an operator `--project-root`; current source offers execution tools automatically. Pass a folder inside that root; `unavailable` names the missing program or SDK folder. |
 | Scaffold/native metadata unavailable | `--repo-root` must be the SDK folder, not its parent folder: the server starts either way. Check trusted root, kit composition, file layout and containment. Unavailable is not an empty successful inventory. |
 | Guide search unavailable | Put `sdk-guides.json` beside the catalogue (or pass `--guides`), or pass a source checkout as `--repo-root`. A malformed file is reported, not bypassed. |
 | Compatibility matches but service is absent | Catalogue equality is not runtime readiness. Check live capability, whole member extent, table size and non-null pointer in the plugin. |
 | Catalogue is stale | Rebuild matching reviewed source and restart. Root metadata/generator code are separate inputs, not authenticated by catalogue SHA. |
 | Guide sections are stale | A `sdk-guides.json` beside the catalogue (or from `--guides`) wins over `--repo-root`. Rebuild it with `tools/sdk_guides.py build`, or delete it to build from the tree, and restart. `guides.source_sha` says which commit the file came from. |
-| Guide text says 2.4.0 is not on the release page, or `check_compatibility` refuses the tag `sdk-v2.4.0-rc.1` | Known issues in release candidate 1: its guides and READMEs predate publication, and the tag pattern has no pre-release suffix. The docs site supersedes the kit's text; compare `sdk_version` and `game_pack_version`. |
+| A packaged README says the final release is pending, or describes RC2 workflows | An immutable earlier archive retains pre-release README text (see [Previous release](#previous-release-sdk-240)). Use the release page of the kit you downloaded and verify the download against its `SHA256SUMS`. Source documentation changes do not alter published bytes. RC1 and RC2 are separate historical releases. |
+| `check_compatibility` refuses a release candidate tag with an `-rc.N` suffix | The tag pattern does not accept pre-release suffixes. Compare `sdk_version`, `game_pack_version` and `source_sha` instead, and verify the archive digest separately. |
 
 Discovery cannot invoke commands, reload plugins or diagnose live game state.
 The project-root development tools build and check plugins on this machine only; they

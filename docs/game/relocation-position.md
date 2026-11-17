@@ -1,9 +1,9 @@
 # Position-only local-player relocation
 
-Current source adds `game.relocation` 1.1 and an explicit `request_position`
+`game.relocation` 1.1 adds an explicit `request_position`
 method. The frozen 1.0 FullPose request, 32-byte table type, 72-byte request and
 strict quaternion completion stay unchanged. Saved poses/bookmarks keep that
-route. Published SDK 2.4.0 RC1 does not contain this extension.
+route. Published SDK 2.4.0 RC1 does not contain this extension; the stable 2.4.0 header does.
 
 The new 48-byte `sc_relocation_position_request` contains size, timeout, target
 zone ID, three position components and the target's current observation epoch.
@@ -36,7 +36,11 @@ falls back to FullPose or owned-entity movement. A later tick after initiation
 must freshly observe finite player coordinates in the admitted target frame
 within 0.05 m. It does not read or compare rotation. This requests no
 reorientation; it does not certify unrelated engine/physics orientation effects.
-Dispatch failure is terminal, without retry.
+Dispatch failure is terminal, without retry. A request that fails while pending, for
+either method, logs one `[game] relocation: request failed (<reason>) after <n> ms`
+line of yes/no flags (applied, streamed, arrived, offline, player, transport, fault
+and which identities still match), with no coordinates or ids; a backend apply that
+returns failure or faults logs its own line.
 
 The epoch checks admission only. Spatial tick refresh expires it, so it is not
 the pending target lifetime. The backend supplies a separate opaque nonzero

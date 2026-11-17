@@ -26,52 +26,57 @@ build your own catalogue, go to
 [Maintainers: source checkout](#maintainers-source-checkout-and-your-own-catalogue).
 
 You need Python 3.9 or newer (check with `py -3 --version` on Windows or
-`python3 --version` on macOS and Linux) and an MCP client that supports stdio and
-protocol `2025-11-25`, the only version the server speaks; a client that cannot accept
-it disconnects when it initializes. The kit needs no compiler, Clang, network service
-or credentials.
+`python3 --version` on macOS and Linux) and an MCP client that supports stdio. The
+SDK <!--rv:sdk_version-->2.4.1<!--/rv--> kit speaks legacy protocol `2025-11-25` and `2026-07-28`, and advertises both
+through `server/discover`; a client must complete the handshake for a version it speaks.
+The kit needs no compiler, Clang, network service or credentials.
 
-**Immutable archive guide snapshots.** The stable 2.4.0 and historical RC2 kits
-contain bundled guides (`sdk-guides.json`, served by `search_guides` and
-`get_guide_section`) and READMEs frozen before their release pages were published.
-The stable archive therefore retains some prepublication wording such as “RC2 is
-the latest release” or “the final 2.4.0 release is pending.” That text describes
-the source snapshot, not current release status. Stable SDK 2.4.0 is published;
-use the [stable release page](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0)
-and its `SHA256SUMS` for release identity. This current-source guide corrects the
-instructions but does not rewrite either release's archived bytes. The stable
-archive's server has the fifteen-tool default and schema-2 catalogue, including
-`get_service_status`; RC2 remains a historical fourteen-tool archive without that
-tool. The guide links are out of date
-too: for a `docs/` page, the `url` in a `search_guides` result names the previous
-docs-site address (`scubamount.github.io`), which now returns 404. Replace that host
-with `scuba-sc.github.io` and keep the path. The docs site publishes release notes for
-2.4.0 only, so a result for the 2.1.0, 2.2.0 or 2.3.0 notes still gives a 404 on the new
-host: read those under `docs/releases/` in the repository. For a guide
-under `sdk/docs` the `url` is a repository path, not a link; in the kit that guide is under
-`docs/` (see [Find the SDK folder](#find-the-sdk-folder)). See the
-[release notes](releases/sdk-v2.4.0.md#known-issues-in-release-candidate-1).
+**Release identity.** The current release:
 
-**Stable SDK 2.4.0 and historical candidates.** Stable 2.4.0 is the current published
-release. Download the matching profile archive and check that downloaded file against
-the release's `SHA256SUMS`; the [release notes](releases/sdk-v2.4.0.md#stable-archive-identity)
-record the release source and all profile identities.
-RC2 was published on 2026-10-28 and RC1 on 2026-10-21. They remain historical
-releases with unchanged bytes. Keep
-each selected kit's source, archive and host identities distinct.
+<!-- release-block:current-release-brief -->
+SDK **2.4.1** uses Star Citizen game pack **0.8.1** (checked against Star Citizen
+Alpha 4.10.3, build 4.10.200.58746; see [game builds](../docs/game/builds.md)) and plugin ABI **1.1**. Archives and their digests are on the
+[`sdk-v2.4.1` release page](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.1); the [release notes](https://github.com/scuba-sc/sco-core/blob/sdk-v2.4.1/docs/releases/sdk-v2.4.1.md) list what changed.
+<!-- /release-block:current-release-brief -->
 
-**Stable and historical archive behavior.** The stable SDK 2.4.0 kit has the
-fifteen-tool default and matching workflow bundle documented on this page. The
-published RC2 archive has fourteen tools and predates `get_service_status` and
-catalogue schema 2. The older published RC1 archive keeps its original six-tool
-default and twelve tools with `--extended-tools`; it has no workflow index or
-workflow tools. Later source edits do not alter any published archive.
+The release page lists the five profile archives, their SBOMs, `SHA256SUMS` and
+`release.json`. Download the matching profile archive and verify the downloaded file against that release's
+`SHA256SUMS`. Keep each selected kit's source, archive and host identities distinct.
+Earlier releases, including their archive guide snapshots, are covered under
+[Previous release](#previous-release-sdk-240).
+
+**Repository-source coordinates at this documentation revision.** In the full
+repository source tree, `sdk/VERSION` records the release version and
+`sdk/DEVELOPMENT_VERSION` the next development coordinate. These are source-repository
+values, not universal extracted-kit contents. The current SDK archives use game pack
+<!--rv:game_pack_version-->0.8.1<!--/rv-->, which targets Star Citizen build <!--rv:game_build-->4.10.200.58746<!--/rv-->; the game-pack coordinate is
+also listed in the [SDK source context](../sdk/README.md) and
+[game-pack status](game-pack.md). Opt-in
+development packaging writes the selected development version to the generated
+kit `VERSION` and metadata and excludes `sdk/DEVELOPMENT_VERSION`; the
+game-neutral `core-source` profile omits the game header. For any extracted kit,
+start with its own `COMPATIBILITY.json`, `VERSION`/`VERSIONS.txt` and checksums.
+Profile determines which indexes exist: `core` and `core-source` have a workflow
+index but no developer catalogue and record no game overlay
+(`game_overlay_version` is null); a workflow index records SDK/source
+coordinates, not a game-pack version. The game-capable `game-sc`, `legacy` and
+`host-source-sc` profiles include the developer catalogue, whose SDK/game-pack/
+source coordinates should match that profile's compatibility descriptor. A
+standalone `game-sc` overlay uses the workflow bundle from its exact matching
+core kit and its `base_core_sha256` must match that core archive. These checks
+bind identities; they do not establish native activation, provider availability
+or game acceptance.
+
+**Archive behavior by release.** The SDK <!--rv:sdk_version-->2.4.1<!--/rv--> kit has the fifteen-tool default and
+matching workflow bundle documented on this page. Earlier archives keep their own
+tool sets and bytes; see [Previous release](#previous-release-sdk-240) and the
+historical RC1 option below. Later source edits do not alter any published archive.
 
 ### Optional separately supplied source build
 
 For a combined `legacy` plugin kit built outside the published release, obtain the archive, its expected
 SHA-256 and source revision from the person or process supplying that kit. This is
-a separate option from the stable SDK 2.4.0 download below; a locally built archive is
+a separate option from the release download below; a locally built archive is
 not a release asset. Verify the digest before extracting into an empty directory.
 For example, on macOS or Linux, set `ARCHIVE` to its absolute path and `EXPECTED`
 to the separately recorded digest, then run:
@@ -96,17 +101,100 @@ supplied source revision and each other. Record the archive, catalogue and workf
 index digests. For separate core and game-sc archives, verify each archive and
 follow the exact-base and metadata checks in [archive composition](../sdk/README.md#zips)
 before composing them; the single-archive example above is not that procedure.
-Then skip the RC1-specific download and extraction below and continue at
+Then skip the release download and extraction below and continue at
 [Choose a profile](#choose-a-profile). The server checks catalogue/index coordinates
 and indexed content on startup; negotiate the available tools after connecting.
 
-### Published stable SDK 2.4.0 release
+### Current release download
+
+Download the combined kit and its `SHA256SUMS` from the
+release page linked under Release identity above
+into an empty directory, then check the archive against the release's `SHA256SUMS`
+before extraction. The digests are listed in `SHA256SUMS` on the release page.
+
+macOS and Linux (on macOS use `shasum -a 256 -c -`):
+
+<!-- release-block:kit-download-sh -->
+```sh
+set -e
+gh release download sdk-v2.4.1 -R scuba-sc/sco-core -p 'sco-sdk-2.4.1.zip' -p SHA256SUMS
+grep ' sco-sdk-2.4.1.zip$' SHA256SUMS | sha256sum -c -
+mkdir sdk-kit && unzip -q sco-sdk-2.4.1.zip -d sdk-kit
+SDK="$PWD/sdk-kit/$(basename sco-sdk-2.4.1.zip .zip)"
+test -f "$SDK/sdk-catalogue.json"
+```
+<!-- /release-block:kit-download-sh -->
+
+Windows PowerShell:
+
+<!-- release-block:kit-download-ps -->
+```powershell
+gh release download sdk-v2.4.1 -R scuba-sc/sco-core -p 'sco-sdk-2.4.1.zip' -p SHA256SUMS
+if ($LASTEXITCODE -ne 0) { throw 'SDK download failed' }
+$expected = ((Get-Content SHA256SUMS | Where-Object { $_ -match (' ' + [regex]::Escape('sco-sdk-2.4.1.zip') + '$') }) -split '\s+')[0]
+if (!$expected -or (Get-FileHash sco-sdk-2.4.1.zip -Algorithm SHA256).Hash -ine $expected) { throw 'SHA256 mismatch; stop' }
+Expand-Archive sco-sdk-2.4.1.zip -DestinationPath sdk-kit
+$SDK = (Join-Path (Resolve-Path sdk-kit).Path ([IO.Path]::GetFileNameWithoutExtension('sco-sdk-2.4.1.zip'))) -replace '\\', '/'
+if (!(Test-Path "$SDK/sdk-catalogue.json")) { throw 'Not the SDK folder' }
+```
+<!-- /release-block:kit-download-ps -->
+
+A checksum file downloaded beside its archive only catches a damaged download; what it
+does and does not establish is described in
+[Download, verify, extract](getting-started.md#3-download-verify-extract). Then continue
+at [Choose a profile](#choose-a-profile). Confirm the extracted compatibility, catalogue
+and workflow index identities as described above.
+
+### Previous release: SDK 2.4.0
+
+<a id="published-stable-sdk-240-release"></a>
+
+The SDK 2.4.0 archives use game pack 0.8.0. The material below describes that release
+and the release candidates before it.
+
+**Immutable archive guide snapshots.** The stable 2.4.0 and historical RC2 kits
+contain bundled guides (`sdk-guides.json`, served by `search_guides` and
+`get_guide_section`) and READMEs frozen before their release pages were published.
+The stable archive therefore retains some prepublication wording such as “RC2 is
+the latest release” or “the final 2.4.0 release is pending.” That text describes
+the source snapshot, not current release status. Stable SDK 2.4.0 is published;
+use the [stable release page](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0)
+and its `SHA256SUMS` for release identity. This current-source guide corrects the
+instructions but does not rewrite either release's archived bytes. The stable
+archive's server has the fifteen-tool default and schema-2 catalogue, including
+`get_service_status`; RC2 remains a historical fourteen-tool archive without that
+tool. The guide links are out of date
+too: for a `docs/` page, the `url` in a `search_guides` result names the previous
+docs-site address (`scubamount.github.io`), which now returns 404. Replace that host
+with `scuba-sc.github.io` and keep the path. The docs site publishes release notes for
+2.4.0 only, so a result for the 2.1.0, 2.2.0 or 2.3.0 notes still gives a 404 on the new
+host: read those under `docs/releases/` in the repository. For a guide
+under `sdk/docs` the `url` is a repository path, not a link; in the kit that guide is under
+`docs/` (see [Find the SDK folder](#find-the-sdk-folder)). See the
+[release notes](releases/sdk-v2.4.0.md#known-issues-in-release-candidate-1).
+
+**Stable SDK 2.4.0 and historical candidates.** Stable 2.4.0 was the previous published
+release. Download the matching profile archive and check that downloaded file against
+the release's `SHA256SUMS`; the [release notes](releases/sdk-v2.4.0.md#stable-sdk-240-archive-identities)
+record the release source and all profile identities.
+RC2 was published on 2026-10-28 and RC1 on 2026-10-21. They remain historical
+releases with unchanged bytes. Keep
+each selected kit's source, archive and host identities distinct.
+
+**Stable and historical archive behavior.** The stable SDK 2.4.0 kit has the
+fifteen-tool default and matching workflow bundle documented on this page. The
+published RC2 archive has fourteen tools and predates `get_service_status` and
+catalogue schema 2. The older published RC1 archive keeps its original six-tool
+default and twelve tools with `--extended-tools`; it has no workflow index or
+workflow tools. Later source edits do not alter any published archive.
+
+**Download the SDK 2.4.0 combined kit.**
 
 Download the combined kit and its `SHA256SUMS` from the published
 [stable SDK 2.4.0 release](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0)
 into an empty directory. Set `EXPECTED_SHA256` (or `$ExpectedSha256` in
 PowerShell) to the independently recorded combined-archive digest in the
-[stable release notes](releases/sdk-v2.4.0.md#stable-archive-identity).
+[stable release notes](releases/sdk-v2.4.0.md#stable-sdk-240-archive-identities).
 Compare that value with the downloaded archive and checksum file before extraction.
 
 macOS and Linux (on macOS use `shasum -a 256 -c -`):
@@ -188,7 +276,7 @@ in [Download, verify, extract](getting-started.md#3-download-verify-extract).
 ### Find the SDK folder
 
 The **SDK folder** is the folder that directly contains `sdk-catalogue.json`. For the
-combined kit that is `<extract folder>/sco-sdk-2.4.0`. This page writes its path as
+combined kit that is `<extract folder>/sco-sdk-<version>`. This page writes its path as
 `SDK`, and as `$SDK` in a shell. Extract next to the zip, in the folder you will keep:
 the client stores the absolute path, so if you move or delete the folder later, replace
 the registration (see "Replacing a registration" under
@@ -198,19 +286,23 @@ so check rather than assume.
 
 macOS and Linux:
 
+<!-- release-block:kit-extract-sh -->
 ```sh
-mkdir sdk-kit && unzip -q sco-sdk-2.4.0.zip -d sdk-kit
-SDK="$PWD/sdk-kit/sco-sdk-2.4.0"
+mkdir sdk-kit && unzip -q sco-sdk-2.4.1.zip -d sdk-kit
+SDK="$PWD/sdk-kit/$(basename sco-sdk-2.4.1.zip .zip)"
 test -f "$SDK/sdk-catalogue.json" && echo "SDK ok: $SDK" || echo "not the SDK folder: $SDK"
 ```
+<!-- /release-block:kit-extract-sh -->
 
 Windows PowerShell:
 
+<!-- release-block:kit-extract-ps -->
 ```powershell
-Expand-Archive sco-sdk-2.4.0.zip -DestinationPath sdk-kit
-$SDK = (Join-Path (Resolve-Path sdk-kit).Path 'sco-sdk-2.4.0') -replace '\\', '/'
+Expand-Archive sco-sdk-2.4.1.zip -DestinationPath sdk-kit
+$SDK = (Join-Path (Resolve-Path sdk-kit).Path ([IO.Path]::GetFileNameWithoutExtension('sco-sdk-2.4.1.zip'))) -replace '\\', '/'
 if (Test-Path "$SDK/sdk-catalogue.json") { "SDK ok: $SDK" } else { "not the SDK folder: $SDK" }
 ```
+<!-- /release-block:kit-extract-ps -->
 
 `Expand-Archive` stops with `Failed to create file ... already exists` when `sdk-kit`
 already holds the kit's files, for example if you run this step a second time. An existing
@@ -233,8 +325,8 @@ lose that prefix here: `sdk/docs/plugin-ini.md` is `docs/plugin-ini.md` and
 folder.
 Client configuration files do not expand `$SDK`, so write the absolute path out there;
 the `claude mcp add` and `codex mcp add` commands below can use `$SDK` because your
-shell expands it. The configuration examples use `/absolute/path/to/sco-sdk-2.4.0`
-(macOS and Linux) and `C:/absolute/path/to/sco-sdk-2.4.0` (Windows) for it.
+shell expands it. The configuration examples use `/absolute/path/to/sco-sdk-<version>`
+(macOS and Linux) and `C:/absolute/path/to/sco-sdk-<version>` (Windows) for it.
 
 ### Choose a profile
 
@@ -372,11 +464,11 @@ others) take this entry. macOS and Linux:
     "sco-core-sdk": {
       "command": "python3",
       "args": [
-        "/absolute/path/to/sco-sdk-2.4.0/tools/sco-core-mcp/server.py",
+        "/absolute/path/to/sco-sdk-<version>/tools/sco-core-mcp/server.py",
         "--catalogue",
-        "/absolute/path/to/sco-sdk-2.4.0/sdk-catalogue.json",
+        "/absolute/path/to/sco-sdk-<version>/sdk-catalogue.json",
         "--repo-root",
-        "/absolute/path/to/sco-sdk-2.4.0"
+        "/absolute/path/to/sco-sdk-<version>"
       ]
     }
   }
@@ -392,11 +484,11 @@ Windows: `py` with `-3` first, and `C:/` paths.
       "command": "py",
       "args": [
         "-3",
-        "C:/absolute/path/to/sco-sdk-2.4.0/tools/sco-core-mcp/server.py",
+        "C:/absolute/path/to/sco-sdk-<version>/tools/sco-core-mcp/server.py",
         "--catalogue",
-        "C:/absolute/path/to/sco-sdk-2.4.0/sdk-catalogue.json",
+        "C:/absolute/path/to/sco-sdk-<version>/sdk-catalogue.json",
         "--repo-root",
-        "C:/absolute/path/to/sco-sdk-2.4.0"
+        "C:/absolute/path/to/sco-sdk-<version>"
       ]
     }
   }
@@ -429,11 +521,11 @@ The equivalent `config.toml` table:
 [mcp_servers.sco-core-sdk]
 command = "python3"
 args = [
-  "/absolute/path/to/sco-sdk-2.4.0/tools/sco-core-mcp/server.py",
+  "/absolute/path/to/sco-sdk-<version>/tools/sco-core-mcp/server.py",
   "--catalogue",
-  "/absolute/path/to/sco-sdk-2.4.0/sdk-catalogue.json",
+  "/absolute/path/to/sco-sdk-<version>/sdk-catalogue.json",
   "--repo-root",
-  "/absolute/path/to/sco-sdk-2.4.0"
+  "/absolute/path/to/sco-sdk-<version>"
 ]
 ```
 
@@ -458,11 +550,11 @@ VS Code reads `.vscode/mcp.json`, and its top-level key is `servers`, not
       "type": "stdio",
       "command": "python3",
       "args": [
-        "/absolute/path/to/sco-sdk-2.4.0/tools/sco-core-mcp/server.py",
+        "/absolute/path/to/sco-sdk-<version>/tools/sco-core-mcp/server.py",
         "--catalogue",
-        "/absolute/path/to/sco-sdk-2.4.0/sdk-catalogue.json",
+        "/absolute/path/to/sco-sdk-<version>/sdk-catalogue.json",
         "--repo-root",
-        "/absolute/path/to/sco-sdk-2.4.0"
+        "/absolute/path/to/sco-sdk-<version>"
       ]
     }
   }
@@ -488,11 +580,11 @@ launching the server**:
       "type": "stdio",
       "command": "python3",
       "args": [
-        "/absolute/path/to/sco-sdk-2.4.0/tools/sco-core-mcp/server.py",
+        "/absolute/path/to/sco-sdk-<version>/tools/sco-core-mcp/server.py",
         "--catalogue",
-        "/absolute/path/to/sco-sdk-2.4.0/sdk-catalogue.json",
+        "/absolute/path/to/sco-sdk-<version>/sdk-catalogue.json",
         "--repo-root",
-        "/absolute/path/to/sco-sdk-2.4.0"
+        "/absolute/path/to/sco-sdk-<version>"
       ],
       "tools": [
         "search_api",
@@ -541,11 +633,20 @@ separate, see
    show me the raw `provenance` and `stability_context`." Most clients have no box for
    calling a tool by hand, and an agent tends to summarise away exactly these fields,
    so ask for the raw result. Every result carries `provenance`. Compare it with
-   `COMPATIBILITY.json` in the SDK folder: `sdk_version` must equal `core_sdk_version`
-   (2.4.0 for this kit), `game_pack_version` must equal `game_overlay_version`
-   (0.8.0), and `source_sha` must equal the `core` and `game-sc` values under
-   `source_commits` (the same commit in this kit). A different value means the server
-   is reading another catalogue, such as the site's changing mainline file.
+   the game-capable developer kit's `sdk-catalogue.json` and
+   `COMPATIBILITY.json`: `provenance.sdk_version` and
+   `provenance.game_pack_version` should match the catalogue, whose
+   `sdk_version`, `game_pack_version` and `source_sha` should match the
+   descriptor's `core_sdk_version`, `game_overlay_version` and applicable
+   `source_commits`. The `sdk-workflows.json` index carries SDK/source identity,
+   not a game-pack version; compare its `sdk_version` and `source_sha` with the
+   same kit. For a standalone `game-sc` overlay, its workflow bundle comes from
+   the exact matching core kit, and its `base_core_sha256` must match that core
+   archive. Game-neutral `core` and `core-source` kits have no developer
+   catalogue and no game overlay, so this game-service provenance check does
+   not apply to them. A mismatch means the server may be reading another
+   catalogue, such as the site's changing mainline file; the values in a kit are
+   specific to that kit, not universal expectations.
 5. Check `--repo-root` in the same result, because steps 1 to 4 pass even when it is
    wrong or missing: the server starts, lists its tools and reports the right
    provenance. `stability_context.game_state` must be `read`, and no service may show
@@ -567,15 +668,15 @@ Common failures:
 
 | What you see | Cause and fix |
 | --- | --- |
-| `python.exe: can't open file '.../tools/sco-core-mcp/server.py': [Errno 2] No such file or directory` (on macOS and Linux, `python3: can't open file ...`), exit code 2, and the client shows the server as failed | Python could not find `server.py`, so the path to it is wrong. The path is the extract folder instead of `sco-sdk-2.4.0`, a path has a typo, the `/absolute/path/to/...` placeholder was left in, or a path with a space was not quoted in a shell command. Run the existence check from [Find the SDK folder](#find-the-sdk-folder). |
-| `sco-core-mcp: catalogue refused: FileNotFoundError`, exit code 1, and the client shows the server as failed or disconnected | `server.py` started, but the `--catalogue` file does not exist: for example a checkout's `dist/sdk-catalogue.json` path in a kit, or the extract folder in place of `sco-sdk-2.4.0`. Run the same existence check. |
+| `python.exe: can't open file '.../tools/sco-core-mcp/server.py': [Errno 2] No such file or directory` (on macOS and Linux, `python3: can't open file ...`), exit code 2, and the client shows the server as failed | Python could not find `server.py`, so the path to it is wrong. The path is the extract folder instead of `sco-sdk-<version>`, a path has a typo, the `/absolute/path/to/...` placeholder was left in, or a path with a space was not quoted in a shell command. Run the existence check from [Find the SDK folder](#find-the-sdk-folder). |
+| `sco-core-mcp: catalogue refused: FileNotFoundError`, exit code 1, and the client shows the server as failed or disconnected | `server.py` started, but the `--catalogue` file does not exist: for example a checkout's `dist/sdk-catalogue.json` path in a kit, or the extract folder in place of `sco-sdk-<version>`. Run the same existence check. |
 | The server connects, but `get_example` returns `Example unavailable: requires a contained regular UTF-8 file without symlinks`; `list_engine_natives` or `generate_plugin_scaffold` return `unavailable` with a `reason` such as `sdk/native_index.json unavailable beneath --repo-root`; `list_services` shows `stability_context.game_state` `unavailable` | `--repo-root` is not the SDK folder: it is one level too high, another folder, or left out (left out, `get_example` instead returns paths only with `paths_only: true`). The server starts anyway. The messages use checkout paths (`sdk/...`); a kit has no `sdk/` folder, and those files sit at its root (`native_index.json`, `tools/sco-new-plugin.py`), so nothing is missing from the kit. Set `--repo-root` to the SDK folder and restart; step 5 above checks it. |
 | A usage block that ends with `server.py: error: unrecognized arguments: ...`, `server.py: error: --catalogue or SCO_CORE_CATALOGUE is required` or `server.py: error: argument --repo-root: expected one argument`, exit code 2 | An argument is malformed: a flag and its value were joined in one `args` element (`"--catalogue C:/..."`), `--catalogue` is missing, or a flag has no value. Make every flag and every value its own element, in the order under [Register the server in your client](#register-the-server-in-your-client). |
-| `Unknown tool` (JSON-RPC `-32602`), or only six tools | Check whether `--minimal-tools` or the client allowlist restricts discovery, and whether this is an older published kit. Stable SDK 2.4.0 defaults to fifteen; historical RC2 has fourteen, and RC1 needs `--extended-tools` for its twelve supported names and has no workflow tools. |
+| `Unknown tool` (JSON-RPC `-32602`), or only six tools | Check whether `--minimal-tools` or the client allowlist restricts discovery, and whether this is an older published kit. The SDK <!--rv:sdk_version-->2.4.1<!--/rv--> kit defaults to fifteen; historical RC2 has fourteen, and RC1 needs `--extended-tools` for its twelve supported names and has no workflow tools. |
 | The server does not start on Windows, or the Microsoft Store opens | `python3` is not a standard Windows command. Use `py` with `-3`, or an absolute `python.exe` (`py -3 -c "import sys; print(sys.executable)"` prints its path). |
-| The client disconnects while initializing | The client does not support protocol `2025-11-25`. Update the client. |
+| The client disconnects while initializing | The client may support neither protocol version the server speaks, `2025-11-25` and `2026-07-28`. Use a client that supports one of them. An archive from before 2.4.1 may speak only `2025-11-25`. |
 | `check_compatibility` says a `tag` does not match the advertised pattern | The current historical-record lookup accepts `sdk-vMAJOR.MINOR.PATCH` only, so RC1 and RC2 suffixes are refused. Compare `sdk_version`, `game_pack_version` and `source_sha`, and verify the archive digest separately; these checks do not prove publication. |
-| `search_guides` text says RC2 is latest or stable 2.4.0 is unpublished | The immutable stable and RC2 kits contain prepublication guide snapshots. This source guide corrects that text; the [stable release page](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0) and its checksums establish current publication status. |
+| `search_guides` text says RC2 is the latest release or that a final release is pending | The immutable 2.4.0 and RC2 kits contain guide snapshots frozen before their release pages existed (see [Previous release](#previous-release-sdk-240)). This source guide corrects that text; the release page of the kit you downloaded and its checksums establish release identity. |
 
 ### Workflow discovery and missing indexes
 

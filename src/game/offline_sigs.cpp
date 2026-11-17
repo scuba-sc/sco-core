@@ -87,14 +87,21 @@ template <int K>
 SigResult ResolveHandshake(const Image& img, const SigResolveContext&) {
     if (!rows::InImage(img, img.rdata.base, img.rdata.size)) return SigFail("invalid .rdata");
     if (!rows::InText(img, img.text.base, img.text.size)) return SigFail("invalid .text");
-    uint8_t* sites[kHandshakeSites] = {};
-    bool same = true;
-    const int n = HandshakeSites(img, sites, kHandshakeSites, same);
+    // Every K row would repeat this scan: it reads only the image, so the pass does it once.
+    static_assert(kHandshakeSites <= sizeof(SiteMemo::at) / sizeof(SiteMemo::at[0]), "SiteMemo::at holds the sites");
+    SiteMemo local;
+    SiteMemo& m = PassMemo(img, MemoKey::Handshake, local);
+    if (!m.done) {
+        m.flag = true;
+        m.n = HandshakeSites(img, m.at, kHandshakeSites, m.flag);
+        m.done = true;
+    }
+    const int n = m.n;
     if (n < 0) return SigFail("the sessionGuid string isn't in .rdata");
     if (n == 0) return Missing();
     if (n != kHandshakeSites) return SigFail("handshake gates: the site count changed");
-    if (!same) return SigFail("handshake gates: the gates compare different flags");
-    return SigOk(sites[K - 1]);
+    if (!m.flag) return SigFail("handshake gates: the gates compare different flags");
+    return SigOk(m.at[K - 1]);
 }
 
 constexpr RipSpec kIsOnlineFlag{ "offline.handshake_gate.1", 0, 3, 7 };
@@ -162,27 +169,39 @@ SigResult ResolveBootFrontend(const Image& img, const SigResolveContext&) {
 
 // ---- offline player data from %USER% -----------------------------------------------------------
 
-template <int K>
-SigResult ResolveOfflineDb(const Image& img, const SigResolveContext&) {
-    if (!rows::InImage(img, img.rdata.base, img.rdata.size)) return SigFail("invalid .rdata");
-    if (!rows::InText(img, img.text.base, img.text.size)) return SigFail("invalid .text");
+// Every `lea r8, [Libs/OfflineDB]` in address order (up to max written); -1 when the string isn't in
+// .rdata, 0 when .text is too short to hold one.
+int OfflineDbSites(const Image& img, uint8_t** out, int max) {
     const Section& text = img.text;
     const uint8_t* offlineDb = BoundedCString(img, img.rdata, "Libs/OfflineDB");
-    if (!offlineDb) return SigFail("Libs/OfflineDB isn't in .rdata");
-    uint8_t* sites[kOfflineDbSites] = {};
+    if (!offlineDb) return -1;
     int n = 0;
-    if (!rows::InText(img, text.base, text.size) || text.size < 7) return Missing();
+    if (!rows::InText(img, text.base, text.size) || text.size < 7) return 0;
     uint8_t* const end = text.base + text.size - 7;
     for (uint8_t* p = text.base; p <= end; ++p) {
         p = static_cast<uint8_t*>(memchr(p, 0x4C, static_cast<size_t>(end - p) + 1));
         if (!p) break;
         if (p[1] != 0x8D || p[2] != 0x05 || CheckedRip(img, p, 3, 7) != offlineDb) continue;
-        if (n < kOfflineDbSites) sites[n] = p;
+        if (n < max) out[n] = p;
         ++n;
     }
+    return n;
+}
+
+template <int K>
+SigResult ResolveOfflineDb(const Image& img, const SigResolveContext&) {
+    if (!rows::InImage(img, img.rdata.base, img.rdata.size)) return SigFail("invalid .rdata");
+    if (!rows::InText(img, img.text.base, img.text.size)) return SigFail("invalid .text");
+    // The scan reads only the image: the pass does it once for every K row.
+    static_assert(kOfflineDbSites <= sizeof(SiteMemo::at) / sizeof(SiteMemo::at[0]), "SiteMemo::at holds the sites");
+    SiteMemo local;
+    SiteMemo& m = PassMemo(img, MemoKey::OfflineDb, local);
+    if (!m.done) { m.n = OfflineDbSites(img, m.at, kOfflineDbSites); m.done = true; }
+    const int n = m.n;
+    if (n < 0) return SigFail("Libs/OfflineDB isn't in .rdata");
     if (n == 0) return Missing();
     if (n != kOfflineDbSites) return SigFail("Libs/OfflineDB references: the site count changed");
-    return SigOk(sites[K - 1]);
+    return SigOk(m.at[K - 1]);
 }
 
 // ---- ASOP / fleet manager on the offline shard -------------------------------------------------
@@ -212,6 +231,11 @@ constexpr FnSpec kAsopGateValidation{
 // ---- landing zones don't destroy spawned ships -------------------------------------------------
 
 const char* ImpoundExtra(const Image& img, const uint8_t* f, const SigResolveContext&) {
+    const auto* frameBase = TextAt(img, f, 17, 1);
+    const auto* frameSize = TextAt(img, f, 24, 1);
+    if (!frameBase || !frameSize ||
+        !((*frameBase == 0x38 && *frameSize == 0xc8) || (*frameBase == 0x48 && *frameSize == 0xb8)))
+        return "impound frame layout changed";
     if (!rows::InImage(img, img.rdata.base, img.rdata.size)) return "invalid .rdata";
     const uint8_t* msg = BoundedCString(img, img.rdata, "$$: Vehicle '$$' [$$] impounded (or destroyed) by restricted area '$$' [$$]");
     const uint8_t* tag = BoundedCString(img, img.rdata, "Boundary Violation");
@@ -227,7 +251,7 @@ constexpr Check kImpoundChecks[] = {
     { 0x79, "4C 8D 05", "layout changed at +0x079" },   // lea r8, ["Boundary Violation"]
 };
 constexpr FnSpec kImpound{
-    "40 55 53 56 57 41 54 41 55 41 56 41 57 48 8D AC 24 38 FE FF FF 48 81 EC C8 02 00 00 33 D2 48 8B F1 E8",
+    "40 55 53 56 57 41 54 41 55 41 56 41 57 48 8D AC 24 ?? FE FF FF 48 81 EC ?? 02 00 00 33 D2 48 8B F1 E8",
     kImpoundChecks, std::size(kImpoundChecks), ImpoundExtra };
 
 // ---- offline contract broker + mission service -------------------------------------------------
@@ -301,12 +325,16 @@ int SocialGroupSites(const Image& img, uint8_t** out, int max) {
 template <int K>
 SigResult ResolveSocialGroup(const Image& img, const SigResolveContext&) {
     if (!rows::InText(img, img.text.base, img.text.size)) return SigFail("invalid .text");
-    uint8_t* sites[kSocialGroupSites] = {};
-    const int n = SocialGroupSites(img, sites, kSocialGroupSites);
+    // Every K row would repeat this scan: it reads only the image, so the pass does it once.
+    static_assert(kSocialGroupSites <= sizeof(SiteMemo::at) / sizeof(SiteMemo::at[0]), "SiteMemo::at holds the sites");
+    SiteMemo local;
+    SiteMemo& m = PassMemo(img, MemoKey::SocialGroup, local);
+    if (!m.done) { m.n = SocialGroupSites(img, m.at, kSocialGroupSites); m.done = true; }
+    const int n = m.n;
     if (n < 0) return SigFail("social-group queries: the sites load different globals");
     if (n == 0) return Missing();
     if (n != kSocialGroupSites) return SigFail("social-group queries: the site count changed");
-    return SigOk(sites[K - 1]);
+    return SigOk(m.at[K - 1]);
 }
 
 constexpr RipSpec kServicesEnv{ "offline.social_group.1", 0, 3, 7 };
@@ -314,23 +342,16 @@ constexpr RipSpec kServicesEnv{ "offline.social_group.1", 0, 3, 7 };
 // ---- no reconnecting service streams -------------------------------------------------------------
 
 // The next `lea r64, [rip+target]` (48/4C 8D, mod/rm = rip) at or after `from`.
-const uint8_t* FindLeaFrom(const Section& text, const uint8_t* target, const uint8_t* from) {
+const uint8_t* FindLeaFrom(const Image& img, const Section& text, const uint8_t* target, const uint8_t* from) {
     if (!target || !rows::InRange(text, text.base, text.size) || text.size < 7 ||
         !rows::InRange(text, from, 7)) return nullptr;
-    const uint8_t* const end = text.base + text.size - 6;
-    for (const uint8_t* opcode = from + 1; opcode <= end; ++opcode) {
-        opcode = static_cast<const uint8_t*>(memchr(opcode, 0x8D, static_cast<size_t>(end - opcode) + 1));
-        if (!opcode) break;
-        const uint8_t* p = opcode - 1;
-        if ((p[0] != 0x48 && p[0] != 0x4C) || (p[2] & 0xC7) != 0x05) continue;
-        const uint8_t* next = rows::RangeAt(text, p, 7, 0);
-        const auto address = reinterpret_cast<uintptr_t>(next);
-        const int32_t disp = Rel32(p + 3);
-        const uintptr_t magnitude = disp < 0 ? uintptr_t{0} - static_cast<uintptr_t>(disp) : static_cast<uintptr_t>(disp);
-        if (!(disp < 0 ? magnitude > address : magnitude > UINTPTR_MAX - address) &&
-            (disp < 0 ? address - magnitude : address + magnitude) == reinterpret_cast<uintptr_t>(target)) return p;
-    }
-    return nullptr;
+    ScanIndexRef index(img);
+    const size_t at = index->FindRip(text, RipForm::AnyLea(), target, static_cast<size_t>(from - text.base));
+    return at == ScanIndex::kNone ? nullptr : text.base + at;
+}
+// Without an image there is no pass index: walk .text directly (the bounds tests call this form).
+[[maybe_unused]] const uint8_t* FindLeaFrom(const Section& text, const uint8_t* target, const uint8_t* from) {
+    return FindLeaFrom(Image{}, text, target, from);
 }
 
 constexpr char kPresence[]  = "presence::v1::PresenceService";
@@ -354,7 +375,7 @@ SigResult ResolveServiceStream(const Image& img, const SigResolveContext&) {
     if (!s) return SigFail("the stream lambda's name isn't in .rdata");
     uint8_t* fns[N] = {};
     int n = 0;
-    for (const uint8_t* lea = FindLeaFrom(img.text, s, img.text.base); lea; lea = FindLeaFrom(img.text, s, TextAt(img, lea, 7, 0))) {
+    for (const uint8_t* lea = FindLeaFrom(img, img.text, s, img.text.base); lea; lea = FindLeaFrom(img, img.text, s, TextAt(img, lea, 7, 0))) {
         uint8_t* fn = FunctionStart(img, lea);
         if (!fn || !InText(img, fn, 12) || reinterpret_cast<uintptr_t>(fn) > reinterpret_cast<uintptr_t>(lea) ||
             reinterpret_cast<uintptr_t>(lea) - reinterpret_cast<uintptr_t>(fn) > 0x200) continue;
@@ -374,9 +395,9 @@ SigResult ResolveRemoteConsoleBind(const Image& img, const SigResolveContext&) {
     if (!rows::InText(img, img.text.base, img.text.size)) return SigFail("invalid .text");
     const uint8_t* s = BoundedCString(img, img.rdata, "Remote console listening on: %u\n");
     if (!s) return SigFail("the remote console's listening line isn't in .rdata");
-    const uint8_t* lea = FindLeaFrom(img.text, s, img.text.base);
+    const uint8_t* lea = FindLeaFrom(img, img.text, s, img.text.base);
     if (!lea) return SigFail("the remote console's listening line isn't referenced");
-    if (FindLeaFrom(img.text, s, TextAt(img, lea, 7, 0))) return SigFail("the listening line is referenced more than once");
+    if (FindLeaFrom(img, img.text, s, TextAt(img, lea, 7, 0))) return SigFail("the listening line is referenced more than once");
     const uint8_t* start = TextAt(img, lea, -0x100, 0x100);
     if (!start) return SigFail("the listening line's reference is too close to the start of .text");
     const uint8_t* at = nullptr;

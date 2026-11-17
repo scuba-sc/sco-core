@@ -4,11 +4,13 @@
 #include "sco/owned_shutdown.h"
 #include "../owned_shutdown_access.h"
 #include "internal.h"
+#include "managed_service_gate.h"
 #include "owned_publication.h"
 #include <algorithm>
 #include <atomic>
 #include <cstring>
 #include <mutex>
+#include <limits>
 #include <string>
 #include <type_traits>
 #include <utility>
@@ -23,14 +25,27 @@ struct Service {
     std::string name;
     uint32_t    version;
     const void* table;
+    uint64_t generation;
 };
+
+struct ManagedState { const void* owner; uint64_t generation; size_t pins; };
 
 #ifdef SCO_RUNTIME_DIAGNOSTICS_FIXTURE
 std::atomic<uint64_t> g_fixtureQueryCalls{0}; // no counter/export in non-test builds
 #endif
 std::mutex           g_lock;
 std::atomic<bool>    g_stopped{ false };
+// Some C++20 libraries do not yet implement atomic<shared_ptr>. Every access
+// to the fallback shared_ptr must use the atomic free functions.
+#if defined(__cpp_lib_atomic_shared_ptr) && __cpp_lib_atomic_shared_ptr >= 201711L && !defined(SCO_TEST_ATOMIC_SHARED_PTR_FALLBACK)
 std::atomic<std::shared_ptr<OwnedShutdown>> g_shutdownOwner;
+std::shared_ptr<OwnedShutdown> LoadShutdownOwner() { return g_shutdownOwner.load(); }
+void StoreShutdownOwner(std::shared_ptr<OwnedShutdown> owner) { g_shutdownOwner.store(std::move(owner)); }
+#else
+std::shared_ptr<OwnedShutdown> g_shutdownOwner;
+std::shared_ptr<OwnedShutdown> LoadShutdownOwner() { return std::atomic_load(&g_shutdownOwner); }
+void StoreShutdownOwner(std::shared_ptr<OwnedShutdown> owner) { std::atomic_store(&g_shutdownOwner, std::move(owner)); }
+#endif
 std::mutex g_bindingLock;
 size_t g_runtimeEntries = 0;
 bool g_legacyRuntimeTouched = false;
@@ -39,6 +54,14 @@ void (*g_observationEntryHook)(void*) = nullptr;
 void* g_observationEntryHookContext = nullptr;
 #endif
 std::vector<Service> g_services;
+// Only active pins need per-generation storage. Used owners remain until release.
+std::vector<ManagedState> g_managed;
+std::vector<const void*> g_managedUsed;
+std::vector<const void*> g_managedDenied;
+bool g_managedGloballyDenied = false;
+bool g_managedShutdown = false; // protected by g_lock
+std::vector<const void*> g_releasing;
+uint64_t g_nextGeneration = 1;
 // Owners whose table QueryService has returned at least once. Kept after the services are
 // withdrawn: the loader asks once the owner is released, to keep its module mapped. One pointer
 // per provider (owners are never reused), so it stays small.
@@ -46,6 +69,8 @@ std::vector<const void*> g_handedOut;
 // Admission reservations are separate from publication: explicit withdrawal/republication must
 // not reopen a provider while its unload export is destroying state.
 std::vector<const void*> g_withdrawing;
+// Terminal reservations are never cancelled by an administrative reload.
+std::vector<const void*> g_terminalWithdrawing;
 
 // Diagnostic sidecars are independent of publication storage. Their allocation failures
 // must never turn a successful provide/withdraw/release into a registry failure.
@@ -70,7 +95,9 @@ bool g_diagnosticHistoryLost = false;
 constexpr size_t kMaxDiagnosticServices = 1024;
 
 bool Withdrawing(const void* owner) {
-    return std::find(g_withdrawing.begin(), g_withdrawing.end(), owner) != g_withdrawing.end();
+    return std::find(g_terminalWithdrawing.begin(), g_terminalWithdrawing.end(), owner) != g_terminalWithdrawing.end() ||
+           std::find(g_withdrawing.begin(), g_withdrawing.end(), owner) != g_withdrawing.end() ||
+           std::find(g_releasing.begin(), g_releasing.end(), owner) != g_releasing.end();
 }
 
 bool ValidServiceName(const char* name) {
@@ -160,7 +187,7 @@ detail::RuntimeLease::Entry::Entry() : legacy_(true) {
     if (!legacy_) return;
     std::lock_guard<std::mutex> lock(g_bindingLock);
     ++g_runtimeEntries;
-    if (!g_shutdownOwner.load()) g_legacyRuntimeTouched = true;
+    if (!LoadShutdownOwner()) g_legacyRuntimeTouched = true;
 }
 detail::RuntimeLease::Entry::Entry(ObserveOnly) : legacy_(false) {
     if (!legacy_) return;
@@ -190,31 +217,31 @@ detail::RuntimeLease::Entry::~Entry() {
     --g_runtimeEntries;
 }
 bool detail::RuntimeStopping() {
-    const auto owner = g_shutdownOwner.load();
+    const auto owner = LoadShutdownOwner();
     return g_stopped.load() || (owner && !owner->open());
 }
 detail::RuntimeLease::RuntimeLease()
-    : owner_(g_shutdownOwner.load()),
+    : owner_(LoadShutdownOwner()),
       startup_(entry_.admitted() && owner_ && OwnedShutdownHostAccess::on_transition_thread(*owner_)),
       read_(entry_.admitted() && owner_ && !startup_ ? owner_->try_read() : OwnedShutdown::Read{}) {}
 detail::RuntimeLease::RuntimeLease(ObserveOnly tag)
-    : entry_(tag), owner_(g_shutdownOwner.load()),
+    : entry_(tag), owner_(LoadShutdownOwner()),
       startup_(entry_.admitted() && owner_ && OwnedShutdownHostAccess::on_transition_thread(*owner_)),
       read_(entry_.admitted() && owner_ && !startup_ ? owner_->try_read() : OwnedShutdown::Read{}) {}
 detail::RuntimeLease::~RuntimeLease() = default;
 detail::RuntimeObservation::RuntimeObservation() : lease_(RuntimeLease::ObserveOnly{}) {}
 bool detail::RuntimeBoundTo(const std::shared_ptr<OwnedShutdown>& owner) {
-    return owner && g_shutdownOwner.load() == owner;
+    return owner && LoadShutdownOwner() == owner;
 }
-bool detail::RuntimeCanStartLegacy() { return !g_shutdownOwner.load(); }
+bool detail::RuntimeCanStartLegacy() { return !LoadShutdownOwner(); }
 bool detail::BindRuntimeStartup(const std::shared_ptr<OwnedShutdown>& owner,
                                 const OwnedShutdown::Transition& transition) {
     LegacyEntry entry;
     if (!entry) return false;
     std::lock_guard<std::mutex> lock(g_bindingLock);
-    if (!owner || !transition.valid_for(*owner) || g_shutdownOwner.load() ||
+    if (!owner || !transition.valid_for(*owner) || LoadShutdownOwner() ||
         g_legacyRuntimeTouched || g_runtimeEntries) return false;
-    g_shutdownOwner.store(owner);
+    StoreShutdownOwner(owner);
     return true;
 }
 bool detail::StartupPublish::valid() const {
@@ -224,6 +251,17 @@ void detail::SetRuntimeStopping(bool stopped) {
     // Serializes the terminal boundary with the first successful hand-out.
     std::lock_guard<std::mutex> hold(g_lock);
     g_stopped.store(stopped);
+}
+
+Result detail::BeginManagedShutdown() {
+    std::lock_guard<std::mutex> hold(g_lock);
+    if (g_managedShutdown || !g_managed.empty()) return Result::Failed;
+    g_managedShutdown = true;
+    return Result::Ok;
+}
+void detail::ResetManagedShutdown() {
+    std::lock_guard<std::mutex> hold(g_lock);
+    g_managedShutdown = false;
 }
 
 static Result ProvideServiceImpl(const detail::StartupPublish* cap, const void* owner, const char* prefix,
@@ -239,16 +277,19 @@ static Result ProvideServiceImpl(const detail::StartupPublish* cap, const void* 
         if (p == 0 || strncmp(name, prefix, p) != 0 || (name[p] != '\0' && name[p] != '.')) return Result::BadArg;
     }
     std::lock_guard<std::mutex> hold(g_lock);
-    if (cap ? !cap->valid() : detail::RuntimeStopping()) return Result::Unavailable;
+    if (g_managedShutdown || (cap ? !cap->valid() : detail::RuntimeStopping())) return Result::Unavailable;
     if (detail::Released(owner)) return Result::BadArg;
     if (Withdrawing(owner)) return Result::Unavailable;
     for (const Service& s : g_services)
         if (s.name == name) return Result::BadArg;
+    if (!g_nextGeneration) return Result::TooMany;
+    const uint64_t generation = g_nextGeneration;
     try {
-        g_services.push_back({ owner, name, version, table });
+        g_services.push_back({ owner, name, version, table, generation });
     } catch (...) {
         return Result::TooMany;
     }
+    ++g_nextGeneration; // wraps to zero and permanently refuses further publication
     ForgetOldWithdrawal(name);
     return Result::Ok;
 }
@@ -305,12 +346,123 @@ bool ServiceTableHandedOut(const void* owner) {
     return std::find(g_handedOut.begin(), g_handedOut.end(), owner) != g_handedOut.end();
 }
 
+// All admission and pin transitions share the registry lock with whole-group withdrawal.
+Result detail::FindManagedService(const char* name, uint32_t minVersion, ServiceGeneration& generation) {
+    generation = 0;
+    if (!name) return Result::BadArg;
+    RuntimeLease admission;
+    if (!admission || admission.startup() || admission.owned()) return Result::Unavailable;
+    std::lock_guard<std::mutex> hold(g_lock);
+    for (const auto& s : g_services) if (s.name == name) {
+        if (g_managedShutdown || RuntimeStopping() || Withdrawing(s.owner) || Released(s.owner) || g_managedGloballyDenied ||
+            std::find(g_managedDenied.begin(), g_managedDenied.end(), s.owner) != g_managedDenied.end()) return Result::Unavailable;
+        if ((s.version >> 16) != (minVersion >> 16) || s.version < minVersion) return Result::Unavailable;
+        generation = s.generation;
+        return Result::Ok;
+    }
+    return Result::NotFound;
+}
+Result detail::ManagedServicePin::acquire(ServiceGeneration generation) {
+    if (generation_ || !generation) return Result::BadArg;
+    RuntimeLease admission;
+    if (!admission || admission.startup() || admission.owned()) return Result::Unavailable;
+    std::lock_guard<std::mutex> hold(g_lock);
+    for (const auto& s : g_services) if (s.generation == generation) {
+        if (g_managedShutdown || RuntimeStopping() || Withdrawing(s.owner) || Released(s.owner) || g_managedGloballyDenied ||
+            std::find(g_managedDenied.begin(), g_managedDenied.end(), s.owner) != g_managedDenied.end()) return Result::Unavailable;
+        for (auto& state : g_managed) if (state.generation == generation) {
+            if (state.pins == std::numeric_limits<size_t>::max()) return Result::TooMany;
+            ++state.pins; generation_ = generation;
+            return Result::Ok;
+        }
+        const bool newOwner = std::find(g_managedUsed.begin(), g_managedUsed.end(), s.owner) == g_managedUsed.end();
+        try {
+            if (newOwner) g_managedUsed.push_back(s.owner);
+            try { g_managed.push_back({s.owner, generation, 1}); }
+            catch (...) { if (newOwner) g_managedUsed.pop_back(); throw; }
+        } catch (...) { return Result::TooMany; }
+        generation_ = generation;
+        return Result::Ok;
+    }
+    return Result::Unavailable;
+}
+void detail::ManagedServicePin::reset() noexcept {
+    if (!generation_) return;
+    std::lock_guard<std::mutex> hold(g_lock);
+    for (auto it = g_managed.begin(); it != g_managed.end(); ++it) if (it->generation == generation_) {
+        if (--it->pins == 0) g_managed.erase(it);
+        break;
+    }
+    generation_ = 0;
+}
+detail::ManagedServicePin::~ManagedServicePin() { reset(); }
+void detail::DenyManagedOwner(const void* owner) noexcept {
+    std::lock_guard<std::mutex> hold(g_lock);
+    if (std::find(g_managedDenied.begin(), g_managedDenied.end(), owner) != g_managedDenied.end()) return;
+    try { g_managedDenied.push_back(owner); } catch (...) { g_managedGloballyDenied = true; }
+}
+bool detail::ManagedServiceEverUsed(const void* owner) {
+    std::lock_guard<std::mutex> hold(g_lock);
+    return std::find(g_managedUsed.begin(), g_managedUsed.end(), owner) != g_managedUsed.end();
+}
+void detail::ForgetManagedOwner(const void* owner) {
+    std::lock_guard<std::mutex> hold(g_lock);
+    g_managedUsed.erase(std::remove(g_managedUsed.begin(), g_managedUsed.end(), owner), g_managedUsed.end());
+}
+static bool ManagedPinned(const void* owner) {
+    for (const auto& state : g_managed) if (state.owner == owner && state.pins) return true;
+    return false;
+}
+Result detail::ReserveTerminalOwners(const void* const* owners, size_t count) {
+    std::lock_guard<std::mutex> hold(g_lock);
+    if (g_managedGloballyDenied) return Result::Failed;
+    for (size_t i = 0; i < count; ++i) {
+        const void* owner = owners[i];
+        if (!owner) continue;
+        if (Released(owner) || ManagedPinned(owner) ||
+            std::find(g_managedDenied.begin(), g_managedDenied.end(), owner) != g_managedDenied.end() ||
+            std::find(g_releasing.begin(), g_releasing.end(), owner) != g_releasing.end() ||
+            std::find(g_withdrawing.begin(), g_withdrawing.end(), owner) != g_withdrawing.end())
+            return Result::Failed;
+    }
+    // Reserve enough for duplicates too, before changing admission for any owner.
+    if (count > g_terminalWithdrawing.max_size() - g_terminalWithdrawing.size()) return Result::TooMany;
+    try { g_terminalWithdrawing.reserve(g_terminalWithdrawing.size() + count); }
+    catch (...) { return Result::TooMany; }
+    for (size_t i = 0; i < count; ++i)
+        if (owners[i] && !Withdrawing(owners[i])) g_terminalWithdrawing.push_back(owners[i]);
+    return Result::Ok;
+}
+Result detail::ReserveOwnerRelease(const void* owner, bool& created, bool terminal) {
+    created = false;
+    std::lock_guard<std::mutex> hold(g_lock);
+    if (ManagedPinned(owner)) return Result::Failed;
+    if (!terminal &&
+        std::find(g_terminalWithdrawing.begin(), g_terminalWithdrawing.end(), owner) != g_terminalWithdrawing.end())
+        return Result::Failed;
+    if (std::find(g_releasing.begin(), g_releasing.end(), owner) != g_releasing.end())
+        return OwnerReleaseStatus(owner);
+    try { g_releasing.push_back(owner); } catch (...) { return Result::TooMany; }
+    created = true;
+    return Result::Ok;
+}
+void detail::CancelOwnerRelease(const void* owner, bool created) {
+    if (!created) return;
+    std::lock_guard<std::mutex> hold(g_lock);
+    if (Released(owner)) return;
+    g_releasing.erase(std::remove(g_releasing.begin(), g_releasing.end(), owner), g_releasing.end());
+}
+
 Result ServiceWithdrawal(const void* const* owners, size_t count, bool withdraw,
                          bool allowInUse, bool& inUse) {
     inUse = false;
     detail::RuntimeLease admission;
     if (!admission || admission.owned()) return Result::Unavailable;
     std::lock_guard<std::mutex> hold(g_lock);
+    // A terminal reservation cannot be borrowed or cancelled by a reload operation.
+    for (size_t i = 0; i < count; ++i)
+        if (owners[i] && std::find(g_terminalWithdrawing.begin(), g_terminalWithdrawing.end(), owners[i]) != g_terminalWithdrawing.end())
+            return Result::Failed;
     // Off-thread quarantine marks the owner before its game-thread state verdict. Reject
     // administrative teardown under the admission lock even while Plugin::state is Loaded.
     if (!allowInUse)
@@ -319,6 +471,8 @@ Result ServiceWithdrawal(const void* const* owners, size_t count, bool withdraw,
     for (size_t i = 0; i < count; ++i)
         if (std::find(g_handedOut.begin(), g_handedOut.end(), owners[i]) != g_handedOut.end())
             inUse = true;
+    for (size_t i = 0; i < count; ++i)
+        if (ManagedPinned(owners[i])) return Result::Failed;
     if (inUse && !allowInUse) return Result::Failed;
     if (!withdraw) return Result::Ok;
     // Allocate before changing any admission. Idempotent teardown of an already-reserved
@@ -350,6 +504,7 @@ Result ReleaseService(const void* owner, const char* name) {
     std::lock_guard<std::mutex> hold(g_lock);
     for (size_t i = 0; i < g_services.size(); ++i)
         if (g_services[i].owner == owner && g_services[i].name == name) {
+            if (ManagedPinned(owner)) return Result::Failed;
             RecordWithdrawal(g_services[i]);
             g_services.erase(g_services.begin() + static_cast<std::ptrdiff_t>(i));
             return Result::Ok;
@@ -357,8 +512,9 @@ Result ReleaseService(const void* owner, const char* name) {
     return Result::NotFound;
 }
 
-long detail::ReleaseServices(const void* owner) {
+static long ReleaseServicesImpl(const void* owner, bool quarantine) {
     std::lock_guard<std::mutex> hold(g_lock);
+    if (!quarantine && ManagedPinned(owner)) return -1;
     long n = 0;
     for (size_t i = g_services.size(); i-- > 0;)
         if (g_services[i].owner == owner) {
@@ -368,6 +524,9 @@ long detail::ReleaseServices(const void* owner) {
         }
     return n;
 }
+
+long detail::ReleaseServices(const void* owner) { return ReleaseServicesImpl(owner, false); }
+long detail::QuarantineServices(const void* owner) { return ReleaseServicesImpl(owner, true); }
 
 namespace diagnostics {
 #ifdef SCO_RUNTIME_DIAGNOSTICS_FIXTURE

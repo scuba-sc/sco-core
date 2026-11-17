@@ -24,6 +24,12 @@ enum class Phase : uint32_t { Idle, Preparing, Prepared, Activating, Activated, 
 enum class QuitPolicy : uint32_t { Required, External };
 enum class DataCoreHook : uint32_t { Required, External };
 enum class ConsumerRetirement : uint32_t { Quiesced, Retained };
+// Strict (default): the owned, drain-attempting composition below; every existing refusal stands.
+// ProcessRetained: the explicit contract documented at Options::composition.
+enum class Composition : uint32_t { Strict, ProcessRetained };
+// Cooperative reader/worker progress, distinct from HostReport::result and
+// DependencyDisposition. Drained never means app cleanup or native retirement.
+enum class DrainDisposition : uint32_t { NotAdopted, Open, Requested, InProgress, Drained, Retained, Unknown };
 struct Snapshot {
     Phase phase = Phase::Idle;
     bool signaturesResolved = false;
@@ -62,16 +68,40 @@ struct Options {
     // Those consumers can bypass Read/worker admission and remain unsupported.
     std::shared_ptr<OwnedShutdown> shutdownOwner;
     uint32_t drainTimeoutMs = 1000; // 1..60000; timeout is terminal, never readiness
+    // Process-retained composition (ProcessRetained), selected at Prepare for the whole process;
+    // it is mutually exclusive with Strict (a Prepare in the other composition is BadArg). The first
+    // Prepare fixes the composition even when it is refused: a refused retained attempt (admission,
+    // barrier) leaves the host Idle and the same composition may retry, but never the other one.
+    // It runs the normal, non-owned app runtime with plugins, built-ins, scripts, native game
+    // services, host menu/service and capabilities. Three rules, none proved by Core:
+    //  A. Retention: module code and every dependency (image, resolver, registry, inspector,
+    //     providers, plugin modules, callbacks) stay mapped and alive until process exit.
+    //     Nothing is unloaded or freed at Stop.
+    //  B. Install quiescence: platform.gameReadersQuiesced is required and must be truthful:
+    //     engine execution is quiesced while Prepare/Start install native hooks. It is checked
+    //     immediately before the first native mutation; null, false or a throw refuses.
+    //  C. Stop is closure: it closes admission, lets plugins observe game.exit once and retains
+    //     everything. No reader/worker drain is claimed; there is no restart.
+    // Required: imageOwner, resolverOwner, platform.gameReadersQuiesced; refused: platform.shutdownOwner,
+    // earlyDataRequirement, retireConsumer, nativeDataCoreReads. The optional Options::shutdownOwner is
+    // not bound to the app runtime; the host only drives its admission (readers open at Running,
+    // request_stop() at Stop or admission loss, never drain_until/fault on the game thread).
+    // Core does NOT claim: reader/worker drain, unload, restart, engine-object lifetime inside
+    // hooks, or any in-game run. Calls follow the documented game-thread rules.
+    Composition composition = Composition::Strict;
 };
 
 // Additive C++ host-source reporting, separate from the frozen plugin ABI.
-// These reports never authorize cleanup, unload, native activation or restart.
+// HostReport is returned by value and its layout changed: rebuild C++ consumers
+// with the same Core. These reports never authorize cleanup, unload, native
+// activation or restart. The frozen plugin C ABI is unchanged.
 enum class DependencyDisposition : uint32_t { NeverExposed, ProcessRetained };
 struct HostReport {
     Result result = Result::Unavailable;
     Phase phase = Phase::Idle;
     uint64_t sessionId = 0; // process-scoped; nonzero only for an adopted capsule
     DependencyDisposition dependencies = DependencyDisposition::NeverExposed;
+    DrainDisposition drain = DrainDisposition::NotAdopted;
 };
 
 // Build privately before calling PrepareDetailed. Owns Options, its Image
@@ -114,6 +144,17 @@ HostReport PrepareDetailed(const std::shared_ptr<const HostCapsule>&) noexcept;
 HostReport ActivateDetailed() noexcept;
 HostReport StartDetailed() noexcept;
 HostReport StopDetailed() noexcept;
+// Close the already-adopted capsule's owner without waiting for admitted work.
+// Callable from a reader/worker/startup callout, including while the host control
+// gate is held. Does not run an inspector, cleanup, app Stop or phase transition.
+// Ok confirms admission closure and a cooperative stop request only; phase is an
+// observation and may still be Running. It never means drained or cleaned up.
+// Unavailable before adoption does not queue a request for a future capsule;
+// Failed means closure is unproven. Every adopted result stays ProcessRetained.
+// Later, outside every enrolled obligation, use the same capsule owner's
+// drain_until(deadline). The host's existing failed-retirement policy remains.
+// This takes the owner's short mutex; it is not lock-free or loader-lock safe.
+HostReport RequestStopDetailed() noexcept;
 // Busy status returns Unavailable with conservative retained data; it is not
 // a completed control result/adoption decision and does not latch exposure.
 // Busy means the initial gate observation was held. Overlapping status calls
@@ -146,8 +187,10 @@ Result Tick(uint32_t nowMs);
 // Failed and retains the app, registry, image, provider code and dependent backing.
 // A failure-atomic cleanup transaction is not yet established. No restart from Failed.
 Result Stop();
-// Synchronous game-thread quit admission: stop BEFORE the engine may terminate the process.
-// No fast-shutdown field/vtable reads; normal and fast quit share this entry.
+// Legacy synchronous game-thread stop request. It can run the configured owner
+// drain on the calling stack and does not call app::Stop, dispatch game.exit, or
+// prove dependent-provider withdrawal. The Core quit detour does not call this:
+// it requests non-draining legacy-owner closure before forwarding the original.
 Result BeforeQuit();
 // Immutable scalar observation; no provider/table callbacks. May read on any thread.
 Snapshot Status();

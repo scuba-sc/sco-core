@@ -20,6 +20,7 @@
     "docs/game-services.md",
     "docs/game/relocation-position.md",
     "docs/game/status.md",
+    "docs/game/builds.md",
     "docs/contracts.md",
     "docs/stability.md",
     "docs/agent-integration.md",
@@ -28,6 +29,7 @@
     "docs/sdk-mcp-tutorial.md",
     "docs/reference-snapshots.md",
     "docs/host-source-sc.md",
-    "docs/releases/sdk-v2.4.0.md"
+    "docs/releases/sdk-v2.4.0.md",
+    "docs/releases/sdk-v2.4.1.md"
   ]
 }

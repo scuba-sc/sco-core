@@ -4,10 +4,166 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+## sdk-v2.4.1
+
+SDK 2.4.1 with game pack 0.8.1 for Star Citizen build 4.10.200.58746. Plugin ABI stays 1.1;
+plugins built against 2.4.0 load unchanged. Release notes: `docs/releases/sdk-v2.4.1.md`.
+
+- Docs: [game builds](docs/game/builds.md) records every Star Citizen build the game pack was
+  checked against (public patch name, file version, changelist, LIVE date, the game pack and
+  SDK releases pinned to it, and which rows changed from the build before), generated from
+  `docs/game/builds.json`. Build 4.10.200.58746 is Alpha 4.10.3. `tools/release_docs.py`
+  refuses a verified build that is not the newest entry there, and release banners name the
+  patch.
+
+- Set the stable source version to `2.4.1` and the automatic candidate designation to
+  `sdk-v2.4.1`; development archives built after this release use `2.4.2-dev.N`.
+
+- Signature resolution's per-pass scan index holds its sites in one nothrow allocation instead of
+  a `std::vector`. With MSVC checked iterators (Debug), a vector allocates in its `noexcept`
+  constructor, so an allocation failure while a resolve pass started terminated the process
+  instead of returning `OutOfMemory`; the allocation-failure capacity test now passes in Debug
+  as it did before the index. Release builds and sigcheck results are unchanged.
+
+- SDK packaging refuses a `core-source` file that unconditionally includes the game pack; the
+  signature-index equivalence test moved to the `host-source-sc` kit, so the extracted
+  `core-source` kit builds again.
+
+- `game.vehicles` seat log: an accepted `seat` call logs `seat request sent (actor ..., seat ...); the game links it on
+  its next update` instead of `link actor ... isLinked 0`, which read as a failure on success because the value is
+  read before the game applies the request. `isLinked` is logged only when already 1. Behaviour and return values
+  are unchanged.
+
+- Advance the unpublished development SDK coordinate to `2.4.1-dev.6`.
+
+- Signature resolution: the rows that walked the game's whole `.text` once per row for a RIP-relative
+  `lea` now read one per-resolve-pass index of those instructions (built on first use, sorted by
+  target, exact for every byte position, dropped when the pass ends), and the row families that
+  repeated one scan per row (social group, handshake gates, `Libs/OfflineDB`) scan once per pass.
+  Results are unchanged: `tools/sigcheck.sh` output is identical to the previous receipt and
+  `test_sig_index_equivalence` compares each replaced loop with a verbatim copy. In-game Prepare
+  time not yet measured. Widgets renderer: the label column of a form is the widest label up to 40%
+  of its container (100 px floor) and the control takes the rest of the row, so two-column panels
+  no longer squeeze combos to ~100 px; only containers wider than 900 px cap controls (560 px).
+  `[game] event ...: 0 subscribers` is logged once per event name per session instead of at every
+  zone change.
+
+- Advance the unpublished development SDK coordinate to `2.4.1-dev.5` (faster signature
+  scan with identical results, widget renderer layout, service diagnostics).
+
+- ImGui widgets renderer: options are one full-width selectable row with an ellipsis and a
+  full-text tooltip, combos show their value as the preview with the label to the left, labelled
+  form controls align in one label column per group, a ROW of COLUMNs shares its width equally,
+  labelled groups get a section header, and combo popups are capped. No ABI or event change.
+  Rendering checked headlessly only; not seen on screen or in game.
+
+- Add startup diagnostics to the game pack logs: per-capability readiness with the signature rows
+  that are not OK for `game.creative`, once-per-reason refusal lines for `game.creative` and
+  `game.entities`, a relocation failure line naming which completion conditions held, and
+  per-phase timings of the process-retained host's Prepare. Logging only.
+
+- Speed up signature pattern scans: `FindPattern` now anchors on the pattern's rarest fixed byte
+  instead of its first byte. Results are identical (checked against the previous scan over
+  randomized buffers and wildcard patterns).
+
+- Advance the unpublished development SDK coordinate to `2.4.1-dev.4` for the
+  process-retained host composition, keeping earlier development archive identities distinct.
+
+- Add the game host's `Composition::ProcessRetained` option: an explicit contract in which
+  the shell retains all code and dependencies until process exit and attests install
+  quiescence, the host runs the normal app runtime, and Stop closes admission without
+  unloading anything or claiming a drain. The strict default is unchanged and the two
+  compositions exclude each other per process. The composition reaches the real game-service
+  start and the DataCore pak enable through private entries (the public `services::Start`,
+  `app::Start` with `gameServices` and `pak::Enable` still refuse everyone else); its pak
+  enable is latched against `Disable`, and its stop closes admission without stopping or
+  withdrawing services. Synthetic tests only; nothing was run in game, and several
+  services stay off or unavailable on their own terms.
+
+- App shutdown now refuses while a managed service pin is live and, once begun, closes
+  managed acquisition, service publication and plugin loader entry until the next app
+  start. Synthetic tests only; native activation and in-game behavior remain unverified.
+
+- Advance the unpublished development SDK coordinate to `2.4.1-dev.3` for the
+  build-200 game-pack candidate, keeping earlier development archive identities distinct.
+
+- Prepare game pack 0.8.1 for build 4.10.200.58746 in the 2.4.1 candidate.
+  Updated ATC, impound, quantum and hauling locators scan on both 197 and 200;
+  hauling semantics, native activation and in-game behavior remain unverified.
+
+- Advance the local unpublished development SDK coordinate to `2.4.1-dev.2` and
+  qualify supplied host-source metadata against the exact current stable or
+  development version, source and profile before compilation. Preserve stable
+  SDK `2.4.0`; this is not a release or native activation acceptance.
+
+- Add widgets 1.4 copied canonical event tags with size-gated callback tails,
+  guarded tagged operations and C++/C#/Lua routes; preserve legacy event prefixes
+  and native activation refusal. Headless synthetic tests; not run in game.
+
+- Add the separate read-only `sco.storage.metadata` 2.0 interface for an owner's
+  existing database schema/counts and SQLite quota accounting; keep storage 1.1
+  unchanged. Add default-off copied Profile/Storage host diagnostic observations
+  without expanding runtime JSON v1. Synthetic evidence only; not run in game.
+
+- Label the documentation site's source catalogue SDK version separately from the identity of a development archive.
+
+- Correct SDK template and actor-stats example licence comments without asserting a licence for other plugins.
+
+- Correct plugin discovery and SDK installation guidance to distinguish launcher setup checks from plugin startup reports.
+
+- Clarify that the first-plugin checker invokes commands synthetically and that product command routing and native startup require separate verification.
+
+- Correct the plugin guide's host-specific enablement defaults and disabled discovery logging.
+
+- Direct the first-plugin quickstart to the published stable SDK 2.4.0 archive and its checksum; retain the RC1 example as history.
+
+- Preserve the exact native-index download bytes when generating the documentation site on Windows and Unix.
+
+- Keep the content-name fixture shallow and report file-write failures directly; very long Windows build roots still require a shorter test root.
+
+- Retain every foreign-released read lease's origin for self-maintenance
+  refusal, including when nested reads or other origins later release. This
+  does not establish native lifetime safety or authorize native activation.
+
+- Fail closed if a host transition is destroyed on a different thread, retaining
+  the original thread's maintenance refusal and all backing. This does not
+  establish native lifetime safety or authorize native activation.
+- Clarify kit identity for development archives and the prepublication README wording retained in the immutable stable SDK 2.4.0 archive.
+- Preserve atomic shutdown-owner publication on C++20 standard libraries without atomic shared-pointer specialization, including Apple libc++.
+
+- Preserve Git executable modes in SDK archives across platforms and verify development ZIP modes against the source index.
+
+- Preserve canonical synthetic native-evidence output and fixtures across Windows and Unix checkouts; run invalid-JSON tests without reopening locked temporary files.
+
+- Reject any unresolved provenance rule that matches a distributed file, including rules hidden by earlier attribution matches.
+- Harden SDK packaging checks for Linux header links.
+- Preserve the C# build environment on Windows during SDK archive checks.
+- Clarify existing synthetic SDK test assertions and mock imports.
+- Add experimental Rust ABI bindings and a sample plugin with offline build and checker coverage.
+- Stop host startup before signature registration when inspection synchronously requests shutdown. Coverage is synthetic; this cancellation check does not establish native lifetime safety, and native activation remains refused.
+- **SDK archive verification:** consume the complete GNU checksum-tool version output so `pipefail` cannot mistake an early pipe close for an unavailable tool. A large-banner regression preserves the archive-only include rejection and real checksum verification.
+
+- Add a bounded, no-extraction plugin archive verifier and non-loading folder preflight. These checks do not establish plugin trust or runtime compatibility.
+- Support legacy initialized and modern metadata-based MCP stdio clients, preserving legacy request metadata and source-bound SDK workflow discovery.
+
+- Add a typed, fail-closed exact-build candidate selector and synthetic canonical fixture. The production catalog is empty; this neither changes game.build v1 nor authorizes native activation.
+
 - Refuse an invalid existing fleet slot count before staging a synthetic fleet transaction; native reconfiguration remains disabled.
 - Recognize the protected Linux x86 UAPI system-header symlink layout in SDK installed-header checks while retaining checkout and unshipped-header refusals.
 - Add a read-only C++ wrapper for the `game.input` action registry. It copies results and checks service availability; it does not dispatch input or establish in-game behavior.
 - Add an opt-in historical plugin startup snapshot for the qualified host path. It records the load pass, not live status, and the owned startup path continues to refuse it.
+- Add a host-source stop-request phase: `OwnedShutdown::request_stop` closes
+  cooperative admission without draining, and `game::host::RequestStopDetailed`
+  applies it through the adopted capsule root. Detailed reports expose the
+  cooperative drain state, and Stop reuses completed proof without retrying
+  the one-shot drain. Control-thread drainage and all retained cleanup
+  obligations remain separate; native/plugin activation stays refused. New
+  coverage is synthetic and does not establish native safety.
+
+- Document the direct engine-quit limitation: `BeforeQuit` can synchronously
+  drain on the quit hook but does not dispatch `game.exit` or withdraw dependent
+  services. A product-owned pre-quit signal and completion receipt remain
+  necessary before ASOP withdrawal can be coordinated with direct quit.
 
 ## sdk-v2.4.0
 

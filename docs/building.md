@@ -11,6 +11,8 @@ sco-core has two equivalent builds: the shell scripts in `tools/` (the reference
 | `tools/test-win.sh` | `x86_64-w64-mingw32-g++`, clang with the `x86_64-w64-mingw32` target, and Wine |
 | The SDK zip | Python 3, CMake, a C and C++20 compiler; Lua 5.4 for the Lua example check |
 
+The runtime supports C++20 standard libraries without `atomic<shared_ptr>` specialization by using the standard atomic shared-pointer operations.
+
 Windows x64 is the supported product platform. Linux x64 and macOS x64/ARM64 are
 development platforms for the neutral code and synthetic host tests, not product
 runtimes. On macOS ARM64 use `-DSCO_GAME_SC=OFF`; executable x86-64 detours are
@@ -53,6 +55,20 @@ cmake -S . -B build -A x64
 cmake --build build --config RelWithDebInfo
 ctest --test-dir build -C RelWithDebInfo --output-on-failure
 ```
+
+With `SCO_BUILD_TESTS=ON`, configuration requires Python 3 and creates a fresh,
+uniquely named `<build>/sco-fixtures-*` directory for plugin discovery fixtures.
+The generated CTest commands and library output paths point to that directory;
+reconfiguring creates another one and leaves previous directories intact. This
+avoids consuming stale plugins and preserves existing data, at the cost of disk
+space and rebuilding the fixture libraries after regeneration. Generated test inputs and CTest output paths use that namespace. The
+configuration log prints the fixture path.
+
+Multi-config generators currently share a fixture namespace across build
+configurations. Use a separate build tree for each configuration: switching or
+running configurations concurrently in one tree can reuse or overwrite the
+other configuration’s fixture libraries.
+
 
 ### Options
 
@@ -154,11 +170,11 @@ add_subdirectory(external/sco-core EXCLUDE_FROM_ALL)
 | `test_pak` | `sco::game::pak` over a fake `ICryPak` (a real vtable) and a detoured fake loader: the load window, a served mount, passthrough of other files, a second `.dcb` and a second thread, an inert mount read from 0, offsets past 2 GiB, `Disable` |
 | `test_spatial` | Vector, quaternion and transform math; the zone tree (chains, round trips at 1e11 m, failures, readers beside a writer) |
 | `test_sdk` | The C++20 SDK layer (`include/scosdk/`): two SDK plugins over the real host table |
-| `test_plugins` | `plugin.ini`, discovery, the content index and the native loader against the fake plugins in `<build>/tests/out/plugins/` |
+| `test_plugins` | `plugin.ini`, discovery, the content index and the native loader against the fake plugins in `<build>/sco-fixtures-*/plugins/` |
 | `test_lua` | sco-lua through the real loader and host table, including `sdk/examples/greeter`, and `sco.store` over a real `sco.storage` with `sdk/examples/notebook` |
 | `test_app` | The host kit (`sco::app`) and built-in plugins: load order, `game.ready`, tick, a faulting built-in contained, `game.exit` before unload, unload order, restart |
 | `test_plugin_startup_snapshot` | Synthetic version-1 projection, privacy/bounds, starting/complete/failed/incomplete serialization, partial-temp isolation, and process-shared writer locking; no game or native plugin execution |
-| `host_sim_examples` | `sco-host-sim <build>/tests/out/sim/plugins --ticks 3 --invoke hello.wave "Pilot One"` over `hello`, `cpp_hello` (built by CMake), `greeter` and `travel_pack`: exit 0 and the reply; then `--invoke counter_panel.bump` over the same folder, where `counter_panel` calls `counter_service`'s table and must answer `counter is 1` (`tests/host_sim.cmake`) |
+| `host_sim_examples` | `sco-host-sim <build>/sco-fixtures-*/sim/plugins --ticks 3 --invoke hello.wave "Pilot One"` over `hello`, `cpp_hello` (built by CMake), `greeter` and `travel_pack`: exit 0 and the reply; then `--invoke counter_panel.bump` over the same folder, where `counter_panel` calls `counter_service`'s table and must answer `counter is 1` (`tests/host_sim.cmake`) |
 
 On Windows `test_plugins` loads real DLLs with `LoadLibraryExW` and runs the real `__try/__except` crash guard. The TSan runs and the `x86_64-pc-windows-msvc` cross-compile of the ABI pin stay in `tools/test.sh`.
 
@@ -210,9 +226,21 @@ Workflow actions are pinned to commit SHAs. The release workflow defaults to `co
 
 ## Releases
 
-The SDK is released as profile archives under a tag `sdk-v<version>`; a release candidate uses `sdk-v<version>-rc.<n>`. Stable SDK 2.4.0 is the latest published release at [`sdk-v2.4.0`](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0), published on 2026-11-01 from source commit `6106fa3639cbcc28f78a1ded8de2707de019f4d3`. Its five archive identities and checksums are in the [release notes](releases/sdk-v2.4.0.md#stable-archive-identity); later `main` commits do not change those published bytes. RC2, published on 2026-10-28 from `844e136ccb280ad8cb43f73bc43c9447e8f6799d`, and RC1 are historical releases with their own immutable archives. The [`sdk-v2.4.0-rc.2` release notes](releases/sdk-v2.4.0.md#published-rc2-archive-identity) preserve that artifact identity and the prepublication history. The `sdk-v2.0.0` to `sdk-v2.3.0` tags remain in git, but their release downloads were withdrawn. The version lives in `sdk/VERSION`; the plugin ABI's own version is `SCO_API_MAJOR` / `SCO_API_MINOR` in `sco_api.h`, and version 1 only grows ([Compatibility](api-v1.md#compatibility)).
+The SDK is released as profile archives under a tag `sdk-v<version>`; a release candidate uses `sdk-v<version>-rc.<n>`. The current release:
+
+<!-- release-block:current-release -->
+SDK **2.4.1** uses Star Citizen game pack **0.8.1** (checked against Star Citizen
+Alpha 4.10.3, build 4.10.200.58746; see [game builds](../docs/game/builds.md)) and plugin ABI **1.1**. Download it from the
+[`sdk-v2.4.1` release page](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.1) and verify each archive against that release's
+`SHA256SUMS`; the [release notes](https://github.com/scuba-sc/sco-core/blob/sdk-v2.4.1/docs/releases/sdk-v2.4.1.md) list what changed. The previous release is
+[SDK 2.4.0](https://github.com/scuba-sc/sco-core/blob/sdk-v2.4.0/docs/releases/sdk-v2.4.0.md).
+<!-- /release-block:current-release -->
+
+Its five archives and their checksums are listed in its `SHA256SUMS` on the release page. SDK 2.4.0 (`sdk-v2.4.0`) was published on 2026-11-01 from source commit `6106fa3639cbcc28f78a1ded8de2707de019f4d3`. Its five archive identities and checksums are in the [2.4.0 release notes](releases/sdk-v2.4.0.md#stable-archive-identity); later `main` commits do not change those published bytes. RC2, published on 2026-10-28 from `844e136ccb280ad8cb43f73bc43c9447e8f6799d`, and RC1 are historical releases with their own immutable archives. The [`sdk-v2.4.0-rc.2` release notes](releases/sdk-v2.4.0.md#published-rc2-archive-identity) preserve that artifact identity and the prepublication history. The `sdk-v2.0.0` to `sdk-v2.3.0` tags remain in git, but their release downloads were withdrawn. The version lives in `sdk/VERSION`; the plugin ABI's own version is `SCO_API_MAJOR` / `SCO_API_MINOR` in `sco_api.h`, and version 1 only grows ([Compatibility](api-v1.md#compatibility)).
 
 Follow the [maintainer release procedure](legal/release-checklist.md#releasing): prepare the version and notes, build a candidate on checked main, tag its exact source, and dispatch the [`release`](../.github/workflows/release.yml) workflow with its run and artifact IDs. The workflow checks the candidate, hashes and attestations and verifies the draft assets before publication without rebuilding.
+
+**Bumping the version.** Run `python3 tools/release_docs.py --bump X.Y.Z [--game-pack A.B.C] [--game-build B]`. It writes `sdk/VERSION`, the next development coordinate, the candidate tag, the changelog heading, a release-notes skeleton, the site allowlist and hub entry, and re-renders every release region in the docs. Then fill in the release notes and the changelog section and run `python3 tools/doc_release_gate.py --tag sdk-vX.Y.Z`. Digests are added to the release notes only after the release workflow publishes them. Never hand-type the current version, tag, game pack, game build, plugin ABI or archive names outside a generated region (a `release-block` or `rv` marker, described in the `tools/release_docs.py` docstring); `python3 tools/release_docs.py --check` fails on stale regions.
 
 A release the workflow creates doesn't trigger other workflows (GitHub doesn't run workflows on events made with a workflow's own token), so the `discord` post for it doesn't happen automatically; post the announcement by hand after verified publication. Do not manually publish a failed draft to bypass the promotion checks.
 

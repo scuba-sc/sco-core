@@ -10,6 +10,7 @@
 #include "sco/game/pak.h"
 #include "../reserved_legacy_gate.h"
 #include "datacore_live_lifecycle.h"
+#include "pak_retained.h"
 #include "sco/hook.h"
 #include "sco/log.h"
 #include <array>
@@ -42,6 +43,7 @@ std::atomic<CloseFn> g_close{ nullptr };
 
 std::mutex        g_mu;              // everything below except the load-window atomics
 bool              g_enabled = false;
+std::atomic<bool> g_retained{ false };   // enabled by the process-retained host: never disabled
 Options           g_options;
 Targets           g_targets;
 LoaderFn          g_loaderOrig = nullptr;
@@ -627,10 +629,8 @@ static bool NativeFixtureEnabled() noexcept {
 #endif
 }
 
-Result Enable(const Options& options) {
-    // No public caller can currently supply continuous exclusion of native
-    // execution while the patch and its later restoration take place.
-    if (!NativeFixtureEnabled()) return Result::Unavailable;
+static Result EnableTargets(const Options& options, const Targets& targets, bool retained);
+static Result EnableResolved(const Options& options, bool retained) {
     Targets t;
     if (!Resolve(t)) {
         static const char* const kRows[] = { "pak.datacore_loader", "pak.crypak", "pak.slots" };
@@ -638,11 +638,41 @@ Result Enable(const Options& options) {
         Log("[!] [pak] not enabled: a pak.* signature row isn't OK");
         return Result::Unavailable;
     }
-    return Enable(options, t);
+    return EnableTargets(options, t, retained);
+}
+
+Result Enable(const Options& options) {
+    // No public caller can currently supply continuous exclusion of native
+    // execution while the patch and its later restoration take place.
+    if (!NativeFixtureEnabled()) return Result::Unavailable;
+    return EnableResolved(options, false);
 }
 
 Result Enable(const Options& options, const Targets& targets) {
     if (!NativeFixtureEnabled()) return Result::Unavailable;
+    return EnableTargets(options, targets, false);
+}
+
+// Process-retained composition only (pak_retained.h): the patch is never restored, so the exclusion
+// that the public gate asks for around restoration does not arise. Install quiescence is the
+// caller's attestation. DataCoreLoad scope only; the enable is latched against Disable.
+namespace retained {
+static bool Attested(bool (*barrier)(void*), void* context) noexcept {
+    try { return barrier && barrier(context); } catch (...) { return false; }
+}
+Result Enable(const Options& options, bool (*barrier)(void*), void* context) {
+    if (options.scope != Scope::DataCoreLoad) return Result::BadArg;
+    if (!Attested(barrier, context)) return Result::Unavailable;
+    return EnableResolved(options, true);
+}
+Result Enable(const Options& options, const Targets& targets, bool (*barrier)(void*), void* context) {
+    if (options.scope != Scope::DataCoreLoad) return Result::BadArg;
+    if (!Attested(barrier, context)) return Result::Unavailable;
+    return EnableTargets(options, targets, true);
+}
+}  // namespace retained
+
+static Result EnableTargets(const Options& options, const Targets& targets, bool retained) {
     if (options.size != sizeof(Options)) return Refuse(Result::BadArg, "Options.size mismatch");
     if (options.scope != Scope::DataCoreLoad && options.scope != Scope::AllFiles) return Refuse(Result::BadArg, "unknown scope");
     if (!options.mounts) return Refuse(Result::BadArg, "no mount table (Options.mounts)");
@@ -664,6 +694,7 @@ Result Enable(const Options& options, const Targets& targets) {
     g_last = LoadReport();
     g_scope = Scope::DataCoreLoad;
     g_enabled = true;
+    if (retained) g_retained.store(true);
     caps::Set("vfs.pak", true);
     Log("[+] [pak] DataCore loader hooked (CryPak open/read/seek/close swapped while it runs)");
     return Result::Ok;
@@ -672,11 +703,16 @@ Result Enable(const Options& options, const Targets& targets) {
 void Disable() {
     sco::detail::LegacyEntry entry;
     if (!entry) return;
+    if (g_retained.load()) { // process-retained enable: the patch and its mounts stay in place until exit
+        Log("[pak] disable refused: the hook was enabled process-retained");
+        return;
+    }
     datacore_live::LifecycleGate::ExclusiveLease lifecycle;
     if (datacore_live::ProcessLifecycleGate().EnterExclusive(lifecycle) !=
         datacore_live::LifecycleGate::Status::Acquired) return;
     std::lock_guard<std::mutex> hold(g_mu);
     if (!g_enabled) return;
+    if (g_retained.load()) return;   // re-checked under g_mu, where Enable sets it
     if (g_scope == Scope::AllFiles) {
         g_allServe.store(false);   // new opens pass through from here
         g_enabled = false;

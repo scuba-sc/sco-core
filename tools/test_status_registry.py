@@ -119,30 +119,33 @@ class StatusRegistryTest(unittest.TestCase):
                            "game.creative: stability \"stable\" needs stable_since")
         self.assertRefused(lambda r: self.entry(r, "game.creative").update(stable_since="2.4.0"), "is not sdk-vX.Y.Z")
         self.assertRefused(lambda r: self.entry(r, "game.creative").update(stable_since="sdk-v2.5.0"),
-                           "stable_since sdk-v2.5.0 is after sdk/VERSION 2.4.0")
+                           "stable_since sdk-v2.5.0 is after sdk/VERSION %d.%d.%d" % sr.sdk_version(ROOT))
         self.assertRefused(lambda r: self.entry(r, "game.loadout").update(stable_since="sdk-v2.4.0"),
-                           "game.loadout: stable_since belongs only to a stable entry")
+                           "game.loadout: stable_since belongs only to a stable entry", current=(2, 4, 0))
 
     def test_stable_without_qualifying_evidence_is_refused(self):
+        # Checked as of sdk/VERSION 2.4.0, before that release: afterwards sdk-v2.4.0 labels are a ratchet.
+        before = (2, 4, 0)
         self.assertRefused(lambda r: self.entry(r, "game.loadout").update(stability="stable", stable_since="sdk-v2.4.0"),
-                           "game.loadout: stability \"stable\" needs a capability with evidence_level")
+                           "game.loadout: stability \"stable\" needs a capability with evidence_level", current=before)
 
         def demote_evidence(r):
             entry = self.entry(r, "game.actor_stats_write")
             entry["capabilities"][0].update(evidence_level="synthetic_only", default="OFF",
                                             evidence="Synthetic fixtures only; not run in game.")
-        self.assertRefused(demote_evidence, "game.actor_stats_write: stability \"stable\" needs")
+        self.assertRefused(demote_evidence, "game.actor_stats_write: stability \"stable\" needs", current=before)
         self.assertRefused(lambda r: self.entry(r, "game.creative").update(stability="experimental"),
-                           "game.creative: stable_since belongs only to a stable entry")
+                           "game.creative: stable_since belongs only to a stable entry", current=before)
         self.assertRefused(lambda r: (self.entry(r, "game.creative").update(stability="experimental"),
-                                      self.entry(r, "game.creative").pop("stable_since")), "the rule says stable")
+                                      self.entry(r, "game.creative").pop("stable_since")), "the rule says stable",
+                           current=before)
 
         def promote(r):
             entry = self.entry(r, "game.loadout")
             entry.update(stability="stable", stable_since="sdk-v2.4.0")
             entry["capabilities"][0].update(evidence_level="off_pending_probe", default="OFF",
                                             evidence=sr.OFF_PENDING)
-        self.assertEqual(self.stability_errors(promote), [])
+        self.assertEqual(self.stability_errors(promote, current=before), [])
 
     def test_stable_in_a_released_sdk_is_a_ratchet(self):
         def demote_evidence(r):
@@ -161,7 +164,7 @@ class StatusRegistryTest(unittest.TestCase):
         # Before that release the evidence rule still decides, and a new major starts over.
         self.assertRefused(demote_evidence, "game.actor_stats_write: stability \"stable\" needs", current=(2, 4, 0))
         self.assertRefused(demote_evidence, "game.actor_stats_write: stability \"stable\" needs", current=(3, 0, 0))
-        self.assertEqual(sr.sdk_version(ROOT), (2, 4, 0))
+        self.assertGreaterEqual(sr.sdk_version(ROOT), (2, 4, 0))
 
     def test_rendered_table_has_a_stability_column(self):
         table = sr.render(self.registry).splitlines()

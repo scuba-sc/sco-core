@@ -1,5 +1,12 @@
 # Owned shutdown candidate — release hold remains
 
+> **Status at SDK 2.4.1 (2026-11-16):** this hold no longer blocks merging. The repaired form of this work is on
+> the release branch: `void plugins::UnloadAll` is kept next to the checked `TryUnloadAll`, `sdk/components.json`
+> lists the owned-shutdown header and tests, and the full suite passes (legacy fixtures that cannot run under the
+> contract return CTest's skip code). What stays held is the owner decision below: the strict (default) owned
+> composition keeps refusing native activation until reader and worker shutdown is proven, with no fail-stop
+> termination. Products that run in game use `Composition::ProcessRetained` instead ([game host](docs/game/host.md)).
+
 Base: 81942c342836925d7c1227bc5082fdc4d1ba9fc8. Isolated worktree only.
 
 ## Feasibility decision and implemented scope

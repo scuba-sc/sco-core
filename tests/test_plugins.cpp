@@ -12,6 +12,7 @@
 #include "sco/plugins.h"
 #include "../src/plugins/internal.h"
 #include "../src/api/internal.h"
+#include "../src/api/managed_service_gate.h"
 #include "sco/log.h"
 #include "sco/runtime.h"
 #include "sco/status.h"
@@ -1247,6 +1248,32 @@ static void TestFaultedProviderUnloadRefusal() {
     g_list = nullptr;
 }
 
+static void TestManagedFaultRetention() {
+    P::Plugin p;
+    p.manifest.id = "managed_fault";
+    p.manifest.kind = P::Kind::Native;
+    p.state = State::Loaded;
+    p.self = NewOwner();
+    static int backing = 93;
+    CHECK(sco::ProvideService(p.self, nullptr, "managed_fault.svc", 1u << 16, &backing) == sco::Result::Ok);
+    sco::detail::ServiceGeneration generation = 0;
+    CHECK(sco::detail::FindManagedService("managed_fault.svc", 1u << 16, generation) == sco::Result::Ok);
+    sco::detail::ManagedServicePin pin;
+    CHECK(pin.acquire(generation) == sco::Result::Ok);
+    CHECK(!sco::ServiceTableHandedOut(p.self));
+    g_faultOwner = p.self;
+    g_faultReleases = 0;
+    CHECK(sco::AddReleaseHook(FaultReleaseHook) == sco::Result::Ok);
+    P::MarkCrashed(p, "managed fault", 1);
+    CHECK(p.state == State::Faulted && g_faultReleases == 0);
+    CHECK(!sco::ServiceTableHandedOut(p.self));
+    sco::detail::ManagedServicePin rejected;
+    CHECK(rejected.acquire(generation) == sco::Result::Unavailable);
+    pin.reset();
+    CHECK(sco::RemoveReleaseHook(FaultReleaseHook) == sco::Result::Ok);
+    g_faultOwner = nullptr;
+}
+
 static void TestQuarantinedUnloadReservation() {
     P::Plugin p;
     p.manifest.id = "quarantined_gate";
@@ -1575,6 +1602,11 @@ static void TestShutdownFaultStopsPeers() {
     list[0].manifest.kind = P::Kind::Builtin;
     list[0].state = State::Loaded;
     list[0].exports.unload = ShutdownPeerUnload;
+    list[0].self = NewOwner();
+    static int survivorBacking = 17;
+    CHECK(sco::ProvideService(list[0].self, nullptr, "terminal_survivor.svc", 1u << 16, &survivorBacking) == sco::Result::Ok);
+    sco::detail::ServiceGeneration survivorGeneration = 0;
+    CHECK(sco::detail::FindManagedService("terminal_survivor.svc", 1u << 16, survivorGeneration) == sco::Result::Ok);
     list[1].manifest.kind = P::Kind::Builtin;
     list[1].state = State::Loaded;
     list[1].loadOrder = 1;
@@ -1583,6 +1615,9 @@ static void TestShutdownFaultStopsPeers() {
     g_shutdownPeerUnloads = 0;
     CHECK(!P::TryUnloadAll(list, kRecOps));
     CHECK(list[1].state == State::Crashed && list[0].state == State::Loaded && g_shutdownPeerUnloads == 0);
+    P::CancelUnload({ &list[0] });
+    sco::detail::ManagedServicePin survivorPin;
+    CHECK(survivorPin.acquire(survivorGeneration) == sco::Result::Unavailable);
     g_shutdownFault = nullptr;
 }
 
@@ -1605,12 +1640,133 @@ static void TestShutdownReleaseHookFaultStopsPeers() {
     g_shutdownFault = nullptr;
 }
 
+static sco::detail::ServiceGeneration g_terminalGeneration;
+static sco::Result g_terminalRace;
+static int g_terminalCalls;
+static std::vector<P::Plugin>* g_terminalList;
+static void TerminalPeerUnload() {
+    ++g_terminalCalls;
+    CHECK(!P::TryUnloadAll(*g_terminalList, kRecOps));
+    std::string why;
+    CHECK(!P::BeginUnload({ &(*g_terminalList)[0] }, why));
+    P::UnloadOne((*g_terminalList)[0], kRecOps);
+    CHECK(sco::Release((*g_terminalList)[0].self) == sco::Result::Failed);
+    P::Plugin duplicate;
+    duplicate.manifest.kind = P::Kind::Lua;
+    duplicate.manifest.entry = "terminal-nonexistent.lua";
+    duplicate.dir = g_out;
+    duplicate.state = State::Ready;
+    const sco_api api = MakeApi();
+    const P::ScriptRuntime runtime{ FailedScriptLoad, FailedScriptUnload };
+    CHECK(!P::LoadScript(duplicate, &api, (*g_terminalList)[0].self, runtime));
+    CHECK(duplicate.state == State::Ready); // admission refusal leaves the caller's entry intact
+    std::thread([] {
+        // The first unload is paused in this callback until the contender returns.
+        // A blocking operation-wide mutex would deadlock here.
+        CHECK(!P::TryUnloadAll(*g_terminalList, kRecOps));
+        sco::detail::ManagedServicePin pin;
+        g_terminalRace = pin.acquire(g_terminalGeneration);
+    }).join();
+}
+
+static void TestTerminalManagedGroup() {
+    for (bool useVoid : {false, true}) {
+        std::vector<P::Plugin> list(2);
+        for (auto& p : list) {
+            p.manifest.kind = P::Kind::Builtin;
+            p.state = State::Loaded;
+            p.self = NewOwner();
+            p.exports.unload = TerminalPeerUnload;
+        }
+        list[1].loadOrder = 1;
+        sco_plugin* secondOwner = list[1].self;
+        list[1].self = list[0].self;
+        CHECK(!P::TryUnloadAll(list, kRecOps));
+        CHECK(list[0].state == State::Loaded && list[1].state == State::Loaded);
+        list[1].self = secondOwner;
+        const char* name = useVoid ? "terminal_void.svc" : "terminal_try.svc";
+        static int backing = 1;
+        CHECK(sco::ProvideService(list[0].self, nullptr, name, 1u << 16, &backing) == sco::Result::Ok);
+        CHECK(sco::detail::FindManagedService(name, 1u << 16, g_terminalGeneration) == sco::Result::Ok);
+        std::string why;
+        CHECK(P::BeginUnload({ &list[0] }, why));
+        CHECK(!P::TryUnloadAll(list, kRecOps));
+        CHECK(list[0].state == State::Loaded && list[1].state == State::Loaded);
+        P::CancelUnload({ &list[0] });
+        sco::detail::ManagedServicePin pin;
+        CHECK(pin.acquire(g_terminalGeneration) == sco::Result::Ok);
+        g_terminalCalls = 0;
+        g_terminalList = &list;
+        if (useVoid) P::UnloadAll(list, kRecOps);
+        else CHECK(!P::TryUnloadAll(list, kRecOps));
+        CHECK(g_terminalCalls == 0 && list[0].state == State::Loaded && list[1].state == State::Loaded);
+        sco::detail::ManagedServicePin another;
+        CHECK(another.acquire(g_terminalGeneration) == sco::Result::Ok);
+        another.reset();
+        pin.reset();
+        CHECK(P::TryUnloadAll(list, kRecOps));
+        CHECK(g_terminalCalls == 2 && g_terminalRace == sco::Result::Unavailable);
+        CHECK(list[0].state == State::Unloaded && list[1].state == State::Unloaded);
+        g_terminalList = nullptr;
+    }
+}
+
+static int g_legacyHealthyUnloads = 0;
+static void LegacyHealthyUnload() { ++g_legacyHealthyUnloads; }
+
+static void TestLegacyUnloadWithExistingCrash() {
+    std::vector<P::Plugin> list(2);
+    list[0].manifest.kind = P::Kind::Builtin;
+    list[0].state = State::Crashed;
+    list[0].exports.unload = LegacyHealthyUnload;
+    list[1].manifest.kind = P::Kind::Builtin;
+    list[1].state = State::Loaded;
+    list[1].self = NewOwner();
+    list[1].exports.unload = LegacyHealthyUnload;
+    static int backing = 1;
+    CHECK(sco::ProvideService(list[1].self, nullptr, "legacy_crash.svc", 1u << 16, &backing) == sco::Result::Ok);
+    sco::detail::ServiceGeneration generation = 0;
+    CHECK(sco::detail::FindManagedService("legacy_crash.svc", 1u << 16, generation) == sco::Result::Ok);
+    sco::detail::ManagedServicePin pin;
+    CHECK(pin.acquire(generation) == sco::Result::Ok);
+    g_legacyHealthyUnloads = 0;
+    CHECK(!P::TryUnloadAll(list, kRecOps));
+    P::UnloadAll(list, kRecOps);
+    CHECK(g_legacyHealthyUnloads == 0 && list[1].state == State::Loaded);
+    pin.reset();
+    CHECK(!P::TryUnloadAll(list, kRecOps));
+    P::UnloadAll(list, kRecOps);
+    CHECK(g_legacyHealthyUnloads == 1 && list[1].state == State::Unloaded && list[0].state == State::Crashed);
+}
+
+static void TestLegacyUnloadStopsOnNewFault() {
+    std::vector<P::Plugin> list(3);
+    list[0].manifest.kind = P::Kind::Builtin;
+    list[0].state = State::Crashed;
+    list[1].manifest.kind = P::Kind::Builtin;
+    list[1].state = State::Loaded;
+    list[1].exports.unload = ShutdownPeerUnload;
+    list[2].manifest.kind = P::Kind::Builtin;
+    list[2].state = State::Loaded;
+    list[2].loadOrder = 1;
+    list[2].exports.unload = ShutdownFaultUnload;
+    g_shutdownFault = &list[2];
+    g_shutdownPeerUnloads = 0;
+    P::UnloadAll(list, kRecOps);
+    CHECK(list[0].state == State::Crashed && list[2].state == State::Crashed);
+    CHECK(list[1].state == State::Loaded && g_shutdownPeerUnloads == 0);
+    g_shutdownFault = nullptr;
+}
+
 int main(int argc, char** argv) {
     if (argc < 3) { std::printf("usage: test_plugins <fixtures dir> <out dir>\n"); return 2; }
     g_fixtures = argv[1];
     g_out = argv[2];
     sco::SetLogSink(Sink);
     sco::SetGameThread();
+    TestTerminalManagedGroup();
+    TestLegacyUnloadWithExistingCrash();
+    TestLegacyUnloadStopsOnNewFault();
     TestShutdownFaultStopsPeers();
     TestShutdownReleaseHookFaultStopsPeers();
     TestManifest();
@@ -1624,6 +1780,7 @@ int main(int argc, char** argv) {
     TestPendingFaultShutdown();
     TestServices();
     TestFaultedProviderUnloadRefusal();
+    TestManagedFaultRetention();
     TestQuarantinedUnloadReservation();
     TestAtomicUnloadAdmission();
     TestBuiltinServiceUnloadRefusal();

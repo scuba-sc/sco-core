@@ -55,19 +55,29 @@ def manifest_files(raw):
         return result
     data = json.loads(raw, object_pairs_hook=unique)
     if (not isinstance(data, dict) or set(data) != {'schema_version', 'bundle_version', 'baseline_sdk', 'skills', 'mcp'} or
-            type(data['schema_version']) is not int or data['schema_version'] != 1 or
+            type(data['schema_version']) is not int or data['schema_version'] not in (1, 2) or
             not all(isinstance(data[k], str) and re.fullmatch(r'\d+\.\d+\.\d+', data[k])
                     for k in ('bundle_version', 'baseline_sdk')) or
             not isinstance(data['skills'], list) or not 1 <= len(data['skills']) <= 32):
         raise ValueError('Invalid workflow manifest')
     mcp = data['mcp']
-    if (not isinstance(mcp, dict) or set(mcp) != {'protocol', 'server_version', 'tools'} or
+    mcp_keys = {'protocol', 'server_version', 'tools'}
+    if data['schema_version'] == 2:
+        mcp_keys.add('supported_protocols')
+    if (not isinstance(mcp, dict) or set(mcp) != mcp_keys or
             not isinstance(mcp['protocol'], str) or not re.fullmatch(r'\d{4}-\d{2}-\d{2}', mcp['protocol']) or
             not isinstance(mcp['server_version'], str) or not re.fullmatch(r'\d+\.\d+\.\d+', mcp['server_version']) or
             not isinstance(mcp['tools'], dict) or not mcp['tools'] or
             any(not re.fullmatch(r'[a-z][a-z_]+', k) or not isinstance(v, str) or
                 not re.fullmatch(r'[0-9a-f]{64}', v) for k, v in mcp['tools'].items())):
         raise ValueError('Invalid MCP workflow contract')
+    if data['schema_version'] == 2:
+        versions = mcp['supported_protocols']
+        if (not isinstance(versions, list) or not 1 <= len(versions) <= 8 or
+                any(not isinstance(version, str) or not re.fullmatch(r'\d{4}-\d{2}-\d{2}', version)
+                    for version in versions) or len(set(versions)) != len(versions) or
+                mcp['protocol'] not in versions):
+            raise ValueError('Invalid MCP supported protocol versions')
     result = []
     seen = set()
     for item in data['skills']:
@@ -113,9 +123,21 @@ def mcp_contract(root, manifest):
 
 
 def contract_block(manifest, tools):
+    mcp = manifest['mcp']
+    versions = mcp.get('supported_protocols', [mcp['protocol']])
+    if versions == [mcp['protocol']]:
+        protocol_text = 'protocol ' + mcp['protocol']
+    else:
+        labels = []
+        for version in versions:
+            if version == mcp['protocol']:
+                labels.append(version + ' (legacy initialize handshake)')
+            else:
+                labels.append(version + ' (per-request metadata)')
+        protocol_text = 'protocols ' + ' and '.join(labels)
     lines = [BLOCK_START, '## Bundled MCP contract (generated)', '',
-             'This bundle targets server ' + manifest['mcp']['server_version'] +
-             ', protocol ' + manifest['mcp']['protocol'] + '.',
+             'This bundle targets server ' + mcp['server_version'] +
+             ', supporting MCP ' + protocol_text + '.',
              'Inspect negotiated schemas for other kits/profiles; this is not runtime availability.', '',
              '| Tool | Arguments (* required) |', '| --- | --- |']
     for name, schema in tools.items():
@@ -135,7 +157,9 @@ def block_extent(text):
 def validate_mcp(root, manifest, texts):
     server, tools = mcp_contract(root, manifest)
     expected = manifest['mcp']
-    if (expected['protocol'] != server.PROTOCOL_VERSION or
+    supported = list(getattr(server, 'SUPPORTED_PROTOCOL_VERSIONS', (server.PROTOCOL_VERSION,)))
+    declared = expected.get('supported_protocols', [expected['protocol']])
+    if (expected['protocol'] != server.PROTOCOL_VERSION or declared != supported or
             expected['server_version'] != server.SERVER_VERSION):
         raise ValueError('MCP version drift; regenerate workflow contract')
     for name, schema in tools.items():
@@ -163,7 +187,11 @@ def generate(root):
     root = Path(root)
     manifest, _ = manifest_files(read_public(root, MANIFEST))
     server, tools = mcp_contract(root, manifest)
-    manifest['mcp'] = {'protocol': server.PROTOCOL_VERSION, 'server_version': server.SERVER_VERSION,
+    manifest['schema_version'] = 2
+    manifest['mcp'] = {'protocol': server.PROTOCOL_VERSION,
+                       'supported_protocols': list(getattr(server, 'SUPPORTED_PROTOCOL_VERSIONS',
+                                                           (server.PROTOCOL_VERSION,))),
+                       'server_version': server.SERVER_VERSION,
                        'tools': {name: digest(encoded(schema)) for name, schema in tools.items()}}
     path = root / BLOCK_PATH
     text = read_public(root, BLOCK_PATH).decode('utf-8')

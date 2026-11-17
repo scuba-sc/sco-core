@@ -1,0 +1,345 @@
+{
+  "schema_version": 1,
+  "records": [
+    {
+      "id": "sco-storage-v2-owner-info",
+      "kind": "table-method",
+      "symbol": "sco_storage_v2.owner_info",
+      "table": "sco_storage_v2",
+      "service": "sco.storage.metadata",
+      "version_macro": "SCO_STORAGE_V2_VERSION_2_0",
+      "source_header": "include/sco_storage_v2.h",
+      "signature": "sco_result (*)(sco_plugin *, sco_storage_owner_info *)",
+      "member_extent": 16,
+      "table_size": 40,
+      "since": "`size >= 16`; 2.0",
+      "purpose": "Copy the current storage session generation, ordinary own table count and open cursor count into a size-prefixed record.",
+      "buffer_contract": "`sco_result (*owner_info)(sco_plugin* self, sco_storage_owner_info* out);`<br>Copy the current storage session generation, ordinary own table count and open cursor count into a size-prefixed record.",
+      "ownership": "Caller-owned copied metadata only; self selects its existing database. No paths, stored values, raw handles or other-owner selector. Output records require full declared size; trailing bytes preserved.",
+      "thread_affinity": "Any thread; serialize per owner with ordinary storage operations. SQL progress budget applies; mutex scheduling has no hard deadline.",
+      "callback_context": "No caller/provider callbacks; views and virtual tables are not executed.",
+      "reentrancy": "Recursive same-call use unspecified; no callback entrypoint is supplied.",
+      "results": "Absent service: NOT_FOUND; incompatible version: UNAVAILABLE. Unopened/stopped storage: UNAVAILABLE; invalid/released self or malformed/short records: BAD_ARG. Missing/excluded table: NOT_FOUND. Allocation: TOO_MANY; SQL failure/interruption: FAILED. Failure leaves outputs untouched except next_table short-name TOO_MANY writes required size only.",
+      "absent_capability": "The separate metadata service is NOT_FOUND on an old host; a short/null member must be treated as UNAVAILABLE, not successful zero.",
+      "cleanup": "No metadata resource or cursor ownership escapes. Ordinary storage owner release/Stop invalidates access; storage generations distinguish successful restarts. Retained faults do not authorize cleanup.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sco_storage_v2.h",
+              "token": "(*owner_info)"
+            }
+          ],
+          "tests": [
+            "tests/abi_storage_v2.c"
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/storage_metadata.hpp",
+              "token": "->owner_info("
+            }
+          ],
+          "tests": [
+            "tests/test_storage_metadata_sdk.cpp"
+          ]
+        },
+        "csharp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "sdk/csharp/Sco.Sdk/StorageMetadata.cs",
+              "token": "->owner_info("
+            }
+          ],
+          "tests": [
+            "sdk/csharp/Sco.Sdk.Tests/StorageMetadataTests.cs"
+          ]
+        },
+        "lua": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "plugins/lua/sco_lua.c",
+              "token": "->owner_info("
+            }
+          ],
+          "tests": [
+            "tests/test_lua.cpp"
+          ]
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_storage_v2.c",
+        "tests/test_storage.cpp",
+        "tests/test_storage_metadata_sdk.cpp",
+        "tests/test_lua.cpp",
+        "sdk/csharp/Sco.Sdk.Tests/StorageMetadataTests.cs"
+      ],
+      "limitations": [
+        "Interval observations, not a transaction across concurrent writes.",
+        "Metadata never opens a database; expensive counts may fail within the SQL budget.",
+        "Experimental Rust has no typed metadata wrapper in this change."
+      ]
+    },
+    {
+      "id": "sco-storage-v2-next-table",
+      "kind": "table-method",
+      "symbol": "sco_storage_v2.next_table",
+      "table": "sco_storage_v2",
+      "service": "sco.storage.metadata",
+      "version_macro": "SCO_STORAGE_V2_VERSION_2_0",
+      "source_header": "include/sco_storage_v2.h",
+      "signature": "sco_result (*)(sco_plugin *, const char *, char *, uint32_t *, sco_storage_table_info *)",
+      "member_extent": 24,
+      "table_size": 40,
+      "since": "`size >= 24`; 2.0",
+      "purpose": "Copy the next ordinary own main-schema table name in binary order and its declared column count; NULL after starts, and the name-size handshake includes NUL.",
+      "buffer_contract": "`sco_result (*next_table)(sco_plugin* self, const char* after, char* out, uint32_t* inout_size, sco_storage_table_info* info);`<br>Copy the next ordinary own main-schema table name in binary order and its declared column count; NULL after starts, and the name-size handshake includes NUL.",
+      "ownership": "Caller-owned copied metadata only; self selects its existing database. No paths, stored values, raw handles or other-owner selector. Output records require full declared size; trailing bytes preserved.",
+      "thread_affinity": "Any thread; serialize per owner with ordinary storage operations. SQL progress budget applies; mutex scheduling has no hard deadline.",
+      "callback_context": "No caller/provider callbacks; views and virtual tables are not executed.",
+      "reentrancy": "Recursive same-call use unspecified; no callback entrypoint is supplied.",
+      "results": "Absent service: NOT_FOUND; incompatible version: UNAVAILABLE. Unopened/stopped storage: UNAVAILABLE; invalid/released self or malformed/short records: BAD_ARG. Missing/excluded table: NOT_FOUND. Allocation: TOO_MANY; SQL failure/interruption: FAILED. Failure leaves outputs untouched except next_table short-name TOO_MANY writes required size only.",
+      "absent_capability": "The separate metadata service is NOT_FOUND on an old host; a short/null member must be treated as UNAVAILABLE, not successful zero.",
+      "cleanup": "No metadata resource or cursor ownership escapes. Ordinary storage owner release/Stop invalidates access; storage generations distinguish successful restarts. Retained faults do not authorize cleanup.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sco_storage_v2.h",
+              "token": "(*next_table)"
+            }
+          ],
+          "tests": [
+            "tests/abi_storage_v2.c"
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/storage_metadata.hpp",
+              "token": "->next_table("
+            }
+          ],
+          "tests": [
+            "tests/test_storage_metadata_sdk.cpp"
+          ]
+        },
+        "csharp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "sdk/csharp/Sco.Sdk/StorageMetadata.cs",
+              "token": "->next_table("
+            }
+          ],
+          "tests": [
+            "sdk/csharp/Sco.Sdk.Tests/StorageMetadataTests.cs"
+          ]
+        },
+        "lua": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "plugins/lua/sco_lua.c",
+              "token": "->next_table("
+            }
+          ],
+          "tests": [
+            "tests/test_lua.cpp"
+          ]
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_storage_v2.c",
+        "tests/test_storage.cpp",
+        "tests/test_storage_metadata_sdk.cpp",
+        "tests/test_lua.cpp",
+        "sdk/csharp/Sco.Sdk.Tests/StorageMetadataTests.cs"
+      ],
+      "limitations": [
+        "Interval observations, not a transaction across concurrent writes.",
+        "Metadata never opens a database; expensive counts may fail within the SQL budget.",
+        "Experimental Rust has no typed metadata wrapper in this change."
+      ]
+    },
+    {
+      "id": "sco-storage-v2-row-count",
+      "kind": "table-method",
+      "symbol": "sco_storage_v2.row_count",
+      "table": "sco_storage_v2",
+      "service": "sco.storage.metadata",
+      "version_macro": "SCO_STORAGE_V2_VERSION_2_0",
+      "source_header": "include/sco_storage_v2.h",
+      "signature": "sco_result (*)(sco_plugin *, const char *, uint64_t *)",
+      "member_extent": 32,
+      "table_size": 40,
+      "since": "`size >= 32`; 2.0",
+      "purpose": "Count rows of a validated ordinary own table within the SQL progress budget; do not execute views or virtual tables.",
+      "buffer_contract": "`sco_result (*row_count)(sco_plugin* self, const char* table, uint64_t* out_count);`<br>Count rows of a validated ordinary own table within the SQL progress budget; do not execute views or virtual tables.",
+      "ownership": "Caller-owned copied metadata only; self selects its existing database. No paths, stored values, raw handles or other-owner selector. Output records require full declared size; trailing bytes preserved.",
+      "thread_affinity": "Any thread; serialize per owner with ordinary storage operations. SQL progress budget applies; mutex scheduling has no hard deadline.",
+      "callback_context": "No caller/provider callbacks; views and virtual tables are not executed.",
+      "reentrancy": "Recursive same-call use unspecified; no callback entrypoint is supplied.",
+      "results": "Absent service: NOT_FOUND; incompatible version: UNAVAILABLE. Unopened/stopped storage: UNAVAILABLE; invalid/released self or malformed/short records: BAD_ARG. Missing/excluded table: NOT_FOUND. Allocation: TOO_MANY; SQL failure/interruption: FAILED. Failure leaves outputs untouched except next_table short-name TOO_MANY writes required size only.",
+      "absent_capability": "The separate metadata service is NOT_FOUND on an old host; a short/null member must be treated as UNAVAILABLE, not successful zero.",
+      "cleanup": "No metadata resource or cursor ownership escapes. Ordinary storage owner release/Stop invalidates access; storage generations distinguish successful restarts. Retained faults do not authorize cleanup.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sco_storage_v2.h",
+              "token": "(*row_count)"
+            }
+          ],
+          "tests": [
+            "tests/abi_storage_v2.c"
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/storage_metadata.hpp",
+              "token": "->row_count("
+            }
+          ],
+          "tests": [
+            "tests/test_storage_metadata_sdk.cpp"
+          ]
+        },
+        "csharp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "sdk/csharp/Sco.Sdk/StorageMetadata.cs",
+              "token": "->row_count("
+            }
+          ],
+          "tests": [
+            "sdk/csharp/Sco.Sdk.Tests/StorageMetadataTests.cs"
+          ]
+        },
+        "lua": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "plugins/lua/sco_lua.c",
+              "token": "->row_count("
+            }
+          ],
+          "tests": [
+            "tests/test_lua.cpp"
+          ]
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_storage_v2.c",
+        "tests/test_storage.cpp",
+        "tests/test_storage_metadata_sdk.cpp",
+        "tests/test_lua.cpp",
+        "sdk/csharp/Sco.Sdk.Tests/StorageMetadataTests.cs"
+      ],
+      "limitations": [
+        "Interval observations, not a transaction across concurrent writes.",
+        "Metadata never opens a database; expensive counts may fail within the SQL budget.",
+        "Experimental Rust has no typed metadata wrapper in this change."
+      ]
+    },
+    {
+      "id": "sco-storage-v2-quota-info",
+      "kind": "table-method",
+      "symbol": "sco_storage_v2.quota_info",
+      "table": "sco_storage_v2",
+      "service": "sco.storage.metadata",
+      "version_macro": "SCO_STORAGE_V2_VERSION_2_0",
+      "source_header": "include/sco_storage_v2.h",
+      "signature": "sco_result (*)(sco_plugin *, sco_storage_quota_info *)",
+      "member_extent": 40,
+      "table_size": 40,
+      "since": "`size >= 40`; 2.0",
+      "purpose": "Copy configured quota, effective SQLite page quota, allocated database bytes and remaining quota capacity; WAL and filesystem sizes are excluded.",
+      "buffer_contract": "`sco_result (*quota_info)(sco_plugin* self, sco_storage_quota_info* out);`<br>Copy configured quota, effective SQLite page quota, allocated database bytes and remaining quota capacity; WAL and filesystem sizes are excluded.",
+      "ownership": "Caller-owned copied metadata only; self selects its existing database. No paths, stored values, raw handles or other-owner selector. Output records require full declared size; trailing bytes preserved.",
+      "thread_affinity": "Any thread; serialize per owner with ordinary storage operations. SQL progress budget applies; mutex scheduling has no hard deadline.",
+      "callback_context": "No caller/provider callbacks; views and virtual tables are not executed.",
+      "reentrancy": "Recursive same-call use unspecified; no callback entrypoint is supplied.",
+      "results": "Absent service: NOT_FOUND; incompatible version: UNAVAILABLE. Unopened/stopped storage: UNAVAILABLE; invalid/released self or malformed/short records: BAD_ARG. Missing/excluded table: NOT_FOUND. Allocation: TOO_MANY; SQL failure/interruption: FAILED. Failure leaves outputs untouched except next_table short-name TOO_MANY writes required size only.",
+      "absent_capability": "The separate metadata service is NOT_FOUND on an old host; a short/null member must be treated as UNAVAILABLE, not successful zero.",
+      "cleanup": "No metadata resource or cursor ownership escapes. Ordinary storage owner release/Stop invalidates access; storage generations distinguish successful restarts. Retained faults do not authorize cleanup.",
+      "language_mappings": {
+        "c": {
+          "status": "direct",
+          "evidence": [
+            {
+              "path": "include/sco_storage_v2.h",
+              "token": "(*quota_info)"
+            }
+          ],
+          "tests": [
+            "tests/abi_storage_v2.c"
+          ]
+        },
+        "cpp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "include/scosdk/storage_metadata.hpp",
+              "token": "->quota_info("
+            }
+          ],
+          "tests": [
+            "tests/test_storage_metadata_sdk.cpp"
+          ]
+        },
+        "csharp": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "sdk/csharp/Sco.Sdk/StorageMetadata.cs",
+              "token": "->quota_info("
+            }
+          ],
+          "tests": [
+            "sdk/csharp/Sco.Sdk.Tests/StorageMetadataTests.cs"
+          ]
+        },
+        "lua": {
+          "status": "typed-wrapper",
+          "evidence": [
+            {
+              "path": "plugins/lua/sco_lua.c",
+              "token": "->quota_info("
+            }
+          ],
+          "tests": [
+            "tests/test_lua.cpp"
+          ]
+        }
+      },
+      "examples": [],
+      "tests": [
+        "tests/abi_storage_v2.c",
+        "tests/test_storage.cpp",
+        "tests/test_storage_metadata_sdk.cpp",
+        "tests/test_lua.cpp",
+        "sdk/csharp/Sco.Sdk.Tests/StorageMetadataTests.cs"
+      ],
+      "limitations": [
+        "Interval observations, not a transaction across concurrent writes.",
+        "Metadata never opens a database; expensive counts may fail within the SQL budget.",
+        "Experimental Rust has no typed metadata wrapper in this change."
+      ]
+    }
+  ]
+}

@@ -23,7 +23,228 @@ pkg = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(pkg)
 ADAPTER_FILES = {"include/sco/game/host.h", "src/game/host.cpp",
                  "src/game/host_testing.h", "tests/game_host_data.cpp",
-                 "tests/game_host.cpp", "docs/game/host.md"}
+                 "tests/game_host.cpp", "docs/game/host.md",
+                 "src/game/retained_host.cpp", "src/game/retained_host.h", "tests/game_host_retained.cpp",
+                 "src/game/pak_retained.h", "src/game/services/process_retained.h", "tests/test_pak_retained.cpp"}
+
+# These private synthetic evidence inputs are deliberately excluded from every SDK archive.
+# List exact files so a new neighboring fixture remains subject to the ordinary census.
+PRIVATE_EVIDENCE_FIXTURES = {
+    "tests/fixtures/synthetic_native_evidence/README.md",
+    "tests/fixtures/synthetic_native_evidence/fixture.json",
+    "tests/fixtures/synthetic_native_evidence/generated-fixture.json",
+    "tests/fixtures/synthetic_native_evidence/index.json",
+    "tests/fixtures/synthetic_native_evidence/profile-fixture.canonical.json",
+}
+
+
+def required_source_dependencies(tracked):
+    required = {p for p in tracked if p.startswith(("src/", "include/", "tests/",
+                "third_party/tomlplusplus/", "docs/game/"))}
+    required.difference_update(PRIVATE_EVIDENCE_FIXTURES)
+    required.update(("plugins/lua/sco_lua_game.c", "plugins/lua/sco_lua_game.h",
+                     "tools/sco-dcb.cpp", "tools/sco-sigcheck.cpp"))
+    return required
+
+
+def validate_host_source_metadata(files):
+    """Bind supplied metadata to this source/profile and one exact current coordinate.
+
+    Agreement between untrusted archive fields is insufficient: stable/development
+    versions, source commits, ABI and game identity come from the current checkout.
+    This does not replace archive membership, hashes, SBOM or standalone build proofs.
+    """
+    def unique_object(pairs):
+        value = {}
+        for key, entry in pairs:
+            if key in value:
+                raise ValueError(f"duplicate metadata key: {key}")
+            value[key] = entry
+        return value
+
+    def document(name):
+        try:
+            value = json.loads(files[name], object_pairs_hook=unique_object)
+        except (KeyError, TypeError, UnicodeError, json.JSONDecodeError) as error:
+            raise ValueError(f"{name}: missing or invalid metadata") from error
+        if not isinstance(value, dict):
+            raise ValueError(f"{name}: metadata must be an object")
+        return value
+
+    def expect(actual, expected, label):
+        if type(actual) is not type(expected) or actual != expected:
+            raise ValueError(f"{label}: expected {expected!r}, received {actual!r}")
+
+    commit = pkg.source_commit()
+    stable, development = pkg.sdk_version(), pkg.development_version()
+    game_version = pkg.game_pack()[0]
+    compatibility = document("COMPATIBILITY.json")
+    for field, expected in (("schema_version", 1), ("profile", "host-source-sc"),
+                            ("source_commits", {"core": commit, "game-sc": commit}),
+                            ("plugin_abi_version", pkg.abi_version()),
+                            ("game_overlay_version", game_version), ("base_core_sha256", None)):
+        if field not in compatibility:
+            raise ValueError(f"COMPATIBILITY.json: missing {field}")
+        expect(compatibility[field], expected, f"COMPATIBILITY.json {field}")
+    version = compatibility.get("core_sdk_version")
+    if not isinstance(version, str) or version not in (stable, development):
+        raise ValueError("COMPATIBILITY.json: version is not the current stable or development coordinate")
+    try:
+        # Stable copies source VERSION with platform checkout line endings;
+        # development generates LF. Hash/inventory checks retain the exact bytes.
+        version_bytes = (version + "\n").encode("ascii")
+        if version == stable:
+            if files["sdk/VERSION"] not in (version_bytes, (version + "\r\n").encode("ascii")):
+                raise ValueError("sdk/VERSION: not the validated stable coordinate")
+        else:
+            expect(files["sdk/VERSION"], version_bytes, "sdk/VERSION")
+        notice = pkg.versions_txt("host-source-sc", version, version if version == development else None)
+        expect(files["VERSIONS.txt"], notice.encode("ascii"), "VERSIONS.txt")
+    except KeyError as error:
+        raise ValueError(f"missing host-source version envelope: {error}") from error
+    for name, schema in (("sdk-catalogue.json", 2), ("sdk-guides.json", 1), ("sdk-workflows.json", 1)):
+        metadata = document(name)
+        for field, expected in (("schema_version", schema), ("source_sha", commit), ("sdk_version", version)):
+            expect(metadata.get(field), expected, f"{name} {field}")
+        if name == "sdk-catalogue.json":
+            expect(metadata.get("game_pack_version"), game_version, f"{name} game_pack_version")
+    return version
+
+
+class HostSourceMetadata(unittest.TestCase):
+    @staticmethod
+    def envelope(version=None):
+        """Metadata-only fixture, not a packaged archive or a clean-source proof."""
+        version = version or pkg.sdk_version()
+        commit = pkg.source_commit()
+        version_bytes = (Path(pkg.ROOT, "sdk/VERSION").read_bytes() if version == pkg.sdk_version()
+                         else (version + "\n").encode("ascii"))
+        files = {"sdk/VERSION": version_bytes,
+                 "VERSIONS.txt": pkg.versions_txt("host-source-sc", version,
+                                    version if version == pkg.development_version() else None).encode("ascii")}
+        files["COMPATIBILITY.json"] = pkg.json_bytes({
+            "schema_version": 1, "profile": "host-source-sc", "core_sdk_version": version,
+            "plugin_abi_version": pkg.abi_version(), "game_overlay_version": pkg.game_pack()[0],
+            "source_commits": {"core": commit, "game-sc": commit}, "base_core_sha256": None})
+        for name, schema in (("sdk-catalogue.json", 2), ("sdk-guides.json", 1), ("sdk-workflows.json", 1)):
+            metadata = {"schema_version": schema, "sdk_version": version, "source_sha": commit}
+            if name == "sdk-catalogue.json":
+                metadata["game_pack_version"] = pkg.game_pack()[0]
+            files[name] = pkg.json_bytes(metadata)
+        return files
+
+    @staticmethod
+    def change(files, name, **values):
+        record = json.loads(files[name])
+        record.update(values)
+        files[name] = pkg.json_bytes(record)
+
+    def test_current_stable_metadata(self):
+        files = self.envelope()
+        self.assertEqual(files["sdk/VERSION"], Path(pkg.ROOT, "sdk/VERSION").read_bytes())
+        self.assertEqual(validate_host_source_metadata(files), pkg.sdk_version())
+
+    def test_current_development_metadata(self):
+        files = self.envelope(pkg.development_version())
+        self.assertEqual(validate_host_source_metadata(files), pkg.development_version())
+
+    def test_stable_version_checkout_line_endings(self):
+        for ending in ("\n", "\r\n"):
+            with self.subTest(ending=ending):
+                files = self.envelope()
+                files["sdk/VERSION"] = (pkg.sdk_version() + ending).encode("ascii")
+                self.assertEqual(validate_host_source_metadata(files), pkg.sdk_version())
+
+    def test_development_fixture_exposes_original_assertion(self):
+        files = self.envelope(pkg.development_version())
+        with self.assertRaises(AssertionError):
+            # The original archive assertion rejected this exact legitimate coordinate.
+            self.assertEqual(json.loads(files["sdk-workflows.json"])["sdk_version"], pkg.sdk_version())
+
+    def test_mixed_versions_refuse(self):
+        for version in (pkg.sdk_version(), pkg.development_version()):
+            other = pkg.development_version() if version == pkg.sdk_version() else pkg.sdk_version()
+            for name in ("sdk-catalogue.json", "sdk-guides.json", "sdk-workflows.json", "COMPATIBILITY.json"):
+                with self.subTest(version=version, file=name):
+                    files = self.envelope(version)
+                    key = "core_sdk_version" if name == "COMPATIBILITY.json" else "sdk_version"
+                    self.change(files, name, **{key: other})
+                    with self.assertRaises(ValueError):
+                        validate_host_source_metadata(files)
+            files = self.envelope(version)
+            files["sdk/VERSION"] = (other + "\n").encode("ascii")
+            with self.assertRaises(ValueError):
+                validate_host_source_metadata(files)
+
+    def test_unknown_coherent_version_refuses(self):
+        # Uniform agreement inside the supplied envelope is not source qualification.
+        for version in ("2.4.1-dev.999999", "99.0.0"):
+            with self.subTest(version=version), self.assertRaises(ValueError):
+                validate_host_source_metadata(self.envelope(version))
+
+    def test_foreign_coherent_source_refuses(self):
+        files = self.envelope()
+        foreign = "0" * 40 if pkg.source_commit() != "0" * 40 else "1" * 40
+        for name in ("sdk-catalogue.json", "sdk-guides.json", "sdk-workflows.json"):
+            self.change(files, name, source_sha=foreign)
+        self.change(files, "COMPATIBILITY.json", source_commits={"core": foreign, "game-sc": foreign})
+        with self.assertRaises(ValueError):
+            validate_host_source_metadata(files)
+
+    def test_individual_foreign_source_refuses(self):
+        for name in ("sdk-catalogue.json", "sdk-guides.json", "sdk-workflows.json"):
+            with self.subTest(file=name):
+                files = self.envelope()
+                self.change(files, name, source_sha="foreign")
+                with self.assertRaises(ValueError):
+                    validate_host_source_metadata(files)
+        for field in ("core", "game-sc"):
+            with self.subTest(source=field):
+                files = self.envelope()
+                commits = {"core": pkg.source_commit(), "game-sc": pkg.source_commit()}
+                commits[field] = "foreign"
+                self.change(files, "COMPATIBILITY.json", source_commits=commits)
+                with self.assertRaises(ValueError):
+                    validate_host_source_metadata(files)
+
+    def test_wrong_envelope_profile_abi_and_game_refuse(self):
+        for field, value in (("profile", "core-source"), ("schema_version", 2),
+                             ("plugin_abi_version", "99.0"), ("game_overlay_version", "99.0"),
+                             ("base_core_sha256", "0" * 64)):
+            with self.subTest(field=field):
+                files = self.envelope()
+                self.change(files, "COMPATIBILITY.json", **{field: value})
+                with self.assertRaises(ValueError):
+                    validate_host_source_metadata(files)
+        files = self.envelope()
+        self.change(files, "sdk-catalogue.json", game_pack_version="99.0")
+        with self.assertRaises(ValueError):
+            validate_host_source_metadata(files)
+
+    def test_missing_malformed_or_wrong_schema_refuses(self):
+        for name in ("COMPATIBILITY.json", "sdk-catalogue.json", "sdk-guides.json", "sdk-workflows.json"):
+            for replacement in (None, b"not json", b"[]", b'{"schema_version": 1, "schema_version": 2}'):
+                with self.subTest(file=name, replacement=replacement):
+                    files = self.envelope()
+                    if replacement is None:
+                        del files[name]
+                    else:
+                        files[name] = replacement
+                    with self.assertRaises(ValueError):
+                        validate_host_source_metadata(files)
+        for name in ("sdk-catalogue.json", "sdk-guides.json", "sdk-workflows.json"):
+            files = self.envelope()
+            self.change(files, name, schema_version=True)
+            with self.assertRaises(ValueError):
+                validate_host_source_metadata(files)
+
+    def test_versions_notice_refuses_wrong_version_or_source(self):
+        for version in (pkg.sdk_version(), pkg.development_version()):
+            with self.subTest(version=version):
+                files = self.envelope(version)
+                files["VERSIONS.txt"] = b"not the current source/version notice\n"
+                with self.assertRaises(ValueError):
+                    validate_host_source_metadata(files)
 
 
 class HostSourceArchive(unittest.TestCase):
@@ -50,6 +271,16 @@ class HostSourceArchive(unittest.TestCase):
         self.assertIn("missing real adapter files", result.stdout + result.stderr)
         self.assertEqual(before, (HERE / "components.json").read_bytes())
 
+    def test_private_evidence_census_exemption_is_narrow(self):
+        tracked = set(pkg.tracked_files(pkg.ROOT))
+        self.assertLessEqual(PRIVATE_EVIDENCE_FIXTURES, tracked)
+        sources = {c["source"] for c in pkg.select(pkg.load_manifest(), "host-source-sc")}
+        self.assertFalse(PRIVATE_EVIDENCE_FIXTURES & sources)
+        neighbor = "tests/fixtures/synthetic_native_evidence/unlisted-new-fixture.json"
+        required = required_source_dependencies(tracked | {neighbor})
+        self.assertFalse(PRIVATE_EVIDENCE_FIXTURES & required)
+        self.assertIn(neighbor, required - sources)
+
     def test_standalone_game_source_archive(self):
         m = pkg.load_manifest()
         self.assertIn("host-source-sc", m["profiles"], "G16 host source profile is missing")
@@ -61,12 +292,16 @@ class HostSourceArchive(unittest.TestCase):
         sources = {c["source"] for c in chosen}
         neutral = {c["source"] for c in pkg.select(m, "core-source")}
         tracked = set(pkg.tracked_files(pkg.ROOT))
-        required = {p for p in tracked if p.startswith(("src/", "include/", "tests/",
-                    "third_party/tomlplusplus/", "docs/game/"))}
-        required.update(("plugins/lua/sco_lua_game.c", "plugins/lua/sco_lua_game.h",
-                         "tools/sco-dcb.cpp", "tools/sco-sigcheck.cpp"))
+        self.assertLessEqual(PRIVATE_EVIDENCE_FIXTURES, tracked)
+        self.assertFalse(PRIVATE_EVIDENCE_FIXTURES & sources)
+        # Files the manifest names one by one as repository-only (not whole folders) are not kit
+        # dependencies; CMake only uses them when they exist.
+        repository_only = {e["path"] for e in m.get("excluded", []) if not e["path"].endswith("/")}
+        required = required_source_dependencies(tracked) - repository_only
+        neighbor = "tests/fixtures/synthetic_native_evidence/unlisted-new-fixture.json"
+        self.assertIn(neighbor, required_source_dependencies(tracked | {neighbor}) - sources)
         self.assertFalse(required - sources, f"missing tracked source dependencies: {sorted(required - sources)}")
-        self.assertTrue(neutral <= sources)
+        self.assertLessEqual(neutral, sources)
         self.assertTrue(all(pkg.destination(m, "host-source-sc", c) == c["source"] for c in chosen))
         game = {c["source"] for c in chosen if c.get("group") in ("game-contract", "host-source-sc")
                 or "game-sc" in c["profiles"]}
@@ -86,13 +321,13 @@ class HostSourceArchive(unittest.TestCase):
                 archive = pkg.build(m, "host-source-sc", str(Path(tmp, "dist")))
             with zipfile.ZipFile(archive) as z:
                 files = {n.split("/", 1)[1]: z.read(n) for n in z.namelist()}
+                self.assertFalse(PRIVATE_EVIDENCE_FIXTURES & files.keys())
                 self.assertEqual(set(files), sources | pkg.generated_metadata_names(m, "host-source-sc"))
-                self.assertEqual(json.loads(files["sdk-catalogue.json"])["source_sha"], pkg.source_commit())
-                self.assertEqual(json.loads(files["sdk-guides.json"])["source_sha"], pkg.source_commit())
+                archive_version = validate_host_source_metadata(files)
                 workflows = json.loads(files["sdk-workflows.json"])
                 self.assertEqual(workflows["schema_version"], 1)
                 self.assertEqual(workflows["source_sha"], pkg.source_commit())
-                self.assertEqual(workflows["sdk_version"], pkg.sdk_version())
+                self.assertEqual(workflows["sdk_version"], archive_version)
                 self.assertEqual(workflows["manifest_path"], "sdk/skills/manifest.json")
                 manifest_bytes = files[workflows["manifest_path"]]
                 manifest = json.loads(manifest_bytes)

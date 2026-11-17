@@ -194,7 +194,10 @@ typedef void (*sco_event_fn)(const char* event, const void* data, void* ctx);
 
 ## Commands
 
-Features expose actions as named commands, sc-offline's own and plugins' alike. The menu draws a control per argument and calls `invoke`; a plugin calls the same function. Three functions cover every feature.
+Features expose actions as named commands, sc-offline's own and plugins' alike.
+Plugins can call `invoke`; a host or plugin may provide controls that invoke
+commands, but registration alone does not create a product menu or command-entry
+UI. The host decides which user-facing surfaces it provides.
 
 ```c
 typedef enum sco_arg_type { SCO_ARG_INT = 0, SCO_ARG_FLOAT = 1, SCO_ARG_STRING = 2, SCO_ARG_BOOL = 3 } sco_arg_type;
@@ -227,7 +230,7 @@ typedef struct sco_command {
 |---|---|
 | `size` | `sizeof(sco_command)` |
 | `name` | `<owner>.<action>`: `"spawn.ship"`, `"teleport.save"`, `"hello.wave"`. A plugin may only register names that start with its own `name` and a dot |
-| `title` | The menu label, `"Spawn ship"` |
+| `title` | A human-readable label, `"Spawn ship"` |
 | `help` | One line of help, or NULL |
 | `capability` | The `has()` name this command needs, or NULL for always available |
 | `args`, `nargs` | The argument definitions, in order (at most 16) |
@@ -240,7 +243,7 @@ Behavior:
 - Commands run on the game thread. `invoke` from the game thread runs the command at once, calls `done` once before returning and returns the same result.
 - From any other thread `invoke` copies the name and arguments, queues the call and returns `SCO_OK`; `done` then runs exactly once, on the game thread. Any other return (`SCO_BAD_ARG`, or `SCO_TOO_MANY` when the queue is full or memory runs out) means nothing was queued and `done` is never called. A call still queued when the calling plugin unloads is dropped, and `done` isn't called.
 - Before calling `fn` the host checks the argument count and types (`SCO_BAD_ARG`) and the capability (`SCO_UNAVAILABLE`); `done` receives that result and `fn` isn't called.
-- `fn` writes a short human message into `reply`, at most `reply_size` bytes including the NUL: `"Spawned Cutlass Black"`. The menu shows it on the status line. `done` gets it as `reply`, valid only during the call.
+- `fn` writes a short human message into `reply`, at most `reply_size` bytes including the NUL: `"Spawned Cutlass Black"`. A product may show it on a status line; `done` gets it as `reply`, valid only during the call.
 - `done` may be NULL when the caller doesn't need the result.
 
 Not settled for 1.0: how the menu reads lists it shows today (ship classes, bookmarks, outfits, contract offers). It is decided at step 5 with the real menu; the candidates are commands that return a list in `reply`, or a `query` function added in 1.1.
@@ -290,8 +293,8 @@ if (api->size >= offsetof(sco_api, query_service) + sizeof(api->query_service) &
 
 - **Names** are `[a-z0-9_.]`, 1-63 characters, with no leading, trailing or doubled `.`, and must be the plugin's id or start with `<id>.`, like command names. A name already published is `SCO_BAD_ARG`. Because of that prefix, a plugin that needs your service can name it in `plugin.ini` (`requires = <id>.<name>`) and the host loads it after you; see [Load order](plugins.md#load-order-and-requires).
 - **Versions** are `(major << 16) | minor`. `query_service` answers `SCO_OK` when the service has the same major as `min_version` and is at least as new; `SCO_UNAVAILABLE` when the major differs or it is older; `SCO_NOT_FOUND` when nothing is published under that name. `out_vtable` is `NULL` unless `SCO_OK`.
-- **Withdrawing:** `release_service(self, name)` withdraws one of your services (`SCO_NOT_FOUND` if it isn't yours).
-- **Lifetime:** the host keeps the name, version and pointer, never the table's contents, and never calls into it. Once a native provider's table has been handed out, administrative unload/reload is refused for the live session. A fault withdraws lookup and scheduling but does not revoke cached raw tables or make them safe: an exposed provider becomes terminal `faulted`, retains its code and backing state without unload/resource hooks, and requires a game restart. A non-retained fault takes ordinary `crashed` resource cleanup. Terminal host shutdown closes runtime admission before teardown; built-ins-last ordering is not permission to call cached peer tables during unload. See [native service use](../sdk/docs/plugin-rules.md).
+- **Withdrawing:** `release_service(self, name)` withdraws one of your services from future lookup (`SCO_NOT_FOUND` if it isn't yours). It does not revoke pointers a caller already holds. It answers `SCO_UNAVAILABLE` in an owned session or after runtime admission has closed, and `SCO_FAILED` while the service has a live managed pin.
+- **Lifetime:** the host keeps the name, version and pointer, never the table's contents, and never calls into it. Once a native provider's table has been handed out, administrative unload/reload is refused for the live session. A fault withdraws lookup and scheduling but does not revoke cached raw tables or make them safe: an exposed provider becomes terminal `faulted`, retains its code and backing state without unload/resource hooks, and requires a game restart. A non-retained fault takes ordinary `crashed` resource cleanup. Terminal host shutdown is refused while a managed service pin is live and, once it proceeds, closes managed acquisition, publication and loader entry until the next app start; it closes runtime admission before teardown; built-ins-last ordering is not permission to call cached peer tables during unload. See [native service use](../sdk/docs/plugin-rules.md).
 - **Faults:** a call into another plugin's table runs inside the caller's callout, but a fault is blamed on the code that faulted. The host walks the faulting thread's frames (Windows, at most 32) and finds the first one inside a plugin DLL: if that is another plugin (the provider), the provider is quarantined and its services withdrawn, and the caller is not: its callout did not complete (a command answers `SCO_CRASHED`) but the caller stays loaded. An exposed provider is terminal `faulted`: `mod.log` reports state retention and a restart requirement, not safe recovery. A non-retained owner becomes `crashed` and releases its resources. A fault in the caller's own code, in game or host code, or in a built-in (which shares the product's module, so the walk can't tell it from the product) is still the callout owner's. A stack overflow is not walked and is the owner's. A provider that can't be told apart from its caller (a bad pointer the caller passed in) is blamed too: validate arguments in the provider.
 - Threads: both functions work from any thread; what thread the table's own functions may be called from is part of the provider's contract.
 - **Entity ids, never pointers.** A service that deals with game objects takes and returns entity and zone ids: opaque `uint64_t` values, as the game's own are. It resolves the id on every call, on the game thread, and answers `SCO_NOT_FOUND` (or `SCO_UNAVAILABLE`) when the entity has streamed out. It never hands out a pointer into the game: Star Citizen streams objects in and out (object container streaming), so a pointer a caller stores dangles once its object goes, and the next call through it crashes the caller, not the provider. Treat an id as a value to pass back, not a number to decode: the player's id in the sc-offline spawn test is `0xCAE11A7400000000`, a tagged value, not a small index. See [Framework § Lessons](framework.md#6-services-hand-out-ids-never-pointers).
@@ -306,7 +309,9 @@ Some services are published by the host itself rather than by a plugin. They liv
 
 | Service | Version | Header | What |
 |---|---|---|---|
-| `sco.storage` | 1.0 | [`sco_storage.h`](../include/sco_storage.h) | Per-plugin persistent storage: key-value and SQL over SQLite, in the plugin's own database. [Storage](storage.md) |
+| `sco.storage` | 1.1 (1.0 prefix) | [`sco_storage.h`](../include/sco_storage.h) | Per-plugin key-value and SQL storage; 1.1 adds schema introspection. [Storage](storage.md) |
+| `sco.storage.metadata` | 2.0 | [`sco_storage_v2.h`](../include/sco_storage_v2.h) | Separate, optional caller-owned database metadata service; it does not replace or extend the `sco.storage` table. [Storage metadata](storage-metadata.md) |
+| `sco.widgets` | 1.0–1.4 | [`sco_widgets.h`](../include/sco_widgets.h) | Optional renderer-neutral panels; later versions add features described [below](#renderer-neutral-widget-service). |
 | `sco.datacore` | 1.1 | [`sco_datacore.h`](../include/sco_datacore.h) | DataCore overrides from code: the operations of a data pack's `.toml` files, queued call by call (`add_record` needs 1.1); after the game's DataCore load they are saved and apply from the next launch. A game-pack service published under `sco` only when the product enables it (`sco::app::Platform::dataCore`). [The sco.datacore service](datacore.md#the-scodatacore-service) |
 | `sco.ipc` | 1.0 | [`sco_ipc.h`](../include/sco_ipc.h) | Local shared-memory channels to another program on the same PC (a bridge): `Local\SCO_<plugin id>.<name>`, a current-user-only DACL on new Windows mappings (reuse checks owner/size, not the existing DACL), rings and seqlock blocks laid out with the MIT wire [`sc_ipc.h`](../include/sc_ipc.h), which the other program includes alone. [IPC](ipc.md) |
 | `sco.net` | 1.0 | [`sco_net.h`](../include/sco_net.h) | Typed message channels between the players of a private session the product opened (`<plugin id>.<name>`, unreliable or reliable, per-plugin send quotas); callbacks on the game thread, `net.state` / `net.peer` events. Published with the capability `sco.net` (`requires = sco.net`); plugins can't open or join sessions. [Multiplayer messages](net.md) |
@@ -357,7 +362,9 @@ The host also registers commands of its own, under the reserved prefix `sco`, wi
 
 ## Game pack services
 
-Services the Star Citizen game pack publishes under the reserved owner `game` (`sco::host::ProvideGameService`, when the product sets `Platform::gameServices`; [game services](game-services.md)). Their headers ship with the SDK and sco-core implements them in the game pack (`SCO_GAME_SC`), so on a host without the game pack, or on a game build whose rows don't resolve, `query_service` answers `SCO_NOT_FOUND` or a function answers `SCO_UNAVAILABLE`. **None of them has run in a game session since it landed:** [status of every game.* table](game/status.md) says per capability what is on and how far it has been checked.
+These are contracts for services the Star Citizen game pack may publish under the reserved owner `game` (`sco::host::ProvideGameService`, when the product sets `Platform::gameServices`; [game services](game-services.md)). Their headers ship with the SDK and sco-core implements them in the game pack (`SCO_GAME_SC`).
+
+**Current HOLD:** Production native game-service startup is unavailable. `app::Start` with `Platform::gameServices` and public `game::services::Start()` refuse before mutation; the contracts below do not mean their tables are currently published. **None of them has run in a game session since it landed:** [status of every game.* table](game/status.md) says per capability what is on and how far it has been checked. When a host without the game pack or a game build whose rows don't resolve is used, `query_service` answers `SCO_NOT_FOUND` or a function answers `SCO_UNAVAILABLE`.
 
 | Service | Version | Header | Pin | Capabilities |
 |---|---|---|---|---|
@@ -370,6 +377,7 @@ Services the Star Citizen game pack publishes under the reserved owner `game` (`
 | `game.owned` | 1.0 | [`sc_owned.h`](../include/sc_owned.h) | `abi_game_owned.c` | existing entity/actor removal and seat reads |
 | `game.world` | 1.0 | [`sc_world.h`](../include/sc_world.h) | `abi_game_world.c` | `game.world.raycast`, `.camera` |
 | `game.entities` | 1.1 | [`sc_entities.h`](../include/sc_entities.h) | `abi_game_entities.c` | `game.entities.transform`, `.spawn`, `.class_of`, `.query_radius` (off), `.watch` (off) |
+| `game.loadout` | 1.2 | [`sc_loadout.h`](../include/sc_loadout.h) | `abi_game_loadout.c` | `game.loadout.apply` / `.weapons` (off); `.async` requires the explicit adapter path; no production table under the current HOLD |
 | `game.*` events | bus | [`sc_game_events.h`](../include/sc_game_events.h) | `abi_game_events.c` | `game.events.player_spawned`, `.player_died`, `.zone_changed`, `.vehicle_seat` (off) |
 
 ### `teleport.spatial` 1.0 (game pack)
@@ -467,14 +475,14 @@ if (api->size >= offsetof(sco_api, query_service) + sizeof(api->query_service) &
     api->has && api->has("game.vehicles.seats")) { ... }
 ```
 
-Every function returns `sco_result` and is game thread only: from another thread it answers `SCO_WRONG_THREAD` without touching the game. A function whose capability isn't ready answers `SCO_UNAVAILABLE`. Every failure leaves its reason for `last_error`. The functions that change the game take `self` first, and the game pack logs each of them with your plugin id (`[game] vehicles: <plugin>: ...`).
+Every function returns `sco_result` and is game thread only: from another thread it answers `SCO_WRONG_THREAD` without touching the game. A function whose capability isn't ready answers `SCO_UNAVAILABLE`. Every failure leaves its reason for `last_error`. The functions that change the game take `self` first, and the game pack logs each of them with your plugin id (`[game] vehicles: <plugin>: ...`). An accepted `seat` logs `seat request sent (actor ..., seat ...); the game links it on its next update`; `isLinked` is logged only when it already reads 1.
 
 | Function | What |
 |---|---|
 | `player_ship(&ship)` | The ship you're aboard. `SCO_NOT_FOUND`: in no ship; `SCO_UNAVAILABLE`: not spawned yet |
 | `seats(ship, out, max, &count, &more)` | Writes up to `max` `sc_vehicle_seat`s (96 bytes each) into your array: `index`, the seat item's `seat_id`, `occupant_id` (0: empty or unknown), `priority`, `name` (64 bytes, NUL-terminated) and `flags`; `more` is 1 when the ship has more seats than were written. `out` may be `NULL` with `max` 0 |
 | `seat_occupant(ship, seat_index, &actor)` | The actor in a seat, 0 when it's empty. `SCO_FAILED` when it's occupied by something the game pack can't decode |
-| `seat(self, actor, ship, seat_index)` | Links `actor` into the seat, out of any seat it was in. `SCO_OK` = the game accepted the link; check `seat_occupant` on a later tick |
+| `seat(self, actor, ship, seat_index)` | Links `actor` into the seat, out of any seat it was in. `SCO_OK` = the game accepted the link request; the game applies it on its next update, so check `seat_occupant` on a later tick |
 | `eject(self, actor)` | Takes `actor` out of its seat. `SCO_FAILED` when it isn't seated |
 | `power_on(self, ship)` | Sends the game's Flight Ready event to the pilot seat's dashboard (as R in the pilot seat). `SCO_FAILED` while no dashboard is streamed in yet: try again on a later tick |
 | `last_error(self, out, &size)` | The reason for the last failure, with `sco.storage`'s size handshake: on the game thread the newer of your own last failed call and the last failed query (queries carry no `self`), so ask right after the call; on another thread the refusal on that thread |
@@ -502,7 +510,7 @@ if (api->size >= offsetof(sco_api, query_service) + sizeof(api->query_service) &
     api->has && api->has("game.creative.god_mode")) { ... }
 ```
 
-Every function returns `sco_result`, takes `self` first, and is game thread only: from another thread it answers `SCO_WRONG_THREAD` without touching the game. A function whose capability isn't ready answers `SCO_UNAVAILABLE`. Every failure leaves its reason for `last_error`, and the game pack logs each change with your plugin id (`[game] creative: <plugin>: ...`).
+Every function returns `sco_result`, takes `self` first, and is game thread only: from another thread it answers `SCO_WRONG_THREAD` without touching the game. A function whose capability isn't ready answers `SCO_UNAVAILABLE`. Every failure leaves its reason for `last_error`, and the game pack logs each change with your plugin id (`[game] creative: <plugin>: ...`). A failed call is logged once per function, result and reason; repeats are not logged.
 
 | Function | What |
 |---|---|
@@ -646,6 +654,10 @@ or writes game state. Not run in game.
 [`sc_inventory.h`](../include/sc_inventory.h), pinned by [`tests/abi_game_inventory.c`](../tests/abi_game_inventory.c) (1.0 table 16 bytes, `sc_inventory_port` 24 bytes, 1.0 snapshot prefix 3088 bytes):
 `snapshot` copies the local player's item ports (up to 128) with `valid`, `item_class_id` (a coarse category) and `entity_id` per port, and a `generation` counter. Version 1.1 adds size-gated completeness details and has C# and Lua wrappers. The separately queried 1.2 table adds a copied logical layout and C++, C# and Lua wrappers; its capability `game.inventory.layout` is OFF without a production producer. `game.inventory.read` also defaults OFF. See [game.inventory](game/inventory.md). Not run in game.
 
+### `game.loadout` 1.2 (game pack)
+
+[`sc_loadout.h`](../include/sc_loadout.h), pinned by [`tests/abi_game_loadout.c`](../tests/abi_game_loadout.c) (the 1.0 table is 16 bytes; the 1.2 table is 40 bytes; the job report is 160 bytes). This separate size-prefixed contract leaves frozen `sco_api` 1.1 unchanged. Query `SC_LOADOUT_VERSION_1_2` and check the full member extent and non-null pointer before using the 1.2 tail. It retains synchronous `apply` and appends owner-scoped async `submit`, `status` and `cancel`; admission is not equip completion. `game.loadout.apply` and `.weapons` have no production backend and remain off. The Windows async adapter has a separate explicit `SCO_LOADOUT_ASYNC=1` opt-in and fresh-admission checks; its fixture evidence does not establish gameplay. **The current startup HOLD above means production does not publish this table.** C++ provides [`Loadout`](../include/scosdk/game/loadout.hpp); C# and Lua mutation are unsupported. See the [loadout API details](game/loadout.md).
+
 ## Raw handlers (1.1)
 
 A raw handler is a call that takes and returns bytes: for data that doesn't fit a command's typed arguments and 256-byte reply (a list of entities, a transform, a buffer). The bytes' layout is the handler's contract, as a service table's is; put a size or version field first.
@@ -695,15 +707,29 @@ Within major version 1:
 
 ## Renderer-neutral widget service
 
-`sco.widgets` 1.0 is a separate size-prefixed host service declared in
-[`sco_widgets.h`](../include/sco_widgets.h). It copies retained declarative panels
-and dispatches guarded game-thread events without exposing renderer types.
-[`Widget design`](design/widgets.md) defines the data, limits, lifetime and
-versioning; [`UI docs`](ui.md) distinguish it
-from the retained legacy `sco.ui` draw-context route. Frozen `sco_api` 1.1 is
-unchanged. C, C++20, C# and Lua provide typed routes; see the
-[SDK widget guide](../sdk/docs/widgets.md) for the current 1.1/1.2 binding support,
-version/feature checks and the unchanged published RC1 boundary.
+`sco.widgets` is an optional, separate size-prefixed host service declared in
+[`sco_widgets.h`](../include/sco_widgets.h). Its 1.0 base copies retained panels
+and dispatches guarded game-thread events without exposing renderer types. The
+source contract adds 1.1 subtree updates, capabilities and presentation tails;
+1.2 stable node tags; 1.3 numeric slider presentation; and 1.4 canonical callback
+event tags. The 1.4 extension changes neither the service table nor node layout.
+Frozen `sco_api` 1.1 is unchanged.
+
+Query the version required, check the complete extent and non-null pointer of each
+service member, and use `capabilities` feature bits before relying on an extension.
+For 1.4 tagged events, require both `SCO_WIDGETS_FEATURE_STABLE_TAGS` and
+`SCO_WIDGETS_FEATURE_EVENT_TAG`; check `event->size` covers
+`sco_widget_event_1_4` before reading its borrowed tag. A successful set/update
+with a nonempty tag enables tagged events for that panel until complete replacement;
+subtree removal does not reset it. Older hosts can accept node tags yet deliver
+numeric-only events. Tag-free panels retain 1.0/1.1 event layouts.
+
+See the [widget design](design/widgets.md), [UI guide](ui.md) and
+[SDK widget guide](../sdk/docs/widgets.md) for the contract, language routes and
+1.1–1.3 guidance. These describe source contracts; query the selected host and
+use the bindings and documentation from the selected kit. SDK 2.4.1 adds widgets 1.4
+(SDK 2.4.0 has 1.3), and source features do not establish runtime
+or game support.
 
 ## ABI freeze
 

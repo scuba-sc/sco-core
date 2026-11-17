@@ -43,7 +43,8 @@ Result GameThreadTick(uint32_t nowMs);
 // their done is never called). Release is final: from the moment it starts, every Post,
 // Subscribe, RegisterCommand and Invoke naming that owner returns BadArg, from any thread, so
 // after Release returns the runtime never calls the owner's functions or touches its ctx
-// pointers again. The owner handle stays released for the life of the process; don't reuse
+// pointers again through these registrations. Direct calls through handed-out service tables
+// are not revoked. The owner handle stays released for the life of the process; don't reuse
 // its address (the host keeps plugin handles alive).
 // Game thread only (WrongThread otherwise). BadArg for nullptr or an owner already released;
 // TooMany when out of memory (nothing removed; retry). The released-owner list has no limit.
@@ -67,15 +68,17 @@ Result RemoveReleaseHook(ReleaseHook hook);
 // A service is a function table one owner publishes under a name for others to call directly
 // (sco_api 1.1 provide_service / query_service). The runtime only keeps the name, version and
 // table pointer; it never calls into the table. Release(owner) withdraws the owner's services.
-// A caller that holds a table must stop using it when its provider unloads: query it when
-// needed rather than caching it across ticks (built-in plugins unload after every other plugin,
-// so a table from a built-in stays valid for the life of any plugin that queried it).
-// A native plugin whose table was handed out is never unmapped by the plugin loader, even after it
-// unloads or crashes (ServiceTableHandedOut): a caller that kept the table jumps into code that is
-// still there. An attributed handed-out provider fault retains backing state without release
-// hooks, but that state may already be corrupted: retained code/state is NOT callable safety.
-// Restart the game; cached raw pointers are not revoked. Shutdown and failed non-OK load cleanup
-// remain separate teardown paths. Attribution is partial, not process recovery (sco/plugins.h).
+// Providers must keep table, code and context valid while handed-out pointers may be held;
+// withdrawal does not revoke cached pointers. A native provider handout prevents administrative
+// unload/reload for the session, even after withdrawal; another query is not a lease. Direct
+// Release(owner) is ordinary cleanup, not loader admission, and can run resource hooks.
+// An attributed handed-out provider fault retains backing state without release hooks, but the
+// provider must not be called: restart may be required. Failed-load refusal and terminal shutdown
+// are separate paths. Do not use peer tables during shutdown or across sessions. Host services
+// follow their own lifetime contracts. Retained code/state is not callable safety; attribution
+// is partial, not process recovery (sco/plugins.h). In an owned session QueryService may
+// succeed, but its runtime admission ends on return. Raw callers must obey the host's whole-use
+// session Read and lifetime contract; this does not make provider faults or hot reload safe.
 
 constexpr size_t kMaxServiceNameLen = 63;
 
@@ -83,7 +86,7 @@ constexpr size_t kMaxServiceNameLen = 63;
 // trailing or doubled '.'; with a non-null prefix it must equal the prefix or start with
 // "<prefix>." (a plugin publishes under its own id). version: (major << 16) | minor.
 // BadArg: null owner or table, a bad name, a name already published, or owner released.
-// Unavailable: the loader reserved the owner for teardown. TooMany: out of memory.
+// Unavailable: owned session, closed admission, or owner reserved for teardown. TooMany: out of memory.
 Result ProvideService(const void* owner, const char* prefix, const char* name, uint32_t version,
                       const void* table);
 
@@ -111,8 +114,10 @@ Result ServiceWithdrawal(const void* const* owners, size_t count, bool withdraw,
                          bool allowInUse, bool& inUse);
 void CancelServiceWithdrawal(const void* const* owners, size_t count);
 
-// Withdraws one of owner's services. NotFound: owner publishes nothing by that name.
-// BadArg: null owner or name.
+// Withdraws one of owner's services from future lookup; cached pointers are not revoked.
+// NotFound: owner publishes nothing by that name.
+// BadArg: null owner or name. Unavailable: owned session or closed runtime admission.
+// Failed: the owner has a managed pin. A withdrawal reservation alone does not prevent release.
 Result ReleaseService(const void* owner, const char* name);
 
 // ---- raw calls (game thread) ------------------------------------------------------------------

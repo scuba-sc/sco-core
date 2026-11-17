@@ -20,9 +20,13 @@
 // the plugin's open transaction, closes its cursors and its database. Reference:
 // docs/storage.md.
 #include "sco_storage.h"
+#include "sco_storage_v2.h"
 #include "sco/runtime.h"
 #include <cstdint>
 #include <filesystem>
+#include <optional>
+#include <string>
+#include <vector>
 
 namespace sco::storage {
 
@@ -49,6 +53,22 @@ bool Started();
 
 // The service table (what query_service hands out). Valid for the life of the process.
 const sco_storage_v1* Table();
+
+// Copied host observations, separate from the plugin service. Only owners that have already
+// touched storage are represented; no SQL is run and no database is opened. Unknown counts
+// stay absent (not zero); quotaBytes is the configured quota, not SQLite's rounded limit.
+// At most 1024 live owners are copied. generation identifies the current successful Start;
+// stopped, starting, or concurrently replaced sources return nullopt.
+struct MetadataOwner {
+    std::string ownerId;
+    std::optional<uint64_t> tableCount, rowCount, usedBytes, quotaBytes;
+};
+struct MetadataSnapshot {
+    uint64_t generation = 0;
+    std::vector<MetadataOwner> owners;
+    bool truncated = false;
+};
+std::optional<MetadataSnapshot> CopyMetadata();
 
 // <dataRoot>/storage/<id>.db for the current Start; empty when not started.
 std::filesystem::path DatabasePath(const char* id);

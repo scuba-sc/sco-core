@@ -1,0 +1,98 @@
+{
+  "schema_version": 1,
+  "dataset_kind": "synthetic",
+  "build": {
+    "executable": {
+      "file_size": 41,
+      "machine": 34404,
+      "pe_timestamp": 123,
+      "sha256": "5d3e0b356ddd211c42ed3ee716b8927c53ef2158fa5f530af73269b92613b2a9",
+      "size_of_image": 4096
+    },
+    "manifest": {
+      "build": [
+        9,
+        8,
+        7,
+        6
+      ]
+    }
+  },
+  "profile": {
+    "profile_id": "synthetic-a",
+    "revision": 1,
+    "definition_sha256": "b455ec55c68f81715f74b6e1cec2f7b12a3c91970f49cdd5dcd02c5323d9d392"
+  },
+  "evidence": [
+    {
+      "id": "synthetic-run-1",
+      "kind": "synthetic",
+      "artifact_sha256": "2222222222222222222222222222222222222222222222222222222222222222",
+      "producer": "fixture-only",
+      "created_utc": "2026-01-01T00:00:00Z",
+      "build": {
+        "executable": {
+          "file_size": 41,
+          "machine": 34404,
+          "pe_timestamp": 123,
+          "sha256": "5d3e0b356ddd211c42ed3ee716b8927c53ef2158fa5f530af73269b92613b2a9",
+          "size_of_image": 4096
+        },
+        "manifest": {
+          "build": [
+            9,
+            8,
+            7,
+            6
+          ]
+        }
+      },
+      "profile": {
+        "profile_id": "synthetic-a",
+        "revision": 1,
+        "definition_sha256": "b455ec55c68f81715f74b6e1cec2f7b12a3c91970f49cdd5dcd02c5323d9d392"
+      },
+      "source": {
+        "core_source_sha": "0000000000000000000000000000000000000000",
+        "game_pack_source_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "native_id": "fixture.native_a",
+      "method": "fixture-only"
+    }
+  ],
+  "records": [
+    {
+      "native_id": "fixture.native_a",
+      "status": "unverified",
+      "evidence_ids": [
+        "synthetic-run-1"
+      ],
+      "build": {
+        "executable": {
+          "file_size": 41,
+          "machine": 34404,
+          "pe_timestamp": 123,
+          "sha256": "5d3e0b356ddd211c42ed3ee716b8927c53ef2158fa5f530af73269b92613b2a9",
+          "size_of_image": 4096
+        },
+        "manifest": {
+          "build": [
+            9,
+            8,
+            7,
+            6
+          ]
+        }
+      },
+      "profile": {
+        "profile_id": "synthetic-a",
+        "revision": 1,
+        "definition_sha256": "b455ec55c68f81715f74b6e1cec2f7b12a3c91970f49cdd5dcd02c5323d9d392"
+      }
+    }
+  ],
+  "source": {
+    "core_source_sha": "0000000000000000000000000000000000000000",
+    "game_pack_source_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  }
+}

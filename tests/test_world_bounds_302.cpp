@@ -49,7 +49,13 @@ template<class F> auto invoke(F&& fn) {
 #include <vector>
 namespace sco {
 uint8_t*& test_sig = fixture302::dependency;
-SigResult SigPattern(const Section&, const char*) { return {}; }
+SigResult SigPattern(const Section& text, const char* pattern) {
+    int n = 0;
+    auto* at = FindUniquePattern(text, pattern, n);
+    if (n == 0) return { SigState::Missing, nullptr, 0, nullptr };
+    if (n > 1) return { SigState::Ambiguous, nullptr, n, nullptr };
+    return SigOk(at);
+}
 }
 namespace {
 void bytes(uint8_t* p, const char* pattern) {
@@ -68,6 +74,26 @@ int main() {
     using namespace sco; using namespace sco::game;
     uint8_t arena[4096]{};
     Image img{}; img.base=arena;img.size=sizeof arena;img.text={arena,2048};img.rdata={arena+2048,2048};
+    // Both observed action ranges must resolve; other values and duplicates fail closed.
+    const auto quantumRow = [](const char* name) -> const SigDef* {
+        for (const auto& row : kWorldSignatures) if (!std::strcmp(row.id, name)) return &row;
+        return nullptr;
+    };
+    const auto exerciseQuantum = [&](const char* name, const char* pattern, size_t rangeOffset) {
+        const auto* row = quantumRow(name); assert(row);
+        const auto resolve = [&]() { return fixture302::invoke([&](const SigResolveContext& ctx) {
+            return row->resolve ? row->resolve(img, ctx) : SigPattern(img.text, row->pattern);
+        }); };
+        std::memset(arena, 0, sizeof arena); bytes(arena + 64, pattern);
+        arena[64 + rangeOffset] = 0x77; assert(resolve().state == SigState::Ok);
+        arena[64 + rangeOffset] = 0x78; assert(resolve().state == SigState::Ok);
+        arena[64 + rangeOffset] = 0x79; assert(resolve().state != SigState::Ok);
+        arena[64 + rangeOffset] = 0x78; bytes(arena + 256, pattern); arena[256 + rangeOffset] = 0x77;
+        assert(resolve().state == SigState::Ambiguous);
+    };
+    exerciseQuantum("quantum.on_action", "40 53 41 56 48 83 EC 68 8D 82 2F FE FF FF 45 33 F6 83 F8 77 0F 87", 19);
+    exerciseQuantum("quantum.drive_input", "48 83 EC 28 8B 02 05 2F FE FF FF 83 F8 77 0F 87", 13);
+    std::memset(arena, 0, sizeof arena);
     uint8_t* refs[4]{};
     bytes(arena+2041,"48 8D 15 ?? ?? ?? ??");rip(arena+2041,arena+2048);
     assert(RipRefs(img,0x8D,0x15,arena+2048,0,7,refs,4,[](const uint8_t*){return true;})==1);

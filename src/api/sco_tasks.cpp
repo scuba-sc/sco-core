@@ -1,6 +1,7 @@
 // Game-thread identity, callout depth, the bounded task queue and Release().
 #include "sco/runtime.h"
 #include "internal.h"
+#include "managed_service_gate.h"
 #include "owned_publication.h"
 #include <algorithm>
 #include <atomic>
@@ -84,14 +85,31 @@ bool detail::Callout(const void* owner, const char* where, TaskFn thunk, void* c
 // Owners that Release() or fault quarantine has started on; grows for the process lifetime.
 // Lock order is module lock -> g_ownerLock; marking takes g_ownerLock alone.
 static std::mutex               g_ownerLock;
-static std::vector<const void*> g_released;
+enum class OwnerPhase { Releasing, Hooks, Complete, Quarantined, QuarantinedDuringRelease };
+struct OwnerRecord { const void* owner; OwnerPhase phase; };
+static std::vector<OwnerRecord> g_released;
 
+static auto FindOwner(const void* owner) {
+    return std::find_if(g_released.begin(), g_released.end(),
+                        [owner](const OwnerRecord& record) { return record.owner == owner; });
+}
 bool detail::Released(const void* owner) {
     if (!owner) return false;
     std::lock_guard<std::mutex> hold(g_ownerLock);
-    for (const void* r : g_released)
-        if (r == owner) return true;
-    return false;
+    return FindOwner(owner) != g_released.end();
+}
+bool detail::OwnerReleaseWasStarted(const void* owner) {
+    std::lock_guard<std::mutex> hold(g_ownerLock);
+    const auto it = FindOwner(owner);
+    return it != g_released.end() && it->phase != OwnerPhase::Quarantined;
+}
+Result detail::OwnerReleaseStatus(const void* owner) {
+    std::lock_guard<std::mutex> hold(g_ownerLock);
+    const auto it = FindOwner(owner);
+    if (it == g_released.end()) return Result::Failed;
+    if (it->phase == OwnerPhase::Complete) return Result::BadArg;
+    if (it->phase == OwnerPhase::Quarantined || it->phase == OwnerPhase::QuarantinedDuringRelease) return Result::Crashed;
+    return Result::Failed;
 }
 
 // Two stages, both under g_queueLock, so posting is safe from any thread at any time:
@@ -304,16 +322,22 @@ Result detail::QuarantineOwner(const void* owner) {
     if (!owner) return Result::BadArg;
     {
         std::lock_guard<std::mutex> hold(g_ownerLock);
-        if (std::find(g_released.begin(), g_released.end(), owner) == g_released.end()) {
-            try { g_released.push_back(owner); }
+        const auto it = FindOwner(owner);
+        if (it == g_released.end()) {
+            try { g_released.push_back({owner, OwnerPhase::Quarantined}); }
             catch (...) { return Result::TooMany; }
+        } else if (it->phase == OwnerPhase::Releasing) {
+            it->phase = OwnerPhase::QuarantinedDuringRelease;
+        } else if (it->phase == OwnerPhase::Hooks || it->phase == OwnerPhase::Complete) {
+            // Destruction has started; containment can no longer be guaranteed.
+            return Result::Crashed;
         }
     }
     // After withdrawal, the hand-out mark includes every table returned before it.
     // New registration is already blocked; raw-table calls are not mediated here.
     // Keep any loader withdrawal reservation: quarantine is terminal, and cancellation
     // must not reopen an owner while its game-thread fault verdict is still queued.
-    detail::ReleaseServices(owner);
+    detail::QuarantineServices(owner);
     const long subs = detail::ReleaseSubscriptions(owner);
     detail::ReleaseCommands(owner);
     detail::ReleaseTasks(owner);
@@ -323,7 +347,12 @@ Result detail::QuarantineOwner(const void* owner) {
     return subs < 0 ? Result::TooMany : Result::Ok;
 }
 
-Result Release(const void* owner, size_t* removed) {
+#ifdef SCO_MANAGED_TESTING
+static thread_local bool g_inReleaseSubscriptionsForTest = false;
+bool detail::InReleaseSubscriptionsForTest() noexcept { return g_inReleaseSubscriptionsForTest; }
+#endif
+
+static Result ReleaseImpl(const void* owner, size_t* removed, bool terminal) {
     if (removed) *removed = 0;
     if (!owner) return Result::BadArg;
     if (!OnGameThread()) return Result::WrongThread;
@@ -331,35 +360,67 @@ Result Release(const void* owner, size_t* removed) {
     // Arbitrary release hooks are not failure-atomic against owner fault.
     // Owned sessions keep the entire graph until an explicit safe commit exists.
     if (!admission || admission.owned()) return Result::Unavailable;
+    bool reservationCreated = false;
+    const Result reservation = detail::ReserveOwnerRelease(owner, reservationCreated, terminal);
+    if (reservation != Result::Ok) return reservation;
+    Result marked = Result::Ok;
     {
-        // Mark first: an add that hasn't taken its module lock yet will see the mark; one that
-        // already has finishes before the removal below takes the same lock, and is removed.
+        // Registry reservation precedes this lock; never hold the two in reverse order.
         std::lock_guard<std::mutex> hold(g_ownerLock);
-        for (const void* r : g_released)
-            if (r == owner) return Result::BadArg;
-        try {
-            g_released.push_back(owner);
-        } catch (...) {   // out of memory: nothing marked, nothing removed
-            return Result::TooMany;
+        const auto it = FindOwner(owner);
+        if (it != g_released.end()) {
+            marked = it->phase == OwnerPhase::Complete ? Result::BadArg : Result::Crashed;
+        } else {
+            try { g_released.push_back({owner, OwnerPhase::Releasing}); }
+            catch (...) { marked = Result::TooMany; }
         }
     }
-    // Subscriptions first: they are the only part a running dispatch can still reach. Out of
-    // memory here leaves them in place, so undo the mark and let the caller retry.
+    if (marked != Result::Ok) {
+        detail::CancelOwnerRelease(owner, reservationCreated);
+        return marked;
+    }
+#ifdef SCO_MANAGED_TESTING
+    g_inReleaseSubscriptionsForTest = true;
+#endif
     const long subs = detail::ReleaseSubscriptions(owner);
+#ifdef SCO_MANAGED_TESTING
+    g_inReleaseSubscriptionsForTest = false;
+#endif
     if (subs < 0) {
-        std::lock_guard<std::mutex> hold(g_ownerLock);
-        const auto it = std::find(g_released.begin(), g_released.end(), owner);
-        if (it != g_released.end()) g_released.erase(it);   // off-thread quarantine may append another owner
-        return Result::TooMany;
+        bool quarantine = false;
+        {
+            std::lock_guard<std::mutex> hold(g_ownerLock);
+            const auto it = FindOwner(owner);
+            quarantine = it == g_released.end() || it->phase != OwnerPhase::Releasing;
+            if (!quarantine) g_released.erase(it);
+        }
+        if (!quarantine) detail::CancelOwnerRelease(owner, reservationCreated);
+        return quarantine ? Result::Crashed : Result::TooMany;
     }
     const long cmds = detail::ReleaseCommands(owner);
     const long tasks = detail::ReleaseTasks(owner);
     const long services = detail::ReleaseServices(owner);
     const long raw = detail::ReleaseRaw(owner);
-    if (removed) *removed = static_cast<size_t>(subs + cmds + tasks + services + raw);
+    {
+        std::lock_guard<std::mutex> hold(g_ownerLock);
+        const auto it = FindOwner(owner);
+        if (it == g_released.end() || it->phase != OwnerPhase::Releasing) return Result::Crashed;
+        it->phase = OwnerPhase::Hooks;
+    }
     detail::ReleaseFaultResources(owner);
+    {
+        std::lock_guard<std::mutex> hold(g_ownerLock);
+        const auto it = FindOwner(owner);
+        if (it == g_released.end() || it->phase != OwnerPhase::Hooks) return Result::Crashed;
+        it->phase = OwnerPhase::Complete;
+    }
+    detail::ForgetManagedOwner(owner);
+    if (removed) *removed = static_cast<size_t>(subs + cmds + tasks + services + raw);
     return Result::Ok;
 }
+
+Result Release(const void* owner, size_t* removed) { return ReleaseImpl(owner, removed, false); }
+Result detail::ReleaseTerminalOwner(const void* owner) { return ReleaseImpl(owner, nullptr, true); }
 
 void detail::ReleaseFaultResources(const void* owner) {
     // Hooks run outside g_hookLock (a hook may add or remove hooks), from a copy.

@@ -40,20 +40,19 @@ SigResult ResolveParamsSync(const Image& img, const SigResolveContext&) {
         !rows::InImage(img, img.pdata.base, img.pdata.size)) return SigFail("invalid .pdata/image");
     uint8_t* found = nullptr;
     int hits = 0;
-    for (size_t off = 0; off <= img.text.size - 7; ++off) {
-        const uint8_t* p = img.text.base + off;
-        if (p[1] != 0x8D) continue;
-        const bool rex = p[0] == 0x48 || p[0] == 0x4C;
-        if (!rex || (p[2] & 0xC7) != 0x05) continue;
-        if (rows::CheckedRip(img, p, 3, 7) != label) continue;
-        uint8_t* fn = FunctionStart(img, p);
+    size_t next = 0;   // a lea that starts inside the last one looked at isn't looked at
+    ScanIndexRef index(img);
+    index->ForEachRip(img.text, RipForm::AnyLea(), label, 0, ~size_t{0}, [&](size_t off) {
+        if (off < next) return true;
+        uint8_t* fn = FunctionStart(img, img.text.base + off);
         if (fn && rows::InText(img, fn, rows::PatternBytes(kSyncPrologue)) && BytesMatch(fn, kSyncPrologue)) {
-            if (found == fn) continue;   /* same function, multiple label leas */
+            if (found == fn) return true;   /* same function, multiple label leas */
             found = fn;
             ++hits;
         }
-        off += 6;
-    }
+        next = off + 7;
+        return true;
+    });
     if (hits == 0) return SigFail("no params-sync function references the module label");
     if (hits > 1) return SigFail("more than one function matches the sync prologue and label");
     return SigOk(found);

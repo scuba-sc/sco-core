@@ -1,10 +1,23 @@
 # Status of every game.* table
 
-SDK 2.4.0 uses game pack **0.8.0**. The current stable release is [`sdk-v2.4.0`](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0), published 2026-11-01 from source commit `6106fa3639cbcc28f78a1ded8de2707de019f4d3`; its profile archives and checksums are listed in the [release notes](../releases/sdk-v2.4.0.md#stable-archive-identity). RC2 was published on 2026-10-28 from source `844e136ccb280ad8cb43f73bc43c9447e8f6799d`, and RC1 on 2026-10-21; both are historical releases with unchanged bytes. `main` pins verified game build **4.10.197.2878** (PE timestamp `0x6accbae3`, [game pack](../game-pack.md#verified-game-builds)): the rows recorded on 4.10.196.36804 re-scan unchanged on it, and the evidence strings below keep the build each was recorded on. A package coordinate or a pin bump includes additive contracts; it does not establish in-game verification.
+<!-- release-block:current-release -->
+SDK **2.4.1** uses Star Citizen game pack **0.8.1** (checked against Star Citizen
+Alpha 4.10.3, build 4.10.200.58746; see [game builds](../../docs/game/builds.md)) and plugin ABI **1.1**. Download it from the
+[`sdk-v2.4.1` release page](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.1) and verify each archive against that release's
+`SHA256SUMS`; the [release notes](https://github.com/scuba-sc/sco-core/blob/sdk-v2.4.1/docs/releases/sdk-v2.4.1.md) list what changed. The previous release is
+[SDK 2.4.0](https://github.com/scuba-sc/sco-core/blob/sdk-v2.4.0/docs/releases/sdk-v2.4.0.md).
+<!-- /release-block:current-release -->
+
+SDK 2.4.0 (game pack 0.8.0) was published on 2026-11-01 from source commit `6106fa3639cbcc28f78a1ded8de2707de019f4d3`; its archive identities are in its [release notes](../releases/sdk-v2.4.0.md#stable-sdk-240-archive-identities). RC2 was published on 2026-10-28 from source `844e136ccb280ad8cb43f73bc43c9447e8f6799d`, and RC1 on 2026-10-21; both are historical releases with unchanged bytes. Game pack <!--rv:game_pack_version-->0.8.1<!--/rv--> pins static game build **<!--rv:game_build-->4.10.200.58746<!--/rv-->** (PE timestamp `0x6af4861d`, [game pack](../game-pack.md#verified-game-builds)); the evidence strings below keep the build each was recorded on. A package coordinate or a pin bump does not establish native or in-game verification.
 
 The dated signature evidence below was recorded at sco-core `main` `2197dfb` (2026-10-11, with `game.actors.died`), where the game pack was still **0.2.0** (0.3.0 arrived in `95a0d34` and first shipped in `sdk-v2.0.0`), against Star Citizen build **4.10.196.36804** (`StarCitizen.exe` PE timestamp `0x6ac64e6f`). One line per service table and per capability: its version, its [stability](../stability.md) label, whether it is on by default, and how far it has been checked. Later sections retain their own synthetic-only and unverified limits.
 
 > **Nothing has been verified in game since these services landed.** ON records default availability policy subject to readiness, admission and product conditions. Some capabilities expose static metadata without signature rows; ON does not certify gameplay. Recorded in-game results require their own dated evidence.
+
+> **Current startup HOLD:** Production game-service startup refuses before publishing
+> these tables. The defaults and evidence below describe contracts and provider
+> readiness, not current production availability. See [readiness](../defaults-readiness.md)
+> and [service-table lifetime](../design/service-table-lifetime.md).
 
 ## How to read it
 
@@ -25,15 +38,15 @@ The dated signature evidence below was recorded at sco-core `main` `2197dfb` (20
 
 ## Typed loadout extension (G6)
 
-`game.loadout` 1.2 / `game.loadout.apply`: table published by Windows game-services
-composition, capability **OFF — typed engine methods unverified**. Synthetic real
+`game.loadout` 1.2 / `game.loadout.apply`: production startup currently refuses
+before the table is published. Typed engine methods remain unverified. Synthetic
 host/provider/native-module checks only; no trusted per-slot equip mapping and no
 offline admission adapter installed. See [loadout](loadout.md). Not run in game.
 
 `game.loadout.weapons` (added in 1.1) gates the weapon and multitool slots 8-21
-of `apply` and is **OFF by default**, vocabulary only: production starts the service
-with no engine backend, so those slots answer unavailable or unsupported until a
-verified backend declares weapon support. Synthetic evidence only; no per-slot port
+of `apply` and is **OFF by default**, vocabulary only. A fixture or service started
+without an engine backend returns unavailable for those slots; production currently
+does not publish the table. Synthetic evidence only; no per-slot port
 mapping is verified and nothing was run in game. The service version macro
 `SC_LOADOUT_SERVICE_VERSION` retains the synchronous prefix version. The separate
 1.2 asynchronous adapter is opt-in; the native respawn event producer remains
@@ -200,27 +213,27 @@ The ON lines still need the acceptance run the maintainer listed: every usable s
 
 ## Rows behind the newest capabilities
 
-Every address below is the `OK` line of the sigcheck report named in [Sources](#sources), on the build above.
+Each row below is an `OK` line of the sigcheck report named in [Sources](#sources), on the build above. Addresses are not published here; `sco-sigcheck` prints them for your own game build.
 
-| Capability | Rows (RVA) |
+| Capability | Rows |
 |---|---|
-| `game.mining` | `mining.cell` 0x265fb10 |
-| `game.world.camera` | `teleport.to_camera` 0x2e27140, `build.camera_fields` 0x2e272ba |
-| `game.actors.health` | `actor.health_site` 0x5bd3fe0, `actor.status_accessor` 0x2e77ef0, `actor.get_stat` 0x3fe3b10 |
-| `game.actors.state` (off) | `actor.state_site` 0x400a702, `actor.status_accessor`, `actor.is_dead_confirmed` 0x3fec460 |
-| `game.events.player_spawned` | `event.player_spawn` 0x602a790 |
-| `game.events.player_died` | `event.player_death` 0x2edb6d0 |
-| `game.events.actor_died` | `event.player_death` 0x2edb6d0 (the same hook; it publishes both events) |
-| `game.events.vehicle_seat` (off) | `event.seat_enter` 0x6133960, `event.seat_exit` 0x6133e40 |
-| `game.entities.class_of` | `entities.dump` 0x688c918, `entities.class_site` 0x6858880 |
-| `game.entities.query_radius` (off) | `entities.dump`, `entities.index` 0x11cad080, `entities.for_each` 0x68926e0, `entities.class_site` |
-| `game.entities.watch` (off) | `entities.spawn_sinks` 0x687d950, `entities.delete_entity` 0x6886c20, `entities.class_site` |
-| `game.creative.*` (existing rows, none added) | `spawn.set_god_mode` 0x59fcdd0, `spawn.god_mode_call` 0x2e23e4c, `spawn.request_fly_mode` 0x5be07f0, `spawn.fly_speed_scaler` 0x2ec9eb2, `spawn.game_cvars` 0xa1ae200, `ammo.set_ammo` 0x5b48f50, `spawn.actor_link` 0x2475010, `spawn.handle_to_id` 0x3d5410; per-capability mapping in [creative.md](creative.md) |
+| `game.mining` | `mining.cell` |
+| `game.world.camera` | `teleport.to_camera`, `build.camera_fields` |
+| `game.actors.health` | `actor.health_site`, `actor.status_accessor`, `actor.get_stat` |
+| `game.actors.state` (off) | `actor.state_site`, `actor.status_accessor`, `actor.is_dead_confirmed` |
+| `game.events.player_spawned` | `event.player_spawn` |
+| `game.events.player_died` | `event.player_death` |
+| `game.events.actor_died` | `event.player_death` (the same hook; it publishes both events) |
+| `game.events.vehicle_seat` (off) | `event.seat_enter`, `event.seat_exit` |
+| `game.entities.class_of` | `entities.dump`, `entities.class_site` |
+| `game.entities.query_radius` (off) | `entities.dump`, `entities.index`, `entities.for_each`, `entities.class_site` |
+| `game.entities.watch` (off) | `entities.spawn_sinks`, `entities.delete_entity`, `entities.class_site` |
+| `game.creative.*` (existing rows, none added) | `spawn.set_god_mode`, `spawn.god_mode_call`, `spawn.request_fly_mode`, `spawn.fly_speed_scaler`, `spawn.game_cvars`, `ammo.set_ammo`, `spawn.actor_link`, `spawn.handle_to_id`; per-capability mapping in [creative.md](creative.md) |
 
 The rows of the older capabilities are on the pages of their groups: [actors](actors.md), [world](world.md), [entities](entities.md) and [events](events.md).
 
 ## Sources
 
-- **Sigcheck report** (kept outside the repository, `sc-baseline/4.10.196.36804/` on the maintainer's machine; [game pack](../game-pack.md#verified-game-builds)): `sigcheck-main-17e2620.txt`, one run of sco-core `main` at `17e2620` (every game service and the mining row) on PE timestamp `0x6ac64e6f`: **317 of 317 rows OK**, none failed. `game.creative` (#74, in `31cf53a`) added no rows, and the actor-death change removed the redundant `contracts.actor_kill` row without adding one, so **316 rows** back every capability on this page (the post-removal run resolves 316/316).
+- **Sigcheck report** (kept outside the repository, on the maintainer's machine; [game pack](../game-pack.md#verified-game-builds)): `sigcheck-main-17e2620.txt`, one run of sco-core `main` at `17e2620` (every game service and the mining row) on PE timestamp `0x6ac64e6f`: **317 of 317 rows OK**, none failed. `game.creative` (#74, in `31cf53a`) added no rows, and the actor-death change removed the redundant `contracts.actor_kill` row without adding one, so **316 rows** backed every capability on this page on build 4.10.196.36804 (the post-removal run resolves 316/316). The current game pack's row count and build are in [verified game builds](../game-pack.md#verified-game-builds).
 - **Integration record:** The merged game-service pull requests and their CI runs, plus the signature report above, document service integration and signature-check counts. The 2026-10-10 maintainer decision deferred in-game acceptance to a subsequent run after the conversion.
 - **Spikes:** [game world spikes](../design/game-world-spikes.md) (Appendix B), whose verdicts decide the BLOCKED and OFF lines.

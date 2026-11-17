@@ -2511,6 +2511,30 @@ SPDX-FileCopyrightText = "2026 the sco-core contributors"
 SPDX-License-Identifier = "GPL-3.0-only"
 
 [[annotations]]
+path = "tests/test_sig_index_equivalence.cpp"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "tests/test_scan_equivalence.cpp"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "tests/test_widgets_imgui_smoke.cpp"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "tests/test_widgets_layout.cpp"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
 path = "tests/test_widget_numeric.cpp"
 precedence = "override"
 SPDX-FileCopyrightText = "2026 the sco-core contributors"
@@ -2908,6 +2932,12 @@ SPDX-License-Identifier = "GPL-3.0-only"
 
 [[annotations]]
 path = "src/widgets/widgets.cpp"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "src/widgets/imgui_layout.h"
 precedence = "override"
 SPDX-FileCopyrightText = "2026 the sco-core contributors"
 SPDX-License-Identifier = "GPL-3.0-only"
@@ -3891,6 +3921,60 @@ SPDX-FileCopyrightText = "2026 the sco-core contributors"
 SPDX-License-Identifier = "GPL-3.0-only"
 
 [[annotations]]
+path = "tests/test_pak_retained.cpp"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "tests/game_host_retained.cpp"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "src/retained_static.h"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "src/net/leave_request.h"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "src/app/process_retained.h"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "src/game/services/process_retained.h"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "src/game/pak_retained.h"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "src/game/retained_host.h"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "src/game/retained_host.cpp"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
 path = "tests/test_game_host_reports.cpp"
 precedence = "override"
 SPDX-FileCopyrightText = "2026 the sco-core contributors"
@@ -3958,6 +4042,378 @@ SPDX-License-Identifier = "GPL-3.0-only"
 
 [[annotations]]
 path = "tests/test_signature_capacity.cpp"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "tests/fixtures/synthetic_native_evidence/**"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "tools/test_synthetic_native_evidence.py"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "tools/synthetic_native_evidence.py"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "docs/exact-build-profiles.md"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "tests/fixtures/exact_build_profile/**"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "tests/test_exact_build_profile.cpp"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "src/game/exact_build_profile.cpp"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "src/game/exact_build_profile.h"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "sdk/DEVELOPMENT_VERSION"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "sdk/README.md"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "sdk/test_package.py"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "sdk/package.py"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "tools/test_ip_audit.py"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "tools/ip_audit.py"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "sdk/test_plugin_verify.py"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "sdk/tools/sco-plugin-verify.py"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "tools/sco-core-mcp/README.md"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "sdk/examples/rust_hello/**"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "sdk/rust/**"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "sdk/test-zip.sh"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "sdk/components.json"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "sdk/README.md"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = ".github/workflows/sdk.yml"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "tests/test_legacy_quit_owner.cpp"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "src/game/quit_owner_gate.h"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "include/sco/game/system.h"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "sdk/test_package.py"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "tools/test.sh"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "tools/test_sdk_catalogue.py"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "tools/test.sh"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "tools/sdk_catalogue.py"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "tests/test_storage_metadata_sdk.cpp"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "tests/test_storage.cpp"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "tests/test_runtime_diagnostics_snapshot.cpp"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "tests/test_lua.cpp"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "tests/test_diagnostics_json.cpp"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "tests/test_app.cpp"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "tests/abi_storage_v2.c"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "src/storage/storage.cpp"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "src/host/sco_diagnostics.cpp"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "src/app/sco_app.cpp"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "sdk/csharp/Sco.Sdk/StorageMetadata.cs"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "sdk/csharp/Sco.Sdk.Tests/StorageMetadataTests.cs"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "sdk/csharp/Sco.Sdk.Tests/Program.cs"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "sdk/contracts/sco_storage_v2.json"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "sdk/components.json"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "plugins/lua/sco_lua.c"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "include/scosdk/storage_metadata.hpp"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "include/sco_storage_v2.h"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "include/sco/storage.h"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "include/sco/diagnostics.h"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "docs/storage.md"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "docs/storage-metadata.md"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "docs/diagnostics-sources.md"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "docs/contracts.md"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "CMakeLists.txt"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "CHANGELOG.md"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "tests/test_widgets11.cpp"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "tests/test_widgets.cpp"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "docs/legal/provenance.json"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "docs/design/widgets.md"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "REUSE.toml"
 precedence = "override"
 SPDX-FileCopyrightText = "2026 the sco-core contributors"
 SPDX-License-Identifier = "GPL-3.0-only"

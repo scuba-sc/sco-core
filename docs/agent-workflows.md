@@ -1,13 +1,23 @@
 # Consumer workflows for agents
 
-Current source contains six focused skills for developers building extensions, targeting stable **SDK 2.4.0**. It was published on 2026-11-01 from source `6106fa3639cbcc28f78a1ded8de2707de019f4d3`; the five profile archive identities are in the [release notes](releases/sdk-v2.4.0.md#stable-archive-identity). Check the selected kit's workflow manifest and index for its actual bundle version and source identity; later source edits do not modify the already published stable, RC2 or RC1 archive bytes or authorize a new release. API truth stays in public headers, contracts and the matching catalogue.
+Current source contains six focused skills for developers building extensions. The current release:
+
+<!-- release-block:current-release -->
+SDK **2.4.1** uses Star Citizen game pack **0.8.1** (checked against Star Citizen
+Alpha 4.10.3, build 4.10.200.58746; see [game builds](../docs/game/builds.md)) and plugin ABI **1.1**. Download it from the
+[`sdk-v2.4.1` release page](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.1) and verify each archive against that release's
+`SHA256SUMS`; the [release notes](https://github.com/scuba-sc/sco-core/blob/sdk-v2.4.1/docs/releases/sdk-v2.4.1.md) list what changed. The previous release is
+[SDK 2.4.0](https://github.com/scuba-sc/sco-core/blob/sdk-v2.4.0/docs/releases/sdk-v2.4.0.md).
+<!-- /release-block:current-release -->
+
+Verify archives against the release's `SHA256SUMS`. SDK 2.4.0 was published on 2026-11-01 from source `6106fa3639cbcc28f78a1ded8de2707de019f4d3`; its five profile archive identities are in the [2.4.0 release notes](releases/sdk-v2.4.0.md#stable-archive-identity). For the full repository source at this documentation revision, `sdk/VERSION` records <!--rv:sdk_version-->2.4.1<!--/rv-->, `sdk/DEVELOPMENT_VERSION` records the next development coordinate, and `include/sc_game_pack.h` records game pack <!--rv:game_pack_version-->0.8.1<!--/rv-->. These are source-repository coordinates, not universal contents of extracted kits: development packaging writes its selected coordinate to the generated kit `VERSION` and excludes `sdk/DEVELOPMENT_VERSION`, while `core-source` omits the game header. The current SDK archives contain game pack <!--rv:game_pack_version-->0.8.1<!--/rv-->; the 2.4.0 archives contain `0.8.0`. Check each extracted kit's own compatibility descriptor, `VERSION`/`VERSIONS.txt`, indexes and checksums for its actual profile, versions and source identity. Current-source docs do not change the immutable stable, RC2 or RC1 archive bytes or authorize a release. API truth stays in public headers, contracts and the matching catalogue when one is included.
 
 | Task | Entrypoint |
 | --- | --- |
 | Plan against roadmap goals and public SDK boundaries | [sco-plan-sdk-work](../sdk/skills/sco-plan-sdk-work/SKILL.md) |
 | Create/adapt, scaffold and check | [sco-build-check-package](../sdk/skills/sco-build-check-package/SKILL.md) |
 | Reproduce and fix a consumer failure | [sco-debug-plugin](../sdk/skills/sco-debug-plugin/SKILL.md) |
-| Stage, inventory and round-trip a distribution | [sco-package-plugin](../sdk/skills/sco-package-plugin/SKILL.md) |
+| Stage, statically verify, inventory and round-trip a distribution | [sco-package-plugin](../sdk/skills/sco-package-plugin/SKILL.md) |
 | Move between SDK/host versions | [sco-upgrade-plugin](../sdk/skills/sco-upgrade-plugin/SKILL.md) |
 | Prepare a minimal public gap report | [sco-report-sdk-gap](../sdk/skills/sco-report-sdk-gap/SKILL.md) |
 
@@ -36,6 +46,15 @@ python3 "$SDK/tools/sco-core-mcp/server.py" --catalogue "$SDK/sdk-catalogue.json
 The catalogue and workflow index must have exactly matching SDK/source coordinates; a missing, oversized, malformed, hash-inconsistent or mismatched index refuses startup when an index is supplied or present. If the default index is missing, the workflow tools remain listed and return a precise unavailable error. The operator can select an index with `--workflows <file>`. Tool calls cannot select arbitrary filesystem files: `get_workflow` serves only embedded indexed text. `list_workflows {}` returns IDs/descriptions/entry paths; `get_workflow {"id":"sco-build-check-package"}` reads the entrypoint and lists resource paths/hashes. Pass a returned `path` with that ID to read one reference. Cross-workflow links are resolved by requesting the linked workflow's ID.
 
 Use `--minimal-tools` for the original six catalogue tools. The old `--extended-tools` and `--workflow-tools` flags remain compatibility aliases. Local build/check tools are offered when an operator configures `--project-root`; fixed commands, confinement and resource limits still apply. Runtime inspection retains its independent admission requirements. Check the selected archive inventory for its catalogue, server and workflow bundle; direct skill-file reading is independent of MCP availability. Combined or matching core+game-sc kits support MCP discovery. Core-source/host-source are distinct source build inputs.
+
+The current development core and combined plugin kits' experimental raw Rust
+example is a manual route: read `rust/README.md` and `examples/rust_hello`
+directly. The standalone source kits and game overlay do not contain those files.
+The CLI and MCP
+scaffolder do not generate Rust, and MCP language-filtered API/example searches
+advertise only `c`, `cpp`, `csharp` and `lua`. The `core` profile of SDK 2.4.1
+contains the Rust files; SDK 2.4.0 does not. These discovery limits do not establish live
+provider availability or remove the need to read the underlying C ABI contract.
 
 For a source checkout, build a matching catalogue using its existing instructions, then:
 
@@ -77,7 +96,7 @@ provider is absent or available, and sc-mp remains a separate consumer.
 | sc-offline crew, spawn, NPC, seat and flight-ready behavior | The named contracts exist: `game.actors` 1.1, `game.entities` 1.2, `spawn.entities` 1.2 and `game.vehicles` 1.0 contain actor/entity spawn and seat/flight-ready methods. Selected actor/entity/vehicle rows have static sigcheck records; they do not prove each operation worked in game. | Map each Crew/Spawn action to its exact method/provider and an owner test. The main gaps are provider readiness and operation-level evidence. Retain owner-scoped cleanup and session-valid IDs. The existing vehicle contract already names seat/eject/power-on; do not propose a duplicate contract from feature wording alone. |
 | sc-offline contracts, mining and creative modules | `game.missions` 1.0 has offer/accept/status/advance/abandon/ingest contracts and a callback/provider seam with synthetic tests; no production Windows provider is installed, and the registry remains OFF. The provider must satisfy admission and the operation-specific callbacks before calls can be ready. `game.mining` 1.0 exists but is OFF; its native adapter is unverified on Windows/game. `game.creative` 1.0 has mapped operations and static signature rows; the offline owner reports its product module disabled. | Keep provider readiness and product enablement distinct. Missions needs a grounded production adapter and readiness evidence; mining needs native verification and target evidence; creative needs an explicit product-policy decision. Do not read the core's static rows as offline plugin policy. |
 | sc-offline teleport, quantum, inspector and gear presets | The named tables exist: `game.relocation` 1.1, `teleport.spatial` 1.0, `game.spatial` 1.0 and `game.quantum` 1.0. Position-only relocation is OFF/synthetic; quantum control has a conditional backend and synthetic tests. Inspector reads map across actor, entity, actor-stat, GameRules and inventory contracts. `game.inventory.layout` 1.2 (`snapshot_layout`) exists but is OFF/synthetic and has no production native producer. | Resolve each inspector field and travel action to a versioned method, ready provider and owner test. These are mainly provider/readiness gaps rather than absent contract names. Gear presets require the missing production inventory-layout producer; do not use inventory item-category vocabulary as a substitute. Quantum's conditional backend and synthetic tests are not independent game acceptance. |
-| sc-mp multiplayer and hosting | `sco.net` 1.0 supplies peer/channel transport; `game.private_session` 1.0 requests Host/Join/Leave; `game.spatial` supplies copied zone observations with expiring epochs; entity/actor contracts can build product-owned objects. Current contracts do not provide durable world identity or authoritative shared simulation. The current sc-mp lane reports two-client loopback lifecycle tests passing 7/7; its backend remains co-presence/forwarding. | Keep listen host, relay-only transport and authoritative-world hosting as separate modes. Reuse the existing transport/session APIs, then get owner agreement on the minimum context/authority boundary before assigning a contract or ABI. |
+| sc-mp multiplayer and hosting | `sco.net` 1.0 supplies peer/channel transport; `game.private_session` 1.0 requests Host/Join/Leave; `game.spatial` supplies copied zone observations with expiring epochs; entity/actor contracts can build product-owned objects. Current contracts do not provide durable world identity or authoritative shared simulation. sc-mp has synthetic loopback coverage for co-presence/forwarding; check the selected source and test results for the actual count and status. | Keep listen host, relay-only transport and authoritative-world hosting as separate modes. Reuse the existing transport/session APIs, then get owner agreement on the minimum context/authority boundary before assigning a contract or ABI. |
 
 For multiplayer review, the minimum context requirement is a read-only, copied, size-prefixed
 v1 snapshot that distinguishes local, listen-host and client roles; carries an opaque session
@@ -120,7 +139,7 @@ Stable SDK 2.4.0 is now the current published release, published on 2026-11-01
 from source `6106fa3639cbcc28f78a1ded8de2707de019f4d3`. RC2 was published on
 2026-10-28 from `844e136ccb280ad8cb43f73bc43c9447e8f6799d`; it remains an
 immutable historical archive. The prepublication RC2 state remains in the
-[historical notes](releases/sdk-v2.4.0.md#historical-rc2-candidate-status-before-publication).
+[historical notes](releases/sdk-v2.4.0.md#historical-rc2-candidate-status).
 Published archive, product-host and source identities are separate. Recheck each
 consumer's exact ref before describing adoption. The following
 issues explain demand for contracts already present in source. Their proposals
@@ -134,7 +153,7 @@ their full acceptance.
 | [#192](https://github.com/scuba-sc/sco-core/issues/192), partial pack application | `PackApplyPolicy::BestEffort` is explicit opt-in with `PackApplyReceipt`; Atomic remains default. `sco-dcb lint <pack>...` checks syntax; `sco-dcb check <file.dcb> <pack>...` also needs the database. The issue's one-input example is not the implemented CLI. [Pack contract](datacore.md#packs-lint-check-show-diff) | `tests/test_datacore_pack.cpp`, `tests/dcb_pack.cmake` |
 | [#194](https://github.com/scuba-sc/sco-core/issues/194), action vocabulary | `game.input` 1.0 has **1,297** actions, ids 1..1297, re-derived on 4.10.197.2878. The older 1,267-member proposal is superseded by source evidence. C++20 has a header-only typed consumer wrapper for copied metadata; this does not add input dispatch or establish live provider availability. [Contract](game/input.md) | `tests/abi_game_input.c`, `tests/test_input.cpp`, `tests/test_input_cpp.cpp` |
 | [#195](https://github.com/scuba-sc/sco-core/issues/195), respawn completion | `game.loadout.respawn_completed` deliberately carries only the size-prefixed 8-byte occurrence marker (`size`, padding), with occurrences within a tick coalesced. It has no proposed entity/result fields and is not per-slot success. The producer seam is tested; the native hook remains unresolved and the capability OFF. [Lifecycle](game/loadout.md#respawn-completed-event-gameloadoutrespawn_completed) | `tests/abi_game_events.c`, `tests/game_contracts/loadout/test_loadout.cpp` |
-| [#140](https://github.com/scuba-sc/sco-core/issues/140), host-source distribution | The standalone `host-source-sc` profile exists in the five-profile manifest and stable SDK 2.4.0 release inventory. Use the selected release archive and its independently recorded identity. A host-source build proves host composition; plugins separately consume the plugin SDK. [Kit guide](host-source-sc.md) | `sdk/test_host_source.py` and the selected archive's checksums/compatibility metadata |
+| [#140](https://github.com/scuba-sc/sco-core/issues/140), host-source distribution | The standalone `host-source-sc` profile exists in the five-profile manifest and the SDK 2.4.0 and 2.4.1 release inventories. Use the selected release archive and its independently recorded identity. A host-source build proves host composition; plugins separately consume the plugin SDK. [Kit guide](host-source-sc.md) | `sdk/test_host_source.py` and the selected archive's checksums/compatibility metadata |
 
 Additional current-source contracts are not contained in published RC1:
 
@@ -144,6 +163,7 @@ Additional current-source contracts are not contained in published RC1:
 | [ASOP selection 1.0](game/asop-selection.md) | Query the service and each complete member, and require `game.asop.selection.file` and a ready host coordinator. Editing the host-owned document does not establish native terminal publication or observation. C# and Lua are unsupported. |
 | [Position-only relocation 1.1](game/relocation-position.md) | Query 1.1, check the complete `request_position` member and `game.relocation.position`, and preserve offline/owner and observation guards. The default native adapter supplies no position callbacks; the capability is OFF. |
 | [Widgets 1.3](../sdk/docs/widgets.md#numeric-presentation-13) | Query 1.3, check the full member extent and numeric-presentation feature before submitting the extended node. Host and language support are independent of the SDK used to compile. |
+| [Widgets 1.4](../sdk/docs/widgets.md#canonical-callback-tags-14) | A 1.4 host (since SDK 2.4.1) copies the canonical node tag into a guarded `sco_widget_event_1_4` callback tail. Query 1.4 and check `SCO_WIDGETS_FEATURE_EVENT_TAG`, and check `event->size` before reading the tag; older hosts deliver numeric-only events. New in SDK 2.4.1; synthetic tests only. |
 
 These boundaries are source descriptions; a built candidate does not establish
 that the installed product host supplies the capabilities. Synthetic

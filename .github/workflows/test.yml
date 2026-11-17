@@ -66,6 +66,11 @@ jobs:
           v=$(tr -d '\r\n' < sdk/VERSION)
           python3 tools/doc_release_gate.py --tag "sdk-v$v"
 
+      - name: Release regions in the docs match the source coordinates
+        run: |
+          python3 -B tools/release_docs.py --check
+          python3 -B tools/test_release_docs.py
+
       - name: Game status registry matches docs/game/status.md
         run: |
           python3 tools/status_registry.py --check
@@ -80,6 +85,9 @@ jobs:
         run: |
           python3 tools/native_index.py --check
           python3 tools/test_native_index.py
+
+      - name: Private synthetic native evidence model
+        run: python3 tools/test_synthetic_native_evidence.py
 
       - name: Live-site checker unit tests (offline)
         run: python3 tools/test_check_live_site.py

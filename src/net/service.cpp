@@ -21,6 +21,8 @@
 #include "sco/log.h"
 #include "../api/internal.h"
 #include "../api/owned_publication.h"
+#include "leave_request.h"
+#include "../retained_static.h"
 #include <algorithm>
 #include <chrono>
 #include <condition_variable>
@@ -96,28 +98,31 @@ struct Session {
     uint64_t                         sendDropped = 0;   // network thread only
 };
 
-std::mutex                  g_control;
-std::unique_ptr<Session>    g_session;   // ServiceOptions::thread false only
-std::thread                 g_thread;
+// The network thread and its shared state are held (retained_static.h): under the process-retained
+// composition none of them is ever destroyed, so exit neither terminates on the joinable thread nor
+// pulls the state from under it. Otherwise they behave as plain statics.
+std::mutex&                 g_control = sco::detail::Held<std::mutex, __LINE__>();
+std::unique_ptr<Session>&   g_session = sco::detail::Held<std::unique_ptr<Session>, __LINE__>();   // ServiceOptions::thread false only
+std::thread&                g_thread = sco::detail::Held<std::thread, __LINE__>();
 
-std::mutex                  g_lock;
-std::condition_variable     g_wake;       // the network thread: commands queued
-std::condition_variable     g_delivery;   // WaitForDelivery: the inbox got something
+std::mutex&                 g_lock = sco::detail::Held<std::mutex, __LINE__>();
+std::condition_variable&    g_wake = sco::detail::Held<std::condition_variable, __LINE__>();       // the network thread: commands queued
+std::condition_variable&    g_delivery = sco::detail::Held<std::condition_variable, __LINE__>();   // WaitForDelivery: the inbox got something
 bool                        g_started = false;
-ServiceOptions              g_opts;
-std::vector<Channel>        g_channels;
+ServiceOptions&             g_opts = sco::detail::Held<ServiceOptions, __LINE__>();
+std::vector<Channel>&       g_channels = sco::detail::Held<std::vector<Channel>, __LINE__>();
 uint64_t                    g_nextChannel = 1;
-std::vector<PluginState>    g_plugins;
-std::deque<Item>            g_inbox;
-std::deque<Cmd>             g_cmds;
+std::vector<PluginState>&   g_plugins = sco::detail::Held<std::vector<PluginState>, __LINE__>();
+std::deque<Item>&           g_inbox = sco::detail::Held<std::deque<Item>, __LINE__>();
+std::deque<Cmd>&            g_cmds = sco::detail::Held<std::deque<Cmd>, __LINE__>();
 bool                        g_live = false;   // a session runs: register/unregister/send go to it
 // The session as the network thread last saw it.
 State                       g_state = State::Idle;
 bool                        g_active = false;
 PeerId                      g_self = 0;
-std::vector<PeerInfo>       g_peers;
-std::map<PeerId, uint64_t>  g_entities;
-std::string                 g_reason;
+std::vector<PeerInfo>&      g_peers = sco::detail::Held<std::vector<PeerInfo>, __LINE__>();
+std::map<PeerId, uint64_t>& g_entities = sco::detail::Held<std::map<PeerId, uint64_t>, __LINE__>();
+std::string&                g_reason = sco::detail::Held<std::string, __LINE__>();
 uint16_t                    g_port = 0;
 ServiceStats                g_stats;
 
@@ -954,6 +959,22 @@ Result Join(const JoinOptions& o) {
     s->coreOpts.pbkdf2Iters = g_opts.pbkdf2Iters;
     return Begin(std::move(s));
 }
+
+namespace retained_closure {
+// Process-retained closure: ask a running session's network thread to leave, without joining it.
+// The thread, socket and state stay allocated until process exit.
+void RequestLeave(const char* reason) noexcept {
+    try {
+        std::lock_guard<std::mutex> hold(g_lock);
+        if (!g_live) return;
+        Cmd c;
+        c.kind = CmdKind::Leave;
+        c.text = reason ? reason : "left";
+        g_cmds.push_back(std::move(c));
+        g_wake.notify_all();
+    } catch (...) {}
+}
+}  // namespace retained_closure
 
 void Leave(const char* reason) {
     sco::detail::RuntimeLease admission;

@@ -30,7 +30,7 @@ The position-only relocation source extension was reviewed on 2026-10-26 against
 
 ## Reading availability correctly
 
-[The status registry](../sdk/status_registry.json) contains **38 named capabilities whose recorded default is OFF**: 25 have `synthetic_only` evidence and 13 have `off_pending_probe` evidence. All 38 appear once in the inventories below. A registry entry records the reviewed availability/evidence baseline; actual host capability state is also computed from signatures, configured providers, admission, cleanup and fault state. The quantum path below already attempts production setup automatically under those conditions, despite its conservative OFF registry entry. Do not infer that changing a registry field changes runtime implementation.
+[The status registry](../sdk/status_registry.json) contains **40 named capabilities whose recorded default is OFF**: 27 have `synthetic_only` evidence and 13 have `off_pending_probe` evidence. The inventories below list 39 of them once; `game.asop.selection.file` (an unpublished fixed-document coordinator, synthetic evidence only) is not inventoried here. A registry entry records the reviewed availability/evidence baseline; actual host capability state is also computed from signatures, configured providers, admission, cleanup and fault state. The quantum path below already attempts production setup automatically under those conditions, despite its conservative OFF registry entry. Do not infer that changing a registry field changes runtime implementation.
 
 [The roadmap](roadmap.md) separates contract, mock, static evidence, grounded native backend, game evidence and default-on behavior. Its post-2.4.0 work explicitly includes narrowed native rays, entity lookup, live GameRules values and audio. Comprehensive discovery should expose those contracts and their readiness honestly. Comprehensive behavior requires completing their adapters and acceptance work, rather than treating an unavailable response as a hidden switch.
 
@@ -38,7 +38,7 @@ The sources and tests linked here are public project material. Test links identi
 
 ## Native paths with explicit configuration or proof holds
 
-These seven capabilities have identifiable production native paths. Configuration can select some of them today, but the documented missing acceptance and lifetime requirements remain. None can be called game-verified from this review.
+These eight capabilities have identifiable production native paths. Configuration can select some of them today, but the documented missing acceptance and lifetime requirements remain. None can be called game-verified from this review.
 
 | Capability | Current source and selection | Runtime prerequisites and owed evidence | Candidate action |
 | --- | --- | --- | --- |
@@ -98,7 +98,7 @@ These nineteen capabilities require implementation or lifetime/registration grou
 
 ## Host, build, MCP and network defaults
 
-These controls are separate from the 38 game capability entries. Build inclusion, tool discovery, executable access, service publication, privacy disclosure and gameplay activation need distinct decisions.
+These controls are separate from the 40 game capability entries. Build inclusion, tool discovery, executable access, service publication, privacy disclosure and gameplay activation need distinct decisions.
 
 | Control | Current source/default | Comprehensive-default action and required boundary |
 | --- | --- | --- |

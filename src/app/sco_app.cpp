@@ -3,11 +3,14 @@
 #include "sco/app.h"
 #include "owned_start.h"
 #include "owned_subsystems.h"
+#include "process_retained.h"
+#include "../retained_static.h"
 #include "plugin_startup_snapshot.h"
 #include "../api/owned_publication.h"
 #include "../owned_registry_reservation.h"
 #include "../ipc/diagnostics_worker.h"
 #include "../api/internal.h"
+#include "../api/managed_service_gate.h"
 #include "../plugins/internal.h"
 #include "sco/caps.h"
 #include "sco/content.h"
@@ -18,6 +21,7 @@
 #endif
 #ifdef SCO_GAME_SERVICES
 #include "../game/services/mining.h"
+#include "../game/services/process_retained.h"
 #include "sco/game/services.h"      // the game pack's services (sco_game_services, Windows)
 #endif
 #include "sco/host.h"
@@ -49,6 +53,8 @@ std::atomic_flag g_startEntry = ATOMIC_FLAG_INIT;
 bool                         g_started = false;
 bool                         g_stopping = false;
 bool                         g_teardownFailed = false;
+bool                         g_processRetained = false;  // started by StartProcessRetained: Stop is closure only
+std::atomic<bool>            g_retainedClosed{false};    // that closure ran; restart is refused
 bool                         g_gameServicesStartFailed = false;
 bool                         g_gameServicesAttempted = false;
 bool                         g_hostServiceStarted = false;
@@ -62,9 +68,11 @@ std::vector<plugins::Plugin> g_list;     // never resized while ContainCallouts 
 plugins::ContentIndex        g_index;
 const sco_api*               g_api = nullptr;   // what Reload loads with
 plugins::Options             g_opts;
-diagnostics::SnapshotStore   g_diagnostics;
-diagnostics::Capture         g_diagnosticCapture;
-diagnostics::ipc::Worker     g_diagnosticWorker(g_diagnostics,g_diagnosticCapture);
+// Held (retained_static.h): never destroyed under the process-retained composition, where the worker
+// thread and the stores it reads must outlive static destruction; otherwise plain statics.
+diagnostics::SnapshotStore&  g_diagnostics = sco::detail::Held<diagnostics::SnapshotStore, __LINE__>();
+diagnostics::Capture&        g_diagnosticCapture = sco::detail::Held<diagnostics::Capture, __LINE__>();
+diagnostics::ipc::Worker&    g_diagnosticWorker = sco::detail::Held<diagnostics::ipc::Worker, __LINE__>(g_diagnostics, g_diagnosticCapture);
 std::vector<plugins::State>  g_diagnosticStates;
 std::optional<uint64_t>       g_lastDiagnosticTick;
 bool                         g_gameServicesPublished = false;
@@ -230,6 +238,37 @@ void CopyDiagnostics(uint64_t now) noexcept {
 #ifndef SCO_KERNEL_ONLY
         sources.gamePack = game::diagnostics::CopyMinimal(g_platform.diagnosticSources, now);
 #endif
+        if (g_platform.diagnosticSources.profile) {
+            sources.profile = g_platform.diagnosticSources.profile;
+            // Identity/generation are explicitly supplied by the host. Counts
+            // describe this observed roster, never an inferred profile path.
+            sources.profile->observedMs = now;
+            sources.profile->pluginCount = static_cast<uint64_t>(g_list.size());
+            sources.profile->loadedPluginCount = static_cast<uint64_t>(std::count_if(
+                g_list.begin(), g_list.end(), [](const plugins::Plugin& p) {
+                    return p.state == plugins::State::Loaded;
+                }));
+            sources.profile->truncated = false;
+        }
+        if (g_platform.diagnosticSources.storage) {
+            if (auto copied = storage::CopyMetadata()) {
+                diagnostics::StorageMetadata metadata;
+                metadata.generation = copied->generation;
+                metadata.observedMs = now;
+                metadata.truncated = copied->truncated;
+                metadata.owners.reserve(copied->owners.size());
+                for (const auto& source : copied->owners) {
+                    diagnostics::StorageOwnerMetadata owner;
+                    owner.ownerId = source.ownerId;
+                    owner.tableCount = source.tableCount;
+                    owner.rowCount = source.rowCount;
+                    owner.usedBytes = source.usedBytes;
+                    owner.quotaBytes = source.quotaBytes;
+                    metadata.owners.push_back(std::move(owner));
+                }
+                sources.storage = std::move(metadata);
+            }
+        }
         // Copies only: no plugin callbacks, service queries or provider execution.
         g_diagnostics.Begin(g_list, std::move(host), std::move(game), now, std::move(sources));
         g_diagnostics.Advance(now);
@@ -539,7 +578,13 @@ Result StartSubsystems(const Platform& pf, const sco::detail::StartupPublish* ca
         } else {
             g_gameServicesAttempted = true;
             Result gr = Result::Failed;
-            try { gr = game::services::Start(); } catch (...) {}
+            try {
+                // Only a runtime started by the process-retained host reaches the real start; the
+                // public entry stays an unconditional refusal for every other caller.
+                gr = g_processRetained
+                    ? game::services::detail::StartProcessRetained({pf.gameReadersQuiesced, pf.gameReadersContext, true})
+                    : game::services::Start();
+            } catch (...) {}
             g_gameServicesPublished = gr == Result::Ok;
             if (gr != Result::Ok) {
                 g_gameServicesStartFailed = true;
@@ -717,12 +762,13 @@ bool HasRetainedGameHooks() noexcept {
 static bool StartImpl(const Platform& platform, const sco::detail::StartupPublish* cap) {
     if (g_startEntry.test_and_set()) return false;
     struct Entry { ~Entry() { g_startEntry.clear(); } } entry;
-    if (g_started || g_teardownFailed) {
+    if (g_started || g_teardownFailed || g_retainedClosed) {
         try { Log("[app] start refused: already started or teardown incomplete"); } catch (...) {}
         return false;
     }
     try {
     sco::detail::SetGameThreadOwned(cap);
+    sco::detail::ResetManagedShutdown();
     sco::detail::SetRuntimeStopping(false);
     g_diagnostics.Reset();
     diagnostics::ResetServiceDiagnosticHistory();
@@ -815,6 +861,24 @@ StartResult StartDetailed(const Platform& platform) {
 bool Start(const Platform& platform) { return StartDetailed(platform) == StartResult::Started; }
 
 namespace detail {
+StartResult StartProcessRetained(const Platform& platform) {
+    // The reader callback is checked again by game-service startup itself; this is the entry refusal.
+    if (!platform.gameReadersQuiesced || platform.shutdownOwner || platform.image || platform.registerSignatures)
+        return StartResult::RefusedBeforeExposure;
+    try {
+        sco::detail::RuntimeLease admission;
+        if (!admission || admission.owned() || !sco::detail::RuntimeCanStartLegacy() ||
+            g_started || g_teardownFailed || g_retainedClosed || !AcquireHostSignatureRegistry())
+            return StartResult::RefusedBeforeExposure;
+        g_processRetained = true;
+        sco::detail::ProcessRetainedForever().store(true, std::memory_order_release); // exposure begins: never cleared
+        const bool started = StartImpl(platform, nullptr);
+        if (!started && !g_started && !g_teardownFailed) g_processRetained = false;   // nothing was exposed
+        return started ? StartResult::Started : StartResult::RetainDependencies;
+    } catch (...) {
+        return StartResult::RetainDependencies;
+    }
+}
 bool CopyOwnedData(const OwnedShutdown::Transition& transition, const std::shared_ptr<OwnedShutdown>& owner,
                    std::vector<plugins::Plugin>& list, plugins::ContentIndex& index) {
     if (!owner || !transition.valid_for(*owner) || !sco::detail::RuntimeBoundTo(owner)) return false;
@@ -841,7 +905,8 @@ bool StartOwned(const Platform& platform, const OwnedShutdown::Transition& trans
         platform.hostService.start || platform.hostService.tick || platform.hostService.stop ||
         platform.hostMenu.context || platform.hostMenu.load || platform.hostMenu.frame || platform.hostMenu.stop ||
         platform.setCapabilities || platform.pluginStartupSnapshot ||
-        platform.diagnosticSources.diagnosticsPlugin || platform.runtimeInspection.enabled ||
+        platform.diagnosticSources.diagnosticsPlugin || platform.diagnosticSources.profile ||
+        platform.diagnosticSources.storage || platform.runtimeInspection.enabled ||
         platform.privateSession.enabled || platform.reservedChords || platform.nReservedChords) {
         platform.shutdownOwner->fault();
         return false;
@@ -884,12 +949,50 @@ void Tick(uint32_t nowMs) {
     CopyDiagnostics(*g_lastDiagnosticTick);
 }
 
+// Closure without retirement: admission closes, plugins see game.exit once, everything stays mapped.
+static Result StopProcessRetained() {
+    g_stopping = true;   // recursive Stop from game.exit is a no-op
+    const bool loaderClosed = plugins::detail::BeginAppShutdown();
+    const Result managed = sco::detail::BeginManagedShutdown();
+    if (!loaderClosed || managed != Result::Ok)
+        Log("[app] process-retained stop: %s%s remain live; they stay retained",
+            loaderClosed ? "" : "loader entries ", managed == Result::Ok ? "" : "managed service pins");
+    // Closure only: nothing below joins, withdraws, resets or frees. The diagnostics worker is asked to
+    // end itself and the private session stops accepting requests (a running session is asked to
+    // leave, unjoined). The publisher, its service and the snapshot store stay in place: their
+    // entries refuse through the runtime-stopping flag set below.
+    g_diagnosticWorker.Signal();
+#ifndef SCO_KERNEL_ONLY
+    game::private_session::Close();
+#endif
+    const Result r = Dispatch("game.exit", nullptr);   // once: the latch below refuses a second stop
+    if (r != Result::Ok) Log("[app] game.exit: %s", ResultName(r));
+    StopMenu();
+    sco::detail::SetRuntimeStopping(true);   // no new lookup/work; queued work is neither run nor dropped
+    try {
+        if (g_appPinnedRegistry) WithHostSignatureRegistry(g_appPinnedRegistry, RevokeCapabilities);
+    } catch (...) {}
+    g_retainedClosed = true;
+    try { Log("[app] process-retained stop: admission closed, backing retained"); } catch (...) {}
+    return Result::Ok;
+}
+
 Result Stop() {
     if (!OnGameThread()) { Log("[app] stop refused: wrong thread"); return Result::WrongThread; }
+    if (g_retainedClosed) return Result::Ok;
     if (g_teardownFailed) return Result::Failed;
     if (!g_started) return Result::Ok;
     if (g_stopping) return Result::Unavailable;
     if (sco::detail::InCallout() || g_reloading) { Log("[app] stop refused: active callout or reload"); return Result::Unavailable; }
+    if (g_processRetained) return StopProcessRetained();
+    if (!g_platform.shutdownOwner) {
+        if (!plugins::detail::BeginAppShutdown()) return Result::Failed;
+        if (sco::detail::BeginManagedShutdown() != Result::Ok) {
+            plugins::detail::ResetAppShutdown();
+            Log("[app] stop refused: managed service pins remain");
+            return Result::Failed;
+        }
+    }
     g_stopping = true;   // recursive Stop from game.exit or unload is a no-op
     if (g_platform.shutdownOwner) {
         // The existing shutdown sequence invokes arbitrary subscribers, task
@@ -953,7 +1056,7 @@ Result Stop() {
     StopMenu();  // drain host-owned cleanup even if no subsequent Tick occurs
     sco::detail::StopRuntime();   // no new lookup/work; every queued ctx dropped before unload
     try {
-        if (!plugins::TryUnloadAll(g_list, g_platform.moduleOps, g_platform.scripts)) return refuseRetirement();
+        if (!plugins::detail::TryAppShutdownUnloadAll(g_list, g_platform.moduleOps, g_platform.scripts)) return refuseRetirement();
     } catch (...) { return refuseRetirement(); }
     if (g_platform.shutdownOwner && !g_platform.shutdownOwner->ready()) return refuseRetirement();
     bool registryCleanupSafe = !HasRetainedGameHooks();
@@ -1013,6 +1116,7 @@ Result Stop() {
     g_teardownFailed = !registryCleanupSafe;
     g_started = false;
     g_stopping = false;
+    if (registryCleanupSafe) plugins::detail::ResetAppShutdown();
     return registryCleanupSafe ? Result::Ok : Result::Failed;
 }
 
@@ -1082,7 +1186,7 @@ const std::vector<plugins::Plugin>& Plugins() {
 }
 std::shared_ptr<const diagnostics::Snapshot> DiagnosticSnapshot() {
     sco::detail::RuntimeLease admission;
-    if (!admission || admission.startup()) return {};
+    if (!admission || admission.startup() || g_retainedClosed.load()) return {};
     return g_diagnostics.Latest();
 }
 

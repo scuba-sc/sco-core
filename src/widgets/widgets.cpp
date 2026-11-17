@@ -12,6 +12,7 @@
 #include <cmath>
 #include <cstring>
 #include <limits>
+#include <string_view>
 
 namespace sco::widgets {
 namespace {
@@ -26,6 +27,7 @@ struct Entry {
     std::shared_ptr<const Panel> snapshot;
     bool dirty = true;
     bool extended = false; // holds a 1.1-sized node: events are sco_widget_event_1_1
+    bool taggedEvents = false; // sticky until complete set_panel replacement
 };
 std::mutex g_lock;
 bool g_started = false;
@@ -35,7 +37,7 @@ std::vector<Entry> g_panels;
 constexpr uint32_t kFeatures = SCO_WIDGETS_FEATURE_UPDATE_NODES | SCO_WIDGETS_FEATURE_REMOVE_NODES |
     SCO_WIDGETS_FEATURE_SEVERITY | SCO_WIDGETS_FEATURE_TOOLTIP | SCO_WIDGETS_FEATURE_PAGING |
     SCO_WIDGETS_FEATURE_EVENT_ROW | SCO_WIDGETS_FEATURE_COALESCED_RENDER | SCO_WIDGETS_FEATURE_STABLE_TAGS |
-    SCO_WIDGETS_FEATURE_NUMERIC_PRESENTATION;
+    SCO_WIDGETS_FEATURE_NUMERIC_PRESENTATION | SCO_WIDGETS_FEATURE_EVENT_TAG;
 auto Find(const std::string& id) {
     return std::find_if(g_panels.begin(), g_panels.end(), [&](const Entry& e) { return e.panel.id == id; });
 }
@@ -135,8 +137,9 @@ Result CopyTail12(const sco_widget_node_1_2& x, Node& out) {
     for (const auto pad : x._reserved) if (pad) return Result::BadArg;
     out.tag.clear();
     if (x.tag && *x.tag) {
-        const std::string_view tag(x.tag);
-        if (tag.size() > SCO_WIDGETS_MAX_TAG) return Result::BadArg;
+        const size_t length = strnlen(x.tag, SCO_WIDGETS_MAX_TAG + 1);
+        if (length > SCO_WIDGETS_MAX_TAG) return Result::BadArg;
+        const std::string_view tag(x.tag, length);
         for (const unsigned char c : tag)
             if (!((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') ||
                   c == '.' || c == '_' || c == '-')) return Result::BadArg;
@@ -231,6 +234,8 @@ void Changed(Entry& e) {
     e.generation = ++g_generation;
     e.dirty = true;
     e.extended = std::any_of(e.panel.nodes.begin(), e.panel.nodes.end(), [](const Node& n) { return n.extended; });
+    e.taggedEvents = e.taggedEvents ||
+        std::any_of(e.panel.nodes.begin(), e.panel.nodes.end(), [](const Node& n) { return !n.tag.empty(); });
 }
 Result OwnPanel(sco_plugin* self, const char* id, std::vector<Entry>::iterator& out) {
     std::string key;
@@ -424,7 +429,7 @@ static Result StartImpl(const sco::detail::StartupPublish* cap) {
     if (detail::RuntimeStopping() && !(cap && cap->valid())) return Result::Unavailable;
     auto r = sco::detail::AddReleaseHookOwned(cap, OnRelease);
     if (r != Result::Ok) return r;
-    r = sco::detail::PublishHostOwned(cap, SCO_WIDGETS_NAME, SCO_WIDGETS_VERSION_1_3, &kTable);
+    r = sco::detail::PublishHostOwned(cap, SCO_WIDGETS_NAME, SCO_WIDGETS_VERSION_1_4, &kTable);
     if (r != Result::Ok) {
         if (!cap) sco::detail::RemoveReleaseHookOwned(cap, OnRelease);
         return r;
@@ -510,6 +515,8 @@ Result RenderPanel(const char* id, Renderer& renderer) {
     for (size_t i = 0; i < count; ++i) {
         const Event& event = events[i];
         bool extended = false;
+        bool tagged = false;
+        std::string tag;
         int32_t row = -1;
         {
             std::lock_guard<std::mutex> hold(g_lock);
@@ -519,20 +526,25 @@ Result RenderPanel(const char* id, Renderer& renderer) {
             if (live == g_panels.end() || live->generation != generation) break;
             auto node = std::find_if(live->panel.nodes.begin(), live->panel.nodes.end(), [&](const Node& n) { return n.id == event.node_id; });
             if (node == live->panel.nodes.end() || !Enabled(live->panel, *node) || !ValidEvent(*node, event)) continue;
+            extended = live->extended;
+            tagged = live->taggedEvents;
+            // Own this copy through Callout: callbacks may update, replace or remove the
+            // live panel and can immediately invalidate every pointer into its nodes.
+            try { if (tagged) tag = node->tag; } catch (...) { return Result::TooMany; }
             if (event.kind == SCO_WIDGET_TOGGLE || event.kind == SCO_WIDGET_SLIDER) node->value = event.value;
             if (event.kind == SCO_WIDGET_COMBO || event.kind == SCO_WIDGET_LIST) node->index = event.index;
             if (event.kind == SCO_WIDGET_TEXT_INPUT) node->text = event.text;
             if (event.kind == SCO_WIDGET_EVENT_PAGE) { node->first_row = static_cast<uint32_t>(event.row); row = event.row; }
             if (event.kind == SCO_WIDGET_LIST) row = event.index;
             if (event.kind != SCO_WIDGET_BUTTON) live->dirty = true;
-            extended = live->extended;
         }
         if (!fn) continue;
-        sco_widget_event_1_1 wire{};
-        wire.base = {sizeof(sco_widget_event), event.node_id, event.kind, event.index, event.value,
+        sco_widget_event_1_4 wire{};
+        wire.base.base = {sizeof(sco_widget_event), event.node_id, event.kind, event.index, event.value,
                      event.kind == SCO_WIDGET_TEXT_INPUT ? event.text.c_str() : nullptr};
-        if (extended) { wire.base.size = sizeof(wire); wire.row = row; }
-        EventCall call{fn, panelId.c_str(), &wire.base, ctx};
+        if (extended || tagged) { wire.base.base.size = sizeof(wire.base); wire.base.row = row; }
+        if (tagged) { wire.base.base.size = sizeof(wire); wire.tag = tag.empty() ? nullptr : tag.c_str(); }
+        EventCall call{fn, panelId.c_str(), &wire.base.base, ctx};
         if (!detail::Callout(owner, panelId.c_str(), EventThunk, &call)) return Result::Crashed;
     }
     return Result::Ok;

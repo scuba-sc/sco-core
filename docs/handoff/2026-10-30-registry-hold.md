@@ -1,5 +1,12 @@
 # HOLD — owned-shutdown drain prototype (do not merge)
 
+> **Status at SDK 2.4.1 (2026-11-16):** this hold no longer blocks merging. The repaired form of this work is on
+> the release branch: `void plugins::UnloadAll` is kept next to the checked `TryUnloadAll`, `sdk/components.json`
+> lists the owned-shutdown header and tests, and the full suite passes (legacy fixtures that cannot run under the
+> contract return CTest's skip code). What stays held is the owner decision below: the strict (default) owned
+> composition keeps refusing native activation until reader and worker shutdown is proven, with no fail-stop
+> termination. Products that run in game use `Composition::ProcessRetained` instead ([game host](../game/host.md)).
+
 For the later partial repair, current supported scope and remaining blockers, see
 [`2026-10-31-registry-review.md`](2026-10-31-registry-review.md). This file
 records the original held prototype and its historical test results.

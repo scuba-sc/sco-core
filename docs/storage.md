@@ -1,5 +1,9 @@
 # Storage: the `sco.storage` service
 
+Read-only owner/table/row/quota observations are provided by the separate
+[`sco.storage.metadata` 2.0 service](storage-metadata.md). The original 1.x
+service below remains unchanged.
+
 Per-plugin persistent storage: a key-value store and SQL, over SQLite, in place of the loose text files plugins and features keep under `data/` today. Each plugin gets its own database file, which no other plugin can open; a crash at any moment leaves the last committed state.
 
 It is a **host-owned service** (the reserved id `sco`, [API v1 § Host-owned services](api-v1.md#host-owned-services)) named `sco.storage`, version 1.1, found with the ordinary `query_service` of sco_api 1.1. The 128-byte 1.0 prefix is unchanged; the 144-byte table adds schema introspection at its tail. `sco_api.h` is unchanged; the table is declared in [`include/sco_storage.h`](../include/sco_storage.h) (plain C) and pinned by [`tests/abi_storage.c`](../tests/abi_storage.c).
@@ -193,7 +197,7 @@ Ordinary unload, ordinary failed-load cleanup and non-retained `crashed` cleanup
 
 The host reads and writes plugin memory (keys, values, SQL, buffers) only while it holds no lock, so a bad pointer from a plugin faults in plugin-facing code with nothing held, and the crash guard can quarantine the owner without those locks held; whether resource hooks run still depends on the retention rules above.
 
-After a successful app startup, a successful `sco::app::Stop` closes runtime admission and unloads still-loaded plugins (retained faulted instances are not entered), then stops storage: `sco.storage` is withdrawn, any transaction still open is rolled back and every database is closed, including databases retained by the fault/failed-load exceptions above. A failed or refused stop does not establish that cleanup occurred: dependent backing can remain retained, and the caller must follow the stop result's retention rules. A startup that returned `RetainDependencies` remains process-retained even if a later stop returns success. The current owned-shutdown path closes admission and returns failure while retaining the app and storage; it does not promise rollback or closure. Calls through a held storage table after admission closes answer `SCO_UNAVAILABLE`; this does not authorise calls through a retained peer-provider table.
+After a successful app startup, a successful `sco::app::Stop` closes runtime admission and unloads still-loaded plugins (retained faulted instances are not entered), then stops storage: `sco.storage` is withdrawn, any transaction still open is rolled back and every database is closed, including databases retained by the fault/failed-load exceptions above. A stop is refused while a managed service pin is live, and once it proceeds it closes managed acquisition, publication and loader entry until the next app start. A runtime started by the game host's process-retained composition ([game host](game/host.md)) stops by closure only: admission closes, but storage and plugins stay in place until process exit. A failed or refused stop does not establish that cleanup occurred: dependent backing can remain retained, and the caller must follow the stop result's retention rules. A startup that returned `RetainDependencies` remains process-retained even if a later stop returns success. The current owned-shutdown path closes admission and returns failure while retaining the app and storage; it does not promise rollback or closure. Calls through a held storage table after admission closes answer `SCO_UNAVAILABLE`; this does not authorise calls through a retained peer-provider table.
 
 ## Hosting it
 
@@ -208,6 +212,8 @@ sco::app::Stop();                  // after UnloadAll: storage::Stop, host::With
 ```
 
 Without `dataRoot` there is no storage, and plugins get `SCO_NOT_FOUND`. A product that doesn't use the host kit calls [`sco::storage::Start` / `Stop`](api.md#scostorageh-the-scostorage-service) itself (library `sco_storage`).
+
+A host that wants owner/table/row/quota summaries of its own can call `sco::storage::CopyMetadata` (see [storage metadata](storage-metadata.md)); it opens no database and runs no SQL.
 
 Data lives in `<dataRoot>/storage/<plugin id>.db` (plus SQLite's `-wal` and `-shm` files), outside the plugin's folder, so updating, reinstalling or disabling a plugin keeps its data. Plugin ids are `[a-z0-9_]`, so file names never clash or escape the folder. Removing a plugin's data is an explicit action (delete its three files while the game is closed).
 
