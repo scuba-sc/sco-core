@@ -79,7 +79,9 @@ let socket;
 let failures = [];
 try {
   const browserURL = await new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(Error('Chrome startup timeout')), 15000);
+    // Hosted runners have taken over 15 s to print the DevTools line on a cold start; 60 s
+    // still fails a browser that never starts.
+    const timer = setTimeout(() => reject(Error('Chrome startup timeout (60 s)')), 60000);
     let text = '';
     child.stderr.on('data', data => {
       text += data;
