@@ -479,10 +479,11 @@ that workflow; with no path it reads its SKILL.md. Read only the relevant refere
 resource list. Results carry catalogue provenance and separate workflow bundle/index/file hashes, and the index
 must match the catalogue's SDK/source coordinates. Tool arguments cannot read arbitrary files.
 
-Both tools are listed even when no default index is present; calling them then returns the
-`Workflow index unavailable` tool error. Place the matching `sdk-workflows.json` beside the catalogue or select
-it with operator flag `--workflows`. A selected missing file, or a present malformed, corrupted or
-source-mismatched index (including one beside the catalogue), refuses startup; it is not silently bypassed.
+Both tools are listed only when a valid index is loaded. Without one they are not listed, and a call to either
+name is refused as an unknown tool. Place the matching `sdk-workflows.json` beside the catalogue or select
+it with operator flag `--workflows`. A missing default index is silent. A selected missing file, or a present
+malformed, corrupted or source-mismatched index (including one beside the catalogue), prints a warning on stderr
+and disables only these two tools; the rest of the server starts normally.
 
 ### The default developer tools
 

@@ -60,10 +60,9 @@ reviewed generator code in-process.
 On the SDK <!--rv:sdk_version-->2.4.1<!--/rv--> kit call `list_workflows {}`, then
 `get_workflow {"id":"sco-plan-sdk-work"}`. Read its returned references as needed,
 map the task to the pinned roadmap goal and public contracts, and record observable
-acceptance before continuing below. If the default index is missing, the names remain listed but return
-`Workflow index unavailable`; obtain or build matching index bytes rather than
-combining snapshots. A selected missing or present invalid/mismatched index
-refuses startup. These tools serve embedded reference text and execute no code.
+acceptance before continuing below. If the default index is missing, the two tools are not listed; obtain or build
+matching index bytes rather than combining snapshots. A selected missing or present
+invalid/mismatched index prints a startup warning on stderr and disables only these two tools. These tools serve embedded reference text and execute no code.
 
 ### Discover one contract
 
