@@ -15,6 +15,14 @@ What each change means for plugin authors and for products built on sco-core (sc
   `catalogue/` folder that does not exist. `docs/agent-integration.md` points to the sc-offline and
   scuba-engine MCP servers, and the `sco-debug-plugin` skill tells agents to read the host's own view
   (plugin state, logs) through MCP where the host offers it.
+- MCP discovery server fixes found by an agent smoke test. `search_api` now matches any word of a
+  multi-word query instead of requiring all of them, ranks by how many and how well words match (whole
+  word above prefix, exact symbol or id first), and returns a `hint` when nothing matches. `get_example`
+  with a `language` the contract has no example in now returns `languages_with_examples` and a `hint`.
+  `list_workflows` and `get_workflow` are listed only when a valid workflow index is loaded (15 tools
+  with the kit's index, 13 without it), and a bad or mismatched `--workflows` file now prints a warning
+  on stderr and disables only those two tools instead of stopping the server. The
+  `validate_manifest_and_widgets` description now says it reports the first manifest error.
 
 ## sdk-v2.4.1
 

@@ -9,16 +9,18 @@ are offered only when the operator configures `--project-root`.
 
 Tool profiles in current source:
 
-- **Default (SDK developer profile):** 15 read-only tools. These are the six catalogue
+- **Default (SDK developer profile):** 15 read-only tools with the workflow index the SDK
+  kit ships, 13 without it. These are the six catalogue
   tools, [extended discovery](#extended-tools-default) (service status, engine natives,
   manifest and widget validation, scaffold, guides) and workflow retrieval
   (`list_workflows`, `get_workflow`). Workflow tools read `sdk-workflows.json` beside
   the catalogue, or the file named by `--workflows`; the SDK and source coordinates
-  must match the catalogue. Start with `sco-plan-sdk-work`; see
+  must match the catalogue. They are listed only when a valid index is loaded.
+  Start with `sco-plan-sdk-work`; see
   [consumer workflows](../../docs/agent-workflows.md).
 - **Minimal:** `--minimal-tools` offers only the original six catalogue tools.
-- **With `--project-root`:** the default 15 plus `run_plugin_check`,
-  `build_plugin_project` and `test_plugin_project`, 18 in all.
+- **With `--project-root`:** the default tools (15, or 13 without the workflow index) plus `run_plugin_check`,
+  `build_plugin_project` and `test_plugin_project`, 18 in all with the index.
 
 `--extended-tools` and `--workflow-tools` are accepted aliases and no longer needed;
 they cannot be combined with `--minimal-tools`.
@@ -250,7 +252,7 @@ server before relying on the new snapshot. The server does not regenerate it.
 These are the original six catalogue tools, retained alone by explicit
 `--minimal-tools`. The default developer profile also includes the seven
 [extended tools](#extended-tools-default) and two workflow tools below, fifteen
-read-only tools in total. Three [development tools](#development-tools-opt-in)
+read-only tools in total with the kit's workflow index (thirteen without it). Three [development tools](#development-tools-opt-in)
 are additionally offered when the operator configures project roots. List the
 exact names of your profile explicitly, not with a wildcard.
 The Arguments column gives the exact `inputSchema` property names, required ones
@@ -258,7 +260,7 @@ first; any other argument name is refused:
 
 | Tool | Arguments | Purpose |
 |---|---|---|
-| `search_api` | `query`; optional: `language`, `service`, `limit` | Search catalogue contracts, with optional service and language filtering. |
+| `search_api` | `query`; optional: `language`, `service`, `limit` | Search catalogue contracts by any word of the query, with optional service and language filtering. |
 | `get_symbol` | `symbol_or_id` | Retrieve a symbol's contract and its source-backed language mappings. |
 | `list_services` | none | Discover public service tables, versions, sizes, member counts and [stability](#stability) labels. |
 | `get_example` | `symbol_or_id`; optional: `language` | Return a selected record's listed example paths, and optionally their bounded contents. |
@@ -270,7 +272,15 @@ the record's stable id such as `sc-actors-v1-spawn-npc`; `search_api` results
 carry both. Inspect `tools/list` for each tool's full input schema. Language values
 are `c`, `cpp`, `csharp`, and `lua`; use those tokens rather than display names.
 `search_api` accepts at most 512 characters in `query`, a `limit` from 1 to 50
-(default 10), and an optional `service`. `check_compatibility` accepts
+(default 10), and an optional `service`. A contract matches when any word of the
+query matches. It scores higher for each matching word, for a whole word over a word
+prefix over text inside a word, and for matches in the symbol or id over the purpose;
+common filler words such as "the" and "how" are ignored. An exact symbol or id always
+ranks first. When nothing matches, the result has an empty `records` list and a `hint`
+(try fewer words, or call `list_services` for a service name).
+`get_example` with a `language` that the contract has no example in returns an empty
+`examples` list, `languages_with_examples` (the languages that do have examples) and a
+one-line `hint`. `check_compatibility` accepts
 `sdk_version` and `game_pack_version` as strings to compare with the catalogue's
 own `sdk_version` and `game_pack_version` (copy them from any result's
 `provenance`).
@@ -344,9 +354,9 @@ methods mentioned in the returned contracts read-only or safe to invoke.
 
 <a id="extended-tools-opt-in"></a>
 
-These seven extended tools and the two workflow tools are on by default.
-`--minimal-tools` omits all nine. Add the 15 default names to client allowlists
-explicitly. [The integration guide](../../docs/agent-integration.md#choose-a-profile)
+These seven extended tools are on by default, and so are the two workflow tools when a
+valid workflow index is loaded. `--minimal-tools` omits all nine. Add the default names
+(15 with the index, 13 without it) to client allowlists explicitly. [The integration guide](../../docs/agent-integration.md#choose-a-profile)
 explains which reviewed generator code these tools can run:
 
 | Tool | Arguments | Purpose |
@@ -354,7 +364,7 @@ explains which reviewed generator code these tools can run:
 | `get_service_status` | `service` | List catalogue tables for a service and its static capability/evidence rows, including rows without method mappings. Schema-2 catalogues bind the registry by SHA-256; schema-1 data is marked unbound. This is not a running-host probe. |
 | `list_engine_natives` | optional: `subsystem`, `tier`, `query`, `limit`, `cursor` | Page through `sdk/native_index.json`, filtered by `subsystem`, `tier` (1-4) or a case-insensitive `query` substring of id, hash, subsystem, source or capability. |
 | `get_engine_native` | `id_or_hash` | Return one row by its id or `_0x` hash (hex digits in any case), with its tier's meaning. |
-| `validate_manifest_and_widgets` | `plugin_ini`; optional: `folder`, `widgets` | Check `plugin.ini` text, and optionally a widget node array, and return findings. |
+| `validate_manifest_and_widgets` | `plugin_ini`; optional: `folder`, `widgets` | Check `plugin.ini` text, and optionally a widget node array, and return findings. It reports the first manifest error, as the host's reader stops there; widget findings are all reported. |
 | `generate_plugin_scaffold` | `id`, `lang`; optional: `with_menu`, `services` | Return the files [`sco-new-plugin`](../../sdk/tools/sco-new-plugin.py) would generate for a plugin spec, without writing them. |
 | `search_guides` | `query`; optional: `doc`, `limit`, `cursor` | Rank sections of the SDK guides by the query's whole-word terms (heading and title above body text, rarer terms above common ones) and return bounded snippets with doc, heading, anchor and url. |
 | `get_guide_section` | `doc`, `anchor` | Return one guide section's bounded plain text, by the doc and anchor `search_guides` returned. |
@@ -373,10 +383,11 @@ The operator-selected `--workflows` file, or default `sdk-workflows.json` beside
 the catalogue, is loaded once as bounded data (2 MiB index, 64 KiB per text file,
 up to 32 workflows and 16 files each). SDK/source coordinates must exactly match
 the catalogue. The index contains embedded text with validated hashes: tool
-arguments never trigger file reads. A missing default index keeps both tools
-listed but calls report `Workflow index unavailable`. An explicitly selected
-missing index, or a present malformed, corrupted or source-mismatched index,
-refuses startup rather than falling back. `--minimal-tools` reads no index and
+arguments never trigger file reads. Without a valid index the two tools are not listed,
+and a call to either name is refused as an unknown tool. A missing default index is
+silent. An explicitly selected missing index, or a present malformed, corrupted or
+source-mismatched one, prints a warning on stderr and disables only these two tools;
+the rest of the server starts normally. `--minimal-tools` reads no index and
 cannot be combined with workflow-selection flags.
 
 Build a source index beside a matching catalogue using
@@ -571,8 +582,8 @@ The operator configures at least one `--project-root DIR`; the server then
 automatically offers the tools. Without project roots they are absent and calls
 to their names are refused as unknown. `--enable-dev-tools` remains a compatibility
 flag and still requires a project root. Add each name to the client allowlist
-explicitly; three execution tools plus the default fifteen discovery tools means
-eighteen offered tools:
+explicitly; three execution tools plus the default fifteen discovery tools (thirteen
+without the workflow index) means eighteen offered tools (sixteen without it):
 
 | Tool | Arguments | Purpose |
 |---|---|---|

@@ -192,8 +192,9 @@ LANGUAGE = {"type": "string", "enum": list(LANGUAGES)}
 TOOLS = [
     tool("search_api", "Search the SDK API",
          "Find SDK contracts (C ABI table members and their C++, C# and Lua mappings) by symbol, stable id, service name, "
-         "purpose text or alias. Returns up to `limit` ranked summaries {id, symbol, service, purpose, score}; call get_symbol "
-         "with an id for the full contract. Start here when you know what you want to do but not the API name. A match says the "
+         "purpose text or alias. A contract matches when any word of the query matches; more and better matching words rank "
+         "higher, and an exact symbol or id comes first. Returns up to `limit` ranked summaries {id, symbol, service, purpose, "
+         "score}; call get_symbol with an id for the full contract. Start here when you know what you want to do but not the API name. A match says the "
          "SDK declares the contract, not that a running host provides it.",
          {"query": described(string_schema(), "Words or a symbol to look for, e.g. 'read a setting', 'sco_storage_v1' or 'spawn vehicle'."),
           "language": described(LANGUAGE, "Keep only contracts usable from this language; records whose mapping for it is "
@@ -212,7 +213,8 @@ TOOLS = [
          "or get_service_status."),
     tool("get_example", "Get code examples",
          "Return the example source files the catalogue lists for one contract (at most 16 files), optionally only those in "
-         "one language. When the server was started without --repo-root it returns the example paths without their text.",
+         "one language. When that language has none, it names the languages that do. When the server was started without "
+         "--repo-root it returns the example paths without their text.",
          {**SYMBOL, "language": described(LANGUAGE, "Return only examples in this language (by file extension).")},
          ("symbol_or_id",)),
     tool("get_capability_status", "Get a contract's status",
@@ -277,7 +279,8 @@ EXTENDED_TOOLS = [
     tool("validate_manifest_and_widgets", "Validate plugin.ini and widgets",
          "Check plugin.ini text against the manifest rules sco-plugin-check applies, and optionally a list of sco_widget_node "
          "objects against the widget tree rules of sco_widgets.h. Returns findings with line numbers; reads and writes no files. "
-         "Use it before building to catch manifest and menu-tree mistakes early.",
+         "The manifest part reports the first manifest error, because the host's reader stops there: fix it and call again. "
+         "Widget findings are all reported. Use it before building to catch manifest and menu-tree mistakes early.",
          {"plugin_ini": described(string_schema(32768), "The full text of the plugin's plugin.ini."),
           "folder": {**string_schema(255), "pattern": r"^[^/\\]+$",
                      "description": "The plugin's folder name (one path segment). When given, a manifest id that differs "
@@ -1843,6 +1846,63 @@ def load_workflows(path, catalogue):
     return data, hashlib.sha256(raw).hexdigest()
 
 
+SEARCH_STOP_WORDS = frozenset("a an the to of and or in on for with by how do does i my is it be can".split())
+SEARCH_HINT = ("No contract matched. Try fewer or simpler words (one or two key words), drop the language or service "
+               "filter, or call list_services to find a service name.")
+WHOLE_WORD, WORD_PREFIX, INSIDE_WORD = 4, 3, 1
+COVERAGE_BONUS = 1000
+
+
+def search_terms(query):
+    """Distinct query words without filler. A query of only filler words has no terms."""
+    words = list(dict.fromkeys(query.split()))
+    return [word for word in words if word not in SEARCH_STOP_WORDS]
+
+
+def term_match(term, text):
+    """How well one term matches a text: whole word above word prefix above any other occurrence; 0 for none."""
+    if term not in text:
+        return 0
+    pattern = re.escape(term)
+    if re.search(r"(?<![a-z0-9])" + pattern + r"(?![a-z0-9])", text):
+        return WHOLE_WORD
+    if re.search(r"(?<![a-z0-9])" + pattern, text):
+        return WORD_PREFIX
+    return INSIDE_WORD
+
+
+def term_rarity(terms, all_fields):
+    """Weight each term by how few contracts contain it, so 'setting' outweighs 'read' or 'write'."""
+    total = max(len(all_fields), 1)
+    rarity = {}
+    for term in terms:
+        found = sum(any(term in text for text, _ in fields) for _, fields in all_fields)
+        rarity[term] = math.log(1 + total / found) ** 2 if found else 0.0
+    return rarity
+
+
+def search_score(query, terms, fields, record, rarity):
+    """Any term may match. The whole query as a phrase and each term add weighted points; an exact id or symbol leads.
+
+    Each term counts in proportion to its rarity across all contracts, and a contract that covers more
+    distinct terms gets a bonus that is larger for rare terms.
+    """
+    if not terms:  # only filler words: an exact id or symbol is the one thing that can still match
+        return 100000 if query in (record["symbol"].casefold(), record["id"].casefold()) else 0
+    score = 0.0
+    for text, weight in fields:
+        if query == text:
+            score += weight * 3
+        elif query in text:
+            score += weight * 2
+        score += weight * sum(term_match(term, text) * rarity[term] for term in terms)
+    if score:
+        score += COVERAGE_BONUS * sum(rarity[term] for term in terms if any(term in text for text, _ in fields))
+    if query in (record["symbol"].casefold(), record["id"].casefold()):
+        score += 100000
+    return round(score)
+
+
 class Server:
     def __init__(self, catalogue, repo_root=None, extended_tools=True, guides_path=None, guides_explicit=False,
                  dev_tools=None, workflows=None):
@@ -1853,7 +1913,7 @@ class Server:
         self.guides = None
         self.guide_words = None
         self.tools = ((TOOLS + EXTENDED_TOOLS if extended_tools else TOOLS) +
-                      (WORKFLOW_TOOLS if workflows is not False else []) + (DEV_TOOLS if dev_tools else []))
+                      (WORKFLOW_TOOLS if workflows else []) + (DEV_TOOLS if dev_tools else []))
         self.dev = dev_tools
         self.enabled = {definition["name"] for definition in self.tools}
         self.provenance = {key: catalogue[key] for key in PROVENANCE_KEYS}
@@ -2333,7 +2393,7 @@ class Server:
         self.calls.append(now)
         validate_arguments(name, args)
         if name in ("list_workflows", "get_workflow"):
-            if self.workflows is None:
+            if not self.workflows:  # the tools are not advertised either; this is only a guard
                 raise ToolError("Workflow index unavailable; use a matching SDK kit or build sdk-workflows.json beside the catalogue")
             data, index_hash = self.workflows
             context = {k: data[k] for k in ("bundle_version", "baseline_sdk", "sdk_version", "source_sha",
@@ -2352,23 +2412,25 @@ class Server:
             return {"workflow_provenance": context, "id": item["id"], "file": record,
                     "resources": [{k: record[k] for k in ("path", "sha256")} for record in item["files"]]}
         if name == "search_api":
-            query = args["query"].casefold().strip()
-            terms = query.split()
+            query = " ".join(args["query"].casefold().split())
+            terms = search_terms(query)
+            rarity = term_rarity(terms, self.search_fields)
             hits = []
             for record, fields in self.search_fields:
                 if "service" in args and record["service"] != args["service"]:
                     continue
                 if "language" in args and record["language_mappings"][args["language"]]["status"] == "unsupported":
                     continue
-                if not all(any(term in text for text, _ in fields) for term in terms):
-                    continue
-                score = sum(weight * (3 if query == text else 2 if query in text else 1)
-                            for text, weight in fields if any(term in text for term in terms))
-                hits.append({"id": record["id"], "symbol": record["symbol"], "service": record["service"],
-                             "purpose": record["purpose"], "score": score})
+                score = search_score(query, terms, fields, record, rarity)
+                if score:
+                    hits.append({"id": record["id"], "symbol": record["symbol"], "service": record["service"],
+                                 "purpose": record["purpose"], "score": score})
             hits.sort(key=lambda hit: (-hit["score"], hit["id"]))
             limit = args.get("limit", 10)
-            return {"records": hits[:limit], "total_matches": len(hits), "limit": limit}
+            result = {"records": hits[:limit], "total_matches": len(hits), "limit": limit}
+            if not hits:
+                result["hint"] = SEARCH_HINT
+            return result
         if name == "list_services":
             return {"services": [{"table": name, "service": table["service"], "version": table["version"],
                                   "size": table["size"], "member_count": len(table["members"]),
@@ -2459,7 +2521,15 @@ class Server:
                     # Do not leak absolute host paths from filesystem exception text.
                     raise ToolError("Example unavailable: requires a contained regular UTF-8 file without symlinks") from None
             result.append(item)
-        return {"examples": result, "paths_only": self.repo_root is None}
+        answer = {"examples": result, "paths_only": self.repo_root is None}
+        if "language" in args and not result:
+            present = [language for language, suffixes in extensions.items()
+                       if any(PurePosixPath(path).suffix.casefold() in suffixes for path in examples)]
+            answer["languages_with_examples"] = present
+            answer["hint"] = (("This contract has no %s example; it has examples in: %s. Call get_example without a "
+                               "language, or with one of those." % (args["language"], ", ".join(present))) if present else
+                              "This contract lists no examples in any language.")
+        return answer
 
     def dispatch(self, message):
         if not isinstance(message, dict) or message.get("jsonrpc") != "2.0" or not isinstance(message.get("method"), str):
@@ -2635,9 +2705,10 @@ def main():
             if args.workflows or os.path.lexists(path):
                 workflows = load_workflows(path, catalogue)
         except (OSError, ValueError, TypeError, RecursionError) as error:
-            print("sco-core-mcp: workflows refused: " + type(error).__name__ +
-                  (": " + str(error) if isinstance(error, ValueError) else ""), file=sys.stderr)
-            return 1
+            # A bad index costs only the two workflow tools; the rest of the server still starts.
+            workflows = None
+            print("sco-core-mcp: warning: workflow index refused, list_workflows and get_workflow are disabled: " +
+                  type(error).__name__ + (": " + str(error) if isinstance(error, ValueError) else ""), file=sys.stderr)
     try:
         Server(catalogue, args.repo_root, not args.minimal_tools, guides, args.guides is not None, dev_tools, workflows).serve(
             sys.stdin.buffer, sys.stdout.buffer)

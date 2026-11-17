@@ -184,7 +184,7 @@ The original six are `search_api`, `get_symbol`, `list_services`, `get_example`,
 static capability/evidence rows (schema-2 catalogues bind those rows to the exact registry bytes; schema-1
 catalogues report the status as unbound; it does not probe a host), and `list_engine_natives`,
 `get_engine_native`, `validate_manifest_and_widgets`, `generate_plugin_scaffold`, `search_guides`,
-`get_guide_section`, `list_workflows` and `get_workflow`. The legacy `--extended-tools` and `--workflow-tools`
+`get_guide_section`, and, when a valid workflow index is loaded, `list_workflows` and `get_workflow`. The legacy `--extended-tools` and `--workflow-tools`
 flags are accepted compatibility aliases; neither is needed for current-source defaults. Do not combine them
 with `--minimal-tools`.
 
@@ -432,7 +432,8 @@ setting](#copilot-code-review-maintainer-owned-repository-setting).
 2. Check that the server is connected. In Claude Code, `claude mcp list` or `/mcp` shows `sco-core-sdk` as
    connected; approve a project-scoped server first. In other clients, open the MCP or tools panel and look
    for `sco-core-sdk` running.
-3. Check `tools/list`: fifteen tools for the default developer profile, six for explicit `--minimal-tools`,
+3. Check `tools/list`: fifteen tools for the default developer profile with the kit's workflow index (thirteen
+   without it), six for explicit `--minimal-tools`,
    all with `readOnlyHint: true`. Ask the agent to list the server's tools if your client has no tools view.
    Older kits list different counts; see [Earlier releases](#earlier-releases-240-rc2-rc1).
 4. Ask the agent: "Call the `sco-core-sdk` tool `list_services` with no arguments and show me the raw
@@ -648,9 +649,9 @@ This is the checkout form of the minimal profile. Replace the placeholder with t
 
 For the default profile in your own checkout, remove `"--minimal-tools"` from `args` and list all fifteen
 names in `tools`. Build the workflow index beside the catalogue with `python3 tools/sdk_workflows.py --root .
---out dist/sdk-workflows.json`. A missing default index leaves the two workflow names listed but calls report
-`Workflow index unavailable`; an explicit missing index, or any malformed/hash-inconsistent/source-mismatched
-index that is present, refuses startup. The arguments and client-file rules above apply; only the paths
+--out dist/sdk-workflows.json`. Without a valid index the two workflow tools are not listed (thirteen tools
+instead of fifteen). An explicit missing index, or any malformed/hash-inconsistent/source-mismatched
+index that is present, prints a warning on stderr and disables only those two tools. The arguments and client-file rules above apply; only the paths
 differ.
 
 ## Copilot code review: maintainer-owned repository setting

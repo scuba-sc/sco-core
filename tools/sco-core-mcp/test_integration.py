@@ -329,6 +329,13 @@ class IntegrationTests(unittest.TestCase):
             (self.kit / target).parent.mkdir(parents=True, exist_ok=True)
             shutil.copy(ROOT / source, self.kit / target)
         shutil.copy(CATALOGUE, self.kit / 'sdk-catalogue.json')
+        # The kit ships the workflow index beside the catalogue; without it the server lists 13 tools.
+        sys.path.insert(0, str(ROOT / 'tools'))
+        import sdk_workflows
+        index = sdk_workflows.build(ROOT, self.catalogue['source_sha'])
+        index['sdk_version'] = self.catalogue['sdk_version']
+        index['content_sha256'] = sdk_workflows.digest(sdk_workflows.encoded(index['workflows']))
+        (self.kit / 'sdk-workflows.json').write_bytes(sdk_workflows.encoded(index))
 
     def launch(self, block, replacement, *calls, drop=(), omit=(), join=(), novalue=(), minimal=False, **overrides):
         """Run a documented block with its placeholder base path replaced by a real folder.
