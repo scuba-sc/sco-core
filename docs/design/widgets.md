@@ -163,6 +163,44 @@ How the adapter draws the declarative tree (layout rules live in `src/widgets/im
 Widths are never taken from the available width of an auto-resizing window without a floor
 (see the button note in the source), so such windows settle at a size instead of collapsing.
 
+### Proposal: TABLE column headings (not implemented; needs the owner's decision)
+
+A TABLE has no header row, so a seat or crew table shows columns nobody has named, and plugins
+put the names in the first data row, where paging counts them as data. Proposed, as
+the next versioned node tail (it changes the ABI, so nothing below exists until the owner
+decides):
+
+```c
+#define SCO_WIDGETS_VERSION_1_5 0x00010005u          /* + TABLE column headings */
+#define SCO_WIDGETS_FEATURE_TABLE_HEADINGS 0x400u
+typedef struct sco_widget_node_1_5 {
+    sco_widget_node_1_3 base;
+    const char* const* headings; /* TABLE only: `columns` strings, or NULL for no header row */
+    uint32_t heading_count;      /* 0, or exactly the node's columns; 0 for every other kind */
+    uint32_t _reserved[3];       /* zero */
+} sco_widget_node_1_5;
+```
+
+- Same rules as cells: plain UTF-8, at most 255 bytes each, deep-copied, never format strings
+  or ImGui labels; an empty heading is a blank header cell. Any heading on a non-TABLE node, a
+  count other than 0 or `columns`, or nonzero reserved words is `BAD_ARG`.
+- Backward compatible the way 1.1 to 1.3 were: smaller nodes read as before; a 1.0 to 1.4 host
+  ignores the tail and draws the table without headings, which is today's output. Plugins
+  check version 1.5 and the feature bit through the complete `capabilities` member before
+  relying on it; the C++ (`SetPanel15`/`UpdateNodes15`), C# and Lua wrappers refuse an older
+  host rather than drop headings silently, as they do for `presentation`.
+- Host: `Node::headings`; `update_nodes` replaces them with the node. No event changes: the
+  header row is not a row index, so PAGE events, `first_row` and `visible_rows` count data rows
+  only, and every page repeats the header row.
+- Adapter: a header row drawn with `TableNextRow(ImGuiTableRowFlags_Headers)` and plain text in
+  each cell (not `TableSetupColumn`/`TableHeadersRow`, which parse `##`); no sorting or resizing.
+- Considered and not proposed: a `TABLE_FIRST_ROW_HEADINGS` flag reusing `items`. It needs no
+  new pointer, but an older host refuses the unknown flag outright, and the header row would
+  sit inside the paged row numbering.
+
+Shipping it is an SDK minor release (new contract version, ABI tests, catalogue, C#/Lua
+bindings and provenance in sco-core); sc-offline adopts it only after that SDK is published.
+
 ## Language and evidence boundary
 
 - C: direct `sco_widgets_v1.set_panel` / `.remove_panel`.
