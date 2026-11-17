@@ -2517,6 +2517,28 @@
       "license": "GPL-3.0-only"
     },
     {
+      "id": "docs.game.builds.md",
+      "source": "docs/game/builds.md",
+      "destination": "docs/game/builds.md",
+      "profiles": [
+        "game-sc",
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only"
+    },
+    {
+      "id": "docs.game.builds.json",
+      "source": "docs/game/builds.json",
+      "destination": "docs/game/builds.json",
+      "profiles": [
+        "game-sc",
+        "host-source-sc"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only"
+    },
+    {
       "id": "include.scosdk.command.hpp",
       "source": "include/scosdk/command.hpp",
       "destination": "include/scosdk/command.hpp",

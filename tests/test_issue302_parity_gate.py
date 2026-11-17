@@ -113,6 +113,13 @@ class ParityGateTest(unittest.TestCase):
     def test_declared_layout_changes_have_covering_tests(self):
         parity.check_intentional_layout_changes(set(parity.INTENTIONAL_LAYOUT_CHANGES))
 
+    def test_declared_layout_changes_are_recorded_in_the_build_register(self):
+        # docs/game/builds.json is the public record of what each patch changed; a row whose
+        # layout changed on purpose must be listed under the build that changed it.
+        register = json.loads((parity.ROOT / 'docs/game/builds.json').read_text())
+        recorded = {row for entry in register['builds'] for row in entry['changed_rows']}
+        self.assertLessEqual(set(parity.INTENTIONAL_LAYOUT_CHANGES), recorded)
+
 
 if __name__ == '__main__':
     unittest.main()

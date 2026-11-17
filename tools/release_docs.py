@@ -7,6 +7,9 @@ Every coordinate comes from a file that already defines it:
     sdk_version        sdk/VERSION
     game_pack_version  SCO_GAME_PACK_VERSION in include/sc_game_pack.h
     game_build         SCO_GAME_PACK_VERIFIED_BUILD in include/sc_game_pack.h
+    game_patch         the public patch name of game_build in docs/game/builds.json, which must
+                       list game_build as its newest build (the generated block `game-builds`
+                       renders that register: every build, its pins and the rows that changed)
     plugin_abi         SCO_API_MAJOR.SCO_API_MINOR in include/sco_api.h
     previous_version   the newest docs/releases/sdk-v<x.y.z>.md older than sdk_version
 
@@ -18,7 +21,7 @@ Docs carry generated regions in two forms:
 
     <!--rv:KEY-->2.4.1<!--/rv-->           one inline value (KEY is a coordinate below)
 
-Templates use {{KEY}}. Keys: sdk_version, tag, game_pack_version, game_build, plugin_abi,
+Templates use {{KEY}}. Keys: sdk_version, tag, game_pack_version, game_build, game_patch, plugin_abi,
 previous_version, previous_tag, release_page, previous_release_page, notes, previous_notes,
 notes_url, previous_notes_url,
 archive_core, archive_game_sc, archive_combined, archive_core_source, archive_host_source.
@@ -48,6 +51,7 @@ sys.dont_write_bytecode = True
 
 ROOT = Path(__file__).resolve().parents[1]
 TEMPLATES = Path("docs/release-blocks")
+REGISTER = "docs/game/builds.json"
 SEMVER = re.compile(r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)")
 BUILD = re.compile(r"([0-9]+)\.([0-9]+)\.([0-9]+)\.([0-9]+)")
 BLOCK = re.compile(r"(<!-- release-block:([a-z0-9-]+) -->)(.*?)(<!-- /release-block:\2 -->)", re.S)
@@ -107,11 +111,14 @@ def coordinates():
     if not older:
         raise Refusal("no earlier docs/releases/sdk-v<version>.md to name as the previous release")
     previous = older[-1]
+    game_build = macro("include/sc_game_pack.h", "SCO_GAME_PACK_VERIFIED_BUILD")
+    current = current_build_entry(game_build, game)
     return {
         "sdk_version": sdk,
         "tag": "sdk-v" + sdk,
         "game_pack_version": game,
-        "game_build": macro("include/sc_game_pack.h", "SCO_GAME_PACK_VERIFIED_BUILD"),
+        "game_build": game_build,
+        "game_patch": current["patch"],
         "plugin_abi": abi,
         "previous_version": previous,
         "previous_tag": "sdk-v" + previous,
@@ -130,6 +137,90 @@ def coordinates():
     }
 
 
+BUILD_FIELDS = ("build", "patch", "channel", "changelist", "live_date", "name_source", "name_note",
+                "game_packs", "sdk_releases", "changed_rows", "changes")
+DATE = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}")
+
+
+def build_register():
+    """The game-build register, checked: every field present, builds strictly ascending."""
+    if not (ROOT / REGISTER).is_file():
+        raise Refusal(f"{REGISTER} is missing: the register of verified game builds")
+    builds = json.loads(text(REGISTER)).get("builds")
+    if not isinstance(builds, list) or not builds:
+        raise Refusal(f"{REGISTER}: no builds")
+    previous = None
+    for entry in builds:
+        label = f"{REGISTER}: {entry.get('build')!r}"
+        missing = [f for f in BUILD_FIELDS if f not in entry]
+        if missing:
+            raise Refusal(f"{label}: missing {', '.join(missing)}")
+        match = BUILD.fullmatch(entry["build"])
+        if not match:
+            raise Refusal(f"{label}: not a four-part game build")
+        parts = tuple(int(p) for p in match.groups())
+        if previous is not None and parts <= previous:
+            raise Refusal(f"{label}: builds must be listed oldest first, each newer than the last")
+        previous = parts
+        if not entry["patch"].strip() or not entry["changelist"].isdigit():
+            raise Refusal(f"{label}: needs a patch name and a numeric changelist")
+        if not DATE.fullmatch(entry["live_date"]):
+            raise Refusal(f"{label}: live_date must be YYYY-MM-DD")
+        if entry["name_source"] not in ("official", "community"):
+            raise Refusal(f"{label}: name_source must be official or community")
+        for field in ("game_packs", "sdk_releases", "changed_rows", "changes"):
+            if not isinstance(entry[field], list) or not all(isinstance(v, str) for v in entry[field]):
+                raise Refusal(f"{label}: {field} must be a list of strings")
+        for pack in entry["game_packs"]:
+            version_tuple(pack)
+        if not entry["changes"]:
+            raise Refusal(f"{label}: record what changed for the rows, even when nothing moved")
+    return builds
+
+
+def current_build_entry(game_build, game_pack):
+    """The register entry for the verified build; it must be the newest and name the game pack."""
+    builds = build_register()
+    newest = builds[-1]
+    if newest["build"] != game_build:
+        raise Refusal(f"SCO_GAME_PACK_VERIFIED_BUILD is {game_build}, but the newest build in {REGISTER} "
+                      f"is {newest['build']}: add the build with its public patch name first")
+    if game_pack not in newest["game_packs"]:
+        raise Refusal(f"{REGISTER}: {game_build} does not list game pack {game_pack} in game_packs")
+    return newest
+
+
+def render_builds(values):
+    """The game-builds region: a table of every build, newest first, then each build's row changes."""
+    builds = list(reversed(build_register()))
+    lines = ["| Patch | Game build | Changelist | On LIVE | Game pack | SDK releases |",
+             "|---|---|---|---|---|---|"]
+    for entry in builds:
+        packs = ", ".join(entry["game_packs"]) or "none (before the verified-build pin)"
+        releases = ", ".join(f"`{tag}`" + (" (this release)" if tag == values["tag"] else "")
+                             for tag in entry["sdk_releases"]) or "none"
+        patch = entry["patch"] + ("" if entry["name_source"] == "official" else "\\*")
+        lines.append(f"| {patch} | {entry['build']} | {entry['changelist']} | {entry['live_date']} "
+                     f"| {packs} | {releases} |")
+    lines.append("")
+    if any(entry["name_source"] != "official" for entry in builds):
+        lines += ["\\* Patch name from community patch coverage of the launcher build string, "
+                  "not yet matched against the official notes.", ""]
+    older = {e["build"]: o for e, o in zip(builds, builds[1:] + [None])}
+    for entry in builds:
+        before = older[entry["build"]]
+        since = f" (since {before['build']}, {before['patch']})" if before else ""
+        lines += [f"### {entry['patch']}: {entry['build']}{since}", ""]
+        if entry["changed_rows"]:
+            lines += ["Rows that changed: " + ", ".join(f"`{r}`" for r in entry["changed_rows"]) + ".", ""]
+        lines += [f"- {change}" for change in entry["changes"]]
+        lines += [f"- Name: {entry['name_note']}", ""]
+    return "\n".join(lines).rstrip("\n")
+
+
+GENERATED = {"game-builds": render_builds}
+
+
 def render(template, values, label):
     def sub(match):
         key = match.group(1)
@@ -140,6 +231,8 @@ def render(template, values, label):
 
 
 def template(name, values):
+    if name in GENERATED:
+        return GENERATED[name](values)
     path = ROOT / TEMPLATES / (name + ".md")
     if not path.is_file():
         raise Refusal(f"release block '{name}' has no template {TEMPLATES.as_posix()}/{name}.md")
@@ -249,6 +342,9 @@ def preflight(version, game_pack, game_build):
         if not BUILD.fullmatch(game_build):
             raise Refusal(f"not a game build (four dot-separated numbers): {game_build!r}")
         macro("include/sc_game_pack.h", "SCO_GAME_PACK_VERIFIED_BUILD")
+        if build_register()[-1]["build"] != game_build:
+            raise Refusal(f"{game_build} is not the newest build in {REGISTER}: add it there first "
+                          "with its patch name, changelist and the rows that changed")
     if not isinstance(json.loads(text("sdk/components.json")).get("profiles"), dict):
         raise Refusal("sdk/components.json has no profiles")
     if not re.search(r"(?m)^sdk-v\S+$", text("sdk/CANDIDATE_TAG")):

@@ -42,6 +42,13 @@ def region(name, body="stale\n"):
     return f"<!-- release-block:{name} -->\n{body}<!-- /release-block:{name} -->\n"
 
 
+def build_entry(build, patch, packs, rows=(), name_source="community"):
+    return {"build": build, "patch": patch, "channel": "LIVE", "changelist": "13165946",
+            "live_date": "2026-11-12", "name_source": name_source, "name_note": "Launcher string.",
+            "game_packs": list(packs), "sdk_releases": ["sdk-v2.4.1"], "changed_rows": list(rows),
+            "changes": ["What moved."]}
+
+
 class Fixture(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -63,6 +70,10 @@ class Fixture(unittest.TestCase):
                                                              "docs/releases/sdk-v2.4.1.md"]},
                               indent=2) + "\n")
         self.write("site/scripts/gen.py", GEN)
+        self.write(rd.REGISTER, json.dumps({"schema_version": 1, "builds": [
+            build_entry("4.10.197.2878", "Alpha 4.10.2 hotfix", ["0.8.0"]),
+            build_entry("4.10.200.58746", "Alpha 4.10.3", ["0.8.1"], rows=["quantum.on_action"]),
+        ]}))
         blocks = self.root / "docs/release-blocks"
         blocks.mkdir(parents=True, exist_ok=True)
         for template in (REPO_ROOT / "docs/release-blocks").glob("*.md"):
@@ -76,6 +87,11 @@ class Fixture(unittest.TestCase):
         path = self.root / rel
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(content.replace("\n", newline).encode("utf-8"))
+
+    def add_build(self, build, patch, packs):
+        register = json.loads(self.read(rd.REGISTER))
+        register["builds"].append(build_entry(build, patch, packs))
+        self.write(rd.REGISTER, json.dumps(register))
 
     def read(self, rel):
         return (self.root / rel).read_bytes().decode("utf-8")
@@ -101,7 +117,7 @@ class RenderTests(Fixture):
         self.assertIn("1 file(s) updated", out)
         text = self.read("README.md")
         self.assertIn("SDK **2.4.1** uses Star Citizen game pack **0.8.1**", text)
-        self.assertIn("build\n4.10.200.58746) and plugin ABI **1.1**", text)
+        self.assertIn("Star Citizen\nAlpha 4.10.3, build 4.10.200.58746; see [game builds](docs/game/builds.md))", text)
         self.assertIn("[SDK 2.4.0](https://github.com/scuba-sc/sco-core/blob/sdk-v2.4.0/docs/releases/sdk-v2.4.0.md)", text)
         self.assertTrue(text.startswith("# Title\n\n<!-- release-block:current-release -->\nSDK"))
         self.assertTrue(text.endswith("\nTail.\n"))
@@ -191,6 +207,63 @@ class RefusalTests(Fixture):
         self.assertEqual(code, 1, err)
         self.assertIn("refused:", err)
         self.assertIn(needle, err)
+
+    def test_game_builds_block_renders_the_register_newest_first(self):
+        self.write("docs/game/builds.md", "# Builds\n\n" + region("game-builds"))
+        self.write("docs/a.md", "Patch <!--rv:game_patch-->x<!--/rv-->.\n")
+        self.assertEqual(self.run_main("--write")[0], 0)
+        page = self.read("docs/game/builds.md")
+        self.assertLess(page.index("| Alpha 4.10.3\\* | 4.10.200.58746"), page.index("| Alpha 4.10.2 hotfix"))
+        self.assertIn("### Alpha 4.10.3: 4.10.200.58746 (since 4.10.197.2878, Alpha 4.10.2 hotfix)", page)
+        self.assertIn("Rows that changed: `quantum.on_action`.", page)
+        self.assertIn("`sdk-v2.4.1` (this release)", page)
+        self.assertIn("-->Alpha 4.10.3<!--", self.read("docs/a.md"))
+
+    def test_official_names_drop_the_community_footnote(self):
+        self.write(rd.REGISTER, json.dumps({"builds": [
+            build_entry("4.10.200.58746", "Alpha 4.10.3", ["0.8.1"], name_source="official")]}))
+        self.assertNotIn("community", rd.render_builds(rd.coordinates()))
+
+    def test_verified_build_must_be_the_newest_register_entry(self):
+        self.write(rd.REGISTER, json.dumps({"builds": [
+            build_entry("4.10.197.2878", "Alpha 4.10.2 hotfix", ["0.8.1"])]}))
+        code, _, err = self.run_main("--check")
+        self.assertNotEqual(code, 0)
+        self.assertIn("add the build with its public patch name first", err)
+
+    def test_register_must_name_the_game_pack(self):
+        self.write(rd.REGISTER, json.dumps({"builds": [
+            build_entry("4.10.200.58746", "Alpha 4.10.3", ["0.8.0"])]}))
+        with self.assertRaisesRegex(rd.Refusal, "does not list game pack 0.8.1"):
+            rd.coordinates()
+
+    def test_register_refuses_malformed_entries(self):
+        good = build_entry("4.10.200.58746", "Alpha 4.10.3", ["0.8.1"])
+        older = build_entry("4.10.197.2878", "Alpha 4.10.2 hotfix", ["0.8.0"])
+        cases = {
+            "missing changes": dict(good, changes=[]),
+            "missing field": {k: v for k, v in good.items() if k != "changelist"},
+            "bad date": dict(good, live_date="12 Nov"),
+            "bad source": dict(good, name_source="rumour"),
+        }
+        for label, entry in cases.items():
+            with self.subTest(label):
+                self.write(rd.REGISTER, json.dumps({"builds": [entry]}))
+                with self.assertRaises(rd.Refusal):
+                    rd.build_register()
+        with self.subTest("order"):
+            self.write(rd.REGISTER, json.dumps({"builds": [good, older]}))
+            with self.assertRaisesRegex(rd.Refusal, "oldest first"):
+                rd.build_register()
+        with self.subTest("missing file"):
+            (self.root / rd.REGISTER).unlink()
+            with self.assertRaisesRegex(rd.Refusal, "missing"):
+                rd.build_register()
+
+    def test_repository_register_matches_the_header(self):
+        rd.ROOT = REPO_ROOT
+        values = rd.coordinates()
+        self.assertEqual(values["game_build"], rd.build_register()[-1]["build"])
 
     def test_unknown_placeholder_refuses_and_writes_nothing(self):
         self.write("docs/release-blocks/bad.md",
@@ -285,6 +358,7 @@ class BumpTests(Fixture):
         self.assertEqual(self.read("docs/releases/sdk-v2.4.2.md"), "# hand-written\n")
 
     def test_bump_game_pack_and_build_update_the_numeric_mirrors(self):
+        self.add_build("4.11.0.60123", "Alpha 4.11.0", ["0.9.2"])
         code, _, err = self.run_main("--bump", "2.5.0", "--game-pack", "0.9.2", "--game-build", "4.11.0.60123")
         self.assertEqual(code, 0, err)
         self.assertIn("SCO_GAME_PACK_VERIFIED_PE_TIMESTAMP", err)
@@ -306,6 +380,9 @@ class BumpTests(Fixture):
         for rel in ("CHANGELOG.md", "site/public-inputs.json", "site/scripts/gen.py", "sdk/VERSION",
                     "sdk/CANDIDATE_TAG", "include/sc_game_pack.h"):
             self.write(rel, self.read(rel), "\r\n")
+        register = json.loads(self.read(rd.REGISTER))
+        register["builds"][-1]["game_packs"].append("0.8.2")
+        self.write(rd.REGISTER, json.dumps(register))
         code, _, err = self.run_main("--bump", "2.4.2", "--game-pack", "0.8.2")
         self.assertEqual(code, 0, err)
         for rel in ("CHANGELOG.md", "site/public-inputs.json", "site/scripts/gen.py", "sdk/VERSION",
@@ -342,6 +419,13 @@ class BumpTests(Fixture):
         code, _, err = self.run_main("--bump", "2.4.2", "--game-pack", "0.9.0")
         self.assertEqual(code, 1, err)
         self.assertEqual(self.snapshot(), before)
+
+    def test_bump_refuses_a_build_missing_from_the_register(self):
+        before = self.read("include/sc_game_pack.h")
+        code, _, err = self.run_main("--bump", "2.5.0", "--game-build", "4.11.0.60123")
+        self.assertEqual(code, 1)
+        self.assertIn("not the newest build in docs/game/builds.json", err)
+        self.assertEqual(self.read("include/sc_game_pack.h"), before)
 
     def test_bump_refuses_a_malformed_game_build(self):
         before = self.snapshot()

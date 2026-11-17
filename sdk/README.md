@@ -13,8 +13,8 @@ Build plugins for [sc-offline](https://github.com/scuba-sc/sc-offline), the Star
 > **Identify the kit in hand:** check `COMPATIBILITY.json` for its versions, profile and source revisions (`COMPATIBILITY.json.game-sc` for the standalone game overlay). Where present, the SDK version is also in `VERSION`, or `sdk/VERSION` in source-layout kits. A development archive can have different coordinates from the published stable release and is not itself a release asset.
 
 <!-- release-block:current-release -->
-SDK **2.4.1** uses Star Citizen game pack **0.8.1** (checked against build
-4.10.200.58746) and plugin ABI **1.1**. Download it from the
+SDK **2.4.1** uses Star Citizen game pack **0.8.1** (checked against Star Citizen
+Alpha 4.10.3, build 4.10.200.58746; see [game builds](../docs/game/builds.md)) and plugin ABI **1.1**. Download it from the
 [`sdk-v2.4.1` release page](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.1) and verify each archive against that release's
 `SHA256SUMS`; the [release notes](https://github.com/scuba-sc/sco-core/blob/sdk-v2.4.1/docs/releases/sdk-v2.4.1.md) list what changed. The previous release is
 [SDK 2.4.0](https://github.com/scuba-sc/sco-core/blob/sdk-v2.4.0/docs/releases/sdk-v2.4.0.md).

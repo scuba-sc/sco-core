@@ -17,8 +17,11 @@ or publication.
 
 - Plugin ABI stays **1.1**. Plugins built against SDK 2.4.0 load unchanged; every addition
   below is a new optional interface or a new sized-table field behind an extent check.
-- The game pack advances to **0.8.1** for Star Citizen build 4.10.200.58746. Pin it per
-  build as before: `COMPATIBILITY.json.game-sc` names the build the archive was checked against.
+- The game pack advances to **0.8.1** for Star Citizen Alpha 4.10.3 (build 4.10.200.58746,
+  on LIVE since 2026-11-12). Pin it per build as before: `COMPATIBILITY.json.game-sc` names the
+  build the archive was checked against. [Game builds](../game/builds.md) lists every build the
+  rows were checked against and which rows changed from the build before; on 4.10.3 five rows
+  were re-anchored.
 - The five profiles are unchanged: `core`, `game-sc`, `legacy`, `core-source`, `host-source-sc`.
 - Stable 2.4.0 archives remain on their release page with unchanged bytes.
 
@@ -75,7 +78,7 @@ SDK tests for this release are synthetic: unit and fixture tests, headless widge
 archive and checker tests. They do not by themselves show in-game behaviour.
 
 Separately, the sc-offline product ran a development build of this source
-(`2.4.1-dev.6`, process-retained composition) in Star Citizen 4.10.200.58746 during owner
+(`2.4.1-dev.6`, process-retained composition) in Star Citizen 4.10.3 (4.10.200.58746) during owner
 test sessions: the host started, creative switches, vehicle spawn and seating, and exit work
 on stop were observed in its logs. That is product evidence for one build and one setup, not
 an SDK guarantee. Loadout equip has no verified game route in this release and is refused.
@@ -86,7 +89,7 @@ an SDK guarantee. Loadout equip has no verified game route in this release and i
   in game use `Composition::ProcessRetained`.
 - A direct engine quit does not dispatch `game.exit` or withdraw dependent services; a
   product-owned pre-quit signal remains necessary.
-- Hauling semantics on build 4.10.200 are not verified.
+- Hauling semantics on 4.10.3 (build 4.10.200) are not verified.
 
 ## Previous release
 

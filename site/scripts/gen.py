@@ -90,6 +90,7 @@ HUB_DOCS = {
         ('docs/game-services.md', 'Services the Star Citizen game pack publishes under the reserved owner `game`.'),
         ('docs/game/relocation-position.md', 'Explicit position-only relocation requests, completion evidence and unavailable native producer boundaries.'),
         ('docs/game/status.md', 'Status of every `game.*` table.'),
+        ('docs/game/builds.md', 'Every Star Citizen patch the game pack was checked against, and which rows each one changed.'),
         ('docs/storage.md', 'Per-plugin key-value and SQL storage over SQLite.'),
         ('docs/ui.md', 'Renderer-neutral `sco.widgets` and the legacy `sco.ui` service.'),
         ('docs/ipc.md', 'Local IPC through one named shared-memory mapping.'),

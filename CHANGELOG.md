@@ -9,6 +9,13 @@ What each change means for plugin authors and for products built on sco-core (sc
 SDK 2.4.1 with game pack 0.8.1 for Star Citizen build 4.10.200.58746. Plugin ABI stays 1.1;
 plugins built against 2.4.0 load unchanged. Release notes: `docs/releases/sdk-v2.4.1.md`.
 
+- Docs: [game builds](docs/game/builds.md) records every Star Citizen build the game pack was
+  checked against (public patch name, file version, changelist, LIVE date, the game pack and
+  SDK releases pinned to it, and which rows changed from the build before), generated from
+  `docs/game/builds.json`. Build 4.10.200.58746 is Alpha 4.10.3. `tools/release_docs.py`
+  refuses a verified build that is not the newest entry there, and release banners name the
+  patch.
+
 - Set the stable source version to `2.4.1` and the automatic candidate designation to
   `sdk-v2.4.1`; development archives built after this release use `2.4.2-dev.N`.
 
