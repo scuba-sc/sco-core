@@ -6,6 +6,8 @@
 #include <cstdlib>
 #include <limits>
 #include <string>
+#include <fstream>
+#include <sstream>
 using namespace sco::game::services;
 namespace {
 int a, b; auto* owner = reinterpret_cast<sco_plugin*>(&a);
@@ -106,5 +108,40 @@ int main() {
     CHECK(wrapper.Spawn(path, 7, pos, rot, id) == SCO_UNAVAILABLE && id == 0);
     // Owner-approved R1 default; all refusal/admission cases above still apply.
     CHECK(kPrefabConfirmed);
+    // Readiness needs the spawn.prefabs rows: a build where they do not resolve must not report
+    // the capability ON (the first placement would fail and latch it off until restart).
+    CHECK(PrefabServiceReady(true, true, true, true, false));
+    CHECK(!PrefabServiceReady(true, true, true, false, false));   // rows missing: never ready
+    CHECK(!PrefabServiceReady(false, true, true, true, false));
+    CHECK(!PrefabServiceReady(true, false, true, true, false));
+    CHECK(!PrefabServiceReady(true, true, false, true, false));
+    CHECK(!PrefabServiceReady(true, true, true, true, true));     // engine fault latch
+    // Native refusals: unknown content is NOT_FOUND, absent rows are UNAVAILABLE without a latch,
+    // anything else is a fault that latches.
+    CHECK(ClassifyPrefabError("unknown prefab content path") == PrefabOutcome::NotFound);
+    CHECK(ClassifyPrefabError("unknown entity class") == PrefabOutcome::NotFound);
+    CHECK(ClassifyPrefabError(kPrefabUnavailable) == PrefabOutcome::Unavailable);
+    CHECK(ClassifyPrefabError("prefab spawning isn't available") == PrefabOutcome::Unavailable);
+    CHECK(ClassifyPrefabError("fault while spawning") == PrefabOutcome::Fault);
+    CHECK(ClassifyPrefabError("the spawn batch gave no entity id") == PrefabOutcome::Fault);
+    CHECK(ClassifyPrefabError(nullptr) == PrefabOutcome::Fault);
+    // A stopped spawner also answers "unavailable"; only a running spawner means rows are missing.
+    CHECK(PrefabUnavailableMeansRowsMissing(true, true, true));
+    CHECK(!PrefabUnavailableMeansRowsMissing(false, true, true));
+    CHECK(!PrefabUnavailableMeansRowsMissing(true, false, true));
+    CHECK(!PrefabUnavailableMeansRowsMissing(true, true, false));
+    // entities.cpp links into no test, so guard the wiring by source: PrefabReady must feed the
+    // spawn.prefabs rows into PrefabServiceReady, and the rows check must test all three rows.
+    {
+        const std::string here = __FILE__;
+        const std::string dir = here.substr(0, here.find_last_of("/\\") + 1) + "../src/game/services/";
+        auto slurp = [](const std::string& f) { std::ifstream in(f, std::ios::binary); std::stringstream ss; ss << in.rdbuf(); return ss.str(); };
+        const std::string ent = slurp(dir + "entities.cpp"), spn = slurp(dir + "spawn.cpp");
+        CHECK(!ent.empty() && !spn.empty());
+        CHECK(ent.find("PrefabServiceReady(g_started, g_canSpawn, SpawnReleaseHooked(), SpawnPrefabRowsResolved(), g_prefabFaulted)") != std::string::npos);
+        CHECK(ent.find("if (PrefabUnavailableMeansRowsMissing(g_started, g_canSpawn, SpawnReleaseHooked()))") != std::string::npos);
+        CHECK(spn.find("Ready() && g_sp.prefabSystem && g_sp.attrWriter && g_sp.attrTypeId") != std::string::npos);
+        CHECK(spn.find("if (!SpawnPrefabRowsResolved()) return kPrefabUnavailable;") != std::string::npos);
+    }
     std::printf("prefabs: %u passed, %u failed\n", passed, failed); return failed ? 1 : 0;
 }

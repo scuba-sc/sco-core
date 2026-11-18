@@ -445,10 +445,14 @@ MoveResult MoveEntity(uint64_t id, uint64_t zoneId, const double pos[3], const d
     return MoveEntityLocal(id, localPos, localRot) ? MoveResult::Ok : MoveResult::Refused;
 }
 
+bool SpawnPrefabRowsResolved() {
+    return Ready() && g_sp.prefabSystem && g_sp.attrWriter && g_sp.attrTypeId;
+}
+
 const char* SpawnPrefabEntityInZone(const char* path, uint64_t zoneId, const double pos[3],
                                    const double rot[4], uint64_t& id) {
     id = 0;
-    if (!Ready() || !g_sp.attrTypeId) return "prefab spawning isn't available";
+    if (!SpawnPrefabRowsResolved()) return kPrefabUnavailable;
     return SpawnInZone("StreamingObjectContainer", zoneId, pos, rot, id, path);
 }
 
