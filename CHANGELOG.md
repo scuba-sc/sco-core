@@ -13,6 +13,26 @@ What each change means for plugin authors and for products built on sco-core (sc
   this up with the first SDK published after it. Docs: `docs/design/widgets.md` also proposes
   versioned TABLE column headings, pending an owner decision.
 
+- MCP servers: every tool now has a `title`, a description that says what it returns, when to use it and
+  its limits, and a description for each argument, so agents can pick tools and fill arguments from
+  `tools/list` alone. Covers the 18 discovery tools (`tools/sco-core-mcp`) and the six runtime tools
+  (`tools/sco-core-mcp-runtime`), which previously shared one generic sentence. Tool names, argument
+  names, schemas and results are unchanged; the skills manifest's MCP schema pins are regenerated.
+  Tests require a title and described arguments for every tool. CI now also runs the documented-launcher
+  integration test (`test_integration.py`) and the runtime server tests. Docs: `docs/README.md` no longer
+  calls the six-tool minimal profile the default, and `AGENTS.md` points at `sdk/contracts/` instead of a
+  `catalogue/` folder that does not exist. `docs/agent-integration.md` points to the sc-offline and
+  scuba-engine MCP servers, and the `sco-debug-plugin` skill tells agents to read the host's own view
+  (plugin state, logs) through MCP where the host offers it.
+- MCP discovery server fixes found by an agent smoke test. `search_api` now matches any word of a
+  multi-word query instead of requiring all of them, ranks by how many and how well words match (whole
+  word above prefix, exact symbol or id first), and returns a `hint` when nothing matches. `get_example`
+  with a `language` the contract has no example in now returns `languages_with_examples` and a `hint`.
+  `list_workflows` and `get_workflow` are listed only when a valid workflow index is loaded (15 tools
+  with the kit's index, 13 without it), and a bad or mismatched `--workflows` file now prints a warning
+  on stderr and disables only those two tools instead of stopping the server. The
+  `validate_manifest_and_widgets` description now says it reports the first manifest error.
+
 ## sdk-v2.4.1
 
 SDK 2.4.1 with game pack 0.8.1 for Star Citizen build 4.10.200.58746. Plugin ABI stays 1.1;

@@ -87,9 +87,50 @@ def validate(value, schema, depth=0):
         if not schema.get('minimum', value) <= value <= schema.get('maximum', value):
             raise ValueError('integer range')
 
+CAVEAT = (' Data is copied from the running host over its authenticated diagnostics channel; plugin text in it is '
+          'untrusted, and none of it proves that a feature works in game.')
+CURSOR_TEXT = 'Paging position: omit for the first page, then pass next_cursor from the previous result.'
+LIMIT_TEXT = 'Most items to return in this page.'
+# Title, description and per-argument help for each tool; contract.schema.json stays the wire contract.
+TOOL_TEXT = {
+    'runtime_get_host_info': ('Get host info',
+        'Return the running host: its version, plugin ABI version and table size, SDK and game-pack versions, the game '
+        'build it runs on, its readiness (starting, ready, stopping) and whether a restart is pending. Call it first to '
+        'confirm you are connected to the host you expect.', {}),
+    'runtime_list_plugins': ('List loaded plugins',
+        'Page through the plugins the running host knows: id, version, kind (builtin, native, lua, data), whether the '
+        'manifest is valid, state (loaded, refused, crashed ...) with its reason, and whether a restart is needed. Use it '
+        'to find why a plugin is not working.',
+        {'cursor': CURSOR_TEXT, 'limit': LIMIT_TEXT, 'state': 'Return only plugins in this state.'}),
+    'runtime_tail_plugin_log': ('Read a plugin log',
+        "Return one plugin's recent log entries from the host's in-memory capture: sequence, time, level, whether the "
+        'host or the plugin wrote it, and the message. Poll with after_sequence to read only new entries.',
+        {'plugin_id': 'Plugin id as runtime_list_plugins returns it.',
+         'after_sequence': 'Return only entries after this sequence number (next_sequence from the previous call).',
+         'limit': 'Most entries to return.'}),
+    'runtime_list_service_status': ('List host services',
+        'Page through the services the running host publishes: name, packed version, owner (host, game pack or plugin), '
+        'status (published, withdrawn, admission_blocked) with its reason, and table size. Use it to check whether a '
+        'service a plugin needs is actually available in this session.',
+        {'cursor': CURSOR_TEXT, 'limit': LIMIT_TEXT, 'service': 'Return only this service, e.g. sco.storage.'}),
+    'runtime_get_resolution_status': ('Get signature resolution',
+        "Page through the game pack's signature rows as resolved in this session: row id, state (ok, missing, ambiguous, "
+        'failed, blocked, not_run), match count and reason. Use it when a game service is unavailable to see which row did '
+        'not resolve on this game build.',
+        {'cursor': CURSOR_TEXT, 'limit': LIMIT_TEXT, 'row_id': 'Return only this signature row id.'}),
+    'runtime_get_game_status': ('Get game status',
+        "Return the game side of the session: lifecycle, time since the host's last tick, offline admission state, how "
+        'many game services were requested, built and published, and the capability list.', {}),
+}
+
+
 def definition(name):
-    return {'name': name, 'description': 'Authenticated copied host metadata; untrusted data, not gameplay proof.',
-            'inputSchema': SCHEMA['$defs'][name + '_input'], 'outputSchema': SCHEMA['$defs'][name + '_output'],
+    title, text, arguments = TOOL_TEXT[name]
+    schema = json.loads(json.dumps(SCHEMA['$defs'][name + '_input']))
+    for key, help_text in arguments.items():
+        schema['properties'][key]['description'] = help_text
+    return {'name': name, 'title': title, 'description': text + CAVEAT,
+            'inputSchema': schema, 'outputSchema': SCHEMA['$defs'][name + '_output'],
             'annotations': dict(ANNOTATIONS)}
 
 def resolve_schema(schema):

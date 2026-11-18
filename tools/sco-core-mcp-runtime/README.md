@@ -1,24 +1,16 @@
 # Local runtime MCP (development-only)
 
-Separate from credentials-free [`../sco-core-mcp/server.py`](../sco-core-mcp/README.md).
-Current-source discovery offers fifteen read-only tools by default: six catalogue,
-seven extended discovery and two consumer-workflow tools. Explicit `--minimal-tools`
-retains the original six catalogue tools; `--extended-tools` and `--workflow-tools`
-are compatibility aliases. The unchanged published RC1 launcher still defaults to
-six tools (twelve with `--extended-tools`) and has no workflow index. Use the
-launcher and indexes from the same verified kit; current-source behavior does not
-change published archive bytes.
+Development-only launcher that reads a running host through a local, authenticated
+shared-memory peer. It is separate from the credentials-free
+[SDK discovery server](../sco-core-mcp/README.md), which imports no runtime peer,
+reads no credentials and attaches to no host; that server's optional build and check
+tools do not enable this one. For the pinned SDK route see
+[consumer workflows](../../docs/agent-workflows.md).
 
-Static discovery imports no runtime peer, reads no runtime credentials and attaches
-to no host. Its separate development tools run local builds/checks only when an
-operator configures project roots; they do not enable this runtime launcher.
-See [consumer workflows](../../docs/agent-workflows.md) for the pinned SDK route.
-Native-index discovery exposes symbolic metadata, not callable natives or game
-verification. Structural checks and indexed text do not clear pending provenance;
-distribution still requires the human decisions in the
-[release checklist](../../docs/legal/release-checklist.md#needs-a-person).
 This launcher uses stdio only and never starts a game, socket, scanner or subprocess.
-No tunnel, SSH forwarding, hosted/remote runtime client, LAN or online use is supported.
+Tunnels, SSH forwarding, hosted or remote clients, LAN use and online use are not
+supported. It is not part of any SDK archive; distribution still needs the human
+decisions in the [release checklist](../../docs/legal/release-checklist.md#needs-a-person).
 
 **Default OFF.** Without `--enable-runtime` this process advertises zero tools and
 never loads the native peer or reads a credential. With explicit operator startup
@@ -54,11 +46,11 @@ python3 tools/sco-core-mcp-runtime/package.py \
 Use `.dll` on Windows or `.so` on Linux. The local package contains only the named
 launcher/schema/peer/readme, compiled adapter and hash manifest; never credentials.
 Runtime component is GPL-3.0-only; existing MIT `sc_ipc.h` retains its own licence.
-It is repository-only/development packaged separately, not a new plugin ABI header.
-No release/publication is performed by the packager. An administrator/operator
-must protect the adapter and its dependencies against replacement; pinning is not
-a sandbox against unrestricted same-user native code. Explicit absolute adapter
-path and SHA are required; no PATH search, downloaded helper or dynamic compilation.
+It is packaged separately from the SDK and adds no plugin ABI header. The packager
+publishes nothing. The operator must protect the adapter and its dependencies against
+replacement; the digest pin is not a sandbox against unrestricted same-user native
+code. The adapter path must be absolute and its SHA-256 is required; there is no PATH
+search, downloaded helper or dynamic compilation.
 
 ## Same-PC client registration
 

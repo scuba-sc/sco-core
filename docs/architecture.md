@@ -202,7 +202,7 @@ absent by default. They reserve space for [#141](https://github.com/scuba-sc/sco
 not publishers, gameplay records, game types or new plugin-authored v1 JSON fields.
 Capture is a separate keyed host-only facility, inactive until explicitly started;
 step 1 installs no capture into a product or the ordinary logger. See
-[log privacy](log-privacy.md) and the [phased design](design/runtime-mcp.md#phased-pr-plan-and-acceptance).
+[log privacy](log-privacy.md) and the [phased design](design/runtime-mcp.md#historical-phased-pr-plan-and-acceptance).
 Synthetic acceptance is `test_runtime_diagnostics_snapshot`; timing under Windows,
 protected audit/security permissions and gameplay remain unverified. **Not run in game.**
 

@@ -1,23 +1,34 @@
 # sco-core SDK discovery MCP server
 
-[Consumer workflow discovery](../../docs/agent-workflows.md) is included in the current-source fifteen-tool profile. Start with `sco-plan-sdk-work` to tie the task to the roadmap and public SDK. It reads `sdk-workflows.json` beside the catalogue or an operator-selected `--workflows` file, requires matching SDK/source coordinates, and serves only embedded indexed text.
+Development-only, read-only discovery of the public sco-core SDK contracts over MCP
+on stdio. It needs Python 3.9 or newer (standard library only) and a generated SDK
+catalogue. It does **not** connect to a running host or game, invoke SDK methods,
+execute examples or modify the repository, and by default it compiles nothing. Three
+[development tools](#development-tools-opt-in) that build and check plugin projects
+are offered only when the operator configures `--project-root`.
 
-Development-only, read-only discovery of the public sco-core SDK contracts through
-MCP over stdio. The server uses only the standard library of Python 3.9 or newer
-and a generated SDK catalogue. It does **not** connect to a running host or game,
-invoke SDK methods, execute examples, or modify the repository. It is bundled
-development tooling, not a runtime game-service component. By default it compiles nothing; three
-[development tools](#development-tools-opt-in) that build and check plugin
-projects are offered automatically when the operator configures project roots.
+Tool profiles in current source:
 
-[Separate default-off local runtime launcher](../sco-core-mcp-runtime/README.md)
-implements the fixed runtime tool surface. This discovery executable remains
-credentials-free, with fifteen read-only discovery tools in current source. Explicit
-`--minimal-tools` retains the original six catalogue tools. The default developer
-profile includes [extended discovery](#extended-tools-default) and workflow retrieval.
-The separate launcher supersedes the historical same-server placement in the
-[runtime design](../../docs/design/runtime-mcp.md). Discovery never imports or
-enables runtime inspection. No live runtime/game acceptance is claimed.
+- **Default (SDK developer profile):** 15 read-only tools with the workflow index the SDK
+  kit ships, 13 without it. These are the six catalogue
+  tools, [extended discovery](#extended-tools-default) (service status, engine natives,
+  manifest and widget validation, scaffold, guides) and workflow retrieval
+  (`list_workflows`, `get_workflow`). Workflow tools read `sdk-workflows.json` beside
+  the catalogue, or the file named by `--workflows`; the SDK and source coordinates
+  must match the catalogue. They are listed only when a valid index is loaded.
+  Start with `sco-plan-sdk-work`; see
+  [consumer workflows](../../docs/agent-workflows.md).
+- **Minimal:** `--minimal-tools` offers only the original six catalogue tools.
+- **With `--project-root`:** the default tools (15, or 13 without the workflow index) plus `run_plugin_check`,
+  `build_plugin_project` and `test_plugin_project`, 18 in all with the index.
+
+`--extended-tools` and `--workflow-tools` are accepted aliases and no longer needed;
+they cannot be combined with `--minimal-tools`.
+
+The [default-off runtime launcher](../sco-core-mcp-runtime/README.md) is a separate
+program. This server never imports it or enables runtime inspection, and no live
+runtime or game acceptance is claimed for either. The runtime launcher replaces the
+same-server placement described in the [runtime design](../../docs/design/runtime-mcp.md).
 
 The contract authority is [`docs/contracts.md`](../../docs/contracts.md), with
 per-method records in [`sdk/contracts/`](../../sdk/contracts/). The server exposes
@@ -27,23 +38,18 @@ that evidence; it does not replace the contract's reading rules or remaining gap
 
 To connect Claude Code, Codex, Cursor, VS Code or Copilot CLI to the SDK kit, follow
 [Set up the discovery server from the SDK kit](../../docs/agent-integration.md#set-up-the-discovery-server-from-the-sdk-kit).
-It downloads and verifies the kit, defines the SDK folder (the folder that directly contains
-`sdk-catalogue.json`), gives each client's configuration and says how to verify the
-connection. This README does not repeat those configurations. Two profiles are used
-in current-source examples: **SDK developer profile (recommended default)** with
-fifteen read-only tools, and **minimal profile** with explicit `--minimal-tools`
-and six catalogue tools. The legacy `--extended-tools` and `--workflow-tools` flags
-remain accepted aliases and are no longer needed; they cannot be combined with
-`--minimal-tools`.
+It covers download and verification, the SDK folder (the folder that directly contains
+`sdk-catalogue.json`), each client's configuration and how to verify the connection.
+This README does not repeat those configurations.
 
 ## Copyable SDK consumer tutorial
 
-[SDK → MCP → tutorial-owned plugin](../../docs/sdk-mcp-tutorial.md) first walks the
-standalone kit workflow with the SDK developer profile: scaffold, manifest and widget
-validation, native index, guides, and an optional build and check. Its downstream
-walkthrough then uses the six static tools, owned NPC/inspector copies, an isolated
-archive build, the checker and a named dynamic fixture. Runtime observations remain
-optional and default-off; static discovery never certifies gameplay or performs reload.
+[SDK, MCP and a tutorial-owned plugin](../../docs/sdk-mcp-tutorial.md) walks the
+standalone kit workflow with the default profile: scaffold, manifest and widget
+validation, native index, guides and an optional build and check. Its downstream
+walkthrough uses the six catalogue tools, owned NPC and inspector copies, an isolated
+archive build, the checker and a named dynamic fixture. Static discovery never
+certifies gameplay or performs reload.
 
 ## Using an extracted SDK archive
 
@@ -170,31 +176,24 @@ recorded path.
 
 ### Previous release: SDK 2.4.0
 
-The 2.4.0 combined archive is `sco-sdk-2.4.0.zip`. The material below describes that
-release and the release candidates before it; their archives keep their original bytes.
-
-
-RC2 was published on 2026-10-28; its immutable archive identity is recorded in the
-[release notes](../../docs/releases/sdk-v2.4.0.md#published-rc2-archive-identity).
-
-The [stable 2.4.0 release page](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0)
-provides the five profile archives and `SHA256SUMS`; the
+The 2.4.0 combined archive is `sco-sdk-2.4.0.zip` and unpacks to `sco-sdk-2.4.0`.
+This section describes that release and the candidates before it; their archives keep
+their original bytes. The [2.4.0 release page](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0)
+has the five profile archives and `SHA256SUMS`, and the
 [release notes](../../docs/releases/sdk-v2.4.0.md#stable-sdk-240-archive-identities)
-record the release source and all profile identities.
-The stable archive's root README describes RC2
-workflows, and its MCP README says the final release is not yet published. These
-are prepublication statements in the packaged snapshot; this source page does not
-rewrite it. The archived workflow index also retains some prepublication wording.
-Historical RC1
-has its own earlier launcher and frozen guides; see the known issue in the
-[integration guide](../../docs/agent-integration.md#set-up-the-discovery-server-from-the-sdk-kit).
+record the release source and every profile identity. RC2 was published on 2026-10-28;
+its archive identity is in the
+[RC2 section](../../docs/releases/sdk-v2.4.0.md#published-rc2-archive-identity).
 
-The stable 2.4.0 launcher has the fifteen-tool default and matching workflow index.
-The historical RC2 launcher has fourteen tools; it predates `get_service_status` and
-the schema-2 catalogue. The older RC1 launcher retains its original six-tool default
-and twelve with `--extended-tools`; it has no workflow tools/index. Those archives'
-servers speak only the legacy `2025-11-25` protocol. The 2.4.0 combined kit unpacks to
-`sco-sdk-2.4.0`.
+- **2.4.0:** 15-tool default and matching workflow index.
+- **The historical RC2 launcher:** 14 tools. It predates `get_service_status` and the schema-2 catalogue.
+- **RC1:** six-tool default, 12 with `--extended-tools`, and no workflow tools or index.
+
+These launchers speak only protocol `2025-11-25`. The 2.4.0 archive's own README files
+still carry RC2-era text, including that the final release is not yet published. That
+is prepublication wording in the packaged snapshot, not release status. RC1 has its own
+earlier launcher and frozen guides; see the known issue in the
+[integration guide](../../docs/agent-integration.md#set-up-the-discovery-server-from-the-sdk-kit).
 
 ## Run from a source checkout (maintainers)
 
@@ -253,7 +252,7 @@ server before relying on the new snapshot. The server does not regenerate it.
 These are the original six catalogue tools, retained alone by explicit
 `--minimal-tools`. The default developer profile also includes the seven
 [extended tools](#extended-tools-default) and two workflow tools below, fifteen
-read-only tools in total. Three [development tools](#development-tools-opt-in)
+read-only tools in total with the kit's workflow index (thirteen without it). Three [development tools](#development-tools-opt-in)
 are additionally offered when the operator configures project roots. List the
 exact names of your profile explicitly, not with a wildcard.
 The Arguments column gives the exact `inputSchema` property names, required ones
@@ -261,7 +260,7 @@ first; any other argument name is refused:
 
 | Tool | Arguments | Purpose |
 |---|---|---|
-| `search_api` | `query`; optional: `language`, `service`, `limit` | Search catalogue contracts, with optional service and language filtering. |
+| `search_api` | `query`; optional: `language`, `service`, `limit` | Search catalogue contracts by any word of the query, with optional service and language filtering. |
 | `get_symbol` | `symbol_or_id` | Retrieve a symbol's contract and its source-backed language mappings. |
 | `list_services` | none | Discover public service tables, versions, sizes, member counts and [stability](#stability) labels. |
 | `get_example` | `symbol_or_id`; optional: `language` | Return a selected record's listed example paths, and optionally their bounded contents. |
@@ -273,7 +272,15 @@ the record's stable id such as `sc-actors-v1-spawn-npc`; `search_api` results
 carry both. Inspect `tools/list` for each tool's full input schema. Language values
 are `c`, `cpp`, `csharp`, and `lua`; use those tokens rather than display names.
 `search_api` accepts at most 512 characters in `query`, a `limit` from 1 to 50
-(default 10), and an optional `service`. `check_compatibility` accepts
+(default 10), and an optional `service`. A contract matches when any word of the
+query matches. It scores higher for each matching word, for a whole word over a word
+prefix over text inside a word, and for matches in the symbol or id over the purpose;
+common filler words such as "the" and "how" are ignored. An exact symbol or id always
+ranks first. When nothing matches, the result has an empty `records` list and a `hint`
+(try fewer words, or call `list_services` for a service name).
+`get_example` with a `language` that the contract has no example in returns an empty
+`examples` list, `languages_with_examples` (the languages that do have examples) and a
+one-line `hint`. `check_compatibility` accepts
 `sdk_version` and `game_pack_version` as strings to compare with the catalogue's
 own `sdk_version` and `game_pack_version` (copy them from any result's
 `provenance`).
@@ -347,20 +354,17 @@ methods mentioned in the returned contracts read-only or safe to invoke.
 
 <a id="extended-tools-opt-in"></a>
 
-These seven extended tools and the two workflow tools are included by default.
-`--minimal-tools` omits all nine and offers exactly the original six catalogue
-tools when no project roots are configured. The legacy `--extended-tools` and
-`--workflow-tools` flags remain compatibility aliases, not prerequisites. Add
-the default fifteen names to client allowlists explicitly.
-[The integration guide](../../docs/agent-integration.md#choose-a-profile) explains
-which reviewed generator code the developer tools can run:
+These seven extended tools are on by default, and so are the two workflow tools when a
+valid workflow index is loaded. `--minimal-tools` omits all nine. Add the default names
+(15 with the index, 13 without it) to client allowlists explicitly. [The integration guide](../../docs/agent-integration.md#choose-a-profile)
+explains which reviewed generator code these tools can run:
 
 | Tool | Arguments | Purpose |
 |---|---|---|
 | `get_service_status` | `service` | List catalogue tables for a service and its static capability/evidence rows, including rows without method mappings. Schema-2 catalogues bind the registry by SHA-256; schema-1 data is marked unbound. This is not a running-host probe. |
 | `list_engine_natives` | optional: `subsystem`, `tier`, `query`, `limit`, `cursor` | Page through `sdk/native_index.json`, filtered by `subsystem`, `tier` (1-4) or a case-insensitive `query` substring of id, hash, subsystem, source or capability. |
 | `get_engine_native` | `id_or_hash` | Return one row by its id or `_0x` hash (hex digits in any case), with its tier's meaning. |
-| `validate_manifest_and_widgets` | `plugin_ini`; optional: `folder`, `widgets` | Check `plugin.ini` text, and optionally a widget node array, and return findings. |
+| `validate_manifest_and_widgets` | `plugin_ini`; optional: `folder`, `widgets` | Check `plugin.ini` text, and optionally a widget node array, and return findings. It reports the first manifest error, as the host's reader stops there; widget findings are all reported. |
 | `generate_plugin_scaffold` | `id`, `lang`; optional: `with_menu`, `services` | Return the files [`sco-new-plugin`](../../sdk/tools/sco-new-plugin.py) would generate for a plugin spec, without writing them. |
 | `search_guides` | `query`; optional: `doc`, `limit`, `cursor` | Rank sections of the SDK guides by the query's whole-word terms (heading and title above body text, rarer terms above common ones) and return bounded snippets with doc, heading, anchor and url. |
 | `get_guide_section` | `doc`, `anchor` | Return one guide section's bounded plain text, by the doc and anchor `search_guides` returned. |
@@ -379,10 +383,11 @@ The operator-selected `--workflows` file, or default `sdk-workflows.json` beside
 the catalogue, is loaded once as bounded data (2 MiB index, 64 KiB per text file,
 up to 32 workflows and 16 files each). SDK/source coordinates must exactly match
 the catalogue. The index contains embedded text with validated hashes: tool
-arguments never trigger file reads. A missing default index keeps both tools
-listed but calls report `Workflow index unavailable`. An explicitly selected
-missing index, or a present malformed, corrupted or source-mismatched index,
-refuses startup rather than falling back. `--minimal-tools` reads no index and
+arguments never trigger file reads. Without a valid index the two tools are not listed,
+and a call to either name is refused as an unknown tool. A missing default index is
+silent. An explicitly selected missing index, or a present malformed, corrupted or
+source-mismatched one, prints a warning on stderr and disables only these two tools;
+the rest of the server starts normally. `--minimal-tools` reads no index and
 cannot be combined with workflow-selection flags.
 
 Build a source index beside a matching catalogue using
@@ -577,8 +582,8 @@ The operator configures at least one `--project-root DIR`; the server then
 automatically offers the tools. Without project roots they are absent and calls
 to their names are refused as unknown. `--enable-dev-tools` remains a compatibility
 flag and still requires a project root. Add each name to the client allowlist
-explicitly; three execution tools plus the default fifteen discovery tools means
-eighteen offered tools:
+explicitly; three execution tools plus the default fifteen discovery tools (thirteen
+without the workflow index) means eighteen offered tools (sixteen without it):
 
 | Tool | Arguments | Purpose |
 |---|---|---|

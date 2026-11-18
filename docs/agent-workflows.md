@@ -21,17 +21,9 @@ Verify archives against the release's `SHA256SUMS`. SDK 2.4.0 was published on 2
 | Move between SDK/host versions | [sco-upgrade-plugin](../sdk/skills/sco-upgrade-plugin/SKILL.md) |
 | Prepare a minimal public gap report | [sco-report-sdk-gap](../sdk/skills/sco-report-sdk-gap/SKILL.md) |
 
-Read an entrypoint only when its task applies, then its relevant references. These are portable Markdown skills; open the files directly or follow your agent client's supported skill installation process. The SDK never writes agent configuration or automatically installs/activates them. Keep the complete bundle together because workflows share references.
+Read an entrypoint only when its task applies, then the references it links. The skills are portable Markdown: open the files directly, or follow your agent client's own skill-installation steps. The SDK never writes agent configuration or installs a skill.
 
-For direct-file use, give an agent with access to the extracted kit the path
-`<SDK>/skills/sco-plan-sdk-work/SKILL.md` and ask it to read that file and the
-relevant linked references for the task. The other five entrypoints are siblings
-under `<SDK>/skills/`; preserve the entire `skills/` directory, including the
-manifest and reference files, so cross-workflow links resolve. In a source kit the
-corresponding path is `<source-root>/sdk/skills/sco-plan-sdk-work/SKILL.md`.
-Reading these files provides instructions to the agent; it does not install or
-activate a skill in a client. Client-specific installation, if desired, follows
-that client's own instructions and requires access to the complete bundle.
+To use them directly, give the agent `<SDK>/skills/sco-plan-sdk-work/SKILL.md` (in a source checkout, `sdk/skills/sco-plan-sdk-work/SKILL.md`) and ask it to read that file and the references it links. The other five entrypoints are siblings. Keep the whole `skills/` directory, including `manifest.json` and the reference files, so cross-workflow links resolve.
 
 ## Archive and source discovery
 
@@ -43,9 +35,9 @@ The [discovery server](../tools/sco-core-mcp/README.md) exposes all fifteen read
 python3 "$SDK/tools/sco-core-mcp/server.py" --catalogue "$SDK/sdk-catalogue.json" --repo-root "$SDK"
 ```
 
-The catalogue and workflow index must have exactly matching SDK/source coordinates; a missing, oversized, malformed, hash-inconsistent or mismatched index refuses startup when an index is supplied or present. If the default index is missing, the workflow tools remain listed and return a precise unavailable error. The operator can select an index with `--workflows <file>`. Tool calls cannot select arbitrary filesystem files: `get_workflow` serves only embedded indexed text. `list_workflows {}` returns IDs/descriptions/entry paths; `get_workflow {"id":"sco-build-check-package"}` reads the entrypoint and lists resource paths/hashes. Pass a returned `path` with that ID to read one reference. Cross-workflow links are resolved by requesting the linked workflow's ID.
+The catalogue and workflow index must have exactly matching SDK/source coordinates; a missing selected index, or an oversized, malformed, hash-inconsistent or mismatched index that is present, prints a warning on stderr and disables only the two workflow tools. Without a valid index they are not listed, and a missing default index is silent. The operator can select an index with `--workflows <file>`. Tool calls cannot select arbitrary filesystem files: `get_workflow` serves only embedded indexed text. `list_workflows {}` returns IDs/descriptions/entry paths; `get_workflow {"id":"sco-build-check-package"}` reads the entrypoint and lists resource paths/hashes. Pass a returned `path` with that ID to read one reference. Cross-workflow links are resolved by requesting the linked workflow's ID.
 
-Use `--minimal-tools` for the original six catalogue tools. The old `--extended-tools` and `--workflow-tools` flags remain compatibility aliases. Local build/check tools are offered when an operator configures `--project-root`; fixed commands, confinement and resource limits still apply. Runtime inspection retains its independent admission requirements. Check the selected archive inventory for its catalogue, server and workflow bundle; direct skill-file reading is independent of MCP availability. Combined or matching core+game-sc kits support MCP discovery. Core-source/host-source are distinct source build inputs.
+`--minimal-tools` offers only the six catalogue tools; see the [server README](../tools/sco-core-mcp/README.md) for profiles and the opt-in build and check tools. Check the selected archive's inventory for its catalogue, server and workflow bundle. Reading skill files directly does not need MCP. Core-source and host-source kits are source build inputs, not MCP kits.
 
 The current development core and combined plugin kits' experimental raw Rust
 example is a manual route: read `rust/README.md` and `examples/rust_hello`
@@ -215,7 +207,7 @@ The existing workflow builder also checks the manifest’s pinned MCP server/pro
 Change bundle version when instructions/resources change; the registry and each entrypoint must agree. Do not copy API declarations into skills. Preserve the published RC/main/final-release distinction and explicit owner deferrals during upgrades. The generic host API also defaults external plugins on when the host supplies a
 nonempty plugin root. Explicit disable markers/host policy still apply; an empty
 root never discovers the current directory. [Backend readiness](defaults-readiness.md)
-reviews all 37 recorded OFF capabilities and each required safeguard. APIs remain
+reviews the recorded OFF capabilities and each required safeguard. APIs remain
 truthful about missing providers and game evidence.
 
 See [agent integration](agent-integration.md) and [contributor rules](../CONTRIBUTING.md).

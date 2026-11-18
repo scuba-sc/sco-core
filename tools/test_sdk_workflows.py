@@ -446,13 +446,13 @@ class ArchiveAndMCP(unittest.TestCase):
         for extended in (False, True):
             c = self.client(extended=extended)
             names = [t['name'] for t in c.request('tools/list')['result']['tools']]
-            expected = client_module.EXTENDED_ORDER if extended else client_module.ORIGINAL_ORDER
+            expected = client_module.ALL_ORDER if extended else client_module.ORIGINAL_ORDER
             self.assertEqual(names, expected)
             if not extended:
                 self.assertIn('error', c.call('list_workflows'))
         c = self.client(extended=True, extra=('--workflow-tools',))
         tools = c.request('tools/list')['result']['tools']
-        self.assertEqual([t['name'] for t in tools], client_module.EXTENDED_ORDER)
+        self.assertEqual([t['name'] for t in tools], client_module.ALL_ORDER)
         self.assertTrue(all(t['annotations']['readOnlyHint'] for t in tools))
         listed = c.call('list_workflows')['result']['structuredContent']
         self.assertEqual(len(listed['workflows']), 6)
@@ -481,9 +481,18 @@ class ArchiveAndMCP(unittest.TestCase):
             path.write_bytes(workflows.encoded(d))
             r = subprocess.run([sys.executable, str(client_module.SERVER), '--catalogue', str(self.cat),
                                 '--workflow-tools', '--workflows', str(path)], input=b'', capture_output=True, timeout=10)
-            self.assertNotEqual(r.returncode, 0)
+            self.assertEqual(r.returncode, 0)
             self.assertEqual(r.stdout, b'')
-            self.assertIn(b'workflows refused', r.stderr)
+            self.assertIn(b'workflow index refused', r.stderr)
+            self.assertIn(b'disabled', r.stderr)
+        # An invalid index disables only the two workflow tools; the rest still serves.
+        d = copy.deepcopy(self.index)
+        d.update(source_sha='b' * 40)
+        path.write_bytes(workflows.encoded(d))
+        c = client_module.Client(self.cat, extended=True, extra=('--workflows', str(path)))
+        self.addCleanup(c.close)
+        self.assertIn('result', c.initialize())
+        self.assertEqual([t['name'] for t in c.request('tools/list')['result']['tools']], client_module.EXTENDED_ORDER)
         # The explicitly selected index also works without the old opt-in flag.
         c = self.client(extended=True, extra=('--workflows', str(self.index_path)))
         self.assertEqual(len(c.call('list_workflows')['result']['structuredContent']['workflows']), 6)

@@ -23,6 +23,19 @@ class FakePeer:
         return server.encode(self.output if self.output is not None else VECTORS[name][0])
 
 class RuntimeTests(unittest.TestCase):
+    def test_every_tool_and_argument_is_described(self):
+        descriptions = set()
+        for name in server.NAMES:
+            definition = server.definition(name)
+            self.assertTrue(definition['title'])
+            self.assertGreaterEqual(len(definition['description']), 120)
+            descriptions.add(definition['description'])
+            for key, schema in definition['inputSchema']['properties'].items():
+                self.assertGreaterEqual(len(schema.get('description', '')), 15, name + '.' + key)
+            # Descriptions are added to a copy; the wire contract keeps its exact bytes.
+            self.assertNotIn('description', json.dumps(server.SCHEMA['$defs'][name + '_input']))
+        self.assertEqual(len(descriptions), len(server.NAMES))
+
     def test_six_schemas_and_inputs(self):
         peer = FakePeer(); app = server.Server(True, peer)
         app.dispatch({'jsonrpc': '2.0', 'id': 1, 'method': 'initialize', 'params': {'protocolVersion': server.VERSION}})

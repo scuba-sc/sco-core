@@ -10,21 +10,15 @@ Alpha 4.10.3, build 4.10.200.58746; see [game builds](../docs/game/builds.md)) a
 [`sdk-v2.4.1` release page](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.1); the [release notes](https://github.com/scuba-sc/sco-core/blob/sdk-v2.4.1/docs/releases/sdk-v2.4.1.md) list what changed.
 <!-- /release-block:current-release-brief -->
 
-Download the combined developer kit from that release page and verify its digest against that
-release's `SHA256SUMS`. A tag or candidate artifact alone does not establish a release.
-The combined kit, composed
-core-plus-game overlay and host-source kit supply the discovery launcher,
-`sdk-catalogue.json` and `sdk-guides.json`. This is packaging behavior, not a
-gameplay acceptance claim. Core-only profiles do not contain the game catalogue.
-
-The complete workflow uses the SDK <!--rv:sdk_version-->2.4.1<!--/rv--> combined kit, which includes the
-matching catalogue and workflow index. Verify the archive against the release's `SHA256SUMS`
-and extract it to an empty directory. For a source checkout, build matching
-metadata as described in the
-[discovery README](../tools/sco-core-mcp/README.md) and
-[workflow guide](agent-workflows.md#archive-and-source-discovery). A local build
-is not the published release asset or permission to distribute it. Do not pair
-a release archive's bytes with the site's changing mainline catalogue or a different index.
+Download the combined developer kit from that release page, check its digest against the
+release's `SHA256SUMS` and extract it to an empty directory. A tag or candidate artifact alone
+does not establish a release. The combined kit, a composed core-plus-game overlay and the
+host-source kit carry the discovery launcher, `sdk-catalogue.json`, `sdk-guides.json` and the
+workflow index; core-only profiles do not. From a source checkout, build matching metadata as
+described in the [discovery README](../tools/sco-core-mcp/README.md) and the
+[workflow guide](agent-workflows.md#archive-and-source-discovery). A local build is not the
+published release asset or permission to distribute it. Do not pair a release archive's bytes
+with the site's changing mainline catalogue or a different index.
 
 Prerequisites for discovery: Python 3.9 or newer and a stdio MCP client. The
 SDK <!--rv:sdk_version-->2.4.1<!--/rv--> kit supports legacy protocol `2025-11-25` and the metadata-based protocol
@@ -35,15 +29,12 @@ consume a bundled one.
 
 ### Connect the client
 
-Follow [Set up the discovery server from the SDK kit](agent-integration.md#set-up-the-discovery-server-from-the-sdk-kit),
-using the SDK <!--rv:sdk_version-->2.4.1<!--/rv--> combined kit for the steps below. Set
-`SDK_ROOT` to the folder that directly contains its `sdk-catalogue.json` and
-`sdk-workflows.json`; register `sco-core-sdk` in your client and verify the
-connection. The SDK <!--rv:sdk_version-->2.4.1<!--/rv--> archive uses the **SDK developer profile**: fifteen
-read-only tools by default, including `get_service_status` and its schema-2 catalogue.
-Explicit `--minimal-tools` retains the six catalogue tools and
-leaves out scaffolding, validation, native/guide and workflow discovery. The
-legacy `--extended-tools` and `--workflow-tools` aliases are no longer needed.
+Follow [Set up the discovery server from the SDK kit](agent-integration.md#set-up-the-discovery-server-from-the-sdk-kit)
+with the SDK <!--rv:sdk_version-->2.4.1<!--/rv--> combined kit. Set `SDK_ROOT` to the folder that directly
+contains `sdk-catalogue.json` and `sdk-workflows.json`, register `sco-core-sdk` in your client and
+verify the connection. The default developer profile offers 15 read-only tools, including
+`get_service_status`. `--minimal-tools` keeps only the six catalogue tools and leaves out
+scaffolding, validation, native and guide discovery, and workflows.
 
 To start the server by hand, with absolute paths on the machine running the client:
 
@@ -69,10 +60,9 @@ reviewed generator code in-process.
 On the SDK <!--rv:sdk_version-->2.4.1<!--/rv--> kit call `list_workflows {}`, then
 `get_workflow {"id":"sco-plan-sdk-work"}`. Read its returned references as needed,
 map the task to the pinned roadmap goal and public contracts, and record observable
-acceptance before continuing below. If the default index is missing, the names remain listed but return
-`Workflow index unavailable`; obtain or build matching index bytes rather than
-combining snapshots. A selected missing or present invalid/mismatched index
-refuses startup. These tools serve embedded reference text and execute no code.
+acceptance before continuing below. If the default index is missing, the two tools are not listed; obtain or build
+matching index bytes rather than combining snapshots. A selected missing or present
+invalid/mismatched index prints a startup warning on stderr and disables only these two tools. These tools serve embedded reference text and execute no code.
 
 ### Discover one contract
 

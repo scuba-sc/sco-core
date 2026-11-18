@@ -82,7 +82,7 @@ restarts, surviving a service stop and start, and leaves a healthy
 `game.audio.triggers` mode working, including resolving new names.
 
 **Native status:** the one-shot adapter exists in
-[`audio_engine.cpp`](../src/game/services/audio_engine.cpp) and resolves the three
+[`audio_engine.cpp`](../../src/game/services/audio_engine.cpp) and resolves the three
 Wwise entry points by exported name from the client's own export directory
 (`?PostEvent@SoundEngine@AK@@...ExternalSourceInfo...`, `?GetIDFromString@SoundEngine@AK@@YAIPEBD@Z`,
 `?IsInitialized@SoundEngine@AK@@YA_NXZ`; read from the 4.10.197.2878 LIVE client,

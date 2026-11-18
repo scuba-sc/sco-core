@@ -38,7 +38,7 @@ Alpha 4.10.3, build 4.10.200.58746; see [game builds](../docs/game/builds.md)) a
 | `csharp/` | The C# layer (`Sco.Sdk`, .NET 8, NativeAOT) and its layout test: [C# plugins](#c-plugins). `Sco.Sdk/Game/`, `DataCore*.cs` and the tests' `Game*.cs` come with the Star Citizen extension; the project compiles whichever are present |
 | `cmake/sco-plugin.cmake` | `sco_add_plugin()` and `sco_add_pack()`: build a plugin and lay it out |
 | `template/` | A native plugin to copy and rename |
-| `examples/` | `hello` (native C), `counter_service` and `counter_panel` (native C: a provider and a consumer of one service table), `widgets` (native C, retained neutral UI), `cpp_hello` (native C++20), `cs_hello` (native C#, NativeAOT), `greeter` (Lua), `notebook` (Lua: storage with `sco.store`); the Star Citizen extension adds `travel_pack` (data) and `quantum_pack` (data: DataCore overrides) |
+| `examples/` | Native C: `hello`, `counter_service` and `counter_panel` (a provider and a consumer of one service table), `widgets` (retained neutral UI), `content_reader` (`sco.content`), `diagnostics_publisher` (optional diagnostic publisher). Native C++20: `cpp_hello`. Native C#: `cs_hello`, `cs_widgets` (NativeAOT). Lua: `greeter`, `notebook` (storage with `sco.store`), `widgets_lua`. Experimental raw Rust: `rust_hello` (core and combined kits only). The Star Citizen extension adds `travel_pack` (data), `quantum_pack` (data: DataCore overrides), `container_reader` (native C, `game.inventory.contents`) and `actor_stats_probe` (native C probe with an in-game checklist) |
 | `tools/sco-plugin-check.c` | Checks a built plugin folder on your machine, without the game |
 | `tools/sco-plugin-verify.py` | Read-only check of a plugin ZIP's structure and manifest, without extracting it: [Verify a plugin archive](#verify-a-plugin-archive) |
 | `tools/lua-check.lua` | Runs a Lua plugin against a stand-in `sco` table, without the game |
@@ -299,10 +299,7 @@ To switch one plugin off, create an empty file named `disabled` in its folder.
 
 ## Generate a plugin folder
 
-Published RC1's generator writes a native API 1.0 manifest while exporting built-against
-API 1.1. The current source corrects this to 1.1. For an author-owned project generated
-with the unchanged RC1 tool, make its native manifest declare 1.1; do not alter the SDK's
-recorded checksums or claim API 1.0 admission from a short-table check.
+The generator in the published RC1 kit wrote `api = 1.0` in native manifests even though the plugin exports built-against 1.1; current source writes 1.1. If you generated a project with the RC1 tool, change its native manifest to `api = 1.1`. Do not alter the SDK's recorded checksums, and do not read a short-table check as API 1.0 admission.
 
 `tools/sco-new-plugin.py` (Python 3.8 or newer) writes a ready-to-build plugin folder in one command, in C, C++, C# or Lua:
 
