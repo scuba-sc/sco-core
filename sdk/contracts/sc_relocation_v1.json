@@ -13,15 +13,15 @@
       "member_extent": 16,
       "table_size": 32,
       "since": "`size >= 16`; 1.0",
-      "purpose": "Admit a copied finite bounded position and normalized quaternion for a streamed nonzero target zone. Request size at least 72, timeout 1..60000ms. Requires known equal nonzero systems, host-certified offline/session/player and validated transport. Unknown safety or system refuses. One global pending request. Output ticket unchanged on refusal; admission is not completion.",
-      "buffer_contract": "`sco_result (*request)(sco_plugin* self, const sc_relocation_request* request, uint64_t* out_ticket);`<br>Admit a copied finite bounded position and normalized quaternion for a streamed nonzero target zone. Request size at least 72, timeout 1..60000ms. Requires known equal nonzero systems, host-certified offline/session/player and validated transport. Unknown safety or system refuses. One global pending request. Output ticket unchanged on refusal; admission is not completion.",
+      "purpose": "Admit a copied finite bounded position and normalized quaternion for a streamed nonzero target zone. Request size at least 72, timeout 1..60000ms. Requires known equal nonzero systems, host-certified offline/session/player and validated transport. Unknown safety or system refuses. One global pending request. Output ticket unchanged on refusal. Admission is not completion, except that a request already at its target completes at admission with applied 0.",
+      "buffer_contract": "`sco_result (*request)(sco_plugin* self, const sc_relocation_request* request, uint64_t* out_ticket);`<br>Admit a copied finite bounded position and normalized quaternion for a streamed nonzero target zone. Request size at least 72, timeout 1..60000ms. Requires known equal nonzero systems, host-certified offline/session/player and validated transport. Unknown safety or system refuses. One global pending request. Output ticket unchanged on refusal. Admission is not completion, except that a request already at its target completes at admission with applied 0.",
       "ownership": "Local player only; owner-scoped opaque tickets. No arbitrary entity/pointer/owner writes. Copied request and caller-owned output. 32 retained terminal tickets; oldest terminal evicted at admission.",
       "thread_affinity": "Game thread only; wrong thread returns SCO_WRONG_THREAD without touching state.",
       "callback_context": "No callbacks; bounded tick-driven work.",
       "reentrancy": "Non-reentrant.",
       "results": "SCO_OK success; SCO_BAD_ARG invalid input/self; SCO_UNAVAILABLE missing safety/player/transport or unknown/different systems; SCO_TOO_MANY pending global request or ticket exhaustion; SCO_NOT_FOUND foreign/unknown/evicted ticket. Outputs unchanged on failure.",
       "absent_capability": "Missing service: query_service NOT_FOUND. Production table is present but game.relocation capability false; valid request returns SCO_UNAVAILABLE.",
-      "cleanup": "Owner unload cancels/forgets tickets; stop forgets all; ticket sequence never recycled. Session/player/system change, safety/transport loss or fault fails pending. Stream loss waits up to timeout. Completion requires fresh pose within 0.05m and quaternion absolute normalized dot at least 0.999999. Cancellation is not undo.",
+      "cleanup": "Owner unload cancels/forgets tickets; stop forgets all; ticket sequence never recycled. Session/player/system change, safety/transport loss or fault fails pending. Stream loss waits up to timeout. Completion requires a fresh pose within 0.05m and within 1 degree of the requested orientation (q and -q are equal). Cancellation is not undo.",
       "language_mappings": {
         "c": {
           "status": "direct",
@@ -99,7 +99,7 @@
       "reentrancy": "Non-reentrant.",
       "results": "SCO_OK success; SCO_BAD_ARG invalid input/self; SCO_UNAVAILABLE missing safety/player/transport or unknown/different systems; SCO_TOO_MANY pending global request or ticket exhaustion; SCO_NOT_FOUND foreign/unknown/evicted ticket. Outputs unchanged on failure.",
       "absent_capability": "Missing service: query_service NOT_FOUND. Production table is present but game.relocation capability false; valid request returns SCO_UNAVAILABLE.",
-      "cleanup": "Owner unload cancels/forgets tickets; stop forgets all; ticket sequence never recycled. Session/player/system change, safety/transport loss or fault fails pending. Stream loss waits up to timeout. Completion requires fresh pose within 0.05m and quaternion absolute normalized dot at least 0.999999. Cancellation is not undo.",
+      "cleanup": "Owner unload cancels/forgets tickets; stop forgets all; ticket sequence never recycled. Session/player/system change, safety/transport loss or fault fails pending. Stream loss waits up to timeout. Completion requires a fresh pose within 0.05m and within 1 degree of the requested orientation (q and -q are equal). Cancellation is not undo.",
       "language_mappings": {
         "c": {
           "status": "direct",
@@ -177,7 +177,7 @@
       "reentrancy": "Non-reentrant.",
       "results": "SCO_OK success; SCO_BAD_ARG invalid input/self; SCO_UNAVAILABLE missing safety/player/transport or unknown/different systems; SCO_TOO_MANY pending global request or ticket exhaustion; SCO_NOT_FOUND foreign/unknown/evicted ticket. Outputs unchanged on failure.",
       "absent_capability": "Missing service: query_service NOT_FOUND. Production table is present but game.relocation capability false; valid request returns SCO_UNAVAILABLE.",
-      "cleanup": "Owner unload cancels/forgets tickets; stop forgets all; ticket sequence never recycled. Session/player/system change, safety/transport loss or fault fails pending. Stream loss waits up to timeout. Completion requires fresh pose within 0.05m and quaternion absolute normalized dot at least 0.999999. Cancellation is not undo.",
+      "cleanup": "Owner unload cancels/forgets tickets; stop forgets all; ticket sequence never recycled. Session/player/system change, safety/transport loss or fault fails pending. Stream loss waits up to timeout. Completion requires a fresh pose within 0.05m and within 1 degree of the requested orientation (q and -q are equal). Cancellation is not undo.",
       "language_mappings": {
         "c": {
           "status": "direct",
@@ -247,15 +247,15 @@
       "member_extent": 16,
       "table_size": 40,
       "since": "`size >= 16`; 1.1",
-      "purpose": "Admit a copied finite bounded position and normalized quaternion for a streamed nonzero target zone. Request size at least 72, timeout 1..60000ms. Requires known equal nonzero systems, host-certified offline/session/player and validated transport. Unknown safety or system refuses. One global pending request. Output ticket unchanged on refusal; admission is not completion.",
-      "buffer_contract": "`sco_result (*request)(sco_plugin* self, const sc_relocation_request* request, uint64_t* out_ticket);`<br>Admit a copied finite bounded position and normalized quaternion for a streamed nonzero target zone. Request size at least 72, timeout 1..60000ms. Requires known equal nonzero systems, host-certified offline/session/player and validated transport. Unknown safety or system refuses. One global pending request. Output ticket unchanged on refusal; admission is not completion.",
+      "purpose": "Admit a copied finite bounded position and normalized quaternion for a streamed nonzero target zone. Request size at least 72, timeout 1..60000ms. Requires known equal nonzero systems, host-certified offline/session/player and validated transport. Unknown safety or system refuses. One global pending request. Output ticket unchanged on refusal. Admission is not completion, except that a request already at its target completes at admission with applied 0.",
+      "buffer_contract": "`sco_result (*request)(sco_plugin* self, const sc_relocation_request* request, uint64_t* out_ticket);`<br>Admit a copied finite bounded position and normalized quaternion for a streamed nonzero target zone. Request size at least 72, timeout 1..60000ms. Requires known equal nonzero systems, host-certified offline/session/player and validated transport. Unknown safety or system refuses. One global pending request. Output ticket unchanged on refusal. Admission is not completion, except that a request already at its target completes at admission with applied 0.",
       "ownership": "Local player only; owner-scoped opaque tickets. No arbitrary entity/pointer/owner writes. Copied request and caller-owned output. 32 retained terminal tickets; oldest terminal evicted at admission.",
       "thread_affinity": "Game thread only; wrong thread returns SCO_WRONG_THREAD without touching state.",
       "callback_context": "No callbacks; bounded tick-driven work.",
       "reentrancy": "Non-reentrant.",
       "results": "SCO_OK success; SCO_BAD_ARG invalid input/self; SCO_UNAVAILABLE missing safety/player/transport or unknown/different systems; SCO_TOO_MANY pending global request or ticket exhaustion; SCO_NOT_FOUND foreign/unknown/evicted ticket. Outputs unchanged on failure.",
       "absent_capability": "Missing service: query_service NOT_FOUND. Production table is present but game.relocation capability false; valid request returns SCO_UNAVAILABLE.",
-      "cleanup": "Owner unload cancels/forgets tickets; stop forgets all; ticket sequence never recycled. Session/player/system change, safety/transport loss or fault fails pending. Stream loss waits up to timeout. Completion requires fresh pose within 0.05m and quaternion absolute normalized dot at least 0.999999. Cancellation is not undo.",
+      "cleanup": "Owner unload cancels/forgets tickets; stop forgets all; ticket sequence never recycled. Session/player/system change, safety/transport loss or fault fails pending. Stream loss waits up to timeout. Completion requires a fresh pose within 0.05m and within 1 degree of the requested orientation (q and -q are equal). Cancellation is not undo.",
       "language_mappings": {
         "c": {
           "status": "direct",
@@ -490,9 +490,9 @@
       "thread_affinity": "Game thread only; wrong thread returns SCO_WRONG_THREAD without touching state.",
       "callback_context": "No callbacks; bounded tick-driven work.",
       "reentrancy": "Non-reentrant.",
-      "results": "SCO_OK admitted, not arrived; SCO_BAD_ARG invalid request/live owner; SCO_UNAVAILABLE stale epoch, absent position backend or unknown/unsafe authority; SCO_TOO_MANY one global pending request or ticket exhaustion; wrong thread returns SCO_WRONG_THREAD. Outputs unchanged on refusal.",
+      "results": "SCO_OK admitted (a request already within 0.05m of its target completes at admission with applied 0, otherwise not arrived); SCO_BAD_ARG invalid request/live owner; SCO_UNAVAILABLE stale epoch, absent position backend or unknown/unsafe authority; SCO_TOO_MANY one global pending request or ticket exhaustion; wrong thread returns SCO_WRONG_THREAD. Outputs unchanged on refusal.",
       "absent_capability": "game.relocation.position is OFF with the existing native/legacy backend. A valid request returns SCO_UNAVAILABLE; old hosts lack service 1.1.",
-      "cleanup": "Shares one pending and 32 terminal owner-scoped tickets with FullPose. Completion requires a later fresh finite position in the admitted target frame within 0.05m, without rotation reads. Independent target-instance change fails TARGET; spatial epoch is checked only at admission. Owner/session/system/safety/fault guards, no retry/rollback and cancel/status lifetimes remain.",
+      "cleanup": "Shares one pending and 32 terminal owner-scoped tickets with FullPose. Completion is at admission with applied 0 when already within 0.05m, otherwise a later fresh finite position in the admitted target frame within 0.05m, without rotation reads. Independent target-instance change fails TARGET; spatial epoch is checked only at admission. Owner/session/system/safety/fault guards, no retry/rollback and cancel/status lifetimes remain.",
       "language_mappings": {
         "c": {
           "status": "direct",

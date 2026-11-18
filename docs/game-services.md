@@ -72,12 +72,18 @@ neither the offline check nor any engine read runs.
 | current and target system | The id of the `SolarSystem*` zone found by walking the zone parents (case-insensitive prefix, as v0.7.7's `SystemZoneOf`), counted only when that zone's id leads back to it. No such zone, or a parent cycle, is unknown and refuses. v0.7.7 accepted an unknown current system; this does not |
 | streamed | The target zone id resolves to a zone whose id leads back to the id |
 | transport | The game's own teleport call, as `CmdTeleportToCamera` makes it: the actor's teleport component (actor slot `0x9D8`) is called through its slot `0x158` with a 0x80-byte params block. The row `teleport.relocation` pins that call and the stores that fill the block. The rotation goes in twice, as the zone-frame quaternion and as the world-frame quaternion composed from the zone's axes; a zone frame that is mirrored or not orthonormal refuses |
-| arrived | A fresh read of the player's pose in the target zone (`EntityLocalPos`, `EntityRotation`) within 0.05 m and a quaternion dot of at least 0.999999. A player in any other zone has not arrived |
+| arrived | A fresh read of the player's pose in the target zone (`EntityLocalPos`, `EntityRotation`) within 0.05 m and within 1 degree of the requested orientation (`q` and `-q` are the same orientation). A player in any other zone has not arrived |
 
-One request moves once. Admission is not completion: the movement is initiated on a later tick, and Completed is
+If the player is already at the target when the request is made (same arrival test), the request completes at
+once with `applied` 0 and nothing is moved. Otherwise one request moves once. Admission is not completion: the movement is initiated on a later tick, and Completed is
 reported only when the fresh pose matches. A stream loss after admission waits until the request times out; a change
 of session, player or system, a lost offline admission, the switch going off or a fault fails it. A transport that
-returns false fails it with `TRANSPORT`. A callback that throws or faults (SEH on Windows) latches the provider off
+returns false fails it with `TRANSPORT`. A request that was applied and streamed but whose pose never matches ends
+`FAILED` with `TIMEOUT` and `applied` 1; a move that never ran has `applied` 0. The status has no text field, so a plugin tells
+the two cases apart by `applied` 1 with `TIMEOUT`. The failure log line also says `applied but arrival not
+confirmed`, whether the pose was read, whether position and rotation were near, and how far off the pose was
+(`off_by`, metres and degrees; -1 means not measured). A pose that settles on the tick the deadline passes counts
+as arrived. The move is not retried: re-applying could pull back a player who has since moved. A callback that throws or faults (SEH on Windows) latches the provider off
 until the process restarts.
 
 **Not verified.** The synthetic tests (`test_relocation`, `test_relocation_provider`) exercise every input and reason

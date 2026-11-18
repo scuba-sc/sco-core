@@ -123,7 +123,10 @@ Evidence Gather(const sc_relocation_request* request,bool wantArrival,const Oper
         const int posed=Guarded([&] { return g_backend.pose(request->zone_id,pos,rot) ? 1 : 0; });
         if(!operation.Current()){e.fault=g_faulted;return e;}
         if (posed<0) { e.fault=true; return e; }
-        e.arrived=posed==1 && relocation::Arrived(*request,pos,rot);
+        const relocation::Arrival arrival=posed==1 ? relocation::CheckArrival(*request,pos,rot) : relocation::Arrival{};
+        e.poseRead=arrival.read; e.positionNear=arrival.positionNear; e.rotationNear=arrival.rotationNear;
+        e.metres=arrival.metres; e.degrees=arrival.degrees;
+        e.arrived=arrival.Near();
     }
     return e;
 }
@@ -140,12 +143,18 @@ Evidence GatherPosition(const sc_relocation_position_request* request,bool wantA
         e.targetSystem=target.streamed?target.system:0;
         e.targetEpoch=target.epoch;e.targetInstance=target.instance;
     }
-    if(wantArrival&&e.streamed&&instance&&e.targetInstance==instance) {
+    // At request time there is no admitted instance yet (0): observe the one just seen.
+    const uint64_t observeInstance=instance?instance:e.targetInstance;
+    if(wantArrival&&e.streamed&&observeInstance&&e.targetInstance==observeInstance) {
         double pos[3]={};
-        const int observed=Guarded([&]{return g_position.observe(request->zone_id,instance,pos)?1:0;});
+        const int observed=Guarded([&]{return g_position.observe(request->zone_id,observeInstance,pos)?1:0;});
         if(!operation.Current()){e.fault=g_faulted;return e;}
         if(observed<0){e.fault=true;return e;}
-        e.arrived=observed==1&&relocation::ArrivedPosition(*request,pos);
+        e.poseRead=observed==1;
+        e.metres=e.poseRead?relocation::PositionDistance(*request,pos):-1;
+        e.positionNear=e.metres>=0&&e.metres<=relocation::kArrivalMetres;
+        e.rotationNear=true; // position-only requests never test orientation
+        e.arrived=e.positionNear;
     }
     return e;
 }
@@ -178,11 +187,17 @@ sco_result Enter(sco_plugin* self) {
     if (g_inBackend) return SCO_UNAVAILABLE;
     return g_started ? SCO_OK : SCO_UNAVAILABLE;
 }
+// A request made while the player is already at the target completes at once and moves nothing.
+void LogAlreadyThere(sco_plugin* self,uint64_t ticket) {
+    sc_relocation_status status{};status.size=sizeof(status);
+    if(g_requests.Status(self,ticket,&status)==SCO_OK&&status.state==SC_RELOCATION_COMPLETE)
+        sco::Log("[game] relocation: player already at the target; request completed without moving");
+}
 sco_result Request(sco_plugin* self,const sc_relocation_request* r,uint64_t* ticket) {
     const auto result=Enter(self);if (result!=SCO_OK) return result;
     if (!r || r->size<sizeof(*r)) return SCO_BAD_ARG;
     const sc_relocation_request request=*r;const Operation operation{self};
-    Evidence evidence=Gather(&request,false,operation);
+    Evidence evidence=Gather(&request,true,operation);
     if(!operation.Current()){Abandon(operation,evidence);const auto live=Enter(self);return live==SCO_OK?SCO_UNAVAILABLE:live;}
     const uint64_t now=Now(operation);evidence.fault=evidence.fault||g_faulted;
     if(!operation.Current())Abandon(operation,evidence);
@@ -190,13 +205,15 @@ sco_result Request(sco_plugin* self,const sc_relocation_request* r,uint64_t* tic
     const auto live=Enter(self);if(live!=SCO_OK)return live;
     if(!operation.Current())return SCO_UNAVAILABLE;
     UpdateCapability(evidence);
-    return g_requests.Request(self,request,evidence,now,ticket);
+    const auto admitted=g_requests.Request(self,request,evidence,now,ticket);
+    if(admitted==SCO_OK)LogAlreadyThere(self,*ticket);
+    return admitted;
 }
 sco_result RequestPosition(sco_plugin* self,const sc_relocation_position_request* r,uint64_t* ticket) {
     const auto result=Enter(self);if(result!=SCO_OK)return result;
     if(!r||r->size<sizeof(*r)||!ticket||!relocation::PositionRequest(*r))return SCO_BAD_ARG;
     const sc_relocation_position_request request=*r;const Operation operation{self};
-    Evidence evidence=GatherPosition(&request,false,0,operation);
+    Evidence evidence=GatherPosition(&request,true,0,operation);
     if(!operation.Current()){Abandon(operation,evidence);const auto live=Enter(self);return live==SCO_OK?SCO_UNAVAILABLE:live;}
     const uint64_t now=Now(operation);evidence.fault=evidence.fault||g_faulted;
     if(!operation.Current())Abandon(operation,evidence);
@@ -204,7 +221,9 @@ sco_result RequestPosition(sco_plugin* self,const sc_relocation_position_request
     const auto live=Enter(self);if(live!=SCO_OK)return live;
     if(!operation.Current())return SCO_UNAVAILABLE;
     UpdateCapability(evidence);
-    return g_requests.RequestPosition(self,request,evidence,now,ticket);
+    const auto admitted=g_requests.RequestPosition(self,request,evidence,now,ticket);
+    if(admitted==SCO_OK)LogAlreadyThere(self,*ticket);
+    return admitted;
 }
 sco_result Cancel(sco_plugin* self,uint64_t ticket) {
     const auto result=Enter(self);return result==SCO_OK ? g_requests.Cancel(self,ticket) : result;
@@ -276,13 +295,15 @@ const char* ReasonName(uint32_t reason) {
 // at that moment. Completion needs applied plus streamed and arrived; the rest must keep holding.
 void LogFailure(const relocation::Diagnosis& d) {
     const auto yn = [](bool v) { return v ? "yes" : "no"; };
-    sco::Log("[game] relocation: request failed (%s) after %llu ms: applied=%s streamed=%s arrived=%s "
+    // A timeout after the move was applied is not the same as a move that never happened.
+    sco::Log("[game] relocation: request failed (%s%s) after %llu ms: applied=%s streamed=%s arrived=%s "
              "offline=%s player=%s transport=%s fault=%s session_same=%s player_same=%s system_same=%s "
-             "target_system_same=%s%s%s",
-             ReasonName(d.reason), static_cast<unsigned long long>(d.elapsedMs), yn(d.applied), yn(d.streamed),
+             "target_system_same=%s%s%s pose_read=%s position_near=%s rotation_near=%s off_by=%.3f m %.3f deg",
+             ReasonName(d.reason), d.arrivalUnconfirmed ? ", applied but arrival not confirmed" : "", static_cast<unsigned long long>(d.elapsedMs), yn(d.applied), yn(d.streamed),
              yn(d.arrived), yn(d.offline), yn(d.player), yn(d.transport), yn(d.fault), yn(d.sessionMatches),
              yn(d.playerMatches), yn(d.systemMatches), yn(d.targetSystemMatches),
-             d.positionOnly ? " target_instance_same=" : "", d.positionOnly ? yn(d.targetInstanceMatches) : "");
+             d.positionOnly ? " target_instance_same=" : "", d.positionOnly ? yn(d.targetInstanceMatches) : "",
+             yn(d.poseRead), yn(d.positionNear), yn(d.rotationNear), d.metres, d.degrees);
 }
 void TickRelocation() {
     if (!g_started || g_inBackend) return;

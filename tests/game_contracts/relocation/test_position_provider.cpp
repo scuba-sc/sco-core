@@ -144,7 +144,13 @@ int main(int argc,char** argv){
     admission={gh::Session::Offline,gh::Check::Clear,gh::Check::Clear,gh::Check::Clear};Tick();Check(api->has(SC_RELOCATION_POSITION_CAPABILITY)&&!api->has(SC_RELOCATION_NAME));
     ticket=Admit();Check(table->request(self,&full,&unchanged)==SCO_UNAVAILABLE);Tick();Check(w.positions==1&&Status(ticket).state==SC_RELOCATION_PENDING);w.observe=true;Tick();Check(Status(ticket).state==SC_RELOCATION_COMPLETE);
     Check(sco_game_set_relocation_backend_v2(&socket)==SCO_UNAVAILABLE&&Status(ticket).state==SC_RELOCATION_COMPLETE);
-    ticket=Admit();admission.session=gh::Session::Online;Tick();Check(Status(ticket).reason==SC_RELOCATION_REASON_SAFETY&&w.positions==1);
+    // Already within 0.05 m when asked: complete at once, no apply. Moved 0.06 m: it applies once.
+    const auto appliedBefore=w.positions;ticket=Admit();Check(Status(ticket).state==SC_RELOCATION_COMPLETE&&Status(ticket).applied==0&&w.positions==appliedBefore);
+    Tick();Check(w.positions==appliedBefore);
+    w.pos[0]=1.06;ticket=Admit();Check(Status(ticket).state==SC_RELOCATION_PENDING);Tick();Check(w.positions==appliedBefore+1&&Status(ticket).applied==1);
+    w.pos[0]=1;Tick();Check(Status(ticket).state==SC_RELOCATION_COMPLETE);
+    w.observe=false;
+    ticket=Admit();admission.session=gh::Session::Online;Tick();Check(Status(ticket).reason==SC_RELOCATION_REASON_SAFETY&&w.positions==appliedBefore+1);
     S::StopRelocation();gh::detail::SetFreshAdmissionEnabled(false);
     auto* original=self;
     for(unsigned mode=0;mode<2;++mode)for(unsigned stage=1;stage<=6;++stage){

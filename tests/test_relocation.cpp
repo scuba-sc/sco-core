@@ -7,6 +7,7 @@
 #include <cassert>
 #include <cstddef>
 #include <cstdio>
+#include <cmath>
 #include <limits>
 using namespace sco::game::services::relocation;
 static Machine m;
@@ -175,6 +176,84 @@ int main() {
     assert(WorldRotation(axes,quarter,w) && QuatIs(w,0,0,rt,rt));
     const double zero[4]={0,0,0,0};
     assert(!WorldRotation(axes,zero,w) && !WorldRotation(mirrored,identity,w));
+    }
+    {
+    // Orientation tolerance is 1 degree; qq and -qq are one orientation.
+    const double deg=3.14159265358979323846/180.0;
+    const auto about=[&](double degrees,double out[4]) { out[0]=0;out[1]=0;out[2]=std::sin(degrees*deg/2);out[3]=std::cos(degrees*deg/2); };
+    sc_relocation_request tr{sizeof(tr),1000,5,{1,2,3},{0,0,0,1}};
+    const double here[3]={1,2,3};double qq[4];
+    about(0.9,qq);assert(Arrived(tr,here,qq));
+    about(-0.9,qq);assert(Arrived(tr,here,qq));
+    about(0.9,qq);for(double& x:qq)x=-x;assert(Arrived(tr,here,qq));
+    about(1.1,qq);assert(!Arrived(tr,here,qq));
+    about(-1.1,qq);assert(!Arrived(tr,here,qq));
+    about(180,qq);assert(!Arrived(tr,here,qq));
+    const double scaled[4]={0,0,0,-5};assert(Arrived(tr,here,scaled));
+    const double far[3]={1.06,2,3};about(0,qq);
+    const auto check=CheckArrival(tr,far,qq);assert(check.read && !check.positionNear && check.rotationNear && !check.Near());
+    about(2,qq);const auto turned=CheckArrival(tr,here,qq);assert(turned.read && turned.positionNear && !turned.rotationNear);
+    const double bad[3]={std::numeric_limits<double>::quiet_NaN(),2,3};
+    const auto unread=CheckArrival(tr,bad,qq);assert(!unread.read && !unread.Near());
+    }
+    {
+    // Already at the target when asked: complete at once, nothing applied, no pending slot held.
+    Machine local;int ownerA=0;
+    sc_relocation_request tr{sizeof(tr),1000,5,{1,2,3},{0,0,0,1}};
+    Evidence ev{true,true,true,9,11,7,7,true,true,false,false};
+    uint64_t t=0;sc_relocation_status st{};st.size=sizeof(st);
+    assert(local.Request(&ownerA,tr,ev,10,&t)==SCO_OK && t);
+    assert(local.Status(&ownerA,t,&st)==SCO_OK && st.state==SC_RELOCATION_COMPLETE && st.applied==0 && st.reason==0);
+    assert(!local.Pending() && !local.Tick(11,ev));
+    uint64_t t2=0;ev.arrived=false;
+    assert(local.Request(&ownerA,tr,ev,12,&t2)==SCO_OK && t2>t);
+    assert(local.Status(&ownerA,t2,&st)==SCO_OK && st.state==SC_RELOCATION_PENDING);
+    assert(local.Tick(13,ev) && local.Pending());
+    // Moved but the pose never settles: fails by timeout, applied stays 1, and the diagnosis says so.
+    local.Applied(true);ev.poseRead=true;ev.positionNear=true;ev.rotationNear=false;
+    Diagnosis why;assert(!local.Tick(12+1000,ev,&why));
+    assert(local.Status(&ownerA,t2,&st)==SCO_OK && st.state==SC_RELOCATION_FAILED &&
+           st.reason==SC_RELOCATION_REASON_TIMEOUT && st.applied==1);
+    assert(why.arrivalUnconfirmed && why.applied && why.streamed && !why.arrived && why.poseRead && why.positionNear && !why.rotationNear);
+    // A timeout where the move never ran is not "arrival not confirmed".
+    uint64_t t3=0;assert(local.Request(&ownerA,tr,ev,2000,&t3)==SCO_OK);
+    Diagnosis never;assert(!local.Tick(2000+1000,ev,&never));
+    assert(never.reason==SC_RELOCATION_REASON_TIMEOUT && !never.arrivalUnconfirmed && !never.applied);
+    // A timeout with the target not streamed is not it either.
+    uint64_t t4=0;assert(local.Request(&ownerA,tr,ev,4000,&t4)==SCO_OK);local.Applied(true);
+    ev.streamed=false;Diagnosis lost;assert(!local.Tick(4000+1000,ev,&lost));
+    assert(lost.reason==SC_RELOCATION_REASON_TIMEOUT && !lost.arrivalUnconfirmed);
+    // The move is applied once per request, however long the pose stays wrong.
+    ev.streamed=true;uint64_t t5=0;assert(local.Request(&ownerA,tr,ev,6000,&t5)==SCO_OK);
+    assert(local.Tick(6001,ev));local.Applied(true);
+    for(uint64_t at=6002;at<6500;at+=50) assert(!local.Tick(at,ev));
+    // A pose that settles on the tick the deadline passes counts as arrived.
+    assert(!local.Tick(7000,ev));  // t5 reaches its deadline
+    ev.streamed=true;uint64_t t6=0;assert(local.Request(&ownerA,tr,ev,7000,&t6)==SCO_OK);
+    assert(local.Tick(7001,ev));local.Applied(true);
+    ev.arrived=true;Diagnosis edge;assert(!local.Tick(7000+1000,ev,&edge));
+    assert(edge.reason==0 && local.Status(&ownerA,t6,&st)==SCO_OK && st.state==SC_RELOCATION_COMPLETE && st.applied==1);
+    ev.arrived=false;
+    // The deadline still fails a request that has not arrived.
+    uint64_t t7=0;assert(local.Request(&ownerA,tr,ev,8000,&t7)==SCO_OK);
+    assert(local.Tick(8001,ev));local.Applied(true);
+    ev.metres=0.2;ev.degrees=3.5;Diagnosis late;assert(!local.Tick(8000+1000,ev,&late));
+    assert(late.reason==SC_RELOCATION_REASON_TIMEOUT && late.arrivalUnconfirmed && late.metres==0.2 && late.degrees==3.5);
+    ev.metres=-1;ev.degrees=-1;
+    // CheckArrival measures the offset: 0.1 m and 2 degrees about z.
+    {sc_relocation_request mr{sizeof(mr),1000,5,{1,2,3},{0,0,0,1}};
+     const double at[3]={1.1,2,3};const double h=std::sin(1.0*3.14159265358979323846/180.0),w=std::cos(1.0*3.14159265358979323846/180.0);
+     const double rq[4]={0,0,h,w};const auto o=CheckArrival(mr,at,rq);
+     assert(o.read && std::abs(o.metres-0.1)<1e-9 && std::abs(o.degrees-2.0)<1e-6 && !o.positionNear && !o.rotationNear);
+     const double none[3]={std::numeric_limits<double>::quiet_NaN(),0,0};
+     assert(CheckArrival(mr,none,rq).metres==-1);}
+    // Position-only: already within 0.05 m completes at once.
+    sc_relocation_position_request pr{sizeof(pr),1000,5,{1,2,3},44};
+    Evidence pe{true,true,true,9,11,7,7,true,true,false,false,44,77};
+    uint64_t pt=0;Machine other;
+    assert(other.RequestPosition(&ownerA,pr,pe,10,&pt)==SCO_OK);
+    assert(other.Status(&ownerA,pt,&st)==SCO_OK && st.state==SC_RELOCATION_COMPLETE && st.applied==0);
+    assert(!other.PendingPosition());
     }
     puts("relocation: OK");
 }
