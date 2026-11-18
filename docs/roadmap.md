@@ -199,7 +199,10 @@ Planned work is to close the remaining acceptance gaps in evidence order:
 4. Core valid-input parity for #302, then native expansion including container traversal,
    spatial/zone conversion, multi-hit raycasts, mission/economy catalogues, and seated actor/crew
    persistence.
-5. Independent first-time-contributor dry run: follow the delivered archive-to-plugin
+5. SDK gap, zone lookup beyond the player's chain: resolving a zone by name from anywhere needs one
+   new engine row (child enumeration or a zone-by-name lookup) that Core does not have. Design note:
+   [zone lookup](design/zone-lookup.md). Blocked on private evidence; not implemented.
+6. Independent first-time-contributor dry run: follow the delivered archive-to-plugin
    documentation without help, then use observed friction to improve it.
 
 Each capability still moves through contract, implementation, availability and evidence. Static

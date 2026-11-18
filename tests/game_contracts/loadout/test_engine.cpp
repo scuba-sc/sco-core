@@ -37,9 +37,18 @@ uint64_t* Component(uintptr_t entity, uint64_t* out, const uint16_t* type) {
            entity == reinterpret_cast<uintptr_t>(&item) && *type == 2 ? reinterpret_cast<uintptr_t>(&item) : 0;
     return out;
 }
+char lastPortName[64]{};
+bool KnownPort(const char* name) {
+    static const char* const names[] = {"Armor_Helmet", "Clothing_Torso_0", "Clothing_Torso_1", "Clothing_Torso2",
+        "Clothing_Legs", "Clothing_Feet", "Clothing_Hands", "Hat_ItemPort", "Hair_ItemPort", "Hair_Color",
+        "Eyebrow_ItemPort", "Head_Accessory_ItemPort", "Head_Horn_ItemPort", "Jewellery_ItemPort"};
+    for (const char* known : names) if (std::strcmp(name, known) == 0) return true;
+    return false;
+}
 uintptr_t FindPort(uintptr_t root, const char* name) {
     CHECK(root == reinterpret_cast<uintptr_t>(&container));
-    return std::strcmp(name, "Armor_Helmet") == 0 ? reinterpret_cast<uintptr_t>(&port) : 0;
+    std::snprintf(lastPortName, sizeof(lastPortName), "%s", name);
+    return KnownPort(name) ? reinterpret_cast<uintptr_t>(&port) : 0;
 }
 uint64_t* Handle(uintptr_t p, uint64_t* out) {
     CHECK(p == reinterpret_cast<uintptr_t>(&port)); *out = portEntity; return out;
@@ -115,8 +124,12 @@ int main() {
     SetEnvironmentVariableA("SCO_LOADOUT_ASYNC", nullptr);
     CHECK(ProductionLoadoutBackend() == nullptr);
     SetEnvironmentVariableA("SCO_LOADOUT_ASYNC", "1");
-    const auto* backend = ProductionLoadoutBackend(); CHECK(backend);
+    const LoadoutAsyncBackend* backend = ProductionLoadoutBackend(); CHECK(backend);
+    CHECK(backend->outfit && !backend->appearance); // appearance needs its own opt-in
+    SetEnvironmentVariableA("SCO_LOADOUT_APPEARANCE", "1");
+    backend = ProductionLoadoutBackend(); CHECK(backend && backend->appearance);
     CHECK(StartLoadout(nullptr, backend) == sco::Result::Ok);
+    CHECK(api->has("game.loadout.async") && api->has("game.loadout.outfit") && api->has("game.loadout.appearance"));
     const void* table = nullptr;
     CHECK(api->query_service(SC_LOADOUT_SERVICE_NAME, SC_LOADOUT_VERSION_1_2, &table) == SCO_OK);
     const auto* service = static_cast<const sc_loadout_v1_2*>(table);
@@ -161,14 +174,55 @@ int main() {
     CHECK(service->status(owner, job, &report) == SCO_OK && report.report.slots[0].status == SC_LOADOUT_FAILED);
     CHECK(attached == beforeAttach + 1 && report.report.applied == 0);
     CHECK(service->cancel(owner, job) == SCO_OK);
+    // 1.3 outfit slots: each assigned slot looks up its own item-port name; unassigned values
+    // (and the body, head, eyes and teeth ports, which have no slot) never reach the port search.
+    attachAllowed = true; streamed = false; portEntity = 0;
+    struct OutfitCase { uint32_t slot; const char* port; };
+    const OutfitCase outfitCases[] = {
+        {SC_LOADOUT_SLOT_CLOTHING_TORSO_0, "Clothing_Torso_0"}, {SC_LOADOUT_SLOT_CLOTHING_TORSO_1, "Clothing_Torso_1"},
+        {SC_LOADOUT_SLOT_CLOTHING_TORSO_2, "Clothing_Torso2"}, {SC_LOADOUT_SLOT_CLOTHING_LEGS, "Clothing_Legs"},
+        {SC_LOADOUT_SLOT_CLOTHING_FEET, "Clothing_Feet"}, {SC_LOADOUT_SLOT_CLOTHING_HANDS, "Clothing_Hands"},
+        {SC_LOADOUT_SLOT_HAT, "Hat_ItemPort"}, {SC_LOADOUT_SLOT_HAIR, "Hair_ItemPort"},
+        {SC_LOADOUT_SLOT_HAIR_COLOR, "Hair_Color"}, {SC_LOADOUT_SLOT_EYEBROW, "Eyebrow_ItemPort"},
+        {SC_LOADOUT_SLOT_HEAD_ACCESSORY, "Head_Accessory_ItemPort"}, {SC_LOADOUT_SLOT_HEAD_HORN, "Head_Horn_ItemPort"},
+        {SC_LOADOUT_SLOT_JEWELLERY, "Jewellery_ItemPort"}};
+    uint32_t tick = 20;
+    for (const auto& c : outfitCases) {
+        requested = {c.slot, 0, "synthetic_helmet"};
+        lastPortName[0] = 0;
+        const unsigned spawnedBefore = spawned;
+        CHECK(service->submit(owner, &request, &job) == SCO_OK); TickLoadout(tick++);
+        CHECK(std::strcmp(lastPortName, c.port) == 0 && spawned == spawnedBefore + 1);
+        CHECK(service->cancel(owner, job) == SCO_OK);
+    }
+    for (uint32_t slot : {uint32_t(SC_LOADOUT_SLOT_JEWELLERY) + 1, 0u, 99u}) {
+        requested = {slot, 0, "synthetic_helmet"};
+        lastPortName[0] = 0;
+        const unsigned spawnedBefore = spawned;
+        CHECK(service->submit(owner, &request, &job) == SCO_OK); TickLoadout(tick++);
+        CHECK(service->status(owner, job, &report) == SCO_OK && report.report.slots[0].status == SC_LOADOUT_UNSUPPORTED);
+        CHECK(!lastPortName[0] && spawned == spawnedBefore);
+        CHECK(service->cancel(owner, job) == SCO_OK);
+    }
+    // Full outfit loop on one port: spawn, delayed stream, exact attach, readback.
+    requested = {SC_LOADOUT_SLOT_HAT, 0, "synthetic_helmet"};
+    portEntity = 0; streamed = false;
+    const unsigned attachedBeforeHat = attached;
+    CHECK(service->submit(owner, &request, &job) == SCO_OK); TickLoadout(tick++);
+    streamed = true; TickLoadout(tick++); TickLoadout(tick++);
+    CHECK(service->status(owner, job, &report) == SCO_OK && report.state == SC_LOADOUT_JOB_COMPLETE &&
+          report.report.applied == 1 && attached == attachedBeforeHat + 1);
+    CHECK(service->cancel(owner, job) == SCO_OK);
+    requested = {SC_LOADOUT_SLOT_HEAD, 0, "synthetic_helmet"};
+    portEntity = 0;
     // A changed live vtable is drift, not permission to call an arbitrary target.
     attachAllowed = true; streamed = false;
-    CHECK(service->submit(owner, &request, &job) == SCO_OK); TickLoadout(13);
+    CHECK(service->submit(owner, &request, &job) == SCO_OK); TickLoadout(tick++);
     streamed = true;
     portTable[0x90 / 8] = reinterpret_cast<uintptr_t>(&FindPort);
-    TickLoadout(14);
+    TickLoadout(tick++);
     CHECK(service->status(owner, job, &report) == SCO_OK && report.state == SC_LOADOUT_JOB_FAILED);
-    CHECK(attached == beforeAttach + 1 && !api->has("game.loadout.async"));
+    CHECK(attached == attachedBeforeHat + 1 && !api->has("game.loadout.async") && !api->has("game.loadout.outfit"));
     StopLoadout(); SetEnvironmentVariableA("SCO_LOADOUT_ASYNC", nullptr);
     CHECK(sco::ClearHostSignatureRegistry(registry, nullptr));
     std::puts("loadout engine: real adapter spawn, pending, attach, readback, cancel and admission checks passed");

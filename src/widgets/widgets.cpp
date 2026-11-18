@@ -3,7 +3,9 @@
 #include "sco/host.h"
 #include "../api/internal.h"
 #include "../api/owned_publication.h"
+#include "view_internal.h"
 #include <algorithm>
+#include <atomic>
 #include <functional>
 #include <iterator>
 #include <memory>
@@ -22,6 +24,10 @@ struct Entry {
     sco_widget_event_fn fn = nullptr;
     void* ctx = nullptr;
     uint64_t generation = 0;
+    // sco.widgets.view counters, from one monotonic source (g_counter). revision moves on every
+    // change a copy_panel would show; epoch only when set_panel replaces the panel.
+    uint64_t revision = 0, epoch = 0;
+    bool releaseNoted = false; // list_revision already moved for this released owner
     // Shared with in-flight render passes; rebuilt lazily by RenderPanel, at most
     // once per pass, only after a mutation marked the panel dirty (coalescing).
     std::shared_ptr<const Panel> snapshot;
@@ -34,6 +40,20 @@ bool g_started = false;
 uint64_t g_generation = 0;
 uint64_t g_snapshot_builds = 0;
 std::vector<Entry> g_panels;
+// One source for every revision and epoch, so a value is never reused. Bumped under g_lock;
+// the two published counters are atomics so stamps() never takes the lock.
+uint64_t g_counter = 0;
+std::atomic<uint64_t> g_globalRevision{0}, g_listRevision{0};
+std::atomic<bool> g_startedFlag{false};
+// Moves on every Start and Stop; the view event queue drops slots from an older session.
+std::atomic<uint64_t> g_session{1};
+// Call with g_lock held. Returns the new value; list also moves list_revision.
+uint64_t Bump(bool list) {
+    const uint64_t v = ++g_counter;
+    g_globalRevision.store(v, std::memory_order_release);
+    if (list) g_listRevision.store(v, std::memory_order_release);
+    return v;
+}
 constexpr uint32_t kFeatures = SCO_WIDGETS_FEATURE_UPDATE_NODES | SCO_WIDGETS_FEATURE_REMOVE_NODES |
     SCO_WIDGETS_FEATURE_SEVERITY | SCO_WIDGETS_FEATURE_TOOLTIP | SCO_WIDGETS_FEATURE_PAGING |
     SCO_WIDGETS_FEATURE_EVENT_ROW | SCO_WIDGETS_FEATURE_COALESCED_RENDER | SCO_WIDGETS_FEATURE_STABLE_TAGS |
@@ -232,6 +252,7 @@ size_t SubtreeEnd(const std::vector<Node>& nodes, size_t index) {
 // new render snapshot next pass, event shape recomputed.
 void Changed(Entry& e) {
     e.generation = ++g_generation;
+    e.revision = Bump(false);
     e.dirty = true;
     e.extended = std::any_of(e.panel.nodes.begin(), e.panel.nodes.end(), [](const Node& n) { return n.extended; });
     e.taggedEvents = e.taggedEvents ||
@@ -265,7 +286,11 @@ sco_result Set(sco_plugin* self, const char* id, const char* title, const sco_wi
         if (auto r = ParseNodes(nodes, count, stride, {0}, false, {}, e.panel.nodes); r != Result::Ok) return r;
         if (!TagsUnique(e.panel.nodes, 0, 0, {})) return Result::BadArg;
         Changed(e);
+        e.epoch = e.revision;
         auto it = Find(e.panel.id);
+        const bool listed = it == g_panels.end() || it->panel.title != e.panel.title ||
+            it->panel.nodes.size() != e.panel.nodes.size() || it->taggedEvents != e.taggedEvents;
+        if (listed) g_listRevision.store(e.revision, std::memory_order_release);
         if (it == g_panels.end()) g_panels.push_back(std::move(e)); else *it = std::move(e);
         return Result::Ok;
     });
@@ -279,7 +304,7 @@ sco_result Remove(sco_plugin* self, const char* id) {
         if (Copy(id, SCO_WIDGETS_MAX_ID, key) != Result::Ok || !OwnId(key, host::PluginId(self))) return Result::BadArg;
         auto it = Find(key);
         if (it == g_panels.end() || it->owner != self) return Result::NotFound;
-        g_panels.erase(it); return Result::Ok;
+        g_panels.erase(it); Bump(true); return Result::Ok;
     });
 }
 sco_result UpdateNodes(sco_plugin* self, const char* id, const sco_widget_node* nodes, uint32_t count, uint32_t stride) {
@@ -321,10 +346,14 @@ sco_result UpdateNodes(sco_plugin* self, const char* id, const sco_widget_node* 
         if (!TagsUnique(tree, begin, end, fragment)) return Result::BadArg;
         // Capacity first: the splice below then only moves nodes and cannot throw.
         tree.reserve(total);
+        const size_t nodesBefore = tree.size();
+        const bool taggedBefore = it->taggedEvents;
         tree.erase(tree.begin() + static_cast<std::ptrdiff_t>(begin), tree.begin() + static_cast<std::ptrdiff_t>(end));
         tree.insert(tree.begin() + static_cast<std::ptrdiff_t>(begin),
                     std::make_move_iterator(fragment.begin()), std::make_move_iterator(fragment.end()));
         Changed(*it);
+        if (tree.size() != nodesBefore || it->taggedEvents != taggedBefore)
+            g_listRevision.store(it->revision, std::memory_order_release);
         return Result::Ok;
     });
 }
@@ -353,6 +382,7 @@ sco_result RemoveNodes(sco_plugin* self, const char* id, const uint32_t* ids, ui
             if (!drop[i]) { if (kept != i) tree[kept] = std::move(tree[i]); ++kept; }
         tree.erase(tree.begin() + static_cast<std::ptrdiff_t>(kept), tree.end());
         Changed(*it);
+        g_listRevision.store(it->revision, std::memory_order_release); // the node count changed
         return Result::Ok;
     });
 }
@@ -375,7 +405,9 @@ sco_result Capabilities(sco_plugin* self, uint32_t* caps) {
 const sco_widgets_v1 kTable{sizeof(sco_widgets_v1), 0, Set, Remove, UpdateNodes, RemoveNodes, Capabilities};
 void OnRelease(const void* owner) {
     std::lock_guard<std::mutex> hold(g_lock);
+    const size_t before = g_panels.size();
     g_panels.erase(std::remove_if(g_panels.begin(), g_panels.end(), [&](const Entry& e) { return e.owner == owner; }), g_panels.end());
+    if (g_panels.size() != before) Bump(true);
 }
 struct EventCall {
     sco_widget_event_fn fn;
@@ -420,6 +452,80 @@ bool ValidEvent(const Node& n, const Event& e) {
         default: return false;
     }
 }
+using viewimpl::Step;
+struct Match {
+    // RenderPanel: the panel's generation when its snapshot was taken. A change ends the pass.
+    bool breakOnChange = false;
+    uint64_t generation = 0;
+    // dispatch_events: the epoch and node key of the copy the player acted on.
+    bool byKey = false;
+    uint64_t epoch = 0, key = 0;
+};
+// The event half of RenderPanel, shared with dispatch_events: find the live target, validate
+// the candidate against it, apply it to the node and call the owner under its callout guard.
+// owner may be null (dispatch_events): it is then the live panel's owner.
+Step ApplyAndDispatch(const std::string& panelId, sco_plugin* owner, const Event& event, const Match& match) {
+    bool extended = false;
+    bool tagged = false;
+    std::string tag;
+    int32_t row = -1;
+    uint32_t targetId = event.node_id;
+    sco_widget_event_fn fn = nullptr;
+    void* ctx = nullptr;
+    {
+        std::lock_guard<std::mutex> hold(g_lock);
+        if (!g_started || detail::RuntimeStopping()) return Step::Unavailable;
+        const auto live = Find(panelId);
+        if (!owner) {
+            if (live == g_panels.end()) return Step::Gone;
+            owner = live->owner;
+        }
+        if (detail::Released(owner)) return Step::Crashed;
+        if (live == g_panels.end() || (match.breakOnChange && live->generation != match.generation)) return Step::Gone;
+        auto& nodes = live->panel.nodes;
+        const auto byId = [&](uint32_t id) {
+            return std::find_if(nodes.begin(), nodes.end(), [&](const Node& n) { return n.id == id; });
+        };
+        auto node = nodes.end();
+        if (!match.byKey) node = byId(event.node_id);
+        else if (live->epoch == match.epoch) {
+            node = byId(event.node_id);
+            if (node != nodes.end() && viewimpl::NodeKey(*node) != match.key) node = nodes.end();
+        } else {
+            node = std::find_if(nodes.begin(), nodes.end(), [&](const Node& n) {
+                return !n.tag.empty() && viewimpl::NodeKey(n) == match.key;
+            });
+            if (node == nodes.end()) {
+                node = byId(event.node_id);
+                if (node != nodes.end() && viewimpl::NodeKey(*node) != match.key) node = nodes.end();
+            }
+        }
+        if (node == nodes.end() || !Enabled(live->panel, *node) || !ValidEvent(*node, event)) return Step::Dropped;
+        targetId = node->id;
+        extended = live->extended;
+        tagged = live->taggedEvents;
+        fn = live->fn;
+        ctx = live->ctx;
+        // Own this copy through Callout: callbacks may update, replace or remove the
+        // live panel and can immediately invalidate every pointer into its nodes.
+        try { if (tagged) tag = node->tag; } catch (...) { return Step::Failed; }
+        if (event.kind == SCO_WIDGET_TOGGLE || event.kind == SCO_WIDGET_SLIDER) node->value = event.value;
+        if (event.kind == SCO_WIDGET_COMBO || event.kind == SCO_WIDGET_LIST) node->index = event.index;
+        if (event.kind == SCO_WIDGET_TEXT_INPUT) node->text = event.text;
+        if (event.kind == SCO_WIDGET_EVENT_PAGE) { node->first_row = static_cast<uint32_t>(event.row); row = event.row; }
+        if (event.kind == SCO_WIDGET_LIST) row = event.index;
+        if (event.kind != SCO_WIDGET_BUTTON) { live->dirty = true; live->revision = Bump(false); }
+    }
+    if (!fn) return Step::Delivered;
+    sco_widget_event_1_4 wire{};
+    wire.base.base = {sizeof(sco_widget_event), targetId, event.kind, event.index, event.value,
+                 event.kind == SCO_WIDGET_TEXT_INPUT ? event.text.c_str() : nullptr};
+    if (extended || tagged) { wire.base.base.size = sizeof(wire.base); wire.base.row = row; }
+    if (tagged) { wire.base.base.size = sizeof(wire); wire.tag = tag.empty() ? nullptr : tag.c_str(); }
+    EventCall call{fn, panelId.c_str(), &wire.base.base, ctx};
+    if (!detail::Callout(owner, panelId.c_str(), EventThunk, &call)) return Step::Crashed;
+    return Step::Delivered;
+}
 } // namespace
 static Result StartImpl(const sco::detail::StartupPublish* cap) {
     if (cap && !cap->valid()) return Result::Unavailable;
@@ -434,7 +540,9 @@ static Result StartImpl(const sco::detail::StartupPublish* cap) {
         if (!cap) sco::detail::RemoveReleaseHookOwned(cap, OnRelease);
         return r;
     }
-    g_started = true; return Result::Ok;
+    g_session.fetch_add(1, std::memory_order_acq_rel);
+    g_started = true; g_startedFlag.store(true, std::memory_order_release);
+    return Result::Ok;
 }
 
 Result Start() {
@@ -460,7 +568,10 @@ void Stop() {
     if (!OnGameThread()) return;
     std::lock_guard<std::mutex> hold(g_lock);
     if (!g_started) return;
-    g_started = false; g_panels.clear();
+    g_started = false; g_startedFlag.store(false, std::memory_order_release);
+    g_session.fetch_add(1, std::memory_order_acq_rel);
+    if (!g_panels.empty()) Bump(true);
+    g_panels.clear();
     host::WithdrawHostService(SCO_WIDGETS_NAME); RemoveReleaseHook(OnRelease);
 }
 bool Started() { std::lock_guard<std::mutex> hold(g_lock); return g_started; }
@@ -492,8 +603,6 @@ Result RenderPanel(const char* id, Renderer& renderer) {
     if (!OnGameThread()) return Result::WrongThread;
     std::shared_ptr<const Panel> snapshot;
     sco_plugin* owner = nullptr;
-    sco_widget_event_fn fn = nullptr;
-    void* ctx = nullptr;
     uint64_t generation = 0;
     {
         std::lock_guard<std::mutex> hold(g_lock);
@@ -506,47 +615,97 @@ Result RenderPanel(const char* id, Renderer& renderer) {
             it->dirty = false;
             ++g_snapshot_builds;
         }
-        snapshot = it->snapshot; owner = it->owner; fn = it->fn; ctx = it->ctx; generation = it->generation;
+        snapshot = it->snapshot; owner = it->owner; generation = it->generation;
     }
     const std::string& panelId = snapshot->id;
     std::vector<Event> events;
     try { renderer.Render(*snapshot, events); } catch (...) { return Result::Failed; }
     const size_t count = std::min(events.size(), static_cast<size_t>(SCO_WIDGETS_MAX_EVENTS));
+    Match match;
+    match.breakOnChange = true;
+    match.generation = generation;
     for (size_t i = 0; i < count; ++i) {
-        const Event& event = events[i];
-        bool extended = false;
-        bool tagged = false;
-        std::string tag;
-        int32_t row = -1;
-        {
-            std::lock_guard<std::mutex> hold(g_lock);
-            if (!g_started || detail::RuntimeStopping()) return Result::Unavailable;
-            if (detail::Released(owner)) return Result::Crashed;
-            const auto live = Find(panelId);
-            if (live == g_panels.end() || live->generation != generation) break;
-            auto node = std::find_if(live->panel.nodes.begin(), live->panel.nodes.end(), [&](const Node& n) { return n.id == event.node_id; });
-            if (node == live->panel.nodes.end() || !Enabled(live->panel, *node) || !ValidEvent(*node, event)) continue;
-            extended = live->extended;
-            tagged = live->taggedEvents;
-            // Own this copy through Callout: callbacks may update, replace or remove the
-            // live panel and can immediately invalidate every pointer into its nodes.
-            try { if (tagged) tag = node->tag; } catch (...) { return Result::TooMany; }
-            if (event.kind == SCO_WIDGET_TOGGLE || event.kind == SCO_WIDGET_SLIDER) node->value = event.value;
-            if (event.kind == SCO_WIDGET_COMBO || event.kind == SCO_WIDGET_LIST) node->index = event.index;
-            if (event.kind == SCO_WIDGET_TEXT_INPUT) node->text = event.text;
-            if (event.kind == SCO_WIDGET_EVENT_PAGE) { node->first_row = static_cast<uint32_t>(event.row); row = event.row; }
-            if (event.kind == SCO_WIDGET_LIST) row = event.index;
-            if (event.kind != SCO_WIDGET_BUTTON) live->dirty = true;
-        }
-        if (!fn) continue;
-        sco_widget_event_1_4 wire{};
-        wire.base.base = {sizeof(sco_widget_event), event.node_id, event.kind, event.index, event.value,
-                     event.kind == SCO_WIDGET_TEXT_INPUT ? event.text.c_str() : nullptr};
-        if (extended || tagged) { wire.base.base.size = sizeof(wire.base); wire.base.row = row; }
-        if (tagged) { wire.base.base.size = sizeof(wire); wire.tag = tag.empty() ? nullptr : tag.c_str(); }
-        EventCall call{fn, panelId.c_str(), &wire.base.base, ctx};
-        if (!detail::Callout(owner, panelId.c_str(), EventThunk, &call)) return Result::Crashed;
+        const Step step = ApplyAndDispatch(panelId, owner, events[i], match);
+        if (step == Step::Unavailable) return Result::Unavailable;
+        if (step == Step::Crashed) return Result::Crashed;
+        if (step == Step::Failed) return Result::TooMany;
+        if (step == Step::Gone) break;
     }
     return Result::Ok;
 }
+namespace viewimpl {
+namespace {
+constexpr uint64_t kFnvBasis = 0xcbf29ce484222325ull, kFnvPrime = 0x100000001b3ull;
+void Mix(uint64_t& h, unsigned char byte) { h ^= byte; h *= kFnvPrime; }
+void Mix32(uint64_t& h, uint32_t v) { for (int i = 0; i < 4; ++i) Mix(h, static_cast<unsigned char>(v >> (8 * i))); }
+void MixText(uint64_t& h, const std::string& s) { for (const unsigned char c : s) Mix(h, c); }
+uint32_t FlagsOf(const Entry& e) {
+    return (e.panel.owner == "menu" ? SCO_VIEW_PANEL_HOST_OWNED : 0u) |
+           (e.taggedEvents ? SCO_VIEW_PANEL_TAGGED_EVENTS : 0u);
+}
+// Call with g_lock held. A released owner is noticed once: list_revision moves.
+bool ReleasedNoted(Entry& e) {
+    if (!detail::Released(e.owner)) return false;
+    if (!e.releaseNoted) { e.releaseNoted = true; Bump(true); }
+    return true;
+}
+} // namespace
+uint64_t NodeKey(const Node& node) {
+    uint64_t h = kFnvBasis;
+    if (!node.tag.empty()) {
+        Mix(h, 'T'); Mix32(h, node.kind); MixText(h, node.tag);
+    } else {
+        Mix(h, 'U'); Mix32(h, node.kind); Mix32(h, node.id); Mix32(h, node.parent); MixText(h, node.label);
+    }
+    return h ? h : 1;
+}
+bool ValidUtf8(const std::string& s) { return Utf8(s); }
+bool Running() { return g_startedFlag.load(std::memory_order_acquire) && !detail::RuntimeStopping(); }
+uint64_t GlobalRevision() { return g_globalRevision.load(std::memory_order_acquire); }
+uint64_t ListRevision() { return g_listRevision.load(std::memory_order_acquire); }
+uint64_t Session() { return g_session.load(std::memory_order_acquire); }
+Result List(std::vector<ListRow>& out) {
+    std::lock_guard<std::mutex> hold(g_lock);
+    if (!g_started || detail::RuntimeStopping()) return Result::Unavailable;
+    for (auto& e : g_panels) {
+        if (ReleasedNoted(e)) continue;
+        ListRow row;
+        row.id = e.panel.id; row.title = e.panel.title; row.owner = e.panel.owner;
+        row.revision = e.revision; row.epoch = e.epoch;
+        row.nodeCount = static_cast<uint32_t>(e.panel.nodes.size());
+        row.flags = FlagsOf(e);
+        out.push_back(std::move(row));
+    }
+    return Result::Ok;
+}
+Result Snapshot(const std::string& id, Copied& out) {
+    std::lock_guard<std::mutex> hold(g_lock);
+    if (!g_started || detail::RuntimeStopping()) return Result::Unavailable;
+    const auto it = Find(id);
+    if (it == g_panels.end()) return Result::NotFound;
+    if (ReleasedNoted(*it)) return Result::Crashed;
+    if (it->dirty || !it->snapshot) {
+        it->snapshot = std::make_shared<const Panel>(it->panel);
+        it->dirty = false;
+        ++g_snapshot_builds;
+    }
+    out.panel = it->snapshot; out.revision = it->revision; out.epoch = it->epoch; out.flags = FlagsOf(*it);
+    return Result::Ok;
+}
+Result Exists(const std::string& id) {
+    std::lock_guard<std::mutex> hold(g_lock);
+    if (!g_started || detail::RuntimeStopping()) return Result::Unavailable;
+    const auto it = Find(id);
+    return it == g_panels.end() ? Result::NotFound : Result::Ok;
+}
+Step DispatchEvent(const std::string& panelId, const Event& event, uint64_t epoch, uint64_t key) {
+    Match match;
+    match.byKey = true;
+    match.epoch = epoch;
+    match.key = key;
+    const Step step = ApplyAndDispatch(panelId, nullptr, event, match);
+    if (step == Step::Crashed) { std::lock_guard<std::mutex> hold(g_lock); Bump(true); }
+    return step;
+}
+} // namespace viewimpl
 } // namespace sco::widgets

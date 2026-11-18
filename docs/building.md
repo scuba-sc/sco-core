@@ -104,7 +104,7 @@ links follow from them. **Game-pack** targets exist only with `SCO_GAME_SC=ON`;
 | `sco_sqlite` | `third_party/sqlite/sqlite3.c` ([options](../third_party/sqlite/README.md)), `-std=gnu11`, warnings off | `Threads::Threads`, `m` on Unix |
 | `sco_storage` | `src/storage/storage.cpp`: the `sco.storage` host service ([docs](storage.md)) | `sco_host`, `sco_sqlite` |
 | `sco_ui` | `src/ui/ui.cpp`: the legacy `sco.ui` host service ([docs](ui.md)); `src/ui/surfaces.cpp`: the `sco.ui.surfaces` host service ([docs](ui.md#surfaces)) | `sco_host` |
-| `sco_widgets` | `src/widgets/widgets.cpp`: renderer-neutral retained panels ([design](design/widgets.md)) | `sco_host` |
+| `sco_widgets` | `src/widgets/widgets.cpp`: renderer-neutral retained panels ([design](design/widgets.md)); `src/widgets/view.cpp`: the host-side `sco.widgets.view` reader ([page](widgets-view.md)) | `sco_host` |
 | `sco_widgets_imgui` (optional) | `src/widgets/imgui_adapter.cpp`: host-only adapter (`SCO_WIDGETS_IMGUI=ON`, product links ImGui) | `sco_widgets` |
 | `sco_settings` | `src/settings/settings.cpp`: typed plugin settings | `sco_host`, `sco_plugins`, `sco_storage`, `sco_ui` |
 | `sco_ipc` | `src/ipc/ipc.cpp` and `shm_win.cpp` or `shm_posix.cpp` | `sco_host`; privately `advapi32` on Windows or `rt` on non-Apple POSIX |

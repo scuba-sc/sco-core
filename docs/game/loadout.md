@@ -1,4 +1,4 @@
-# Typed offline local-player loadout (`game.loadout` 1.2)
+# Typed offline local-player loadout (`game.loadout` 1.3)
 
 ## Asynchronous extension (1.2)
 
@@ -54,6 +54,84 @@ a 1.2 table is published, it also answers 1.0/1.1 queries. The capability
 synchronous backend, apply returns UNAVAILABLE for every slot; production currently
 does not publish the table.
 
+## Outfit slots (1.3)
+
+Version 1.3 (`SC_LOADOUT_VERSION_1_3`, `0x00010003`) appends slot ids 22..34 so a product
+can ask to wear the item ports that shipped Squadron 42 outfits use. Vocabulary only: no
+table member, record or struct changes, and the 1.2 table answers 1.0 to 1.3 queries.
+The port names are item-port names the product already uses. They are consumer-side data
+names, not verified engine rows, and nothing here ran in game.
+
+| Value | Name | Item port |
+|---|---|---|
+| 22 | `SC_LOADOUT_SLOT_CLOTHING_TORSO_0` | `Clothing_Torso_0` |
+| 23 | `SC_LOADOUT_SLOT_CLOTHING_TORSO_1` | `Clothing_Torso_1` |
+| 24 | `SC_LOADOUT_SLOT_CLOTHING_TORSO_2` | `Clothing_Torso2` |
+| 25 | `SC_LOADOUT_SLOT_CLOTHING_LEGS` | `Clothing_Legs` |
+| 26 | `SC_LOADOUT_SLOT_CLOTHING_FEET` | `Clothing_Feet` |
+| 27 | `SC_LOADOUT_SLOT_CLOTHING_HANDS` | `Clothing_Hands` |
+| 28 | `SC_LOADOUT_SLOT_HAT` | `Hat_ItemPort` |
+| 29 | `SC_LOADOUT_SLOT_HAIR` | `Hair_ItemPort` |
+| 30 | `SC_LOADOUT_SLOT_HAIR_COLOR` | `Hair_Color` |
+| 31 | `SC_LOADOUT_SLOT_EYEBROW` | `Eyebrow_ItemPort` |
+| 32 | `SC_LOADOUT_SLOT_HEAD_ACCESSORY` | `Head_Accessory_ItemPort` |
+| 33 | `SC_LOADOUT_SLOT_HEAD_HORN` | `Head_Horn_ItemPort` |
+| 34 | `SC_LOADOUT_SLOT_JEWELLERY` | `Jewellery_ItemPort` |
+
+Values 35 and above are unassigned and stay UNSUPPORTED with no engine call.
+
+**Which ports are offered, and why.**
+
+- Worn items (clothing, hat, jewellery, head accessory, head horn): offered. They sit on
+  top of the character. A wrong or missing item changes the look, not the character.
+- Appearance overlays (hair, hair colour, eyebrow; slots 29-31): offered only behind a
+  separate capability, `game.loadout.appearance`, which is OFF by default. They overwrite
+  the character's look permanently: 1.x has no removal, so the previous hair cannot be
+  restored by this API. `Hair_Color` is also an assumed item port (the inventory header
+  names a separate hair-colour item type), so it may not be the right target at all. A
+  product that turns the capability on should ask the player first and should never send
+  these slots as part of a plain outfit swap. Without the capability, `submit` refuses any
+  request that holds one of them.
+- `Head_ItemPort` and `Body_ItemPort`: **not offered, no slot.** They hold the character's
+  head and body. Other parts are built to fit them (eyes, teeth, hair, clothing fit).
+  Swapping one for an item that does not match the rest can leave a headless, invisible
+  or mis-skinned character, and 1.x has no removal to undo it. We have no evidence of
+  what a safe swap looks like, so they are left out.
+- `Eyes_ItemPort` and `Teeth_ItemPort`: **not offered, no slot.** They are parts of the
+  face that follow the head. Replacing them alone risks a mismatch with the head and
+  gives a visible fault, with no way to undo it. Same reason, same decision. These four
+  can be added later by appending new ids, once there is in-game evidence.
+
+Gating:
+
+- Asynchronous route only. The synchronous `apply` reports 22..34 UNSUPPORTED and makes
+  no equip call, as for any slot it does not know.
+- Capability `game.loadout.outfit` is **OFF by default** and is on only while the async
+  route is installed and the adapter says it has a name mapping (`LoadoutAsyncBackend::outfit`;
+  this does not mean the names are verified). It goes off on a provider fault and on Stop.
+  The Windows adapter sets the flag, so the capability follows `SCO_LOADOUT_ASYNC=1`.
+- Capability `game.loadout.appearance` gates slots 29-31 on top of the outfit capability. It
+  is **OFF by default** and needs `LoadoutAsyncBackend::appearance`, which the Windows
+  adapter sets only when `SCO_LOADOUT_APPEARANCE=1` is also set. It goes off on a fault and on Stop.
+- `submit` refuses the whole request with UNAVAILABLE when it holds any slot in 22..34
+  and the matching capability is off (outfit for 22..34, appearance as well for 29..31). No job starts, so there is no half-started outfit. Other
+  checks are unchanged (BAD_ARG for malformed input or duplicate slots comes first).
+- If a capability is revoked after a job was accepted, that job's slots it gated end as
+  UNAVAILABLE with no engine call, and its other slots proceed.
+- Each slot is a lookup by name through the same port search as the 1.1 slots (bounded
+  walk, duplicate names refused). A missing port gives UNSUPPORTED, a missing item class
+  gives ITEM_MISSING, and APPLIED needs the same readback as every other slot.
+- The 16-item cap holds: all 13 outfit slots fit in one request, with room for 3 more.
+
+Compatibility note: in 1.2, ids 22..34 were unassigned, and `submit` accepted them and ended
+the slot UNSUPPORTED. In 1.3 it refuses the request with UNAVAILABLE while the capability is
+off. The refusal comes before the job-capacity check, so UNAVAILABLE can win over TOO_MANY.
+
+Evidence: portable tests cover the gating, the whole 22..34 range in order, unassigned
+values, revocation of each capability, a mixed batch, ITEM_MISSING, and queries at 1.0 to 1.3 and a refused 1.4. The Windows synthetic-object fixture checks that each slot looks
+up its own port name, that unassigned values never reach the port search, and one full
+spawn, attach and readback on an outfit port. Synthetic only. **Not run in game.**
+
 ## Inputs and outputs
 
 `sc_loadout.h` adds a separate size-prefixed service; frozen `sco_api` 1.1 is
@@ -91,8 +169,9 @@ engine port name.
 | 20 | `SC_LOADOUT_SLOT_SIDEARM_TOOL_CANISTER` | sidearm multitool, `canister_attach` |
 | 21 | `SC_LOADOUT_SLOT_SIDEARM_TOOL_BATTERY` | sidearm multitool, `magazine_attach` |
 
-Values 22 and above are unassigned and stay UNSUPPORTED. Numbers are frozen once
-published, so later slots can only be appended.
+Values 22..34 are the 1.3 outfit slots (see [Outfit slots](#outfit-slots-13)); 35 and above
+are unassigned and stay UNSUPPORTED. Numbers are frozen once published, so later slots can
+only be appended.
 
 Semantics:
 
@@ -113,7 +192,7 @@ Status behaviour for 8..21:
 
 | Case | Status | Engine call |
 |---|---|---|
-| Slot 0 or above 21 | UNSUPPORTED | no |
+| Slot 0 or above 21 (the synchronous route does not handle 22..34) | UNSUPPORTED | no |
 | Host provides 1.0 only (range ends at VISOR) | UNSUPPORTED | no |
 | Backend doesn't declare weapon support | UNSUPPORTED | no |
 | `game.loadout.weapons` OFF while body apply is ON | UNAVAILABLE | no |
@@ -218,6 +297,10 @@ These are not Windows DLL, renderer, engine or gameplay acceptance.
   sets `respawnCompleted`.
 - Only then install/attest the typed backend and enable its capability. Consumer
   extraction/engine activation and charter gameplay acceptance remain blocked.
+
+Outfit slots 22..34 (1.3) each need their own in-game evidence, and head, body, eyes and
+teeth stay out until there is evidence of a safe swap. `game.loadout.outfit` stays OFF by
+default until then, whatever the async route does.
 
 **Owner decision (approved):** logical slots were extended for the sc-offline #127
 consumer need (weapon attachments and multitool slots 8..21). The port mappings in the

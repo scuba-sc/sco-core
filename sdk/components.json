@@ -4040,6 +4040,76 @@
       "license": "GPL-3.0-only"
     },
     {
+      "id": "source.include.sco.widgets_view.h",
+      "source": "include/sco/widgets_view.h",
+      "destination": "include/sco/widgets_view.h",
+      "profiles": [
+        "core-source"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only"
+    },
+    {
+      "id": "source.src.widgets.view.cpp",
+      "source": "src/widgets/view.cpp",
+      "destination": "src/widgets/view.cpp",
+      "profiles": [
+        "core-source"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only"
+    },
+    {
+      "id": "source.src.widgets.view_internal.h",
+      "source": "src/widgets/view_internal.h",
+      "destination": "src/widgets/view_internal.h",
+      "profiles": [
+        "core-source"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only"
+    },
+    {
+      "id": "source.tests.abi_widgets_view.c",
+      "source": "tests/abi_widgets_view.c",
+      "destination": "tests/abi_widgets_view.c",
+      "profiles": [
+        "core-source"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only"
+    },
+    {
+      "id": "source.tests.test_widgets_view.cpp",
+      "source": "tests/test_widgets_view.cpp",
+      "destination": "tests/test_widgets_view.cpp",
+      "profiles": [
+        "core-source"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only"
+    },
+    {
+      "id": "source.tests.test_widgets_view_reader.c",
+      "source": "tests/test_widgets_view_reader.c",
+      "destination": "tests/test_widgets_view_reader.c",
+      "profiles": [
+        "core-source"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only"
+    },
+    {
+      "id": "docs.widgets-view.md",
+      "source": "docs/widgets-view.md",
+      "destination": "docs/widgets-view.md",
+      "profiles": [
+        "core-source"
+      ],
+      "origin": "project-authored",
+      "license": "GPL-3.0-only"
+    },
+    {
       "id": "source.tests.test_host_menu_owner.cpp",
       "source": "tests/test_host_menu_owner.cpp",
       "destination": "tests/test_host_menu_owner.cpp",

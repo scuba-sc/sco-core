@@ -3,6 +3,7 @@
 #include <sc_relocation.h>
 #include <array>
 #include <cmath>
+#include <cstdio>
 #include <cstring>
 namespace sco::game::services::relocation {
 struct Evidence {
@@ -34,6 +35,17 @@ struct Diagnosis {
     // A timeout after the move was applied and the target was streamed, with no arrival seen.
     bool arrivalUnconfirmed = false;
 };
+// The "off_by" part of the failure log line: how far the last observed pose was from the target.
+// "not measured" when no pose was read (or the distance was unusable); metres only for a position-only
+// request, which never tests orientation; metres and degrees for a full pose. Numbers only.
+inline int FormatOffBy(const Diagnosis& d, char* out, size_t cap) {
+    if (!out || !cap) return 0;
+    int n;
+    if (!d.poseRead || d.metres < 0) n = std::snprintf(out, cap, "off_by=not measured");
+    else if (d.positionOnly || d.degrees < 0) n = std::snprintf(out, cap, "off_by=%.3f m", d.metres);
+    else n = std::snprintf(out, cap, "off_by=%.3f m %.3f deg", d.metres, d.degrees);
+    return n;
+}
 inline bool PositionRequest(const sc_relocation_position_request& r) {
     if(r.size<sizeof(r)||!r.zone_id||!r.target_epoch||!r.timeout_ms||r.timeout_ms>60000)return false;
     for(double x:r.pos)if(!std::isfinite(x)||std::abs(x)>1e12)return false;

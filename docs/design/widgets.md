@@ -268,3 +268,10 @@ reentrant mutation, sticky null tags, legacy-size reset and short-table refusal.
 ABI, real-host, C++ fake-provider, managed and Lua fixtures cover these paths.
 These are synthetic results; not run in game. NativeAOT/archive-consumer and
 product-host qualification remain separate from source fixture results.
+
+## Host-side view
+
+A host menu that runs on its own thread reads these panels, and sends the player's clicks back, through
+`sco.widgets.view`, a host-source table that is not a plugin service. It is described in
+[widgets-view.md](../widgets-view.md). Plugins see no change: the `sco.widgets` tables and `ImGuiRenderer`
+behave as before.

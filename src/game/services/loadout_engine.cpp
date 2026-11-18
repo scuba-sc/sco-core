@@ -3,7 +3,7 @@
 // certify gameplay: explicit SCO_LOADOUT_ASYNC=1 opt-in and fresh G1 admission.
 // Item-port slots (port by name, attached container, handle, AttachEntity), the port vector and
 // the detach-behavior and persistence-reason values: F-4.10.197.2878-053, with
-// F-4.10.197.2878-012/-013. The 14 port names below are the consumer-side slot table of
+// F-4.10.197.2878-012/-013. The port names below are the consumer-side slot table of
 // docs/game/loadout.md, not verified engine port names: they are data-driven and absent from the
 // executable (F-4.10.197.2878-053).
 // game.loadout.async defaults OFF. Not run in game.
@@ -122,9 +122,26 @@ uintptr_t TargetPort(uintptr_t player, uint32_t slot) {
     case SC_LOADOUT_SLOT_PRIMARY: name = "wep_stocked_3"; break;
     case SC_LOADOUT_SLOT_SIDEARM: name = "wep_sidearm"; break;
     case SC_LOADOUT_SLOT_VISOR: return 0; // no independent current-build mapping
+    // 1.3 outfit slots: consumer-side port names (data-driven, not verified engine rows).
+    // Body_ItemPort, Head_ItemPort, Eyes_ItemPort and Teeth_ItemPort are deliberately unmapped:
+    // replacing them can break the character (see docs/game/loadout.md), so they have no slot.
+    case SC_LOADOUT_SLOT_CLOTHING_TORSO_0: name = "Clothing_Torso_0"; break;
+    case SC_LOADOUT_SLOT_CLOTHING_TORSO_1: name = "Clothing_Torso_1"; break;
+    case SC_LOADOUT_SLOT_CLOTHING_TORSO_2: name = "Clothing_Torso2"; break;
+    case SC_LOADOUT_SLOT_CLOTHING_LEGS: name = "Clothing_Legs"; break;
+    case SC_LOADOUT_SLOT_CLOTHING_FEET: name = "Clothing_Feet"; break;
+    case SC_LOADOUT_SLOT_CLOTHING_HANDS: name = "Clothing_Hands"; break;
+    case SC_LOADOUT_SLOT_HAT: name = "Hat_ItemPort"; break;
+    case SC_LOADOUT_SLOT_HAIR: name = "Hair_ItemPort"; break;
+    case SC_LOADOUT_SLOT_HAIR_COLOR: name = "Hair_Color"; break;
+    case SC_LOADOUT_SLOT_EYEBROW: name = "Eyebrow_ItemPort"; break;
+    case SC_LOADOUT_SLOT_HEAD_ACCESSORY: name = "Head_Accessory_ItemPort"; break;
+    case SC_LOADOUT_SLOT_HEAD_HORN: name = "Head_Horn_ItemPort"; break;
+    case SC_LOADOUT_SLOT_JEWELLERY: name = "Jewellery_ItemPort"; break;
     default: break;
     }
     if (name) return FindOwnedPort(root, name);
+    if (slot > SC_LOADOUT_SLOT_SIDEARM_TOOL_BATTERY) return 0; // unassigned value
     const bool primary = slot == 10 || slot == 11 || slot == 12 || (slot >= 16 && slot <= 18);
     const uintptr_t parent = FindOwnedPort(root, primary ? "wep_stocked_3" : "wep_sidearm");
     const uintptr_t nested = parent ? ChildContainer(parent) : 0;
@@ -217,7 +234,8 @@ void Discard(uint64_t token) {
         item = {}; return;
     }
 }
-const LoadoutAsyncBackend backend{true, Admitted, Begin, Poll, Discard};
+const LoadoutAsyncBackend backend{true, Admitted, Begin, Poll, Discard, true, false};
+const LoadoutAsyncBackend backendAppearance{true, Admitted, Begin, Poll, Discard, true, true};
 }
 const LoadoutAsyncBackend* ProductionLoadoutBackend() {
     char enabled[2]{};
@@ -229,6 +247,8 @@ const LoadoutAsyncBackend* ProductionLoadoutBackend() {
     findPort = reinterpret_cast<PortByName>(Sig("loadout.port_by_name"));
     portHandle = reinterpret_cast<PortHandle>(Sig("loadout.port_handle"));
     attachedContainer = reinterpret_cast<PortContainer>(Sig("loadout.port_container"));
+    char appearance[2]{};
+    if (GetEnvironmentVariableA("SCO_LOADOUT_APPEARANCE", appearance, sizeof(appearance)) == 1 && appearance[0] == '1') return &backendAppearance;
     return &backend;
 }
 }

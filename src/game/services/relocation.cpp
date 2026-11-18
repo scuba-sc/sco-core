@@ -295,15 +295,17 @@ const char* ReasonName(uint32_t reason) {
 // at that moment. Completion needs applied plus streamed and arrived; the rest must keep holding.
 void LogFailure(const relocation::Diagnosis& d) {
     const auto yn = [](bool v) { return v ? "yes" : "no"; };
+    char offBy[64];
+    relocation::FormatOffBy(d, offBy, sizeof(offBy));
     // A timeout after the move was applied is not the same as a move that never happened.
     sco::Log("[game] relocation: request failed (%s%s) after %llu ms: applied=%s streamed=%s arrived=%s "
              "offline=%s player=%s transport=%s fault=%s session_same=%s player_same=%s system_same=%s "
-             "target_system_same=%s%s%s pose_read=%s position_near=%s rotation_near=%s off_by=%.3f m %.3f deg",
+             "target_system_same=%s%s%s pose_read=%s position_near=%s rotation_near=%s %s",
              ReasonName(d.reason), d.arrivalUnconfirmed ? ", applied but arrival not confirmed" : "", static_cast<unsigned long long>(d.elapsedMs), yn(d.applied), yn(d.streamed),
              yn(d.arrived), yn(d.offline), yn(d.player), yn(d.transport), yn(d.fault), yn(d.sessionMatches),
              yn(d.playerMatches), yn(d.systemMatches), yn(d.targetSystemMatches),
              d.positionOnly ? " target_instance_same=" : "", d.positionOnly ? yn(d.targetInstanceMatches) : "",
-             yn(d.poseRead), yn(d.positionNear), yn(d.rotationNear), d.metres, d.degrees);
+             yn(d.poseRead), yn(d.positionNear), yn(d.rotationNear), offBy);
 }
 void TickRelocation() {
     if (!g_started || g_inBackend) return;

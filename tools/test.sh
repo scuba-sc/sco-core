@@ -76,6 +76,13 @@ echo "abi_ui: layout pinned (C11, C++20, -fshort-enums, x86_64-pc-windows-msvc)"
 clang   --target=x86_64-pc-windows-msvc -ffreestanding -std=c11   "${ABI[@]}" "$ROOT/tests/abi_widgets.c"
 clang++ --target=x86_64-pc-windows-msvc -ffreestanding -std=c++20 "${ABI[@]}" -x c++ "$ROOT/tests/abi_widgets.c"
 echo "abi_widgets: layout pinned (C11, C++20, -fshort-enums, x86_64-pc-windows-msvc)"
+# The sco.widgets.view host-source table (tests/abi_widgets_view.c), the same five ways.
+"$CC"  -std=c11   "${ABI[@]}" "$ROOT/tests/abi_widgets_view.c"
+"$CXX" -std=c++20 "${ABI[@]}" -x c++ "$ROOT/tests/abi_widgets_view.c"
+"$CC"  -std=c11   "${ABI[@]}" -fshort-enums "$ROOT/tests/abi_widgets_view.c"
+clang   --target=x86_64-pc-windows-msvc -ffreestanding -std=c11   "${ABI[@]}" "$ROOT/tests/abi_widgets_view.c"
+clang++ --target=x86_64-pc-windows-msvc -ffreestanding -std=c++20 "${ABI[@]}" -x c++ "$ROOT/tests/abi_widgets_view.c"
+echo "abi_widgets_view: layout pinned (C11, C++20, -fshort-enums, x86_64-pc-windows-msvc)"
 # The sco.ui.surfaces table and payloads (tests/abi_ui_surfaces.c), the same five ways.
 "$CC"  -std=c11   "${ABI[@]}" "$ROOT/tests/abi_ui_surfaces.c"
 "$CXX" -std=c++20 "${ABI[@]}" -x c++ "$ROOT/tests/abi_ui_surfaces.c"
@@ -339,7 +346,7 @@ SHARED_ASAN_SOURCES=(
   "$ROOT/src/game/services/entity_lookup.cpp"
   "$ROOT/src/hook/sco_hook.cpp" "$ROOT/src/engine/zone.cpp" "$ROOT/src/vfs/compose.cpp" "$ROOT/src/vfs/table.cpp"
   "$ROOT/src/game/pak_hooks.cpp" "$ROOT/src/game/datacore_live_lifecycle.cpp" "${DATACORE[@]}" "${PLUGINS[@]}"
-  "$ROOT/src/ui/ui.cpp" "$ROOT/src/ui/surfaces.cpp" "$ROOT/src/widgets/widgets.cpp"
+  "$ROOT/src/ui/ui.cpp" "$ROOT/src/ui/surfaces.cpp" "$ROOT/src/widgets/widgets.cpp" "$ROOT/src/widgets/view.cpp"
   "$ROOT/src/settings/settings.cpp" "$ROOT/src/storage/storage.cpp"
   "$ROOT/src/ipc/ipc.cpp" "$ROOT/src/ipc/shm_posix.cpp"
   "$ROOT/src/net/wire.cpp" "$ROOT/src/net/reliable.cpp" "$ROOT/src/net/core.cpp"
@@ -358,7 +365,7 @@ SHARED_TSAN_SOURCES=(
   "$ROOT/src/net/wire.cpp" "$ROOT/src/net/reliable.cpp" "$ROOT/src/net/core.cpp"
   "$ROOT/src/net/service.cpp" "$ROOT/src/net/scope.cpp" "$ROOT/src/net/control.cpp" "$ROOT/src/net/udp_posix.cpp"
   "${PLUGINS[@]}"
-  "$ROOT/src/ui/ui.cpp" "$ROOT/src/ui/surfaces.cpp" "$ROOT/src/widgets/widgets.cpp" "$ROOT/src/settings/settings.cpp"
+  "$ROOT/src/ui/ui.cpp" "$ROOT/src/ui/surfaces.cpp" "$ROOT/src/widgets/widgets.cpp" "$ROOT/src/widgets/view.cpp" "$ROOT/src/settings/settings.cpp"
 )
 
 parallel_compile asan "${SHARED_ASAN_SOURCES[@]}"
@@ -749,6 +756,15 @@ WIDGETS_SRC=("$ROOT/src/widgets/widgets.cpp" "$ROOT/src/sco_log_status.cpp" "${R
 "$OUT/test_widget_numeric"
 "$CXX" "${FLAGS[@]}" -fsanitize=thread "$ROOT/tests/test_widgets.cpp" $(obj tsan "${WIDGETS_SRC[@]}") -o "$OUT/test_widgets_tsan"
 "$OUT/test_widgets_tsan"
+# The sco.widgets.view reader and event queue: ASan/UBSan, then TSan for the many-thread tests.
+# The strict reader is C, so it is compiled by the C compiler and linked in.
+VIEW_SRC=("$ROOT/src/widgets/view.cpp" "${WIDGETS_SRC[@]}")
+"$CC" -std=c11 -Wall -Wextra -Werror -I "$ROOT/include" -fsanitize=address,undefined -c "$ROOT/tests/test_widgets_view_reader.c" -o "$OUT/test_widgets_view_reader_asan.o"
+"$CXX" "${FLAGS[@]}" -fsanitize=address,undefined "$ROOT/tests/test_widgets_view.cpp" "$OUT/test_widgets_view_reader_asan.o"   $(obj asan "${VIEW_SRC[@]}") -o "$OUT/test_widgets_view"
+"$OUT/test_widgets_view"
+"$CC" -std=c11 -Wall -Wextra -Werror -I "$ROOT/include" -fsanitize=thread -c "$ROOT/tests/test_widgets_view_reader.c" -o "$OUT/test_widgets_view_reader_tsan.o"
+"$CXX" "${FLAGS[@]}" -fsanitize=thread "$ROOT/tests/test_widgets_view.cpp" "$OUT/test_widgets_view_reader_tsan.o"   $(obj tsan "${VIEW_SRC[@]}") -o "$OUT/test_widgets_view_tsan"
+"$OUT/test_widgets_view_tsan"
 "$CXX" "${FLAGS[@]}" -fsanitize=thread "$ROOT/tests/test_host_menu_owner.cpp" $(obj tsan "${WIDGETS_SRC[@]}") -o "$OUT/test_host_menu_owner_tsan"
 "$OUT/test_host_menu_owner_tsan"
 "$CXX" "${FLAGS[@]}" -fsanitize=address,undefined -DSCO_TEST_IMGUI_ADAPTER \
@@ -788,7 +804,7 @@ LUA_TEST_SRC=("${PLUGINS[@]}" "${RUNTIME[@]}" "${HOST_IMPL[@]}" "$ROOT/src/sco_s
 # sco::app (ASan+UBSan). Then sco-host-sim over the SDK examples, laid out like data/plugins with
 # hello built here as a shared library (CMake: CTest host_sim_examples).
 # The app owns diagnostic transport and advisory sources, unlike the signature-only tests.
-APP_SRC=("$ROOT/src/content/content.cpp" "$ROOT/src/app/sco_app.cpp" "$ROOT/src/app/plugin_startup_snapshot.cpp" "$ROOT/src/widgets/widgets.cpp" "${PLUGINS[@]}" "${RUNTIME[@]}" "${HOST_IMPL[@]}" \
+APP_SRC=("$ROOT/src/content/content.cpp" "$ROOT/src/app/sco_app.cpp" "$ROOT/src/app/plugin_startup_snapshot.cpp" "$ROOT/src/widgets/widgets.cpp" "$ROOT/src/widgets/view.cpp" "${PLUGINS[@]}" "${RUNTIME[@]}" "${HOST_IMPL[@]}" \
          "$ROOT/src/sco_signatures.cpp" "$ROOT/src/sco_signature_registry.cpp" "$ROOT/src/sco_scan.cpp" "${GAME[@]}" "$ROOT/src/game/diagnostics.cpp" "$ROOT/src/game/private_session.cpp" \
          "$ROOT/src/storage/storage.cpp" "$ROOT/src/ui/ui.cpp" "$ROOT/src/ui/surfaces.cpp" "$ROOT/src/settings/settings.cpp" \
          "$ROOT/src/ipc/ipc.cpp" "$ROOT/src/ipc/shm_posix.cpp" "${DIAGNOSTICS_IPC[@]}" "${NETSVC_SRC[@]}" \

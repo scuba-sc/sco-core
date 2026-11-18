@@ -7,6 +7,7 @@
 #include <cassert>
 #include <cstddef>
 #include <cstdio>
+#include <cstring>
 #include <cmath>
 #include <limits>
 using namespace sco::game::services::relocation;
@@ -247,6 +248,23 @@ int main() {
      assert(o.read && std::abs(o.metres-0.1)<1e-9 && std::abs(o.degrees-2.0)<1e-6 && !o.positionNear && !o.rotationNear);
      const double none[3]={std::numeric_limits<double>::quiet_NaN(),0,0};
      assert(CheckArrival(mr,none,rq).metres==-1);}
+    // PositionDistance and the failure-log formatting of the offset.
+    {sc_relocation_position_request dr{sizeof(dr),1000,5,{1,2,3},44};
+     const double a[3]={4,6,3};assert(std::abs(PositionDistance(dr,a)-5.0)<1e-12);
+     const double bad[3]={0,std::numeric_limits<double>::infinity(),0};assert(PositionDistance(dr,bad)==-1);
+     assert(PositionDistance(dr,nullptr)==-1);
+     char buf[64];Diagnosis d;
+     FormatOffBy(d,buf,sizeof(buf));assert(std::strcmp(buf,"off_by=not measured")==0);
+     d.poseRead=true;d.metres=0.2;d.degrees=3.5;
+     FormatOffBy(d,buf,sizeof(buf));assert(std::strcmp(buf,"off_by=0.200 m 3.500 deg")==0);
+     d.positionOnly=true;
+     FormatOffBy(d,buf,sizeof(buf));assert(std::strcmp(buf,"off_by=0.200 m")==0);
+     d.positionOnly=false;d.degrees=-1;
+     FormatOffBy(d,buf,sizeof(buf));assert(std::strcmp(buf,"off_by=0.200 m")==0);
+     d.metres=-1;
+     FormatOffBy(d,buf,sizeof(buf));assert(std::strcmp(buf,"off_by=not measured")==0);
+     d.poseRead=true;d.metres=1234.5678;d.degrees=0.0004;
+     char tiny[10];assert(FormatOffBy(d,tiny,sizeof(tiny))>0 && std::strlen(tiny)==9);}
     // Position-only: already within 0.05 m completes at once.
     sc_relocation_position_request pr{sizeof(pr),1000,5,{1,2,3},44};
     Evidence pe{true,true,true,9,11,7,7,true,true,false,false,44,77};

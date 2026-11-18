@@ -403,6 +403,149 @@ int main(int argc, char** argv) {
         sco::game::services::StopLoadout();
         CHECK(!api->has("game.loadout.weapons"));
     }
+    // game.loadout 1.3: outfit slots 22-34 need the async route AND the adapter attestation
+    // (capability game.loadout.outfit); the synchronous apply never handles them.
+    {
+        static unsigned begins = 0, syncEquips = 0;
+        static uint32_t seen[32]{};
+        sco::game::services::LoadoutBackend sync{};
+        sync.verified = true; sync.weapons = true;
+        sync.offline = [] { return true; };
+        sync.equip = [](uint32_t, const char*) -> sc_loadout_status { ++syncEquips; return SC_LOADOUT_APPLIED; };
+        sco::game::services::LoadoutAsyncBackend async{};
+        async.verified = true;
+        async.admit = [](uint64_t* session) { *session = 1; return true; };
+        async.begin = [](uint32_t slot, const char* name, uint64_t*, sc_loadout_status* terminal) {
+            if (begins < 32) seen[begins] = slot;
+            ++begins;
+            *terminal = std::strcmp(name, "synthetic_wrong_class") == 0 ? SC_LOADOUT_ITEM_MISSING : SC_LOADOUT_APPLIED;
+            return true;
+        };
+        async.poll = [](uint64_t, bool* complete, sc_loadout_status*) { *complete = true; return true; };
+        async.discard = [](uint64_t) {};
+        sco::game::services::StopLoadout();
+        // Async route without the attestation: outfit stays off, other slots still work.
+        CHECK(sco::game::services::StartLoadout(&sync, &async) == sco::Result::Ok);
+        CHECK(api->has("game.loadout.async") && !api->has("game.loadout.outfit"));
+        const void* raw = nullptr;
+        CHECK(api->query_service(SC_LOADOUT_SERVICE_NAME, SC_LOADOUT_VERSION_1_3, &raw) == SCO_OK && raw);
+        const auto* svc = static_cast<const sc_loadout_v1_2*>(raw);
+        sc_loadout_item outfit[SC_LOADOUT_MAX_ITEMS]{};
+        outfit[0] = {SC_LOADOUT_SLOT_HAT, 0, "synthetic_hat"};
+        sc_loadout_request req{sizeof(req), 1, sizeof(sc_loadout_item), 0, outfit};
+        uint64_t job = 0, spare = 0;
+        CHECK(svc->submit(self, &req, &job) == SCO_UNAVAILABLE && job == 0 && begins == 0);
+        outfit[1] = {SC_LOADOUT_SLOT_HEAD, 0, "synthetic_helmet"};
+        req.count = 2; // one outfit slot taints the whole batch: no partial start
+        CHECK(svc->submit(self, &req, &job) == SCO_UNAVAILABLE && begins == 0);
+        req.count = 1; outfit[0] = {SC_LOADOUT_SLOT_HEAD, 0, "synthetic_helmet"};
+        CHECK(svc->submit(self, &req, &job) == SCO_OK && job);
+        sco::game::services::TickLoadout(1);
+        CHECK(begins == 1 && seen[0] == SC_LOADOUT_SLOT_HEAD);
+        CHECK(svc->cancel(self, job) == SCO_OK);
+        // Synchronous apply: outfit slots are UNSUPPORTED, no equip call, even with weapons on.
+        {
+            sc_loadout_item hat{SC_LOADOUT_SLOT_HAT, 0, "synthetic_hat"};
+            sc_loadout_request one{sizeof(one), 1, sizeof(hat), 0, &hat};
+            sc_loadout_report rep{}; rep.size = sizeof(rep);
+            CHECK(svc->apply(self, &one, &rep) == SCO_FAILED && syncEquips == 0);
+            CHECK(rep.slots[0].status == SC_LOADOUT_UNSUPPORTED && rep.applied == 0);
+        }
+        CHECK(sco::game::services::StopLoadout() == sco::Result::Ok && !api->has("game.loadout.outfit"));
+        // Name mapping present: outfit on, appearance (29-31) still off.
+        begins = 0;
+        async.outfit = true;
+        CHECK(sco::game::services::StartLoadout(nullptr, &async) == sco::Result::Ok);
+        CHECK(api->has("game.loadout.outfit") && !api->has("game.loadout.appearance"));
+        {
+            const void* r = nullptr;
+            CHECK(api->query_service(SC_LOADOUT_SERVICE_NAME, SC_LOADOUT_VERSION_1_3, &r) == SCO_OK && r);
+            const auto* s = static_cast<const sc_loadout_v1_2*>(r);
+            const uint32_t ap[] = {SC_LOADOUT_SLOT_HAIR, SC_LOADOUT_SLOT_HAIR_COLOR, SC_LOADOUT_SLOT_EYEBROW};
+            for (uint32_t slot : ap) {
+                sc_loadout_item it{slot, 0, "synthetic_hair"};
+                sc_loadout_request one{sizeof(one), 1, sizeof(it), 0, &it};
+                uint64_t j = 0;
+                CHECK(s->submit(self, &one, &j) == SCO_UNAVAILABLE && j == 0 && begins == 0);
+            }
+            // Mixed batch with the capability on: head plus a worn slot, both reach begin.
+            sc_loadout_item mix[2]{{SC_LOADOUT_SLOT_HEAD, 0, "synthetic_helmet"}, {SC_LOADOUT_SLOT_HAT, 0, "synthetic_hat"}};
+            sc_loadout_request two{sizeof(two), 2, sizeof(sc_loadout_item), 0, mix};
+            uint64_t j = 0;
+            CHECK(s->submit(self, &two, &j) == SCO_OK && j);
+            sco::game::services::TickLoadout(200); sco::game::services::TickLoadout(201);
+            sc_loadout_job_report st{}; st.size = sizeof(st);
+            CHECK(s->status(self, j, &st) == SCO_OK && st.state == SC_LOADOUT_JOB_COMPLETE && begins == 2 &&
+                  st.report.slots[0].status == SC_LOADOUT_APPLIED && st.report.slots[1].status == SC_LOADOUT_APPLIED);
+            CHECK(s->cancel(self, j) == SCO_OK);
+            // Wrong item class on an outfit slot gives ITEM_MISSING.
+            begins = 0;
+            sc_loadout_item wrongClass{SC_LOADOUT_SLOT_HAT, 0, "synthetic_wrong_class"};
+            sc_loadout_request b1{sizeof(b1), 1, sizeof(wrongClass), 0, &wrongClass};
+            CHECK(s->submit(self, &b1, &j) == SCO_OK);
+            sco::game::services::TickLoadout(202);
+            CHECK(s->status(self, j, &st) == SCO_OK && st.report.slots[0].status == SC_LOADOUT_ITEM_MISSING && begins == 1);
+            CHECK(s->cancel(self, j) == SCO_OK);
+            // Older queries keep working after publishing 1.3; 1.4 is refused.
+            const void* q = nullptr;
+            for (uint32_t v : {SC_LOADOUT_VERSION_1_0, SC_LOADOUT_VERSION_1_1, SC_LOADOUT_VERSION_1_2, SC_LOADOUT_VERSION_1_3})
+                CHECK(api->query_service(SC_LOADOUT_SERVICE_NAME, v, &q) == SCO_OK && q);
+            q = nullptr; // a newer minor than published is refused (UNAVAILABLE, not a table)
+            CHECK(api->query_service(SC_LOADOUT_SERVICE_NAME, 0x00010004u, &q) == SCO_UNAVAILABLE && !q);
+        }
+        CHECK(sco::game::services::StopLoadout() == sco::Result::Ok && !api->has("game.loadout.outfit"));
+        // Appearance opt-in: all 13 slots 22-34 reach begin in order.
+        begins = 0;
+        async.appearance = true;
+        CHECK(sco::game::services::StartLoadout(nullptr, &async) == sco::Result::Ok);
+        CHECK(api->has("game.loadout.outfit") && api->has("game.loadout.appearance"));
+        CHECK(api->query_service(SC_LOADOUT_SERVICE_NAME, SC_LOADOUT_VERSION_1_3, &raw) == SCO_OK && raw);
+        svc = static_cast<const sc_loadout_v1_2*>(raw);
+        constexpr uint32_t first = SC_LOADOUT_SLOT_CLOTHING_TORSO_0, last = SC_LOADOUT_SLOT_JEWELLERY;
+        static_assert(last - first + 1 == 13, "thirteen outfit slots");
+        for (uint32_t slot = first; slot <= last; ++slot) outfit[slot - first] = {slot, 0, "synthetic_garment"};
+        req.count = last - first + 1; req.items = outfit;
+        CHECK(svc->submit(self, &req, &job) == SCO_OK && job);
+        for (uint32_t i = 0; i < req.count; ++i) sco::game::services::TickLoadout(10 + i);
+        sc_loadout_job_report state{}; state.size = sizeof(state);
+        CHECK(svc->status(self, job, &state) == SCO_OK && state.state == SC_LOADOUT_JOB_COMPLETE);
+        CHECK(state.report.applied == req.count && begins == req.count);
+        for (uint32_t i = 0; i < req.count; ++i)
+            CHECK(seen[i] == first + i && state.report.slots[i].slot == first + i &&
+                  state.report.slots[i].status == SC_LOADOUT_APPLIED);
+        CHECK(svc->cancel(self, job) == SCO_OK);
+        // Unassigned values stay UNSUPPORTED with no begin call (head and body ports have no slot).
+        begins = 0;
+        outfit[0] = {last + 1, 0, "synthetic_garment"}; req.count = 1;
+        CHECK(svc->submit(self, &req, &job) == SCO_OK);
+        sco::game::services::TickLoadout(100);
+        CHECK(svc->status(self, job, &state) == SCO_OK && state.report.slots[0].status == SC_LOADOUT_UNSUPPORTED && begins == 0);
+        CHECK(svc->cancel(self, job) == SCO_OK);
+        // Revocation: new submits refuse, and a job already queued gets UNAVAILABLE with no begin.
+        outfit[0] = {SC_LOADOUT_SLOT_JEWELLERY, 0, "synthetic_ring"};
+        CHECK(svc->submit(self, &req, &job) == SCO_OK);
+        sco::caps::Set("game.loadout.outfit", false, "synthetic revocation");
+        CHECK(svc->submit(self, &req, &spare) == SCO_UNAVAILABLE);
+        sco::game::services::TickLoadout(101);
+        CHECK(svc->status(self, job, &state) == SCO_OK && state.state == SC_LOADOUT_JOB_COMPLETE &&
+              state.report.slots[0].status == SC_LOADOUT_UNAVAILABLE && begins == 0);
+        CHECK(svc->cancel(self, job) == SCO_OK);
+        // Appearance revoked alone: worn slots still work, a queued hair slot ends UNAVAILABLE.
+        begins = 0;
+        outfit[0] = {SC_LOADOUT_SLOT_HAIR, 0, "synthetic_hair"};
+        CHECK(sco::game::services::StopLoadout() == sco::Result::Ok);
+        CHECK(sco::game::services::StartLoadout(nullptr, &async) == sco::Result::Ok);
+        CHECK(api->query_service(SC_LOADOUT_SERVICE_NAME, SC_LOADOUT_VERSION_1_3, &raw) == SCO_OK && raw);
+        svc = static_cast<const sc_loadout_v1_2*>(raw);
+        CHECK(svc->submit(self, &req, &job) == SCO_OK);
+        sco::caps::Set("game.loadout.appearance", false, "synthetic revocation");
+        CHECK(svc->submit(self, &req, &spare) == SCO_UNAVAILABLE);
+        sco::game::services::TickLoadout(102);
+        CHECK(svc->status(self, job, &state) == SCO_OK && state.report.slots[0].status == SC_LOADOUT_UNAVAILABLE && begins == 0);
+        CHECK(svc->cancel(self, job) == SCO_OK);
+        CHECK(sco::game::services::StopLoadout() == sco::Result::Ok &&
+              !api->has("game.loadout.outfit") && !api->has("game.loadout.appearance"));
+    }
     backend.equip = [](uint32_t, const char*) -> sc_loadout_status { ++calls; throw 1; };
     backend.weapons = true;
     sco::game::services::StopLoadout();

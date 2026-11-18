@@ -1,6 +1,7 @@
 // The host kit: Start / Tick / Stop over the game core, caps, the host table and the loader.
 // Everything runs on the game thread; the state below is touched by nothing else.
 #include "sco/app.h"
+#include "../widgets/view_internal.h"
 #include "owned_start.h"
 #include "owned_subsystems.h"
 #include "process_retained.h"
@@ -748,6 +749,29 @@ bool IsHostMenuPanel(const char* id) {
     const size_t count = g_menuCount.load(std::memory_order_acquire);
     for (size_t i = 0; i < count; ++i)
         if (widgets::OwnedBy(g_menuInstances[i].identity.self, id)) return true;
+    return false;
+}
+
+bool HostWidgetsView(const HostMenuContext& context, const sco_widgets_view_v1** table,
+                     sco_view_client** client) {
+    if (!table || !client) return false;
+    *table = nullptr;
+    *client = nullptr;
+    if (!HostMenuActive(context)) return false;
+    *table = widgets::viewimpl::ViewTable();
+    *client = widgets::viewimpl::ViewClient();
+    return true;
+}
+
+bool HostWidgetsViewReleaseMenuThread(const HostMenuContext& context) {
+    // Control thread: compare against the append-only instance list, never the game-thread g_menu.
+    // The identity is a host-menu owner this process created, so no plugin can match it.
+    const size_t count = g_menuCount.load(std::memory_order_acquire);
+    for (size_t i = 0; i < count; ++i) {
+        const HostMenuContext& id = g_menuInstances[i].identity;
+        if (id.api == context.api && id.self == context.self && id.generation == context.generation)
+            return widgets::viewimpl::ViewReleaseMenuThread();
+    }
     return false;
 }
 

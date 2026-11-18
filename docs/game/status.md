@@ -38,7 +38,7 @@ The dated signature evidence below was recorded at sco-core `main` `2197dfb` (20
 
 ## Typed loadout extension (G6)
 
-`game.loadout` 1.2 / `game.loadout.apply`: production startup currently refuses
+`game.loadout` 1.3 / `game.loadout.apply`: production startup currently refuses
 before the table is published. Typed engine methods remain unverified. Synthetic
 host/provider/native-module checks only; no trusted per-slot equip mapping and no
 offline admission adapter installed. See [loadout](loadout.md). Not run in game.
@@ -51,6 +51,11 @@ mapping is verified and nothing was run in game. The service version macro
 `SC_LOADOUT_SERVICE_VERSION` retains the synchronous prefix version. The separate
 1.2 asynchronous adapter is opt-in; the native respawn event producer remains
 unresolved and default OFF. Neither route is verified in game.
+
+`game.loadout.outfit` (added in 1.3) gates outfit slots 22-34 of `submit` (clothing, hat, hair,
+hair colour, eyebrow, head accessory, head horn, jewellery). It is **OFF by default** and
+on only with the opt-in async route; hair, hair colour and eyebrow (29-31) also need `game.loadout.appearance`, a separate OFF-by-default capability. Head, body, eyes and teeth ports have no slot. Synthetic
+evidence only; the item-port names are not verified engine rows. See [loadout](loadout.md#outfit-slots-13).
 
 ## Quantum control activation (G8, unreleased R1)
 
@@ -161,9 +166,11 @@ unload removes placements. C/C++ direct routes; C#/Lua unsupported.
 | `game.contracts` ([`sc_contracts.h`](../../include/sc_contracts.h)) | 1.0 | Stable | `game.contracts.stream_radius` (`stream_radius`, read-only) | OFF | OFF pending in-game confirmation |
 | `game.prefabs` ([`sc_prefabs.h`](../../include/sc_prefabs.h)) | 1.0 | Experimental | `game.entities.prefabs` (`spawn`) | ON | ON by owner approval for R1; synthetic admission/ABI fixtures only; Windows/MSVC, native SEH and gameplay NOT VERIFIED |
 | `game.owned` ([`sc_owned.h`](../../include/sc_owned.h)) | 1.0 | Experimental | no capability of its own: composes the `game.entities` and `game.actors` removal and seat reads | none | Synthetic provider/ownership fixtures and header layout checks only; not run in game or on Windows/MSVC runtime |
-| `game.loadout` ([`sc_loadout.h`](../../include/sc_loadout.h)) | 1.2 | Experimental | `game.loadout.apply` (`apply`) | OFF | Synthetic/native-boundary checks only; typed engine methods unverified; not run in game |
+| `game.loadout` ([`sc_loadout.h`](../../include/sc_loadout.h)) | 1.3 | Experimental | `game.loadout.apply` (`apply`) | OFF | Synthetic/native-boundary checks only; typed engine methods unverified; not run in game |
 | | | | `game.loadout.weapons` (weapon and multitool slots 8-21 of `apply`) | OFF | Synthetic policy only; no verified engine backend, no in-game proof |
 | | | | `game.loadout.async` (`submit`, `status`, `cancel`) | OFF | Opt-in native spawn/attach/readback adapter, Windows synthetic-object fixture and current-build locator checks; not run in game |
+| | | | `game.loadout.outfit` (outfit slots 22-34 of `submit`) | OFF | On only with the async route and an adapter with an item-port name mapping; names are consumer-side data, not verified engine rows; synthetic fixture only, not run in game |
+| | | | `game.loadout.appearance` (hair, hair colour, eyebrow slots 29-31 of `submit`) | OFF | Permanent overlays with no removal in 1.x. On only with the outfit capability and an explicit adapter opt-in (SCO_LOADOUT_APPEARANCE=1 on Windows); Hair_Color is an assumed port; synthetic fixture only, not run in game |
 | `game.quantum` ([`sc_quantum.h`](../../include/sc_quantum.h)) | 1.0 | Experimental | `game.quantum.control` | OFF | Default production adapter ported from v0.7.7 under the maintainer's 2026-10-15 amended rule: writes four int quantum cvars and one shared drive parameter cell only while holding, after fresh offline admission, first prior saved, restored on every release path; ON only when its rows resolve and admission is positive at start; synthetic fake-engine tests only; Windows/MSVC and gameplay NOT VERIFIED |
 | `game.build` ([`sc_game_build.h`](../../include/sc_game_build.h)) | 1.0 | Experimental | `game.build.info` (`read`) | ON | No rows: reads TimeDateStamp/SizeOfImage from the running module header and the pack's own verified-build pin; starts only when the numeric mirrors agree with the strings; host-side compile and layout pins verified, not run in game |
 | `game.gamerules` ([`sc_gamerules.h`](../../include/sc_gamerules.h)) | 1.1 | Experimental | `game.gamerules.read` | OFF | Read-only snapshot of server GameRules parameters; rows gamerules.params_label/params_sync resolve on 4.10.196.36804 and 4.10.197.2878 in local sco-sigcheck runs (F-4.10.196.36804-007/-008); default production backend binds nothing (read returns UNAVAILABLE) and the native read seam installs nothing without a read-only accessor; Windows/MSVC and gameplay NOT VERIFIED |
