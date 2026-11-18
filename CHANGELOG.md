@@ -4,6 +4,13 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+- `game.entities.prefabs` is now reported ON only when the `spawn.prefabs` rows resolved on the
+  running build. Before, the capability read ON without them, the first prefab placement failed
+  with `SCO_FAILED`, and the capability stayed OFF until restart. Now it starts OFF with the reason
+  "spawn.prefabs rows did not resolve on this build", and a placement that still reaches the spawner
+  without the rows returns `SCO_UNAVAILABLE` without latching (only a real engine fault latches). A stopped spawner is not blamed on the rows.
+  Synthetic policy tests only; not run in game.
+
 ## sdk-v2.4.1
 
 SDK 2.4.1 with game pack 0.8.1 for Star Citizen build 4.10.200.58746. Plugin ABI stays 1.1;
