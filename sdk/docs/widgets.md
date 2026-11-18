@@ -92,6 +92,11 @@ row without invoking the list's selection callback.
 See [the full builder cookbook](../../docs/ui.md#cookbook-declarative-c-panels-scosdkmenu_builderhpp)
 for validation and lifetime rules.
 
+Labels on ROW, COLUMN and TABLE nodes are optional. The host's ImGui menu shows a nonempty one
+as a section heading and draws nothing for an empty one, so leave a row of buttons unlabelled
+rather than giving it a heading just to avoid a gap. That menu shows a NUMBER slider's value
+without trailing zeros (`30`, `0.5`, `0.125`, at most three decimals); event values are unchanged.
+
 ## Contract essentials
 
 - `set_panel` submits the **whole** flat preorder tree; failure preserves the old

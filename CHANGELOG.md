@@ -4,6 +4,15 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
+- Host ImGui widget adapter (source kit only; no ABI or plugin-visible change). A ROW, COLUMN or
+  TABLE with an empty label no longer draws an empty text line above its content, so an
+  unlabelled row of buttons sits directly under what precedes it and plugins need no made-up
+  headings. A NUMBER slider shows whole values without decimals and others with up to three
+  (`30` instead of `30.000`, `0.5`, `0.125`); dragged values are still rounded to three
+  decimals, typed values kept and clamping unchanged, so events are identical. Products pick
+  this up with the first SDK published after it. Docs: `docs/design/widgets.md` also proposes
+  versioned TABLE column headings, pending an owner decision.
+
 ## sdk-v2.4.1
 
 SDK 2.4.1 with game pack 0.8.1 for Star Citizen build 4.10.200.58746. Plugin ABI stays 1.1;
