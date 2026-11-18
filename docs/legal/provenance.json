@@ -67,6 +67,9 @@
     {"path": "sdk/test-zip.sh", "origin": "project-authored", "license": "GPL-3.0-only", "copyright": "2026 the sco-core contributors", "status": "needs-review", "note": "AI-assisted experimental Rust SDK packaging, documentation or verification changes; contribution rights and distribution review pending. No in-game acceptance claimed."},
     {"path": "sdk/rust/**", "origin": "project-authored", "license": "GPL-3.0-only", "copyright": "2026 the sco-core contributors", "status": "needs-review", "note": "AI-authored experimental Rust bindings and documentation based on frozen project C ABI; contribution rights and distribution review pending. No in-game acceptance claimed."},
     {"path": "sdk/examples/rust_hello/**", "origin": "project-authored", "license": "GPL-3.0-only", "copyright": "2026 the sco-core contributors", "status": "needs-review", "note": "AI-authored experimental Rust bindings and documentation based on frozen project C ABI; contribution rights and distribution review pending. No in-game acceptance claimed."},
+    {"path": "sdk/examples/launcher/**", "origin": "project-authored", "license": "GPL-3.0-only", "copyright": "2026 the sco-core contributors", "status": "needs-review", "note": "AI-assisted reference launcher cut from the maintainer's own product launcher: product-neutral crates, one product config, a small CLI. Dependencies are crates.io crates under permissive licences (see deny.toml). Contribution rights and distribution review pending. Source and synthetic tests only; not run in game."},
+    {"path": "docs/launcher-contract.md", "origin": "project-authored", "license": "GPL-3.0-only", "copyright": "2026 the sco-core contributors", "status": "needs-review", "note": "AI-assisted written form of the launcher-to-host contract, from the reference launcher constants and the plugin rules. Not run in game."},
+    {"path": "docs/building-a-launcher.md", "origin": "project-authored", "license": "GPL-3.0-only", "copyright": "2026 the sco-core contributors", "status": "needs-review", "note": "AI-assisted end-to-end guide for building a launcher from the SDK kit. Not run in game."},
 
     {"path": "tools/sco-core-mcp/README.md", "origin": "project-authored", "license": "GPL-3.0-only", "copyright": "2026 the sco-core contributors", "status": "needs-review", "note": "Dual-era MCP source guidance from the unmerged development branch. Contribution and distribution review remain pending; published archive bytes are unchanged."},
     {"path": "sdk/tools/sco-plugin-verify.py", "origin": "project-authored", "license": "GPL-3.0-only", "copyright": "2026 the sco-core contributors", "status": "needs-review", "note": "AI-assisted static archive verifier or synthetic regression tests based on existing project source. Contribution and distribution review remain pending; no native-code safety or gameplay verification."},
@@ -1879,6 +1882,26 @@
   "artifact_allowlist": {
     "about": "Files the artifact check would refuse (a binary extension or binary content) but that are known, harmless test fixtures. Exact path and sha256; anything else with a refused extension or binary content fails.",
     "files": [
+      {
+        "path": "sdk/examples/launcher/tests/zip-corpus/cases/bad-collision-case.zip",
+        "sha256": "2b025e9dba28ec2d1356c9a4e478db900d5aa19b9486e366312e63e7963f1bb4",
+        "why": "Tiny plugin zip for the reference launcher tests; members are short ASCII text. A hostile-name case or a lua or data pack; verified by scl-plugins tests, never run."
+      },
+      {
+        "path": "sdk/examples/launcher/tests/zip-corpus/cases/good-data-pack.zip",
+        "sha256": "e5e487978f2f6169d6d288bd2cc030825f8d53875f1cce790ccee4d21c9f0d1e",
+        "why": "Tiny plugin zip for the reference launcher tests; members are short ASCII text. A hostile-name case or a lua or data pack; verified by scl-plugins tests, never run."
+      },
+      {
+        "path": "sdk/examples/launcher/tests/zip-corpus/cases/good-lua-plugin.zip",
+        "sha256": "973d1f42c2da5939aa610e31183925c630ce12f02f29441bcc1d1eb43fa37baf",
+        "why": "Tiny plugin zip for the reference launcher tests; members are short ASCII text. A hostile-name case or a lua or data pack; verified by scl-plugins tests, never run."
+      },
+      {
+        "path": "sdk/examples/launcher/tests/zip-corpus/cases/good-minimal.zip",
+        "sha256": "ae14c848e04beca9824a1c93cb015ccca74f3dcefbcb59f58fdf1544bac3baf9",
+        "why": "Tiny plugin zip for the reference launcher tests; its pilot.dll member (when present) is 36 bytes of ASCII text, never loaded. Verified and installed only by scl-plugins and scl-install tests."
+      },
       {
         "path": "tests/fixtures/plugins/tree/hello/hello.dll",
         "sha256": "56f6ae0ab755f7b3ffa2ba686dcb5c30fb821cf0639f597101183343916668df",

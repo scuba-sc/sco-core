@@ -1,0 +1,12 @@
+# SPDX-License-Identifier: GPL-3.0-only
+[build]
+target-dir = "target"
+
+[target.x86_64-pc-windows-msvc]
+rustflags = [
+  # Static CRT: no vcruntime or ucrt DLL import.
+  "-C", "target-feature=+crt-static",
+  # Reproducible PE: no timestamp in the link output.
+  "-C", "link-arg=/Brepro",
+  "--remap-path-prefix=crates=/scl/crates",
+]

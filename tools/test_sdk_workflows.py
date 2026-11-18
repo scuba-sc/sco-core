@@ -165,8 +165,8 @@ class Inputs(unittest.TestCase):
     def test_determinism_and_progressive_files(self):
         a = workflows.build(self.root, SHA)
         self.assertEqual(workflows.encoded(a), workflows.encoded(workflows.build(self.root, SHA)))
-        self.assertEqual(len(a['workflows']), 6)
-        self.assertEqual(sum(len(i['files']) for i in a['workflows']), 11)
+        self.assertEqual(len(a["workflows"]), 7)
+        self.assertEqual(sum(len(i['files']) for i in a['workflows']), 12)
         self.assertEqual(a['content_sha256'], workflows.digest(workflows.encoded(a['workflows'])))
 
     def test_gap_report_index_tracks_selected_sdk_not_bundle_baseline(self):
@@ -201,8 +201,8 @@ class Inputs(unittest.TestCase):
         archive = workflows.build(self.root, SHA, paths, packaged)
         for mode, index in (('source', source), ('archive', archive)):
             with self.subTest(mode=mode):
-                self.assertEqual(len(index['workflows']), 6)
-                self.assertEqual(sum(len(item['files']) for item in index['workflows']), 11)
+                self.assertEqual(len(index["workflows"]), 7)
+                self.assertEqual(sum(len(item['files']) for item in index['workflows']), 12)
                 for item in index['workflows']:
                     for record in item['files']:
                         raw = originals[record['path']] if mode == 'source' else packaged[record['path']][0]
@@ -304,7 +304,7 @@ class ArchiveAndMCP(unittest.TestCase):
                 top, entries = pkg.archive_entries(self.manifest, profile)
                 index = json.loads(entries['sdk-workflows.json'][0])
                 self.assertEqual(index['source_sha'], pkg.source_commit())
-                self.assertEqual(len(index['workflows']), 6)
+                self.assertEqual(len(index["workflows"]), 7)
                 inventory = json.loads(entries['ATTRIBUTIONS.json'][0])['files']
                 by_name = {r['path']: r for r in inventory}
                 self.assertEqual(by_name['sdk-workflows.json']['status'], 'needs-review')
@@ -431,7 +431,7 @@ class ArchiveAndMCP(unittest.TestCase):
             for name, expected_hash in manifest['mcp']['tools'].items():
                 self.assertEqual(workflows.digest(workflows.encoded(tools[name])), expected_hash)
             listed = c.call('list_workflows')['result']['structuredContent']['workflows']
-            self.assertEqual(len(listed), 6)
+            self.assertEqual(len(listed), 7)
             for item in listed:
                 response = c.call('get_workflow', {'id': item['id']})['result']['structuredContent']
                 for record in [response['file']] + [
@@ -455,7 +455,7 @@ class ArchiveAndMCP(unittest.TestCase):
         self.assertEqual([t['name'] for t in tools], client_module.ALL_ORDER)
         self.assertTrue(all(t['annotations']['readOnlyHint'] for t in tools))
         listed = c.call('list_workflows')['result']['structuredContent']
-        self.assertEqual(len(listed['workflows']), 6)
+        self.assertEqual(len(listed['workflows']), 7)
         for item in listed['workflows']:
             response = c.call('get_workflow', {'id': item['id']})['result']['structuredContent']
             self.assertEqual(response['file']['path'], item['entry'])
@@ -495,7 +495,7 @@ class ArchiveAndMCP(unittest.TestCase):
         self.assertEqual([t['name'] for t in c.request('tools/list')['result']['tools']], client_module.EXTENDED_ORDER)
         # The explicitly selected index also works without the old opt-in flag.
         c = self.client(extended=True, extra=('--workflows', str(self.index_path)))
-        self.assertEqual(len(c.call('list_workflows')['result']['structuredContent']['workflows']), 6)
+        self.assertEqual(len(c.call('list_workflows')['result']['structuredContent']['workflows']), 7)
 
 
 

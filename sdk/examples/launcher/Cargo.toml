@@ -1,0 +1,22 @@
+# SPDX-License-Identifier: GPL-3.0-only
+[workspace]
+resolver = "2"
+members = ["crates/*"]
+exclude = ["target"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.99"
+license = "GPL-3.0-only"
+publish = false
+
+[profile.release]
+panic = "abort"
+lto = true
+opt-level = "s"
+strip = true
+codegen-units = 1
+
+[profile.dev]
+panic = "abort"

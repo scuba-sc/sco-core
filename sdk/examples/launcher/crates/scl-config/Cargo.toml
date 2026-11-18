@@ -1,0 +1,12 @@
+# SPDX-License-Identifier: GPL-3.0-only
+[package]
+name = "scl-config"
+description = "Product ini reader, in-place ini editor, capability switches, the game environment block and the plugin.ini reader (no UI, no network)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+scl-contract = { path = "../scl-contract" }

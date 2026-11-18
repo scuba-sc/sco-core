@@ -4149,6 +4149,24 @@ SPDX-FileCopyrightText = "2026 the sco-core contributors"
 SPDX-License-Identifier = "GPL-3.0-only"
 
 [[annotations]]
+path = "docs/building-a-launcher.md"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "docs/launcher-contract.md"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
+path = "sdk/examples/launcher/**"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 the sco-core contributors"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+[[annotations]]
 path = "sdk/examples/rust_hello/**"
 precedence = "override"
 SPDX-FileCopyrightText = "2026 the sco-core contributors"

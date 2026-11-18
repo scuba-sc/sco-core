@@ -1,0 +1,9 @@
+# SPDX-License-Identifier: GPL-3.0-only
+[package]
+name = "scl-contract"
+description = "Product-neutral launcher-to-host contract constants and the one product-config struct (no UI, no network)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true

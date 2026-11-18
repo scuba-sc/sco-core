@@ -61,6 +61,10 @@
       "resources": [
         "references/report-template.md"
       ]
+    },
+    {
+      "id": "sco-build-launcher",
+      "resources": []
     }
   ]
 }

@@ -1,0 +1,20 @@
+# SPDX-License-Identifier: GPL-3.0-only
+[package]
+name = "scl-cli"
+description = "Command line of the SDK reference launcher: status, plugins, capabilities, mcp. Does not start the game, change the PC or update itself."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "sco-reference-launcher"
+path = "src/main.rs"
+
+[dependencies]
+scl-config = { path = "../scl-config" }
+scl-contract = { path = "../scl-contract" }
+scl-install = { path = "../scl-install" }
+scl-mcp = { path = "../scl-mcp" }
+scl-plugins = { path = "../scl-plugins" }
