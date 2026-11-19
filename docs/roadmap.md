@@ -53,7 +53,7 @@ here instead of in every mod.
 | Launchers | A reference launcher in the core kit, with the [launcher contract](launcher-contract.md) and [building a launcher](building-a-launcher.md). |
 
 Agents: start with the [planning skill](../sdk/skills/sco-plan-sdk-work/SKILL.md).
-`--minimal-tools` selects the six-tool MCP profile for constrained clients.
+The MCP server's `--minimal-tools` option selects a six-tool profile for constrained clients.
 [Defaults readiness](defaults-readiness.md) lists what each experimental backend
 needs before it can default on.
 
@@ -95,13 +95,12 @@ hooked. [Game capability status](game/status.md) lists each default.
 These repositories move independently of this page. Recheck an exact ref before
 you describe what a consumer has adopted.
 
-- **sc-offline:** PRs #185 and #192 are merged on the stable SDK baseline.
-  [Issue #183](https://github.com/scuba-sc/sc-offline/issues/183) has synthetic
+- **sc-offline:** [Issue #183](https://github.com/scuba-sc/sc-offline/issues/183) has synthetic
   VPN-range coverage; Windows firewall behavior and in-game join acceptance are
   open.
 - **scuba-engine:** the native runtime builds for Windows and Linux; the native
   editor is Windows-only. Browser Studio and the portable developer tools are
-  separate. The Studio MCP bridge has 16 tools.
+  separate. The Studio MCP bridge of the published scuba-engine has 16 tools.
 - **sc-mp:** integration PRs #14 to #18 and #20 are merged. Windows and Linux CI
   run a synthetic relay and host context. Authority and receipts are
   process-rooted and volatile. Durable recovery, a native game authority bridge

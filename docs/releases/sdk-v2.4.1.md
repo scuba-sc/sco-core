@@ -106,30 +106,32 @@ SDK tests for this release are synthetic: unit and fixture tests, headless widge
 archive and checker tests, and the reference launcher's own test suite on synthetic folders and
 zips. They do not by themselves show in-game behaviour.
 
-Separately, the sc-offline product ran a development build of this source
-(process-retained composition) in Star Citizen 4.10.3 (4.10.200.58746) during maintainer
-test sessions: the host started, creative switches, vehicle spawn and seating, and exit work
-on stop were observed in its logs. That is product evidence for one build and one setup, not
-an SDK guarantee.
+Separately, the maintainer ran the game with the sc-offline product and the Core services listed
+below. Those runs used development builds made before this release commit. They are product
+evidence for one game build and one setup, not an SDK guarantee.
 
 ### Observed in game by the maintainer
 
 On build 4.10.200.58746, one or two sessions each. These are observations, not verifications:
 no registry row changes its evidence level or default because of them.
 
+- The game host started with the mod, and the classic menu opened.
 - Gear equip through `game.loadout.async` attached items (Game.log `AttachmentReceived`).
 - Prefab placement through `game.entities.prefabs` placed an Outposts item.
-- Ship spawn, boarding and Flight Ready worked.
-- Character spawn worked.
-- A saved-spot move really moved the player, while Core failed to confirm arrival. The arrival
-  rule and the failure log above were changed for this; the change itself is not yet run in game.
-- The seat probe logged Enter and Exit.
+- Ship spawn, boarding and Flight Ready worked, through `game.vehicles` and the spawn service.
+- Character spawn worked, through `game.actors`.
+- A saved-spot move through `game.relocation` really moved the player, while Core did not
+  confirm arrival. The arrival rule and the failure log above were changed for this; the change
+  itself is not yet run in game.
+- A test of the vehicle seat event logged sitting down and standing up.
 
 ### Not run in game
 
 Everything else in this release has synthetic evidence only ([game capability status](../game/status.md)). In particular:
 
 - The relocation arrival rule (0.5 m, no rotation test) and the new failure log line.
+- The creative controls, and Stop and exit work.
+- Contracts, mining, hangars and ASOP.
 - Prefab readiness from the resolved rows.
 - `game.loadout` 1.3 outfit slots, the item-port names behind them, and the capability
   `game.loadout.outfit` (OFF).

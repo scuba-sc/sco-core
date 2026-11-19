@@ -84,7 +84,8 @@ Use an empty working directory. Run the commands in a shell that supports these
 blocks (Git Bash works on Windows), or download and extract in a browser and
 use the Windows CMake recipe above. The commands in sections 3 to 5 were last
 run on 2026-11-11 on Windows x64 (Git Bash, Python 3, CMake, Visual Studio 2022)
-against the SDK 2.4.0 core archive.
+against the SDK 2.4.0 core archive. They are the same for the 2.4.1 core archive.
+Only the version in the archive name changes.
 
 The script compares the archive with the `SHA256SUMS` file from the same
 release, then extracts it.
@@ -180,11 +181,16 @@ game.
 
 ## 6. Deploy on Windows
 
-Host startup and in-game behavior depend on the exact product build. sc-offline's
-strict composition refuses native plugin activation. A product that opts into
-the process-retained composition ([game host](game/host.md)) loads plugins and
-keeps them mapped until the process exits. Check which composition your
-sc-offline build uses before you test.
+Host startup and in-game behavior depend on the exact product build. sc-offline
+0.8.0 runs the process-retained composition ([game host](game/host.md)). With it,
+the game services start, native plugins load, and every loaded plugin stays
+mapped until the game process exits. On Stop the host closes admission and
+sends `game.exit` once. It unloads nothing, so a plugin you rebuild loads again
+only at the next game start. A player sees no refusal of native plugins. The
+strict composition, which refuses native plugin activation, is the SDK default
+and is not what sc-offline 0.8.0 uses. If you build sc-offline against an older
+Core, native startup is refused and no plugin loads; the log says so. Beyond
+startup runs, none of this has been run in a game session.
 
 1. Use a plugin built and checked on **Windows x64**. If you worked on macOS or
    Linux, repeat sections 4 and 5 on Windows with your renamed template.

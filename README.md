@@ -1,14 +1,14 @@
 # sco-core
 
+sco-core is the mod framework and SDK under [sc-offline](https://github.com/scuba-sc/sc-offline), the Star Citizen offline mod.
+
+sco-core puts the game's internals (addresses, file formats, engine calls) behind one versioned plain-C plugin interface. Mods target sco-core, not a game build, so when a patch breaks something it gets fixed once here instead of in every mod.
+
 Consumer agents: start with the [SDK workflow skills](docs/agent-workflows.md) for building, debugging, packaging, upgrading and reporting public SDK gaps.
 
 [![test](https://github.com/scuba-sc/sco-core/actions/workflows/test.yml/badge.svg)](https://github.com/scuba-sc/sco-core/actions/workflows/test.yml)
 [![cmake](https://github.com/scuba-sc/sco-core/actions/workflows/cmake.yml/badge.svg)](https://github.com/scuba-sc/sco-core/actions/workflows/cmake.yml)
 [![sdk](https://github.com/scuba-sc/sco-core/actions/workflows/sdk.yml/badge.svg)](https://github.com/scuba-sc/sco-core/actions/workflows/sdk.yml)
-
-The mod framework and SDK under [sc-offline](https://github.com/scuba-sc/sc-offline), the Star Citizen offline mod.
-
-sco-core puts the game's internals (addresses, file formats, engine calls) behind one versioned plain-C plugin interface. Mods target sco-core, not a game build, so when a patch breaks something it gets fixed once here instead of in every mod.
 
 **SDK reference:** <https://scuba-sc.github.io/sco-core/>
 

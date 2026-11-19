@@ -1,14 +1,14 @@
 # sco SDK
 
-Consumer agents: use the [workflow bundle](../docs/agent-workflows.md), starting with [roadmap and SDK planning](skills/sco-plan-sdk-work/SKILL.md). Read the bundle directly or follow your client's installation instructions; shipping the files does not activate them. The guide explains which profiles support MCP discovery and the content-hashed index.
-
-Build plugins for [sc-offline](https://github.com/scuba-sc/sc-offline), the Star Citizen offline mod. A plugin is one folder that sc-offline loads from `data\plugins\<id>\`. There are three kinds:
+The sco SDK, part of sco-core, builds plugins for [sc-offline](https://github.com/scuba-sc/sc-offline), the Star Citizen offline mod. A plugin is one folder that sc-offline loads from `data\plugins\<id>\`. There are three kinds:
 
 | Kind | What it is | Example |
 |---|---|---|
 | `native` | A 64-bit Windows DLL written in C against `sco_api.h`, in C++20 with the `include/scosdk/` headers, or in C# with `csharp/Sco.Sdk` (NativeAOT). The core and combined kits also include experimental raw Rust bindings. | [`examples/hello`](examples/hello), [`examples/cpp_hello`](examples/cpp_hello), [`examples/cs_hello`](examples/cs_hello), [`examples/rust_hello`](examples/rust_hello); two plugins sharing a service: [`examples/counter_service`](examples/counter_service) and [`examples/counter_panel`](examples/counter_panel) |
 | `data` | Files only: missions, rules, scripts, lists and game-data overrides (`datacore\*.toml`). Runs no code | [`examples/travel_pack`](examples/travel_pack), [`examples/quantum_pack`](examples/quantum_pack) |
 | `lua` | A Lua 5.4 script, run in a sandbox by sc-offline's bundled Lua runtime | [`examples/greeter`](examples/greeter), [`examples/notebook`](examples/notebook) (storage) |
+
+Consumer agents: use the [workflow bundle](../docs/agent-workflows.md), starting with [roadmap and SDK planning](skills/sco-plan-sdk-work/SKILL.md). Read the bundle directly or follow your client's installation instructions; shipping the files does not activate them. The guide explains which profiles support MCP discovery and the content-hashed index.
 
 <!-- release-block:current-release -->
 SDK **2.4.1** uses Star Citizen game pack **0.8.1** (checked against Star Citizen
@@ -56,7 +56,7 @@ In a source checkout `sdk/VERSION` is <!--rv:sdk_version-->2.4.1<!--/rv-->, `sdk
 | Zip | Holds |
 |---|---|
 | `sco-sdk-core-source-<version>.zip` | Kernel source-development kit in repository layout: host/runtime, loaders, required vendored Lua/SQLite, CMake build, tools and synthetic tests. Build with `-DSCO_GAME_SC=OFF`; it has no game implementation, game ABI headers, game layout pins or game-contract fixtures, so no game-pack version. [Build it](#build-the-kernel-source-kit) |
-| `sco-sdk-host-source-sc-<version>.zip` | Standalone Star Citizen host source in repository layout: all `core-source` components plus the complete game implementation, DataCore, headers and synthetic test dependencies. Build with `-DSCO_GAME_SC=ON`; [host-source guide](../docs/host-source-sc.md). Included in the SDK 2.4.0 and 2.4.1 releases ([2.4.0 archive identities](../docs/releases/sdk-v2.4.0.md#stable-archive-identity)) |
+| `sco-sdk-host-source-sc-<version>.zip` | Standalone Star Citizen host source in repository layout: all `core-source` components plus the complete game implementation, DataCore, headers and synthetic test dependencies. Build with `-DSCO_GAME_SC=ON`; [host-source guide](../docs/host-source-sc.md). Included in the current release; its archive name and digest are in that release's notes (see the release block above) |
 | `sco-sdk-core-<version>.zip` | The game-neutral SDK: `sco_api.h`, the host services, the C++, C# and Lua layers, the generic examples and tools |
 | `sco-sdk-game-sc-<game pack version>.zip` | The optional Star Citizen extension: the game pack's tables and events, DataCore, their C++ and C# wrappers, `travel_pack` and `quantum_pack`. Unpack it over the core SDK its `VERSIONS.txt.game-sc` names; it keeps its own `VERSIONS.txt.game-sc` and `SHA256SUMS.game-sc`, so nothing of the core is overwritten |
 | `sco-sdk-<version>.zip` | Core and game extension in one zip, the shape `sdk-v1.1.0` shipped. Releases use it until consumers move to the two zips |
