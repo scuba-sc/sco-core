@@ -133,7 +133,7 @@ struct Platform {
     // Default-off diagnostic sources; no channel/consent inferred from this config.
     diagnostics::SourceOptions diagnosticSources;
     diagnostics::InspectionOptions runtimeInspection; // independently default off
-    // G13 is enabled by default but opens no socket without fresh UI consent.
+    // The private session is enabled by default but opens no socket without fresh UI consent.
     // Host-only policy: strict loopback unless explicit numeric LAN bind + peers.
     net::ControlPolicyV1 privateSession;
     // Positive EAC/offline/official-network/target evidence; missing or throw refuses.

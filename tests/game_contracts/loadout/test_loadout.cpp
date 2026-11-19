@@ -157,7 +157,7 @@ int main(int argc, char** argv) {
     CHECK(report.slots[2].status == SC_LOADOUT_ITEM_MISSING);
     // game.loadout.respawn_completed: host producer seam, deferred dispatch on the real event bus.
     // Runs before the native loader test: its callout containment is torn down with that test.
-    // Synthetic producer only; the native event is unverified (F-INTAKE-004, T-3), not run in game.
+    // Synthetic producer only; the native event is unverified. Not run in game.
     {
         static const char* const kCap = "game.events.loadout_respawn_completed";
         static unsigned fired = 0;

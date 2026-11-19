@@ -40,3 +40,7 @@ For each build's patch name, changelist and the rows that moved, see [game build
 "Verified" here means the rows resolve in `sco-sigcheck`. `sco-sigcheck` runs the signature tables against the exe file, so a green row says the locator matches once and the byte checks pass. It does not say that a service built on the row works. Not run in game. See [game capability status](game/status.md) for what is on, what is off and why, per table and capability.
 
 The SDK zip's `VERSIONS.txt` carries the string "rows verified by sigcheck; in-game verification pending" (`SCO_GAME_PACK_VERIFICATION` in `sc_game_pack.h`).
+
+## See also
+
+- [Exact-build profile selection](exact-build-profiles.md): the internal selector for exact-build profiles; not a plugin API.

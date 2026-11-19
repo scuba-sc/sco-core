@@ -317,8 +317,10 @@ typedef struct sco_widgets_view_v1 {
      * end of the slot's range, after the slot's effect is in the panel revision (or after it
      * was dropped). SCO_CRASHED: at least one owner faulted (counts are still valid; remaining
      * slots of that owner are dropped, other panels continue). SCO_UNAVAILABLE: Core stopped
-     * during the call; the slots not yet handled are lost with the stop and events_done stops
-     * moving. */
+     * before the call (nothing is taken) or during it. In the second case no callback runs for
+     * the slots taken but not yet handled: they are counted in *dropped and in event_drops, and
+     * events_done advances past them to the end of the last taken slot, so a caller waiting on
+     * events_done is not left waiting. */
     sco_result (*dispatch_events)(sco_view_client* client, uint32_t* dispatched, uint32_t* dropped);
 } sco_widgets_view_v1;
 

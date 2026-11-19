@@ -308,9 +308,32 @@ class SiteTests(unittest.TestCase):
                 self.assertNotIn('teleport', weighted[0][1].lower())
                 self.assertNotIn('not an additional API alias', text)
                 self.assertNotIn('ABI pins prove layout', text)
+                shared = gen.shared_limits(self.catalogue)
                 for limitation in records[identifier]['limitations']:
-                    self.assertIn(gen.rewrite_links(limitation, self.catalogue['contract_context']['source'],
-                                                   self.catalogue['source_sha'], routes), text)
+                    if ('text', limitation) not in shared:
+                        self.assertIn(gen.rewrite_links(limitation, self.catalogue['contract_context']['source'],
+                                                       self.catalogue['source_sha'], routes), text)
+
+    def test_limits_repeated_on_many_records_are_printed_once(self):
+        records = self.catalogue['records']
+        routes = {name: gen.guide_id(name) for name in gen.inputs(ROOT)}
+        shared = gen.shared_limits(self.catalogue)
+        self.assertTrue(shared)
+        for key, count in shared.items():
+            self.assertGreater(count * 3, len(records))
+        link = '[' + gen.SHARED_LIMITS_TITLE + '](' + gen.route(gen.VERSIONS_ROUTE) + '#' + gen.SHARED_LIMITS_ANCHOR + ')'
+        for record in records:
+            with self.subTest(record=record['id']):
+                text = gen.render_record(record, self.catalogue, routes)
+                self.assertEqual(text.count(link), 1)
+                self.assertLess(text.index('## Limitations'), text.index(link))
+                for key in ('callback_context', 'reentrancy'):
+                    if ('aspect', key) in shared:
+                        self.assertNotRegex(text, r'Not specified: [^\n]*' + key.split('_')[0])
+        versions = gen.versions_body(routes, self.catalogue)
+        self.assertEqual(versions.count('## ' + gen.SHARED_LIMITS_TITLE), 1)
+        for key, count in shared.items():
+            self.assertIn('(' + str(count) + ' of ' + str(len(records)) + ' methods)', versions)
 
     def test_search_categories_cover_every_generated_page(self):
         categories = {'reference': 'APIs', 'services': 'Services', 'languages': 'Languages',

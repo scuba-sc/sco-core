@@ -286,7 +286,7 @@ Result StartLoadout(const LoadoutBackend* backend, const LoadoutAsyncBackend* as
     respawnSubscribed = respawnWanted && Subscribe(sco::host::GameOwner(), "tick", OnRespawnTick, nullptr) == Result::Ok;
     SetRespawn(respawnSubscribed,
                faulted ? "loadout provider fault; process restart required" :
-                         "native respawn-loadout-completed occurrence not verified (F-INTAKE-004, T-3); default off");
+                         "the native respawn-loadout-completed event has not been seen in game; default off");
     if (!started) { engine = {}; asyncEngine = {}; }
     return r;
 }

@@ -19,7 +19,7 @@ struct PrefabProvider {
 bool ValidPrefabPath(const char* path);
 sco_result SpawnOwnedPrefab(const PrefabProvider&, sco_plugin*, const char*, uint64_t,
     const double*, const double*, uint64_t*);
-// Owner-approved R1 default, not Windows/SEH/gameplay verification. No env bypass.
+// Enabled by default. This is not Windows, SEH or gameplay verification. No env bypass.
 inline constexpr bool kPrefabConfirmed = true;
 
 // What spawn.cpp reports when the spawn.prefabs rows did not resolve on the running build.

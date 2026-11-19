@@ -20,10 +20,10 @@
       "callback_context": "No plugin callbacks. Synchronous host adapter runs outside the service mutex.",
       "reentrancy": "Operations refuse while a file adapter operation is active.",
       "results": "OK on success; BAD_ARG for invalid input, WRONG_THREAD, UNAVAILABLE when stopped or busy, NOT_FOUND for stale tokens, TOO_MANY for limits, FAILED for I/O. Outputs untouched on error.",
-      "absent_capability": "Candidate service is unavailable until explicitly composed by the host.",
+      "absent_capability": "The service is unavailable until the host composes it explicitly.",
       "cleanup": "Owner release revokes the editor and pre-commit work; a post-permit outcome remains host-owned. Stop withdraws the service.",
       "limitations": [
-        "Unpublished candidate; no native publication. Not run in game.",
+        "No native publication. Not run in game.",
         "No C# or Lua route."
       ],
       "tests": [
@@ -97,10 +97,10 @@
       "callback_context": "No plugin callbacks. Synchronous host adapter runs outside the service mutex.",
       "reentrancy": "Operations refuse while a file adapter operation is active.",
       "results": "OK on success; BAD_ARG for invalid input, WRONG_THREAD, UNAVAILABLE when stopped or busy, NOT_FOUND for stale tokens, TOO_MANY for limits, FAILED for I/O. Outputs untouched on error.",
-      "absent_capability": "Candidate service is unavailable until explicitly composed by the host.",
+      "absent_capability": "The service is unavailable until the host composes it explicitly.",
       "cleanup": "Owner release revokes the editor and pre-commit work; a post-permit outcome remains host-owned. Stop withdraws the service.",
       "limitations": [
-        "Unpublished candidate; no native publication. Not run in game.",
+        "No native publication. Not run in game.",
         "No C# or Lua route."
       ],
       "tests": [
@@ -174,10 +174,10 @@
       "callback_context": "No plugin callbacks. Synchronous host adapter runs outside the service mutex.",
       "reentrancy": "Operations refuse while a file adapter operation is active.",
       "results": "OK on success; BAD_ARG for invalid input, WRONG_THREAD, UNAVAILABLE when stopped or busy, NOT_FOUND for stale tokens, TOO_MANY for limits, FAILED for I/O. Outputs untouched on error.",
-      "absent_capability": "Candidate service is unavailable until explicitly composed by the host.",
+      "absent_capability": "The service is unavailable until the host composes it explicitly.",
       "cleanup": "Owner release revokes the editor and pre-commit work; a post-permit outcome remains host-owned. Stop withdraws the service.",
       "limitations": [
-        "Unpublished candidate; no native publication. Not run in game.",
+        "No native publication. Not run in game.",
         "No C# or Lua route."
       ],
       "tests": [
@@ -251,10 +251,10 @@
       "callback_context": "No plugin callbacks. Synchronous host adapter runs outside the service mutex.",
       "reentrancy": "Operations refuse while a file adapter operation is active.",
       "results": "OK on success; BAD_ARG for invalid input, WRONG_THREAD, UNAVAILABLE when stopped or busy, NOT_FOUND for stale tokens, TOO_MANY for limits, FAILED for I/O. Outputs untouched on error. A commit that would remove a busy class is refused before the write and reported by status as EDIT_CONFLICT with reason SC_ASOP_SELECTION_REASON_BUSY (5).",
-      "absent_capability": "Candidate service is unavailable until explicitly composed by the host.",
+      "absent_capability": "The service is unavailable until the host composes it explicitly.",
       "cleanup": "Owner release revokes the editor and pre-commit work; a post-permit outcome remains host-owned. Stop withdraws the service.",
       "limitations": [
-        "Unpublished candidate; no native publication. Not run in game.",
+        "No native publication. Not run in game.",
         "No C# or Lua route."
       ],
       "tests": [
@@ -328,10 +328,10 @@
       "callback_context": "No plugin callbacks. Synchronous host adapter runs outside the service mutex.",
       "reentrancy": "Operations refuse while a file adapter operation is active.",
       "results": "OK on success; BAD_ARG for invalid input, WRONG_THREAD, UNAVAILABLE when stopped or busy, NOT_FOUND for stale tokens, TOO_MANY for limits, FAILED for I/O. Outputs untouched on error.",
-      "absent_capability": "Candidate service is unavailable until explicitly composed by the host.",
+      "absent_capability": "The service is unavailable until the host composes it explicitly.",
       "cleanup": "Owner release revokes the editor and pre-commit work; a post-permit outcome remains host-owned. Stop withdraws the service.",
       "limitations": [
-        "Unpublished candidate; no native publication. Not run in game.",
+        "No native publication. Not run in game.",
         "No C# or Lua route."
       ],
       "tests": [
@@ -405,10 +405,10 @@
       "callback_context": "No plugin callbacks. Synchronous host adapter runs outside the service mutex.",
       "reentrancy": "Operations refuse while a file adapter operation is active.",
       "results": "OK on success; BAD_ARG for invalid input, WRONG_THREAD, UNAVAILABLE when stopped or busy, NOT_FOUND for stale tokens, TOO_MANY for limits, FAILED for I/O. Outputs untouched on error.",
-      "absent_capability": "Candidate service is unavailable until explicitly composed by the host.",
+      "absent_capability": "The service is unavailable until the host composes it explicitly.",
       "cleanup": "Owner release revokes the editor and pre-commit work; a post-permit outcome remains host-owned. Stop withdraws the service.",
       "limitations": [
-        "Unpublished candidate; no native publication. Not run in game.",
+        "No native publication. Not run in game.",
         "No C# or Lua route."
       ],
       "tests": [
@@ -482,10 +482,10 @@
       "callback_context": "No plugin callbacks. Synchronous host adapter runs outside the service mutex.",
       "reentrancy": "Operations refuse while a file adapter operation is active.",
       "results": "OK on success; BAD_ARG for invalid input, WRONG_THREAD, UNAVAILABLE when stopped or busy, NOT_FOUND for stale tokens, TOO_MANY for limits, FAILED for I/O. Outputs untouched on error.",
-      "absent_capability": "Candidate service is unavailable until explicitly composed by the host.",
+      "absent_capability": "The service is unavailable until the host composes it explicitly.",
       "cleanup": "Owner release revokes the editor and pre-commit work; a post-permit outcome remains host-owned. Stop withdraws the service.",
       "limitations": [
-        "Unpublished candidate; no native publication. Not run in game.",
+        "No native publication. Not run in game.",
         "No C# or Lua route."
       ],
       "tests": [

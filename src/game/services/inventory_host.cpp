@@ -1,5 +1,5 @@
-// game.inventory 1.1 production binding. Nothing here has been run in game: the capability stays
-// OFF until the owner's in-game run (docs/game/inventory.md, F-4.10.197.2878-011..-016).
+// game.inventory 1.1 production binding. Not run in game: the capability stays
+// OFF until an in-game run confirms it (docs/game/inventory.md, F-4.10.197.2878-011..-016).
 #include "inventory_host.h"
 #include "inventory.h"
 #include "inventory_engine.h"

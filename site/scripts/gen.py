@@ -837,6 +837,43 @@ def declaration(record):
     return None, record['buffer_contract']
 
 
+SHARED_LIMITS_TITLE = 'Limits that apply to every method'
+SHARED_LIMITS_ANCHOR = 'limits-that-apply-to-every-method'
+UNSPECIFIED_ASPECTS = (('callback_context', 'callbacks'), ('reentrancy', 'reentrancy'),
+                       ('absent_capability', 'behaviour when the table is absent'))
+SHARED_LIMIT_TEXT = {
+    'callback_context': 'Callbacks are not specified unless the method page lists a Callbacks entry.',
+    'reentrancy': 'Reentrancy is not specified unless the method page lists a Reentrancy entry.',
+}
+
+
+def shared_limits(catalogue):
+    """Limits repeated on more than a third of all records. Keys: ('text', string) or ('aspect', field)."""
+    records = catalogue['records']
+    counts = Counter()
+    for record in records:
+        counts.update(('text', item) for item in set(record['limitations']))
+        counts.update(('aspect', key) for key, _ in UNSPECIFIED_ASPECTS if record[key] == 'unspecified')
+    return {key: count for key, count in counts.items()
+            if count * 3 > len(records) and (key[0] == 'text' or key[1] in SHARED_LIMIT_TEXT)}
+
+
+def shared_limits_section(catalogue, doc_routes):
+    shared = shared_limits(catalogue)
+    if not shared:
+        return []
+    total = len(catalogue['records'])
+    lines = ['\n## ' + SHARED_LIMITS_TITLE,
+             'These limits are repeated on more than a third of the ' + str(total)
+             + ' method pages. Each method page links here and lists only the limits that are specific to it.']
+    for key, count in sorted(shared.items(), key=lambda item: (-item[1], item[0])):
+        text = key[1] if key[0] == 'text' else SHARED_LIMIT_TEXT[key[1]]
+        text = rewrite_links(text, catalogue['contract_context']['source'], catalogue['source_sha'], doc_routes)
+        lines.append('- ' + text + ' (' + str(count) + ' of ' + str(total) + ' methods)')
+    lines.append('How to read the rows: [Public service contract catalogue](' + route(doc_routes['docs/contracts.md']) + ').')
+    return lines
+
+
 def render_record(record, catalogue, doc_routes):
     sha = catalogue['source_sha']
     prose = lambda text: rewrite_links(text, catalogue['contract_context']['source'], sha, doc_routes)
@@ -874,15 +911,18 @@ def render_record(record, catalogue, doc_routes):
     ownership = [(name, value) for name, value in ownership if value != 'unspecified']
     if ownership:
         out += ['\n## Ownership and cleanup', *['- **' + name + ':** ' + prose(value) for name, value in ownership]]
-    unspecified = [name for name, value in (('callbacks', record['callback_context']), ('reentrancy', record['reentrancy']),
-                                            ('behaviour when the table is absent', record['absent_capability']))
-                   if value == 'unspecified']
-    limitations = [prose(item) for item in record['limitations']]
+    shared = shared_limits(catalogue)
+    specific = [prose(item) for item in record['limitations'] if ('text', item) not in shared]
+    unspecified = [name for key, name in UNSPECIFIED_ASPECTS
+                   if record[key] == 'unspecified' and ('aspect', key) not in shared]
     if unspecified:
-        limitations.append('Not specified: ' + ', '.join(unspecified) + '. See [how to read the rows]('
-                           + route(doc_routes['docs/contracts.md']) + ').')
-    if limitations:
-        out += ['\n## Limitations', *['- ' + item for item in limitations]]
+        specific.append('Not specified: ' + ', '.join(unspecified) + '. See [how to read the rows]('
+                        + route(doc_routes['docs/contracts.md']) + ').')
+    if shared or specific:
+        out += ['\n## Limitations']
+    if shared:
+        out += ['[' + SHARED_LIMITS_TITLE + '](' + route(VERSIONS_ROUTE) + '#' + SHARED_LIMITS_ANCHOR + ').']
+    out += ['- ' + item for item in specific]
     out += ['\n## Language mappings',
             'Status per language ([what the labels mean](' + route('languages/c') + ')).\n',
             mapping_rows(record, sha)]
@@ -967,7 +1007,7 @@ def language_body(language, records):
     return '\n'.join(parts)
 
 
-def versions_body(doc_routes):
+def versions_body(doc_routes, catalogue):
     """The one explanation of version numbers, development previews and evidence wording."""
     status = route(doc_routes['docs/game/status.md'])
     builds = route(doc_routes['docs/game/builds.md'])
@@ -993,6 +1033,7 @@ def versions_body(doc_routes):
         'A passing ABI test shows the table layout, not the behavior.',
         'The status of every `game.*` table, with its evidence level, is on the [game capability status page](' + status
         + '). How to read a method page: [Public service contract catalogue](' + contracts + ').',
+        *shared_limits_section(catalogue, doc_routes),
     ])
 
 
@@ -1090,7 +1131,7 @@ def generate(root, catalogue, output, release_tag=None):
     pages['natives'] = page(NATIVE_TITLE, natives_body(natives, catalogue['source_sha']), catalogue, release_tag, 'APIs',
                             toc=False, description='Every registered signature row by symbolic hash and tier. '
                             'Names and readiness only.')
-    pages[VERSIONS_ROUTE] = page(VERSIONS_TITLE, versions_body(doc_routes), catalogue, release_tag, 'Overview',
+    pages[VERSIONS_ROUTE] = page(VERSIONS_TITLE, versions_body(doc_routes, catalogue), catalogue, release_tag, 'Overview',
                                  description='What the SDK, game pack and plugin ABI versions on these pages mean, '
                                  'and what "Not run in game." means.')
     libraries = '\n## Libraries\n\n' + hub_cards(groups)

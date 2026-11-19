@@ -21,7 +21,7 @@ extern "C" {
  * sc_game_events.h (sc_game_loadout_respawn_completed, size-prefixed, occurrence only; both headers
  * guard the macro, so include order does not matter). Gated by capability
  * "game.events.loadout_respawn_completed", which is OFF in production: the native event's
- * provenance and calling convention are unverified (F-INTAKE-004, T-3), not run in game. An event
+ * provenance and calling convention are unverified. Not run in game. An event
  * whose capability is off never fires, so subscribing is harmless. See docs/game/loadout.md. */
 #ifndef SC_GAME_EVENT_LOADOUT_RESPAWN_COMPLETED
 #define SC_GAME_EVENT_LOADOUT_RESPAWN_COMPLETED "game.loadout.respawn_completed"

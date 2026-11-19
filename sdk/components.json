@@ -35,7 +35,7 @@
       "includes": [
         "core-source"
       ],
-      "about": "Standalone Star Citizen host source kit in repository layout: neutral kernel plus complete game implementation, DataCore, vendored build dependencies, headers and synthetic tests. Included in SDK 2.1.0 candidate scope; publication requires separate signed-byte approval."
+      "about": "Standalone Star Citizen host source kit in repository layout: neutral kernel plus complete game implementation, DataCore, vendored build dependencies, headers and synthetic tests."
     }
   },
   "covers": [
@@ -70,7 +70,7 @@
     },
     {
       "path": "tools/test_content_gate.py",
-      "why": "Repository-only G14 catalogue/package closure probe; source kits use test_content directly."
+      "why": "Repository-only catalogue and package closure probe for sco.content; source kits use test_content directly."
     },
     {
       "path": "site/",
@@ -118,7 +118,7 @@
     },
     {
       "path": "sdk/CANDIDATE_TAG",
-      "why": "Source-controlled automatic candidate target for repository release readiness; not part of an installed SDK or source kit."
+      "why": "Source-controlled release target read by the repository release checks; not part of an installed SDK or source kit."
     },
     {
       "path": "sdk/package.py",
@@ -226,7 +226,7 @@
     },
     {
       "path": "tools/test_g9_owned_contract.py",
-      "why": "Repository-only targeted G9 contract, layout, catalogue and package gate."
+      "why": "Repository-only check of the owned contract: layout, catalogue and package, with synthetic providers."
     },
     {
       "path": "tools/sco-core-mcp/test_server.py",

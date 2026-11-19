@@ -13,8 +13,8 @@ namespace sco::game::services {
 // game.loadout.weapons is on (default off, cleared on a provider fault).
 //
 // `respawnCompleted` attests that the adapter has verified the native respawn-loadout-completed
-// occurrence (F-INTAKE-004 names it; its dispatch site and calling convention are unverified, T-3,
-// not run in game) and will call RecordRespawnLoadoutCompleted() from it. It needs `verified` and
+// occurrence (its dispatch site and calling convention are unverified.
+// Not run in game.) and will call RecordRespawnLoadoutCompleted() from it. It needs `verified` and
 // `offline`. Only then is capability game.events.loadout_respawn_completed on and
 // game.loadout.respawn_completed published; default off, cleared on a provider fault or Stop.
 struct LoadoutBackend {

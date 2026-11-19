@@ -23,7 +23,7 @@
  *    the game would discard answers SCO_UNAVAILABLE instead of a silent SCO_OK.
  *  - Nothing is restored when your plugin unloads: these stats are gameplay state the game itself
  *    changes every tick (eating, breathing, weather), not settings.
- *  - Nothing here has been run in game; whether a write persists in an offline session (in
+ *  - Not run in game. Whether a write persists in an offline session (in
  *    particular a SC_ACTOR_STAT_WRITE_LOCAL_ONLY one) is what the in-game run must confirm. */
 #ifndef SC_ACTOR_STATS_WRITE_H
 #define SC_ACTOR_STATS_WRITE_H

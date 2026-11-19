@@ -17,8 +17,8 @@
  *    entry by the same name; if it doesn't, the capability is off instead of reading the wrong
  *    stat.
  *  - Values are the game's own floats in the game's own units. Their range, units and direction
- *    (for example whether hunger rises toward starving or falls from full) are not pinned yet:
- *    nothing here has been run in game (docs/game/actor-stats.md lists what an in-game run must
+ *    (for example whether hunger rises toward starving or falls from full) are not pinned yet.
+ *    Not run in game (docs/game/actor-stats.md lists what an in-game run must
  *    confirm).
  *  - Capability (sco_api has()): "game.actor_stats.read", ready when its signature rows are OK
  *    on this game build. While it isn't, read answers SCO_UNAVAILABLE. */
