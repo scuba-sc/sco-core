@@ -1501,7 +1501,7 @@ static void TestStopVersusCopy() {
         menu.Run([&] { r = view->menu_thread_enter(client); });
         Rec rec;
         CHECK(SetTree(alpha, "alpha.sv", NumberedTree(1, false), OnEvent, &rec) == SCO_OK);
-        std::atomic<bool> stopped{false}, go{false};
+        std::atomic<bool> stopped{false};
         std::atomic<int> badCodes{0}, afterStop{0};
         std::atomic<int> started{0};
         std::thread runner([&] {
