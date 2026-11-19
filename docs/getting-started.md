@@ -4,9 +4,9 @@ This page takes you from a published SDK archive to a checked, renamed C plugin
 and a Windows deployment. You do not need a sco-core checkout.
 
 <!-- release-block:current-release-brief -->
-SDK **2.4.1** uses Star Citizen game pack **0.8.1** (checked against Star Citizen
+SDK **2.4.1** (release candidate 1, a pre-release for testing; the final release follows) uses Star Citizen game pack **0.8.1** (checked against Star Citizen
 Alpha 4.10.3, build 4.10.200.58746; see [game builds](../docs/game/builds.md)) and plugin ABI **1.1**. Archives and their digests are on the
-[`sdk-v2.4.1` release page](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.1); the [release notes](https://github.com/scuba-sc/sco-core/blob/sdk-v2.4.1/docs/releases/sdk-v2.4.1.md) list what changed.
+[`sdk-v2.4.1-rc.1` release page](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.1-rc.1); the [release notes](https://github.com/scuba-sc/sco-core/blob/sdk-v2.4.1-rc.1/docs/releases/sdk-v2.4.1.md) list what changed.
 <!-- /release-block:current-release-brief -->
 
 Verify the archive against that release's `SHA256SUMS` (section 3). Older
@@ -93,7 +93,7 @@ In a browser, download both files from the stable release page for the SDK versi
 
 <!-- release-block:download-core-verify -->
 ```sh
-env -u GITHUB_TOKEN -u GH_TOKEN gh release download sdk-v2.4.1 -R scuba-sc/sco-core -p 'sco-sdk-core-2.4.1.zip' -p SHA256SUMS
+env -u GITHUB_TOKEN -u GH_TOKEN gh release download sdk-v2.4.1-rc.1 -R scuba-sc/sco-core -p 'sco-sdk-core-2.4.1.zip' -p SHA256SUMS
 python3 - <<'PY'
 import hashlib
 from pathlib import Path

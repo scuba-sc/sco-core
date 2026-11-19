@@ -11,10 +11,10 @@ The sco SDK, part of sco-core, builds plugins for [sc-offline](https://github.co
 Consumer agents: use the [workflow bundle](../docs/agent-workflows.md), starting with [roadmap and SDK planning](skills/sco-plan-sdk-work/SKILL.md). Read the bundle directly or follow your client's installation instructions; shipping the files does not activate them. The guide explains which profiles support MCP discovery and the content-hashed index.
 
 <!-- release-block:current-release -->
-SDK **2.4.1** uses Star Citizen game pack **0.8.1** (checked against Star Citizen
+SDK **2.4.1** (release candidate 1, a pre-release for testing; the final release follows) uses Star Citizen game pack **0.8.1** (checked against Star Citizen
 Alpha 4.10.3, build 4.10.200.58746; see [game builds](../docs/game/builds.md)) and plugin ABI **1.1**. Download it from the
-[`sdk-v2.4.1` release page](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.1) and verify each archive against that release's
-`SHA256SUMS`; the [release notes](https://github.com/scuba-sc/sco-core/blob/sdk-v2.4.1/docs/releases/sdk-v2.4.1.md) list what changed. The previous release is
+[`sdk-v2.4.1-rc.1` release page](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.1-rc.1) and verify each archive against that release's
+`SHA256SUMS`; the [release notes](https://github.com/scuba-sc/sco-core/blob/sdk-v2.4.1-rc.1/docs/releases/sdk-v2.4.1.md) list what changed. The previous release is
 [SDK 2.4.0](https://github.com/scuba-sc/sco-core/blob/sdk-v2.4.0/docs/releases/sdk-v2.4.0.md).
 <!-- /release-block:current-release -->
 

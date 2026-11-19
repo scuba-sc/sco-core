@@ -1,6 +1,6 @@
 <!-- Template for the release-block named download-core-verify; edit here, then run tools/release_docs.py --write. -->
 ```sh
-env -u GITHUB_TOKEN -u GH_TOKEN gh release download {{tag}} -R scuba-sc/sco-core -p '{{archive_core}}' -p SHA256SUMS
+env -u GITHUB_TOKEN -u GH_TOKEN gh release download {{download_tag}} -R scuba-sc/sco-core -p '{{archive_core}}' -p SHA256SUMS
 python3 - <<'PY'
 import hashlib
 from pathlib import Path

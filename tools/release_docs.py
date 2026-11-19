@@ -21,10 +21,15 @@ Docs carry generated regions in two forms:
 
     <!--rv:KEY-->2.4.1<!--/rv-->           one inline value (KEY is a coordinate below)
 
-Templates use {{KEY}}. Keys: sdk_version, tag, game_pack_version, game_build, game_patch, plugin_abi,
-previous_version, previous_tag, release_page, previous_release_page, notes, previous_notes,
-notes_url, previous_notes_url,
+Templates use {{KEY}}. Keys: sdk_version, tag, download_tag, candidate_label, game_pack_version,
+game_build, game_patch, plugin_abi, previous_version, previous_tag, release_page,
+previous_release_page, notes, previous_notes, notes_url, previous_notes_url,
 archive_core, archive_game_sc, archive_combined, archive_core_source, archive_host_source.
+`tag` is always the final tag sdk-v<sdk_version>. While sdk/CANDIDATE_TAG names one of its release
+candidates (sdk-v<sdk_version>-rc.<n>), `download_tag` is that candidate tag and `release_page`
+and `notes_url` point at it, because the final release page does not exist yet; `candidate_label`
+then says so in the sentence that introduces the release. Once the file names the final tag,
+`download_tag` equals `tag` and `candidate_label` is empty.
 `notes` and `previous_notes` are repository paths (docs/releases/...). `root` is the relative path
 from the file being rendered to the repository root (`../` from docs/, `` from the root), so a
 template links a file as `{{root}}{{notes}}` and the link works from every folder.
@@ -101,9 +106,28 @@ def released_versions():
     return sorted(found, key=version_tuple)
 
 
+def candidate_number(sdk):
+    """The release candidate number sdk/CANDIDATE_TAG names for this SDK version; None for the final tag."""
+    path = ROOT / "sdk/CANDIDATE_TAG"
+    if not path.is_file():
+        return None
+    lines = [line.strip() for line in text("sdk/CANDIDATE_TAG").splitlines()
+             if line.strip() and not line.lstrip().startswith("#")]
+    if len(lines) != 1:
+        raise Refusal("sdk/CANDIDATE_TAG must contain exactly one tag")
+    match = re.fullmatch(r"sdk-v" + re.escape(sdk) + r"(?:-rc\.([1-9][0-9]*))?", lines[0])
+    if not match:
+        raise Refusal(f"sdk/CANDIDATE_TAG names {lines[0]!r}, not sdk-v{sdk} or one of its -rc.<number> tags")
+    return match.group(1)
+
+
 def coordinates():
     sdk = text("sdk/VERSION").strip()
     version_tuple(sdk)
+    candidate = candidate_number(sdk)
+    download = "sdk-v" + sdk + (f"-rc.{candidate}" if candidate else "")
+    label = (f" (release candidate {candidate}, a pre-release for testing; the final release follows)"
+             if candidate else "")
     game = macro("include/sc_game_pack.h", "SCO_GAME_PACK_VERSION")
     version_tuple(game)
     abi = macro("include/sco_api.h", "SCO_API_MAJOR") + "." + macro("include/sco_api.h", "SCO_API_MINOR")
@@ -116,18 +140,20 @@ def coordinates():
     return {
         "sdk_version": sdk,
         "tag": "sdk-v" + sdk,
+        "download_tag": download,
+        "candidate_label": label,
         "game_pack_version": game,
         "game_build": game_build,
         "game_patch": current["patch"],
         "plugin_abi": abi,
         "previous_version": previous,
         "previous_tag": "sdk-v" + previous,
-        "release_page": RELEASES + "sdk-v" + sdk,
+        "release_page": RELEASES + download,
         "previous_release_page": RELEASES + "sdk-v" + previous,
         "notes": "docs/releases/sdk-v" + sdk + ".md",
         "previous_notes": "docs/releases/sdk-v" + previous + ".md",
         # Absolute links pinned to the tag: they also work in packaged kits, whose layout differs.
-        "notes_url": SOURCE + "sdk-v" + sdk + "/docs/releases/sdk-v" + sdk + ".md",
+        "notes_url": SOURCE + download + "/docs/releases/sdk-v" + sdk + ".md",
         "previous_notes_url": SOURCE + "sdk-v" + previous + "/docs/releases/sdk-v" + previous + ".md",
         "archive_core": f"sco-sdk-core-{sdk}.zip",
         "archive_game_sc": f"sco-sdk-game-sc-{game}.zip",

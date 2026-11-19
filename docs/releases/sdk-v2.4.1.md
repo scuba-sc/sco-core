@@ -1,13 +1,58 @@
 # sco-core SDK 2.4.1 release notes
 
-Planned tag [`sdk-v2.4.1`](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.1), combined archive `sco-sdk-2.4.1.zip`.
-Archive digests are on the release page, not here.
+Final tag `sdk-v2.4.1`, combined archive `sco-sdk-2.4.1.zip`. The final release follows
+release candidate 1 (see below). Archive digests are on the release page, not here.
 
 <!-- release-scope:start -->
 ```json
 {"tag":"sdk-v2.4.1","sdk_version":"2.4.1","game_pack_version":"0.8.1","plugin_abi":"1.1","profiles":["core","game-sc","legacy","core-source","host-source-sc"]}
 ```
 <!-- release-scope:end -->
+
+## Release candidate 1
+
+Tag `sdk-v2.4.1-rc.1` is a pre-release for testers. The release-candidate workflow builds it from
+`main` in the same way as a final release, and it is published as a GitHub pre-release. The final
+`sdk-v2.4.1` comes later, after testers report, as a separate release built from a later `main`
+commit. A candidate is not the final release and can change before it.
+
+- Download it from the [`sdk-v2.4.1-rc.1` release page](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.1-rc.1).
+  Check each archive against that page's `SHA256SUMS`. The page also holds one SPDX file per
+  archive and `release.json`. The digests are on the page, not in these notes.
+- The archives carry the file names the final release will have (`sco-sdk-2.4.1.zip` and so on),
+  because the name comes from `sdk/VERSION`. The bytes differ from the final ones. Go by the tag
+  and the digest, not by the file name.
+- The stable release stays SDK 2.4.0. GitHub does not offer a pre-release as the latest release.
+- Apart from the short list under [Observed in game by the maintainer](#observed-in-game-by-the-maintainer),
+  this candidate has had no in-game run. Not run in game.
+
+**What to test first**
+
+1. Download the `core` archive, check its digest, and build the first plugin from the
+   [getting started](../getting-started.md) guide on Windows or Linux.
+2. Load a plugin you built against SDK 2.4.0 in a host built from this kit. The plugin ABI is
+   still 1.1, so it should load unchanged.
+3. Use what is new: widgets 1.4 tagged events, `sco.storage.metadata` 2.0 and the `game.input`
+   C++ wrapper. Each is optional and sits behind a size or version check.
+4. Run the discovery MCP server from the `legacy` kit with your agent client, and try
+   `search_api` with a query of several words.
+5. Build the reference launcher in `examples/launcher/` of the `core` kit and run its tests. It
+   starts no game and changes nothing on the PC.
+6. If you run a product host built on this SDK in game: a saved-spot move through
+   `game.relocation` (the arrival rule changed), and prefab placement through
+   `game.entities.prefabs` (it reports ready only when its rows resolved).
+
+Report results in an issue on the `scuba-sc/sco-core` repository. Give the tag, the archive name,
+the game build if any, and what you saw. Say whether you ran it in game.
+
+**Known issues in release candidate 1**
+
+- `VERSIONS.txt` in each kit says `tag sdk-v2.4.1`. For this candidate the tag is
+  `sdk-v2.4.1-rc.1`.
+- The MCP tool `check_compatibility` takes only `sdk-vMAJOR.MINOR.PATCH`, so it refuses
+  `sdk-v2.4.1-rc.1`. Compare `sdk_version` and `game_pack_version` instead.
+- Candidate archives are immutable. A problem found by testers is fixed in a later candidate or
+  in the final release, not in these files.
 
 ## Compatibility
 

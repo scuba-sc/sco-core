@@ -56,6 +56,11 @@ authorize a release.
 5. Verify the published release and deployed documentation. The workflow publishes RC tags as
    prereleases. A final `sdk-v<version>` is a separate release.
 
+A release candidate (`sdk-v<version>-rc.<n>`) goes through these same steps before the final release.
+Set `sdk/CANDIDATE_TAG` to the candidate tag first and run `python3 tools/release_docs.py --write`, so the
+generated text calls the SDK a release candidate and points at the candidate's release page. The final
+release needs its own candidate run on a later `main` commit, with the tag set back to `sdk-v<version>`.
+
 If the source changes or the candidate expires, build a fresh candidate. For `sdk-v2.4.0-rc.2` only,
 the owner deferred in-game validation: report **not run in game**, not a pass or native-behavior
 claim. This deferral does not establish final 2.4.0 acceptance.

@@ -259,10 +259,10 @@ Workflow actions are pinned to commit SHAs. The release workflow defaults to `co
 The SDK is released as profile archives under a tag `sdk-v<version>`; a release candidate uses `sdk-v<version>-rc.<n>`. The current release:
 
 <!-- release-block:current-release -->
-SDK **2.4.1** uses Star Citizen game pack **0.8.1** (checked against Star Citizen
+SDK **2.4.1** (release candidate 1, a pre-release for testing; the final release follows) uses Star Citizen game pack **0.8.1** (checked against Star Citizen
 Alpha 4.10.3, build 4.10.200.58746; see [game builds](../docs/game/builds.md)) and plugin ABI **1.1**. Download it from the
-[`sdk-v2.4.1` release page](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.1) and verify each archive against that release's
-`SHA256SUMS`; the [release notes](https://github.com/scuba-sc/sco-core/blob/sdk-v2.4.1/docs/releases/sdk-v2.4.1.md) list what changed. The previous release is
+[`sdk-v2.4.1-rc.1` release page](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.1-rc.1) and verify each archive against that release's
+`SHA256SUMS`; the [release notes](https://github.com/scuba-sc/sco-core/blob/sdk-v2.4.1-rc.1/docs/releases/sdk-v2.4.1.md) list what changed. The previous release is
 [SDK 2.4.0](https://github.com/scuba-sc/sco-core/blob/sdk-v2.4.0/docs/releases/sdk-v2.4.0.md).
 <!-- /release-block:current-release -->
 
@@ -285,6 +285,8 @@ To release, follow these steps in order. The [release checklist](legal/release-c
 **Bumping the version.** Run `python3 tools/release_docs.py --bump X.Y.Z [--game-pack A.B.C] [--game-build B]`. It writes `sdk/VERSION`, the next development coordinate, the candidate tag, the changelog heading, a release-notes skeleton, the site allowlist and hub entry, and re-renders every release region in the docs. Then fill in the release notes and the changelog section and run `python3 tools/doc_release_gate.py --tag sdk-vX.Y.Z`. Digests are added to the release notes only after the release workflow publishes them. Never hand-type the current version, tag, game pack, game build, plugin ABI or archive names outside a generated region (a `release-block` or `rv` marker, described in the `tools/release_docs.py` docstring); `python3 tools/release_docs.py --check` fails on stale regions.
 
 Do not manually publish a failed draft to bypass the promotion checks.
+
+**A release candidate before the final release.** `sdk/CANDIDATE_TAG` may name `sdk-v<version>-rc.<n>` instead of the final tag. The generated release regions then say that the SDK is a release candidate and send readers to that candidate's release page, because the final page does not exist yet. The steps above are the same with the candidate tag. `release.yml` publishes an `-rc.` tag as a pre-release and posts no announcement, and its notes are the CHANGELOG section `## sdk-v<version>` with one line in front. Candidate archives have the file names of the final release, because the name comes from `sdk/VERSION`; only the tag and the digest tell them apart. To go on to the final release, set `sdk/CANDIDATE_TAG` back to `sdk-v<version>`, run `python3 tools/release_docs.py --write`, and follow the steps above again from a new `main` commit.
 
 ## Adding a source file
 

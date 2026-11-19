@@ -34,9 +34,9 @@ the handshake for a version it speaks. The kit needs no compiler, Clang, network
 **Release identity.** The current release:
 
 <!-- release-block:current-release-brief -->
-SDK **2.4.1** uses Star Citizen game pack **0.8.1** (checked against Star Citizen
+SDK **2.4.1** (release candidate 1, a pre-release for testing; the final release follows) uses Star Citizen game pack **0.8.1** (checked against Star Citizen
 Alpha 4.10.3, build 4.10.200.58746; see [game builds](../docs/game/builds.md)) and plugin ABI **1.1**. Archives and their digests are on the
-[`sdk-v2.4.1` release page](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.1); the [release notes](https://github.com/scuba-sc/sco-core/blob/sdk-v2.4.1/docs/releases/sdk-v2.4.1.md) list what changed.
+[`sdk-v2.4.1-rc.1` release page](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.1-rc.1); the [release notes](https://github.com/scuba-sc/sco-core/blob/sdk-v2.4.1-rc.1/docs/releases/sdk-v2.4.1.md) list what changed.
 <!-- /release-block:current-release-brief -->
 
 The release page lists the five profile archives, their SBOMs, `SHA256SUMS` and `release.json`. Later source
@@ -56,7 +56,7 @@ macOS and Linux (on macOS use `shasum -a 256 -c -`):
 <!-- release-block:kit-download-sh -->
 ```sh
 set -e
-gh release download sdk-v2.4.1 -R scuba-sc/sco-core -p 'sco-sdk-2.4.1.zip' -p SHA256SUMS
+gh release download sdk-v2.4.1-rc.1 -R scuba-sc/sco-core -p 'sco-sdk-2.4.1.zip' -p SHA256SUMS
 grep ' sco-sdk-2.4.1.zip$' SHA256SUMS | sha256sum -c -
 mkdir sdk-kit && unzip -q sco-sdk-2.4.1.zip -d sdk-kit
 SDK="$PWD/sdk-kit/$(basename sco-sdk-2.4.1.zip .zip)"
@@ -68,7 +68,7 @@ Windows PowerShell:
 
 <!-- release-block:kit-download-ps -->
 ```powershell
-gh release download sdk-v2.4.1 -R scuba-sc/sco-core -p 'sco-sdk-2.4.1.zip' -p SHA256SUMS
+gh release download sdk-v2.4.1-rc.1 -R scuba-sc/sco-core -p 'sco-sdk-2.4.1.zip' -p SHA256SUMS
 if ($LASTEXITCODE -ne 0) { throw 'SDK download failed' }
 $expected = ((Get-Content SHA256SUMS | Where-Object { $_ -match (' ' + [regex]::Escape('sco-sdk-2.4.1.zip') + '$') }) -split '\s+')[0]
 if (!$expected -or (Get-FileHash sco-sdk-2.4.1.zip -Algorithm SHA256).Hash -ine $expected) { throw 'SHA256 mismatch; stop' }

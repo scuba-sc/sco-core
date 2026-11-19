@@ -50,9 +50,9 @@ build and check.
 The current release:
 
 <!-- release-block:current-release-brief -->
-SDK **2.4.1** uses Star Citizen game pack **0.8.1** (checked against Star Citizen
+SDK **2.4.1** (release candidate 1, a pre-release for testing; the final release follows) uses Star Citizen game pack **0.8.1** (checked against Star Citizen
 Alpha 4.10.3, build 4.10.200.58746; see [game builds](../../docs/game/builds.md)) and plugin ABI **1.1**. Archives and their digests are on the
-[`sdk-v2.4.1` release page](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.1); the [release notes](https://github.com/scuba-sc/sco-core/blob/sdk-v2.4.1/docs/releases/sdk-v2.4.1.md) list what changed.
+[`sdk-v2.4.1-rc.1` release page](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.1-rc.1); the [release notes](https://github.com/scuba-sc/sco-core/blob/sdk-v2.4.1-rc.1/docs/releases/sdk-v2.4.1.md) list what changed.
 <!-- /release-block:current-release-brief -->
 
 The release page lists the five profile archives, their SBOMs, `SHA256SUMS` and `release.json`.

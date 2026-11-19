@@ -3,9 +3,9 @@
 A Lua plugin is a folder with `plugin.ini` (`kind = lua`, `entry = main.lua`) and its scripts. sc-offline's bundled `sco-lua` runtime runs the entry script once at load, in a sandbox. The script registers commands and subscribes to events; those callbacks run on the game thread.
 
 <!-- release-block:current-release-brief -->
-SDK **2.4.1** uses Star Citizen game pack **0.8.1** (checked against Star Citizen
+SDK **2.4.1** (release candidate 1, a pre-release for testing; the final release follows) uses Star Citizen game pack **0.8.1** (checked against Star Citizen
 Alpha 4.10.3, build 4.10.200.58746; see [game builds](../../docs/game/builds.md)) and plugin ABI **1.1**. Archives and their digests are on the
-[`sdk-v2.4.1` release page](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.1); the [release notes](https://github.com/scuba-sc/sco-core/blob/sdk-v2.4.1/docs/releases/sdk-v2.4.1.md) list what changed.
+[`sdk-v2.4.1-rc.1` release page](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.1-rc.1); the [release notes](https://github.com/scuba-sc/sco-core/blob/sdk-v2.4.1-rc.1/docs/releases/sdk-v2.4.1.md) list what changed.
 <!-- /release-block:current-release-brief -->
 
 This page describes the `plugins/lua/` runtime and its operation-specific limits, not game-service readiness. Its tests exercise [`examples/greeter`](../examples/greeter) and [`examples/notebook`](../examples/notebook).

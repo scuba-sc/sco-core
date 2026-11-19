@@ -9,6 +9,7 @@ import importlib.util
 import io
 import json
 import os
+import re
 from pathlib import Path
 import sys
 import tempfile
@@ -263,7 +264,9 @@ class RealTreeTests(unittest.TestCase):
         self.assertIn('SHA256SUMS', status)
         lua = next(s for s in data['sections'] if s['doc'] == 'sdk/docs/lua.md' and s['level'] == 1)
         version = (ROOT / 'sdk/VERSION').read_text().strip()
-        self.assertIn('SDK ' + version + ' uses Star Citizen game pack', lua['text'])
+        # While sdk/CANDIDATE_TAG names a release candidate the sentence says so before "uses".
+        self.assertRegex(lua['text'], r'SDK ' + re.escape(version)
+                         + r'( \(release candidate [1-9][0-9]*[^)]*\))? uses Star Citizen game pack')
         self.assertNotIn('release candidate 1, tag', lua['text'])
 
     def test_mission_and_audio_boundaries_reach_guide_index(self):
