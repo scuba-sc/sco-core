@@ -10,11 +10,14 @@ plugin design guide (`docs/plugin-design.md` in the sco-core repository).
 
 Plain C against `sco_api.h` only: no game header, no capability, no game memory.
 
+Build `sco-plugin-check` as in the SDK README, [Build the examples](../../README.md#build-the-examples).
+Then, from this folder:
+
 ```sh
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release        # Windows: add -A x64
 cmake --build build --config Release
 cmake --install build --config Release --prefix out
-<sdk>/bin/sco-plugin-check out/data/plugins/counter_service --invoke counter_service.value
+sco-plugin-check out/data/plugins/counter_service --invoke counter_service.value
 ```
 
 The checker shows `service counter_service.counter 1.0` and
@@ -29,4 +32,4 @@ both through the real neutral host and calls `counter_panel.bump`.
 
 Once any plugin has looked the table up, the host keeps this plugin loaded for the
 rest of the game session (`sco.reload` refuses it); restart the game to load a new
-build. Not run in game.
+build. Not run in game. See [game capability status](../../../docs/game/status.md).

@@ -1,5 +1,5 @@
 /*
- * sc_datacore_live.h: game service "game.datacore_live", version 1.0 (SDK 2.4.0, issue #193 [G22]).
+ * sc_datacore_live.h: game service "game.datacore_live", version 1.0 (SDK 2.4.0).
  *
  * Host-backed in-memory pool access. The optional native read adapter defaults
  * OFF and requires host lifecycle preparation and fresh offline admission.

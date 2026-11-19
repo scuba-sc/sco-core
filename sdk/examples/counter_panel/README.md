@@ -25,11 +25,14 @@ The design rules behind the pair are in the plugin design guide
 It includes the provider's header as `../counter_service/counter_service.h`, so
 keep the two folders side by side, or copy the header into your own project.
 
+Build `sco-plugin-check` as in the SDK README, [Build the examples](../../README.md#build-the-examples).
+Then, from this folder:
+
 ```sh
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release        # Windows: add -A x64
 cmake --build build --config Release
 cmake --install build --config Release --prefix out
-<sdk>/bin/sco-plugin-check out/data/plugins/counter_panel
+sco-plugin-check out/data/plugins/counter_panel
 ```
 
 `sco-plugin-check` checks one folder alone, so the provider is absent there. That
@@ -45,4 +48,4 @@ With `--short-tables` (a 1.0 host's `sco_api`) it also passes, and `bump` answer
 
 With both plugins installed, `counter_panel.bump` answers `counter is 1`. sco-core's
 `host_sim_examples` test loads both through the real neutral host and checks that
-reply. Not run in game.
+reply. Not run in game. See [game capability status](../../../docs/game/status.md).

@@ -12,6 +12,7 @@ extern "C" {
 #define SC_LOADOUT_VERSION_1_0 0x00010000u
 #define SC_LOADOUT_VERSION_1_1 0x00010001u /* + weapon and multitool slots 8-21 */
 #define SC_LOADOUT_VERSION_1_2 0x00010002u /* + bounded asynchronous jobs */
+#define SC_LOADOUT_VERSION_1_3 0x00010003u /* + outfit slots 22-31 (async route only, capability game.loadout.outfit) */
 #define SC_LOADOUT_MAX_JOBS 8u
 #define SC_LOADOUT_TIMEOUT_MS 120000u
 /* Respawn-completed notification (additive; sc_loadout_v1 is unchanged, no table member). Bus event
@@ -20,7 +21,7 @@ extern "C" {
  * sc_game_events.h (sc_game_loadout_respawn_completed, size-prefixed, occurrence only; both headers
  * guard the macro, so include order does not matter). Gated by capability
  * "game.events.loadout_respawn_completed", which is OFF in production: the native event's
- * provenance and calling convention are unverified (F-INTAKE-004, T-3), not run in game. An event
+ * provenance and calling convention are unverified. Not run in game. An event
  * whose capability is off never fires, so subscribing is harmless. See docs/game/loadout.md. */
 #ifndef SC_GAME_EVENT_LOADOUT_RESPAWN_COMPLETED
 #define SC_GAME_EVENT_LOADOUT_RESPAWN_COMPLETED "game.loadout.respawn_completed"
@@ -44,6 +45,18 @@ typedef enum sc_loadout_slot {
     SC_LOADOUT_SLOT_PRIMARY_TOOL_BATTERY = 18,
     SC_LOADOUT_SLOT_SIDEARM_TOOL_MODULE = 19, SC_LOADOUT_SLOT_SIDEARM_TOOL_CANISTER = 20,
     SC_LOADOUT_SLOT_SIDEARM_TOOL_BATTERY = 21,
+    /* 1.3: outfit slots 22-31. Logical slots, not engine port names; the item port each one
+     * maps to is adapter data (docs/game/loadout.md). Asynchronous submit only: the synchronous
+     * apply reports them UNSUPPORTED. Submit refuses a request that holds one while capability
+     * game.loadout.outfit is off. Clothing, hat, head accessory, head horn and jewellery only.
+     * Hair, hair colour, eyebrow, teeth, eyes, head and body are deliberately not assigned: this
+     * version cannot undo them and a wrong one can break the character. Values 32+ are
+     * unassigned. */
+    SC_LOADOUT_SLOT_CLOTHING_TORSO_0 = 22, SC_LOADOUT_SLOT_CLOTHING_TORSO_1 = 23,
+    SC_LOADOUT_SLOT_CLOTHING_TORSO_2 = 24, SC_LOADOUT_SLOT_CLOTHING_LEGS = 25,
+    SC_LOADOUT_SLOT_CLOTHING_FEET = 26, SC_LOADOUT_SLOT_CLOTHING_HANDS = 27,
+    SC_LOADOUT_SLOT_HAT = 28, SC_LOADOUT_SLOT_HEAD_ACCESSORY = 29,
+    SC_LOADOUT_SLOT_HEAD_HORN = 30, SC_LOADOUT_SLOT_JEWELLERY = 31,
     SC_LOADOUT_SLOT_FORCE32 = 0x7fffffff
 } sc_loadout_slot;
 typedef enum sc_loadout_status {

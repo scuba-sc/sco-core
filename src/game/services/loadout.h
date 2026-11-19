@@ -13,8 +13,8 @@ namespace sco::game::services {
 // game.loadout.weapons is on (default off, cleared on a provider fault).
 //
 // `respawnCompleted` attests that the adapter has verified the native respawn-loadout-completed
-// occurrence (F-INTAKE-004 names it; its dispatch site and calling convention are unverified, T-3,
-// not run in game) and will call RecordRespawnLoadoutCompleted() from it. It needs `verified` and
+// occurrence (its dispatch site and calling convention are unverified.
+// Not run in game.) and will call RecordRespawnLoadoutCompleted() from it. It needs `verified` and
 // `offline`. Only then is capability game.events.loadout_respawn_completed on and
 // game.loadout.respawn_completed published; default off, cleared on a provider fault or Stop.
 struct LoadoutBackend {
@@ -31,6 +31,9 @@ struct LoadoutAsyncBackend {
                   sc_loadout_status* terminal) = nullptr;
     bool (*poll)(uint64_t token, bool* complete, sc_loadout_status* result) = nullptr;
     void (*discard)(uint64_t token) = nullptr;
+    // Says begin/poll have a name mapping for the 1.3 outfit slots 22-31 (not that the names are verified). Only then, and only
+    // with the async route installed, is capability game.loadout.outfit on (default off).
+    bool outfit = false;
 };
 Result StartLoadout(const LoadoutBackend* backend = nullptr, const LoadoutAsyncBackend* async = nullptr);
 void TickLoadout(uint32_t now);

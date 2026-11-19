@@ -1,25 +1,14 @@
 # sco-core SDK 2.4.0 roadmap
 
-SDK **2.4.0**, optional Star Citizen game pack **0.8.0**, frozen plugin ABI
-**1.1**. Stable SDK 2.4.0 is the current published release, published on
-2026-11-01 from source commit `6106fa3639cbcc28f78a1ded8de2707de019f4d3`.
-Its five archive identities are listed in the [release notes](releases/sdk-v2.4.0.md#stable-archive-identity).
-RC2 was published on 2026-10-28 from source `844e136ccb280ad8cb43f73bc43c9447e8f6799d`;
-RC1 and RC2 are historical releases with unchanged bytes. This is a planning snapshot,
-not a release announcement. Contract presence, implementation, default availability,
-synthetic validation and in-game acceptance are separate. No game behavior is certified here.
+Historical record: this is the plan behind SDK 2.4.0, kept as it was when 2.4.0 shipped. For the current release and what comes next, read the [roadmap](roadmap.md).
 
-The remaining sections preserve the RC2-baselined planning snapshot and its dated
-evidence. They do not change RC1, RC2 or stable release bytes. For current package
-selection use the stable release page and its checksums; the [RC2 consumer reconciliation](agent-workflows.md#rc2-consumer-reconciliation)
-retains the historical issue contracts and acceptance path.
+SDK **2.4.0**, optional Star Citizen game pack **0.8.0**, frozen plugin ABI **1.1**. It was published on 2026-11-01 from source commit `6106fa3639cbcc28f78a1ded8de2707de019f4d3`. Its five archive identities are in the [release notes](releases/sdk-v2.4.0.md#stable-sdk-240-archive-identities). Two release candidates came first: RC1 on 2026-10-21 and RC2 on 2026-10-28 (source `844e136ccb280ad8cb43f73bc43c9447e8f6799d`). Both are historical releases with unchanged bytes.
+
+Contract presence, implementation, default availability, synthetic validation and in-game acceptance are separate. This page certifies no game behavior.
 
 ## Scope
 
-This roadmap covers the SDK and its developer tooling. Engine, studio and product
-releases are separate; they are not SDK 2.4.0 completion criteria. Consumers adopt
-published, checksum-verified archives for their selected release rather than
-integration branches.
+The roadmap covers the SDK and its developer tooling. Engine, studio and product releases are separate and were not criteria for SDK 2.4.0. Consumers adopt published, checksum-verified archives for their selected release, not integration branches.
 
 ## Distribution profiles
 
@@ -31,77 +20,35 @@ integration branches.
 | core-source | `sco-sdk-core-source-2.4.0.zip` | Standalone game-neutral host-source kit |
 | host-source-sc | `sco-sdk-host-source-sc-2.4.0.zip` | Standalone host-source kit with optional game implementation |
 
-The manifest in `sdk/components.json` defines actual membership. Compatibility
-metadata binds overlays to exact base bytes. Local packaging does not publish a release.
+`sdk/components.json` defines the actual membership. Compatibility metadata binds an overlay to the exact bytes of its base archive. Local packaging does not publish a release.
 
-## Current contract inventory
+## Contract inventory
 
-| Surface | Development contract and limits |
+What 2.4.0 added or grew. The release notes and [contracts](contracts.md) hold the per-operation limits, and [stability](stability.md) says which tables are Stable or Experimental.
+
+| Surface | Contract and limits |
 |---|---|
-| `sco.widgets` 1.2 | Stable ASCII tags; 128-byte node with `const char* tag` at offset 104, copied by the host. Native C/C++ submission and raw C# interop are distinct from typed C#/Lua support. |
-| `sco.storage` 1.1 | 144-byte table with bounded table/view and column enumeration. |
+| `sco.widgets` 1.3 | 1.2 added stable ASCII tags: a 128-byte node with `const char* tag` at offset 104, copied by the host. 1.3 added numeric slider presentation. Native C and C++ submission and raw C# interop are distinct from typed C# and Lua support. |
+| `sco.storage` 1.1 | 144-byte table with bounded table, view and column enumeration. |
 | `sco.diagnostics.publisher` 1.0 | Numeric and enum observations through `sco_diagnostics_observation_v1`; no free-form identifiers. |
-| `game.loadout` 1.2 | Optional asynchronous submit/status/cancel with state, completed-prefix count and nested report. Respawn event availability is a separate gate. |
-| `game.inventory` 1.2 | The 1.1 prefix supplies copied port snapshots and item-category vocabulary; 1.2 adds copied logical-layout observations. Native reads remain OFF by default; the production host has no logical-layout producer and `game.inventory.layout` is OFF. |
-| `game.inventory.contents` 1.0 | Copied bounded stored-item snapshots; no grounded native adapter is supplied. |
-| `game.audio` 1.1 | Owner-bound trigger/playback tokens and unload cleanup; `play_once` adds fire-and-forget submission with its own default-OFF capability. Acceptance does not prove audible playback; the native backend is absent. |
-| `game.entities` 1.2 | Copied epoch-pinned class registry, debug name lookup and finite typed component presence; no pointer export or native lookup adapter. New C#/Lua calls unsupported; managed layout parity only. |
-| `game.world.control` 1.1 | Bounded multi-hit with provider-owned acquire/query/release, validated copied records and owner skips; native adapter remains OFF. |
-| `game.actor_stats` 1.1 | 29 raw read IDs; stat units/ranges remain unverified. The separate write service retains its original allowlist and default-off admission. |
-| `game.input` 1.0 | Named action metadata: 1,297 ids re-verified statically on 4.10.197.2878 (F-4.10.197.2878-050); not certified input dispatch. |
-| `game.gamerules` 1.1 | Static parameter definitions through `list_params`; live read requires a backend. |
-| `game.mining` 1.0 | Public activation/state service; its game-pack provider owns the sole native detour. Default OFF/unavailable pending native acceptance; resolving the legacy `mining.cell` row does not enable it. |
-| `game.relocation` 1.1 | The existing 1.0 FullPose route retains conditional offline admission. The 1.1 position-only request has a separate default-OFF capability; the default native adapter supplies no position callbacks. |
-| `game.datacore_live` 1.0 | Explicit host-backed pool access; no native pool adapter supplied and writes separately opt-in. |
-| DataCore packs | Atomic remains default; BestEffort receipts and `clone = { record = "...", mode = "deep" }`. Use `sco-dcb lint <pack>...` for syntax and `sco-dcb check <file.dcb> <pack>...` for database-backed validation. |
-
-See [contracts](contracts.md), [game capability status](game/status.md) and
-[release notes](releases/sdk-v2.4.0.md) for authoritative per-operation limits, and
-[stability](stability.md) for which tables are Stable or Experimental across SDK 2.x.
+| `game.loadout` 1.2 | Optional asynchronous submit, status and cancel with state, completed-prefix count and a nested report. Respawn event availability is a separate gate. |
+| `game.inventory` 1.2 | The 1.1 prefix supplies copied port snapshots and an item-category vocabulary. 1.2 adds copied logical-layout observations. Native reads are OFF by default. The production host has no logical-layout producer, and `game.inventory.layout` is OFF. |
+| `game.inventory.contents` 1.0 | Copied, bounded stored-item snapshots; no grounded native adapter is supplied. |
+| `game.audio` 1.1 | Owner-bound trigger and playback tokens with unload cleanup. `play_once` adds fire-and-forget submission under its own default-OFF capability. The native backend is absent, and acceptance does not prove audible playback. |
+| `game.entities` 1.2 | Copied, epoch-pinned class registry, debug-name lookup and finite typed component presence. No pointer export and no native lookup adapter. New C# and Lua calls are unsupported; managed layout parity only. |
+| `game.world.control` 1.1 | Bounded multi-hit with provider-owned acquire, query and release, validated copied records and owner skips. The native adapter is OFF. |
+| `game.actor_stats` 1.1 | 29 raw read ids; stat units and ranges are unverified. The separate write service keeps its original allowlist and default-off admission. |
+| `game.input` 1.0 | Named action metadata: 1,297 ids re-checked statically on 4.10.197.2878. It is not input dispatch. |
+| `game.gamerules` 1.1 | Static parameter definitions through `list_params`; a live read needs a backend. |
+| `game.mining` 1.0 | Public activation and state service whose game-pack provider owns the single native detour. Default OFF and unavailable pending native acceptance; resolving the legacy `mining.cell` row does not enable it. |
+| `game.relocation` 1.1 | The 1.0 FullPose route keeps conditional offline admission. The 1.1 position-only request has its own default-OFF capability, and the default native adapter supplies no position callbacks. |
+| `game.datacore_live` 1.0 | Explicit host-backed pool access. No native pool adapter is supplied, and writes are a separate opt-in. |
+| DataCore packs | Atomic is the default. BestEffort receipts and `clone = { record = "...", mode = "deep" }` are available. `sco-dcb lint <pack>...` checks syntax and `sco-dcb check <file.dcb> <pack>...` validates against a database. |
 
 ## MCP developer workflow
 
-The current-source stdio discovery server supports `2026-07-28` and legacy
-`2025-11-25`. It exposes fifteen read-only discovery tools by default, including
-`list_workflows` and `get_workflow`.
-`--minimal-tools` selects the original six catalogue tools; `--extended-tools`
-and `--workflow-tools` remain compatibility aliases. Discovery exposes recorded
-contracts, examples, compatibility, native metadata, manifest/widget validation,
-pure scaffolding and guide-section search; it does not invoke game services.
-Local build/check tools require a separately configured `--project-root`.
-Runtime inspection is a separate default-off launcher with its own six-read allowlist.
+The stdio discovery server in 2.4.0 supports protocol versions `2026-07-28` and `2025-11-25`. Its default is fifteen read-only discovery tools, including `list_workflows`, `get_workflow` and `get_service_status`, with the matching schema-2 catalogue and workflow index. `--minimal-tools` selects the original six catalogue tools.
 
-Published stable SDK 2.4.0 has the fifteen-tool default, including `get_service_status`,
-and the matching schema-2 catalogue and workflow index. Historical RC2 retains its
-fourteen-tool default; RC1 retains six tools or twelve with `--extended-tools` and
-has no workflow bundle/index. Source edits do not alter any published archive bytes.
-Read the selected kit manifest for its bundle version. Use the [consumer workflows](agent-workflows.md), [agent integration](agent-integration.md)
-and [SDK/MCP tutorial](sdk-mcp-tutorial.md) for the matching input path.
+Discovery exposes recorded contracts, examples, compatibility, native metadata, manifest and widget validation, pure scaffolding and guide-section search. It does not invoke game services. Local build and check tools need a separately configured `--project-root`. Runtime inspection is a separate default-off launcher with its own six-read allowlist.
 
-## Community plugin directory
-
-Plugins stay in their authors' own repositories. The
-[community plugin directory](plugin-directory.md) lists them from a validated index
-with the SDK release, game-pack version and `sco-plugin-check` result each author
-reported, plus listing rules and an issue form for requests. It starts with the
-first-party sc-offline and sc-mp plugins and no community entries. A listing is
-compatibility information, not an endorsement or in-game verification.
-
-## Remaining release gates
-
-- Reconcile each PR and issue against exact contract, implementation and evidence;
-  a proposed API or static locator does not close a runtime gap.
-- Validate the final frozen source: ABI/native/binding tests, catalogue, legal and
-  documentation gates, five-profile archive checks and reproducibility.
-- Require hosted checks on the exact builder commit and retain archive hashes.
-- Preserve the [RC2 native-index and registry scope](legal/release-decisions/2026-10-27-rc2-discovery-metadata.md)
-  for its recorded bytes, and verify actual candidate metadata.
-- For RC2, retain an extracted-kit consumer receipt bound to the exact release
-  source, archive hashes, workflow index and target host; source-tree tests alone
-  do not establish that path or upgrade an installed consumer.
-- At the time of this plan, the docs-site run for source commit
-  `72dc30c8e10d9ca7365dd9d67dc57c0c86ed9a20` deployed that commit's site and
-  verified all 12 RC2 release asset digests ([run 40760191439, attempt 2](https://github.com/scuba-sc/sco-core/actions/runs/40760191439/attempts/2)).
-  Stable SDK 2.4.0 has since been published with five profile archives and
-  `SHA256SUMS`; see the [stable release record](releases/sdk-v2.4.0.md). The product
-  and in-game acceptance gates above remain separate; no game result is implied.
+RC2 had a fourteen-tool default. RC1 had six tools, or twelve with `--extended-tools`, and no workflow bundle. Read the selected kit's manifest for its bundle version. The matching guides are [consumer workflows](agent-workflows.md), [agent integration](agent-integration.md) and the [SDK and MCP tutorial](sdk-mcp-tutorial.md).

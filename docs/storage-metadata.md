@@ -46,11 +46,11 @@ C calls the table directly. C++ uses `scosdk/storage_metadata.hpp` and
 `next_table` returns a copied `{name, flags, column_count}` record; the end of an
 iteration is `nil, "not_found", message`. A Lua result exceeding `LUA_MAXINTEGER`
 is refused with `too_many`, never rounded or wrapped into a negative integer.
-Existing storage routes remain intact. Old/short/null providers are unavailable,
-not successful empty results. Experimental Rust has no typed metadata wrapper
-in this change.
+Existing storage routes are unchanged. An old, short or null provider is
+unavailable, never a successful empty result. Experimental Rust has no typed
+metadata wrapper.
 
 The cheaper host-only `sco::storage::CopyMetadata` copies existing owner summaries
 and configured quotas without SQL, file creation or callbacks. Unobserved table,
 row and used-byte counts remain unknown. See [diagnostic sources](diagnostics-sources.md)
-for opt-in snapshot use. This is game-neutral synthetic functionality. Not run in game.
+for opt-in snapshot use. This service is game-neutral. Not run in game.

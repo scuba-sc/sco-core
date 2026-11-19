@@ -39,7 +39,7 @@ constexpr uint8_t kForEachFlag = 0;
 
 // ---- in-game confirmation -------------------------------------------------------------------------
 //
-// These stay false until the maintainer's in-game run has confirmed what the spike left pending
+// These stay false until an in-game run has confirmed what static analysis left open
 // (docs/design/game-world-spikes.md B3 and B9). While false the capability is not set ready and
 // the function answers SCO_UNAVAILABLE. Flipping one is a one-line change after that run.
 constexpr bool kQueryRadiusConfirmed = false;   // B3: ForEach's thread, flag and completion

@@ -1,12 +1,12 @@
 # DataCore files and packs: `sco-dcb`
 
-`sco-dcb` reads the game's DataCore database (`Data\Game2.dcb`) with `sco::datacore`. `info` prints what the parser sees: the header, the tables with their offsets and sizes, the derived record size, and whether the layout passes validation. `records` lists every record, the input for research step R1 of the [DataCore design](design/vfs-datacore.md#addrecord). For data packs, `lint` checks `.toml` override files without the game, `check` resolves them against a real `Game2.dcb`, `show` prints a record's fields as the paths overrides use, and `diff` turns the difference between two files into a pack ([Pack format](#pack-format)). `patch` applies a batch of patcher operations given on the command line and is intended to write the patched file somewhere else, to check the patcher on a real file. It is a host tool, like [`sco-sigcheck`](sigcheck.md): built with sco-core, never shipped to players. **Input preservation is not enforced for filesystem aliases:** follow the [output and backup precautions](#patching) before using `patch`.
+`sco-dcb` reads the game's DataCore database (`Data\Game2.dcb`) with `sco::datacore`. `info` prints what the parser sees: the header, the tables with their offsets and sizes, the derived record size, and whether the layout passes validation. `records` lists every record, the input for the record research in the [DataCore design](design/vfs-datacore.md#addrecord). For data packs, `lint` checks `.toml` override files without the game, `check` resolves them against a real `Game2.dcb`, `show` prints a record's fields as the paths overrides use, and `diff` turns the difference between two files into a pack ([Pack format](#pack-format)). `patch` applies a batch of patcher operations given on the command line and is intended to write the patched file somewhere else, to check the patcher on a real file. It is a host tool, like [`sco-sigcheck`](sigcheck.md): built with sco-core, never shipped to players. **Input preservation is not enforced for filesystem aliases:** follow the [output and backup precautions](#patching) before using `patch`.
 
-The layout and the validation rules are in the design, [section 2](design/vfs-datacore.md#2-the-datacore-binary-layout) and [section 4](design/vfs-datacore.md#validation-all-must-hold-else-the-patcher-refuses-the-file). In short: every size is derived from the header, the record entry size is the one of 32, 36 or 40 bytes for which the tables, pools, string pools and the data the mappings need add up exactly to the file size, records must agree with their struct's computed size, and names (record +8 included, research R1) must land on string starts. The version number is never trusted.
+The layout and the validation rules are in the design, [section 2](design/vfs-datacore.md#2-the-datacore-binary-layout) and [section 4](design/vfs-datacore.md#validation-all-must-hold-else-the-patcher-refuses-the-file). In short: every size is derived from the header, the record entry size is the one of 32, 36 or 40 bytes for which the tables, pools, string pools and the data the mappings need add up exactly to the file size, records must agree with their struct's computed size, and names (record +8 included) must land on string starts. The version number is never trusted.
 
 ## Getting `Game2.dcb`
 
-The file is an entry in `Data.p4k` (zip64, Zstandard-compressed, not encrypted). sco-core vendors no zstd ([decision 8](design/vfs-datacore.md#decisions-maintainer-2026-10-09)); use an external extractor. With [unp4k](https://github.com/dolkensp/unp4k) (a release that handles ZStd entries), from a new empty folder outside any repository:
+The file is an entry in `Data.p4k` (zip64, Zstandard-compressed, not encrypted). sco-core vendors no zstd ([design decisions](design/vfs-datacore.md#decisions-maintainer-2026-10-09)); use an external extractor. With [unp4k](https://github.com/dolkensp/unp4k) (a release that handles ZStd entries), from a new empty folder outside any repository:
 
 ```bat
 mkdir C:\dcb
@@ -70,7 +70,7 @@ One tab-separated line per record, after a `#` header line:
 | `index` | Position in the record table |
 | `guid` | The record's id, in the string form unp4k prints and `guid\|path` values use |
 | `name`, `struct` | Record name and its struct's name (name pool) |
-| `unknown` | The `u32` at record +8 (36-byte records), in hex: what R1 measured, a name-pool offset. `0x00000000` for 32-byte records |
+| `unknown` | The `u32` at record +8 (36-byte records), in hex: a name-pool offset. `0x00000000` for 32-byte records |
 | `instance`, `structSize` | The root instance in the struct's block, and the size the record states |
 | `file` | The record's file path (value pool) |
 | `tag` | The name-pool string at record +8: the team that owns the record's file (`SystemsDesign`, `Unknown`, ...). Empty for 32-byte records |
@@ -100,7 +100,7 @@ not change the database or pack files.
 $ sco-dcb check example_fixture.dcb sdk/examples/quantum_pack
 example_fixture.dcb: 848 bytes, 2 records, layout OK
 
-pack quantum_pack datacore/eos.toml (atomic): APPLIED 6/6
+pack quantum_pack datacore/eos.toml (atomic, policy=atomic): APPLIED 6/6
   line 9: OK   OverrideField record "ExampleItem.Drive_Alpha" field "Components[ExampleDriveParams].params.spoolUpTime"
   line 15: OK   OverrideField record "ExampleItem.Drive_Alpha" field "Components[ExampleDriveParams].params.cooldownTime"
   line 22: OK   AddInstance struct "ExampleDriveParams"
@@ -115,7 +115,7 @@ emit: OK, 5 splices, the patched file re-validated
 Against the full `Game2.dcb` of 4.10.193 (331,932,921 bytes, 117,022 records), the same check of the earlier, game-named version of this pack took 0.37 s, parse and re-validation of the patched file included. A pack naming a field the struct doesn't have is refused as a whole (it is atomic), with the reason, and `check` exits 1:
 
 ```text
-pack badpack datacore/typo.toml (atomic): REFUSED 0/2
+pack badpack datacore/typo.toml (atomic, policy=atomic): REFUSED 0/2
   line 4: OK   OverrideField record "ExampleItem.Drive_Alpha" field "Components[ExampleDriveParams].params.spoolUpTime" (not applied: the pack is refused)
   line 9: SKIP record "ExampleItem.Drive_Alpha" field "Components[ExampleDriveParams].params.spoolTime": no property "spoolTime" in ExampleDriveValues (field not found)
   -> line 9: record "ExampleItem.Drive_Alpha" field "Components[ExampleDriveParams].params.spoolTime": no property "spoolTime" in ExampleDriveValues
@@ -194,7 +194,7 @@ value  = { ref = "ExampleItem.Drive_Mine" }
 | `struct`, `name`, `clone` | `[[record]]` | Required: the new record's struct (one that already has records), its name (unique among the file's records and every record added before it), and the record whose root is copied (`{ record = ... }` and/or `guid`, no `field`; the same struct) |
 | `id`, `guid`, `file`, `set` | `[[record]]` | Optional: a local name shared with `[[instance]]` ids (`"@id"` is the record's root: a `pointer`, an `instance` target, an `element`); the GUID (not zero, not in the file; default derived from plugin id and name, so it is the same at every launch and saved games that store it still find it); the file path (`libs/foundry/records/` ... `.xml`; default `libs/foundry/records/sco/<plugin id>/<name>.xml`); values on its root |
 
-**Records.** A `[[record]]` follows the patcher's AddRecord rules ([design](design/vfs-datacore.md#addrecord), research R1): the record is appended at the end of the record table, its root instance is a copy of the clone's root, its name and file path are appended to their pools, and record +8 (the owning team's tag) is taken from the records already in that file, else from the clone. The default copy is shallow: strong pointers and arrays in the root still share the clone's sub-objects and array storage, so give the new record its own sub-object with a `pointer` to a new `[[instance]]` rather than setting a field through a shared path (that would change the clone too). Later operations of the same file and of later packs name it by `name` or `guid` like any record, `{ ref = "<name>" }` points a reference field at it, and `"@id"` addresses its root. Refusals at the load: `no struct "..."`, `struct "..." has no records`, `record name "..." already exists`, `guid ... already exists (record "...")`, `clone must be a record of the same struct`, `bad file path`, and R1's `records in file "..." disagree on record +8` / `record +8 of clone "..." is not a name-pool string`.
+**Records.** A `[[record]]` follows the patcher's AddRecord rules ([design](design/vfs-datacore.md#addrecord)): the record is appended at the end of the record table, its root instance is a copy of the clone's root, its name and file path are appended to their pools, and record +8 (the owning team's tag) is taken from the records already in that file, else from the clone. The default copy is shallow: strong pointers and arrays in the root still share the clone's sub-objects and array storage, so give the new record its own sub-object with a `pointer` to a new `[[instance]]` rather than setting a field through a shared path (that would change the clone too). Later operations of the same file and of later packs name it by `name` or `guid` like any record, `{ ref = "<name>" }` points a reference field at it, and `"@id"` addresses its root. Refusals at the load: `no struct "..."`, `struct "..." has no records`, `record name "..." already exists`, `guid ... already exists (record "...")`, `clone must be a record of the same struct`, `bad file path`, and `records in file "..." disagree on record +8` / `record +8 of clone "..." is not a name-pool string`.
 
 Use `clone = { record = "Source", mode = "deep" }` for independent array storage,
 including arrays within copied inline structs and class-array elements. Pointer
@@ -204,7 +204,7 @@ opaque structs and 32-bit count overflow refuse the complete clone. The refusal
 preserves earlier operations and leaves no usable clone ID, including when
 `policy = "best_effort"` allows unrelated operations to apply.
 
-**Order and priority.** Operations run in file order, whatever their kind. Packs apply in plugin order (folder-name order, built-ins first), a plugin's files in name order. A later pack wins a field an earlier one set; the conflict is logged with both sources (`... alpha (datacore/a.toml:3) overridden by beta (datacore/b.toml:3) (later in plugin order)`). There is no `priority` key (design decision 7). Within one file a field may be set once: the same target and path twice is a lint error, and two paths to the same field are caught when the pack applies (the later operation is refused).
+**Order and priority.** Operations run in file order, whatever their kind. Packs apply in plugin order (folder-name order, built-ins first), a plugin's files in name order. A later pack wins a field an earlier one set; the conflict is logged with both sources (`... alpha (datacore/a.toml:3) overridden by beta (datacore/b.toml:3) (later in plugin order)`). There is no `priority` key. Within one file a field may be set once: the same target and path twice is a lint error, and two paths to the same field are caught when the pack applies (the later operation is refused).
 
 **Atomicity.** By default a file applies whole or not at all: one failing unit
 (record or field not found, a value that doesn't fit, ...) refuses the file, and
@@ -228,7 +228,7 @@ The database-aware CLI receipt is a validation result; `check` writes no data.
 
 ## The `sco.datacore` service
 
-Plugins (native C, C++ through `scosdk/datacore.hpp`, Lua through `sco.datacore`) queue the same operations a pack's `.toml` holds, from code: computed overrides, or overrides that depend on settings. Fixed ones belong in a data pack. It is a **host-owned service** (`sco.datacore`, version 1.1, [`sco_datacore.h`](../include/sco_datacore.h), pinned by `tests/abi_datacore.c`), found with `query_service`; `sco_api.h` is unchanged. The host publishes it **only when the product enables it**: `sco::app::Platform::dataCore` with a `dataRoot`. sc-offline turns it on with its CryPak adapter (design plan PR 8); until then `query_service` answers `SCO_NOT_FOUND` and Lua's `sco.datacore` is `nil`.
+Plugins (native C, C++ through `scosdk/datacore.hpp`, Lua through `sco.datacore`) queue the same operations a pack's `.toml` holds, from code: computed overrides, or overrides that depend on settings. Fixed ones belong in a data pack. It is a **host-owned service** (`sco.datacore`, version 1.1, [`sco_datacore.h`](../include/sco_datacore.h), pinned by `tests/abi_datacore.c`), found with `query_service`; `sco_api.h` is unchanged. The host publishes it **only when the product enables it**: `sco::app::Platform::dataCore` with a `dataRoot`. sc-offline turns it on with its CryPak adapter; until a host does, `query_service` answers `SCO_NOT_FOUND` and Lua's `sco.datacore` is `nil`.
 
 ```c
 const sco_datacore_v1* dc = NULL;
@@ -266,13 +266,13 @@ if (api->query_service(SCO_DATACORE_NAME, SCO_DATACORE_VERSION_1_0, (const void*
 
 **Versions.** 1.1 has the same table as 1.0 and makes `add_record` work (in 1.0 it answered `SCO_UNAVAILABLE`). A caller that needs records queries `SCO_DATACORE_VERSION_1_1`: a 1.0 host then answers `SCO_UNAVAILABLE` at the query instead of at the call; querying `SCO_DATACORE_VERSION_1_0` takes either. The minor is bumped because an existing slot changed behavior in a way callers must be able to detect before relying on it; the layout (`tests/abi_datacore.c`) is unchanged.
 
-**Timing (design decision 9).** In sc-offline the game loads DataCore before plugins load, so in practice a plugin's patch is committed after the load. It is never applied late. `commit` validates it, saves it in the pack format as `<dataRoot>/datacore/pending/<plugin id>.toml` (a temporary file renamed over the old one, so a crash leaves the old one), and reports `SCO_DC_QUEUED` with the reason `applies at the next launch`. At every later launch the load reads it right after that plugin's own data pack, with the same per-patch atomicity and report, until the plugin commits another patch after the load (which replaces it; an empty patch clears it) or the file is deleted. The saved patch of a plugin that is no longer installed, or is disabled, off, refused or crashed, is skipped and logged. Patches committed before a load (a product whose plugins load first) apply at it, after the plugin's saved patch.
+**Timing.** In sc-offline the game loads DataCore before plugins load, so in practice a plugin's patch is committed after the load. It is never applied late. `commit` validates it, saves it in the pack format as `<dataRoot>/datacore/pending/<plugin id>.toml` (a temporary file renamed over the old one, so a crash leaves the old one), and reports `SCO_DC_QUEUED` with the reason `applies at the next launch`. At every later launch the load reads it right after that plugin's own data pack, with the same per-patch atomicity and report, until the plugin commits another patch after the load (which replaces it; an empty patch clears it) or the file is deleted. The saved patch of a plugin that is no longer installed, or is disabled, off, refused or crashed, is skipped and logged. Patches committed before a load (a product whose plugins load first) apply at it, after the plugin's saved patch.
 
-**Order** (decision 7): plugins in plugin order (built-ins first, then folder-name order); within one plugin its pack's `.toml` files, then its saved patch, then its patches committed before the load. A later source wins a field, and the conflict is logged with both ids. **Ownership:** a plugin that unloads or crashes before the load loses its uncommitted and queued patches; their ids answer `SCO_NOT_FOUND`.
+**Order.** Plugins in plugin order (built-ins first, then folder-name order); within one plugin its pack's `.toml` files, then its saved patch, then its patches committed before the load. A later source wins a field, and the conflict is logged with both ids. **Ownership:** a plugin that unloads or crashes before the load loses its uncommitted and queued patches; their ids answer `SCO_NOT_FOUND`.
 
 **Results.** After the load the host posts `datacore.applied` on the game thread (the next tick; after `game.ready` when the load came first) with a `sco_dc_applied { size; applied, skipped, refused; }` counting operations over every source. A plugin reads its own results with `report`. The load logs `[datacore] N packs: ...`, one line per skipped source and per conflict.
 
-**Host side** ([`sco/datacore_service.h`](../include/sco/datacore_service.h)): `service::Start({ dataRoot })` and `Stop()` (the host kit calls them), and `service::Load(schema, pluginList, contentIndex, dataRoot)`, which the CryPak adapter (plan PR 7) calls at the `.dcb` open on the loader thread. It switches the state to `SCO_DC_LOADED`, takes the queued patches, reads every source in the order above, applies them with `ApplyPacks`, stores each patch's report and posts the event. Plugin calls take the service's lock briefly and never wait for the load. `tests/test_datacore_service.cpp` runs a simulated launch sequence: launch 1 loads (a data pack plus patches committed before it), a plugin commits after it, launch 2 applies the saved patch in order and wins the conflict, and launch 3, with the plugin uninstalled, skips it.
+**Host side** ([`sco/datacore_service.h`](../include/sco/datacore_service.h)): `service::Start({ dataRoot })` and `Stop()` (the host kit calls them), and `service::Load(schema, pluginList, contentIndex, dataRoot)`, which the CryPak adapter calls at the `.dcb` open on the loader thread. It switches the state to `SCO_DC_LOADED`, takes the queued patches, reads every source in the order above, applies them with `ApplyPacks`, stores each patch's report and posts the event. Plugin calls take the service's lock briefly and never wait for the load. `tests/test_datacore_service.cpp` runs a simulated launch sequence: launch 1 loads (a data pack plus patches committed before it), a plugin commits after it, launch 2 applies the saved patch in order and wins the conflict, and launch 3, with the plugin uninstalled, skips it.
 
 ### From C++ and Lua
 
@@ -358,22 +358,9 @@ nothing written
 
 The new record is the last of the table, its name and path are at the end of their pools, and its record +8 is the clone's `SystemsDesign` (its path is new). The reference holds the new record's root instance (208) and its GUID.
 
-Earlier, with a scratch program over the library (read-only, nothing committed), overriding one float field of one record by name:
-
-```text
-parsed 331932921 bytes, 117022 records, record size 36 (39 ms)
-1 overrides (0 refused); first: record "Character.SHOPKEEP2_Gruff" field "nicknameChance" = 2.5
-Emit: OK, 1 splices, 91 ms including re-validation
-applied: 331932921 bytes; re-parse: layout: OK
-splice 0: at 134562223, removes 4, adds 4; patched value reads 2.5
-```
-
-The same with one float override in each of 1,000 records: 1.9 ms for the operations, `Emit` 89 ms including re-validation (which composes and re-parses the whole patched file in memory), re-parse `layout: OK`.
-
-
 ## In game: `sco::game::pak`
 
-`sco-dcb` works on a file on disk. In game, the engine reads `Game2.dcb` through CryPak, and `sco::game::pak` (`sco/game/pak.h`, library `sco_pak`) serves it from a `sco::vfs` mount while the DataCore loader runs. The tracked file gets the virtual bytes on the loader's thread; every other file and thread gets the engine's own. A mount that doesn't apply (expected bytes differ, a transform refuses) leaves the game loading its own data. The product design is to enable it once after publishing the resolved signature snapshot (sc-offline: plan PR 8). The public `sco::game::pak::Enable` currently returns `Unavailable` outside the native test fixture build. Only the game host's `Composition::ProcessRetained` enables it, through a private entry, with the `DataCoreLoad` scope only; that enable is latched against `Disable` and the patch is never restored before process exit ([game host](game/host.md)). `sco-sigcheck` checks its `pak.*` rows on patch day. Each load ends with a `LoadReport` (outcome, path, sizes, reason, `durationMs`), which `LastLoad` returns and the optional `Options::onLoad` callback receives on the loader's thread, outside the adapter's lock. Reference: [API § sco/game/pak.h](api.md#scogamepakh-the-crypak-adapter).
+`sco-dcb` works on a file on disk. In game, the engine reads `Game2.dcb` through CryPak, and `sco::game::pak` (`sco/game/pak.h`, library `sco_pak`) serves it from a `sco::vfs` mount while the DataCore loader runs. The tracked file gets the virtual bytes on the loader's thread; every other file and thread gets the engine's own. A mount that doesn't apply (expected bytes differ, a transform refuses) leaves the game loading its own data. sc-offline enables it once, after publishing the resolved signature snapshot. The public `sco::game::pak::Enable` currently returns `Unavailable` outside the native test fixture build. Only the game host's `Composition::ProcessRetained` enables it, through a private entry, with the `DataCoreLoad` scope only; that enable is latched against `Disable` and the patch is never restored before process exit ([game host](game/host.md)). `sco-sigcheck` checks its `pak.*` rows on patch day. Each load ends with a `LoadReport` (outcome, path, sizes, reason, `durationMs`), which `LastLoad` returns and the optional `Options::onLoad` callback receives on the loader's thread, outside the adapter's lock. Reference: [API § sco/game/pak.h](api.md#scogamepakh-the-crypak-adapter).
 
 ## Patch-day routine
 

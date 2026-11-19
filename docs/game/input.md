@@ -1,9 +1,10 @@
 # game.input 1.0
 
-The declared service is a read-only action vocabulary. Consumers discover it
-through `query_service` when a provider publishes it. Include `sc_input.h`; use
-`SC_INPUT_SERVICE_NAME` and `SC_INPUT_SERVICE_VERSION`.
-The frozen kernel ABI is unchanged. No input is dispatched and no key binding is read.
+`game.input` is a read-only vocabulary of the game's named input actions: look up an action's id by name or its name by id. No input is dispatched and no key binding is read.
+
+Header: [`sc_input.h`](../../include/sc_input.h). Table version 1.0. Capability `game.input.registry` (ON), which advertises metadata availability only. See [status](status.md). Not run in game.
+
+Consumers discover the service through `query_service` when a provider publishes it. Use `SC_INPUT_SERVICE_NAME` and `SC_INPUT_SERVICE_VERSION`. The frozen kernel ABI is unchanged.
 
 `count` reports 1,297 named actions. Valid ids are exactly 1..1297 with no gaps,
 and each id has exactly one name. 0 (`SC_ACTION_INVALID`, an SDK-only "no action"
@@ -19,17 +20,15 @@ return UNAVAILABLE. A newer same-major caller must still check table size.
 ## Evidence and limits
 
 Ids and names come from the action registry of game build 4.10.197.2878 itself,
-re-derived statically from that build's code (F-4.10.197.2878-050): two independent
+re-derived statically from that build's code: two independent
 id-to-name tables in the build agree on all 1,297 actions, and its name-to-id
 routine agrees on 1,296. Ids are build-scoped: another build may add, remove or
 renumber actions, so the `SC_ACTION_*` constants describe 4.10.197.2878 only.
 No record sets `SC_INPUT_ACTION_BUILD_UNRESOLVED` or `SC_INPUT_ACTION_SENTINEL`;
 both flag bits stay reserved. Metadata is not proof that an id is safe to dispatch.
-No game addresses or engine pointers cross the ABI. The capability
-`game.input.registry` advertises metadata availability only.
+No game addresses or engine pointers cross the ABI.
 
-Not run in game. Native host/service tests and C/C++ layout checks exercise the
-existing registry without the game. `tests/test_input_cpp.cpp` exercises the
+Native host and service tests and C/C++ layout checks exercise the registry without the game. `tests/test_input_cpp.cpp` exercises the
 consumer wrapper against a synthetic service table.
 
 ## C++20 wrapper

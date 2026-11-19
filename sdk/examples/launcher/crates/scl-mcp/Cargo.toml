@@ -1,0 +1,17 @@
+# SPDX-License-Identifier: GPL-3.0-only
+[package]
+name = "scl-mcp"
+description = "Read-only MCP server of the SDK reference launcher: JSON-RPC over stdio, four tools (status, plugins, logs, settings). No network, writes nothing."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+scl-redact = { path = "../scl-redact" }
+scl-contract = { path = "../scl-contract" }
+scl-install = { path = "../scl-install" }
+
+[dev-dependencies]
+serde_json = "1"

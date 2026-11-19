@@ -1,4 +1,6 @@
-# Registry ownership follow-up — HOLD
+# Registry ownership follow-up
+
+Historical record: the registry ownership follow-up of 2026-10-31. The status note below says what changed at SDK 2.4.1.
 
 > **Status at SDK 2.4.1 (2026-11-16):** this hold no longer blocks merging. The repaired form of this work is on
 > the release branch: `void plugins::UnloadAll` is kept next to the checked `TryUnloadAll`, `sdk/components.json`

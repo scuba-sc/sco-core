@@ -1,4 +1,4 @@
-# Historical plugin startup snapshot
+# Plugin startup snapshot
 
 `sco::app::Platform::pluginStartupSnapshot` is an explicit, default-off host option. On the ordinary
 qualified `StartDetailed` path it writes `<dataRoot>/plugin-startup.json`. The file is a bounded,

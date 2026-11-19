@@ -14,14 +14,18 @@ For the current release, consumer integration state, next horizon and contributi
 2. [SDK archive reference](../sdk/README.md), [plugin.ini](../sdk/docs/plugin-ini.md)
    and [plugin rules](../sdk/docs/plugin-rules.md): packaging, manifests and trust.
 3. Your language: [C ABI](api-v1.md), [C++](sdk-cpp.md), [C#](sdk-csharp.md),
-   [Lua](../sdk/docs/lua.md) or [data packs](../sdk/docs/data-packs.md). Development
-   source also has experimental raw [Rust bindings](../sdk/rust/README.md).
+   [Lua](../sdk/docs/lua.md) or [data packs](../sdk/docs/data-packs.md). The core and
+   combined archives from SDK 2.4.1 also include experimental raw
+   [Rust bindings](../sdk/rust/README.md).
 4. [Designing modular plugins](plugin-design.md): one feature per plugin, versioned
    service tables, `requires`, clean unload and anti-patterns, with a provider and
    consumer example pair.
 5. [Community plugin directory](plugin-directory.md): plugins in their authors' own
    repositories with reported SDK compatibility, the listing rules and how to request a
-   listing. Not an endorsement; nothing there is verified in game.
+   listing. Not an endorsement.
+6. [Building a launcher](building-a-launcher.md) and the
+   [launcher contract](launcher-contract.md): what a launcher and a host agree on, the
+   reference launcher in the `core` kit, and what a product must bring itself.
 
 ## Plugin API consumer — Use the API safely
 
@@ -42,7 +46,7 @@ For the current release, consumer integration state, next horizon and contributi
    [widgets](../sdk/docs/widgets.md), [UI](ui.md), [IPC](ipc.md),
    [network messages](net.md) and [network wire](net-wire.md).
 5. Optional extension: [DataCore](datacore.md), [game services](game-services.md)
-   and [current evidence/status](game/status.md). The [container contents example](game/container-contents.md#consumer-example-and-discovery) walks through a copied read and provider absence. Availability is not gameplay proof.
+   and [current evidence/status](game/status.md). The [container contents example](game/container-contents.md#consumer-example-and-discovery) walks through a copied read and provider absence.
 
 ## SDK integrator / host — Embed a host
 
@@ -59,6 +63,10 @@ For the current release, consumer integration state, next horizon and contributi
    and [game-pack opt-in](game-services.md).
 6. [Host simulator](building.md#sco-host-sim) and focused tests in
    [building/testing](building.md); [host lessons](framework.md#lessons).
+7. Host menu: [`sco.widgets.view`](widgets-view.md), the host-side panel reader and
+   click queue for a menu thread. Host-source seam, not a plugin contract.
+8. Launchers: [launcher contract](launcher-contract.md) and
+   [building a launcher](building-a-launcher.md).
 
 ## Game-pack contributor — Check or update a game build
 
@@ -72,7 +80,6 @@ For the current release, consumer integration state, next horizon and contributi
    [creative](game/creative.md), [mining](game/mining.md),
    [product features](game/features.md), [offline patches](game/offline.md).
 5. [Game service integration](game-services.md): product opt-in and runtime limits.
-   Signature resolution, service presence and in-game correctness are separate evidence.
 
 ## Agent / IDE user — Discover the SDK via MCP
 
@@ -82,10 +89,10 @@ For the current release, consumer integration state, next horizon and contributi
    source-checkout form for maintainers.
 2. [SDK to MCP to plugin](sdk-mcp-tutorial.md): discover a contract, request a
    scaffold, validate manifest/widgets and run the native checker.
-3. [MCP server authority](../tools/sco-core-mcp/README.md): six default tools (minimal
-   profile), seven extended discovery tools plus two workflow tools (the current-source
-   SDK developer profile of fifteen, including `get_service_status` and guide search)
-   and three opt-in development tools, allowlist, provenance, limits and separate
+3. [MCP server authority](../tools/sco-core-mcp/README.md): fifteen tools by default
+   (thirteen when no workflow index is present: six contract tools, seven extended discovery tools including `get_service_status` and
+   guide search, and two workflow tools), the six-tool minimal profile (`--minimal-tools`),
+   three opt-in development tools, allowlist, provenance, limits and separate
    administrator-owned runner settings.
 4. [Reference snapshots](reference-snapshots.md): bind discovery/examples to
    exact source/archive inputs; development previews are not approved releases.
@@ -97,18 +104,17 @@ Client-specific instructions live in the integration guide, not in this index.
 ## Maintainer — Build, contribute, release
 
 <!-- release-block:current-release -->
-SDK **2.4.1** uses Star Citizen game pack **0.8.1** (checked against Star Citizen
+SDK **2.4.1** (release candidate 1, a pre-release for testing; the final release follows) uses Star Citizen game pack **0.8.1** (checked against Star Citizen
 Alpha 4.10.3, build 4.10.200.58746; see [game builds](../docs/game/builds.md)) and plugin ABI **1.1**. Download it from the
-[`sdk-v2.4.1` release page](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.1) and verify each archive against that release's
-`SHA256SUMS`; the [release notes](https://github.com/scuba-sc/sco-core/blob/sdk-v2.4.1/docs/releases/sdk-v2.4.1.md) list what changed. The previous release is
+[`sdk-v2.4.1-rc.1` release page](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.1-rc.1) and verify each archive against that release's
+`SHA256SUMS`; the [release notes](https://github.com/scuba-sc/sco-core/blob/sdk-v2.4.1-rc.1/docs/releases/sdk-v2.4.1.md) list what changed. The previous release is
 [SDK 2.4.0](https://github.com/scuba-sc/sco-core/blob/sdk-v2.4.0/docs/releases/sdk-v2.4.0.md).
 <!-- /release-block:current-release -->
 
 1. [Contributing](../CONTRIBUTING.md) and [building/testing](building.md):
    source policy, named tests, CI and product adoption.
-2. [Changelog](../CHANGELOG.md) and the release notes and release page named above. See the
-   [historical RC2 record](releases/sdk-v2.4.0.md#historical-rc2-candidate-status)
-   and keep SDK/package, plugin ABI and game-pack version coordinates distinct.
+2. [Changelog](../CHANGELOG.md) and the release notes and release page named above.
+   Keep the SDK/package, plugin ABI and game-pack version coordinates distinct.
 3. [Release checklist](legal/release-checklist.md) and
    [release decisions](legal/release-decisions/README.md): candidate versus
    candidate verification versus actual publication; releases are maintainer acts.

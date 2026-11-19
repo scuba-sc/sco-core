@@ -49,7 +49,7 @@ int main(){
     Check(machine.RequestPosition(other,r,e,200,&unchanged)==SCO_TOO_MANY);
     Check(machine.Tick(201,e));machine.Applied(true);
     const double pos[]{1,2,3},wrongRotation[]{1,0,0,0};
-    Check(ArrivedPosition(r,pos)&&!Arrived(full,pos,wrongRotation));
+    Check(ArrivedPosition(r,pos)&&Arrived(full,pos,wrongRotation)); // rotation is not required
     Check(machine.Status(owner,ticket,&s)==SCO_OK&&s.state==SC_RELOCATION_PENDING);machine.Cancel(owner,ticket);
     for(int variant=0;variant<8;++variant){e.targetEpoch=40;e.targetInstance=90;Check(machine.RequestPosition(owner,r,e,300,&ticket)==SCO_OK);auto changed=e;uint32_t reason=0;
         if(variant==0){changed.targetInstance=91;reason=SC_RELOCATION_REASON_TARGET;}
@@ -74,7 +74,7 @@ int main(){
     for(int i=0;i<33;++i){Check(machine.RequestPosition(owner,r,e,1800,&ticket)==SCO_OK);Check(machine.Cancel(owner,ticket)==SCO_OK);}
     Check(machine.Status(owner,evicted,&s)==SCO_NOT_FOUND);machine.Release(owner);Check(machine.Status(owner,ticket,&s)==SCO_NOT_FOUND);
     const uint64_t previous=ticket;machine.Stop();Check(machine.RequestPosition(owner,r,e,1900,&ticket)==SCO_OK&&ticket>previous);machine.Stop();
-    double far[]{1.051,2,3},nan[]{1,2,std::numeric_limits<double>::quiet_NaN()};Check(!ArrivedPosition(r,far)&&!ArrivedPosition(r,nan)&&!ArrivedPosition(r,nullptr));
+    double edge[]{1.5,2,3},far[]{1.51,2,3},nan[]{1,2,std::numeric_limits<double>::quiet_NaN()};Check(ArrivedPosition(r,edge)&&!ArrivedPosition(r,far)&&!ArrivedPosition(r,nan)&&!ArrivedPosition(r,nullptr));
     auto fullAlias=full;
     Check(machine.Request(owner,fullAlias,e,2000,&fullAlias.zone_id)==SCO_OK);
     Check(machine.Pending()&&machine.Pending()->zone_id==5);machine.Stop();

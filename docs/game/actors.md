@@ -1,6 +1,8 @@
 # Actor rows (spawner, Clear NPCs, infinite ammo, loadout)
 
-The addresses sc-offline's actor features use, moved from its own scans in `src/spawner.cpp`, `src/npc.cpp`, `src/ammo.cpp` and `src/loadout.cpp`. Rows are in [`src/game/actors_sigs.cpp`](../../src/game/actors_sigs.cpp), the accessor constants and capabilities in [`include/sco/game/actors.h`](../../include/sco/game/actors.h). Checked against 4.10.196.36804.
+The signature rows behind sc-offline's actor features: spawner, Clear NPCs, infinite ammo and loadout. This is a row reference, so it has no table version. The services built on these rows (`game.actors`, `spawn.entities`, `game.loadout`) and their capabilities are in [status](status.md). Not run in game.
+
+The addresses moved here from sc-offline's own scans in `src/spawner.cpp`, `src/npc.cpp`, `src/ammo.cpp` and `src/loadout.cpp`. Rows are in [`src/game/actors_sigs.cpp`](../../src/game/actors_sigs.cpp), the accessor constants and capabilities in [`include/sco/game/actors.h`](../../include/sco/game/actors.h). The rows resolve on 4.10.196.36804 and on the current pin 4.10.200.58746 ([verified builds](../game-pack.md#verified-game-builds)).
 
 Where the old scan took the first match, the row insists on the count found in that build (`kLandingAreaRefs`, `kObjectContainersRefs`, or exactly one match that passes the checks), so a patch that adds or loses a site fails the row. Checks marked *sweep* were added by the offset sweep: they pin offsets and vtable slots sc-offline uses as numbers.
 
@@ -54,7 +56,7 @@ Fly mode (`spawn.request_fly_mode`) and Clear NPCs' RemoveEntity slot (`npc.remo
 | `npc.direct_remove` | `npc.remove_entity_call` and the three npc rows | Clear NPCs' fallback when RemoveEntity doesn't finish |
 | `ammo.setter` | `teleport.entity_system`, `ammo.set_ammo` | infinite ammo |
 | `loadout.loader` | `loadout.load_player_loadout`, `loadout.game` | gear menu, outfits |
-| `loadout.async` | `loadout.attach_entity`, `loadout.port_by_name`, `loadout.port_handle`, `loadout.port_container` | opt-in asynchronous loadout adapter; not run in game |
+| `loadout.async` | `loadout.attach_entity`, `loadout.port_by_name`, `loadout.port_handle`, `loadout.port_container` | opt-in asynchronous loadout adapter |
 
 ## Offsets sc-offline uses that no row checks
 

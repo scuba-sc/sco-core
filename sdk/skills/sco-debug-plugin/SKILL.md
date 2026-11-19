@@ -2,7 +2,7 @@
 name: sco-debug-plugin
 description: "Diagnose an SCO extension that fails manifest validation, loading, service lookup, widget checks, command execution or unload. Use for SDK consumer failures and minimal public reproductions."
 metadata:
-  version: "0.2.9"
+  version: "0.2.10"
 ---
 
 # Debug an SCO extension
@@ -20,6 +20,8 @@ Apply the version and availability resolution in [input/evidence rules](../sco-b
 | Service call | Use the matching public contract and capability status. Test missing query, absent/old provider, short extent and NULL member separately. Guard whole-pointer extents and implement a documented fallback or state a higher minimum. Never manufacture availability with `--cap`. |
 | Widgets/callbacks/unload | Check duplicate IDs, parent/tree bounds, strides, borrowed lifetimes, removal order, callback quiescence and worker teardown. A static JSON validation cannot prove native pointer safety. |
 | Game behavior | Keep local mock success separate. Record the named owner-run build and observation, or mark `not_run`; do not infer a native backend from a public header. |
+
+Read the actual host's view before changing code, through MCP where the host offers it. On sc-offline, the read-only server started by `sc-offline.exe mcp` lists the plugin folders it found with their enabled state and manifest fields, and returns the host's mod log filtered by text such as the plugin id. A host started with sco-core's runtime diagnostics launcher reports each plugin's load state with its refusal reason, and that plugin's recent log entries. Out of game, the scuba-engine sandbox MCP server loads the staged folder in its mock host and can invoke the plugin's commands and widgets. These are observations of that host only, not game evidence.
 
 Use this kit's generated `check` target or checker on the same staged folder in full and short-root modes; explicitly invoke the failing command and assert output. Read [build routes](../sco-build-check-package/references/build.md). An absent provider with query present needs its own focused fixture; short-root alone is insufficient. Lua needs syntax/mock execution and a real host for real API behavior; data needs the consuming format's linter/import evidence.
 

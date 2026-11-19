@@ -1,17 +1,58 @@
 # sco-core SDK 2.4.1 release notes
 
-Planned tag [`sdk-v2.4.1`](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.1), combined archive `sco-sdk-2.4.1.zip`.
-**Release candidate source.** These notes describe the source that the release-candidate
-workflow builds from `main`. The five profile archives, their SBOMs, `SHA256SUMS` and
-`release.json` are produced once by that workflow and promoted without rebuilding; their
-digests are recorded on the release page, not here. Nothing in this file approves tagging
-or publication.
+Final tag `sdk-v2.4.1`, combined archive `sco-sdk-2.4.1.zip`. The final release follows
+release candidate 1 (see below). Archive digests are on the release page, not here.
 
 <!-- release-scope:start -->
 ```json
 {"tag":"sdk-v2.4.1","sdk_version":"2.4.1","game_pack_version":"0.8.1","plugin_abi":"1.1","profiles":["core","game-sc","legacy","core-source","host-source-sc"]}
 ```
 <!-- release-scope:end -->
+
+## Release candidate 1
+
+Tag `sdk-v2.4.1-rc.1` is a pre-release for testers. The release-candidate workflow builds it from
+`main` in the same way as a final release, and it is published as a GitHub pre-release. The final
+`sdk-v2.4.1` comes later, after testers report, as a separate release built from a later `main`
+commit. A candidate is not the final release and can change before it.
+
+- Download it from the [`sdk-v2.4.1-rc.1` release page](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.1-rc.1).
+  Check each archive against that page's `SHA256SUMS`. The page also holds one SPDX file per
+  archive and `release.json`. The digests are on the page, not in these notes.
+- The archives carry the file names the final release will have (`sco-sdk-2.4.1.zip` and so on),
+  because the name comes from `sdk/VERSION`. The bytes differ from the final ones. Go by the tag
+  and the digest, not by the file name.
+- The stable release stays SDK 2.4.0. GitHub does not offer a pre-release as the latest release.
+- Apart from the short list under [Observed in game by the maintainer](#observed-in-game-by-the-maintainer),
+  this candidate has had no in-game run. Not run in game.
+
+**What to test first**
+
+1. Download the `core` archive, check its digest, and build the first plugin from the
+   [getting started](../getting-started.md) guide on Windows or Linux.
+2. Load a plugin you built against SDK 2.4.0 in a host built from this kit. The plugin ABI is
+   still 1.1, so it should load unchanged.
+3. Use what is new: widgets 1.4 tagged events, `sco.storage.metadata` 2.0 and the `game.input`
+   C++ wrapper. Each is optional and sits behind a size or version check.
+4. Run the discovery MCP server from the `legacy` kit with your agent client, and try
+   `search_api` with a query of several words.
+5. Build the reference launcher in `examples/launcher/` of the `core` kit and run its tests. It
+   starts no game and changes nothing on the PC.
+6. If you run a product host built on this SDK in game: a saved-spot move through
+   `game.relocation` (the arrival rule changed), and prefab placement through
+   `game.entities.prefabs` (it reports ready only when its rows resolved).
+
+Report results in an issue on the `scuba-sc/sco-core` repository. Give the tag, the archive name,
+the game build if any, and what you saw. Say whether you ran it in game.
+
+**Known issues in release candidate 1**
+
+- `VERSIONS.txt` in each kit says `tag sdk-v2.4.1`. For this candidate the tag is
+  `sdk-v2.4.1-rc.1`.
+- The MCP tool `check_compatibility` takes only `sdk-vMAJOR.MINOR.PATCH`, so it refuses
+  `sdk-v2.4.1-rc.1`. Compare `sdk_version` and `game_pack_version` instead.
+- Candidate archives are immutable. A problem found by testers is fixed in a later candidate or
+  in the final release, not in these files.
 
 ## Compatibility
 
@@ -70,18 +111,80 @@ or publication.
 - Archive checks preserve Git file modes, Linux UAPI header links and the C# build environment
   on Windows.
 
+**Also in 2.4.1**
+
+- Widget renderer: an unlabelled ROW, COLUMN or TABLE draws no blank line, and a NUMBER slider
+  shows whole values without decimals. Source kit only; events are identical.
+- MCP servers: every tool has a title, a description that says what it returns and its limits, and
+  a description for each argument. `search_api` matches any word of a multi-word query and ranks by
+  match quality. `get_example` with an unsupported `language` lists the languages that have an
+  example. The two workflow tools are listed only when a valid workflow index is loaded. Tool
+  names, argument names and results are unchanged.
+- `game.relocation`: a request made when the player is already at the target completes at once and
+  moves nothing. Arrival is confirmed when the player is within 0.5 m of the target position;
+  rotation is logged but no longer required. The failure log says when the move ran but arrival was
+  not confirmed, and gives the first, closest and last pose seen after the move. Status, reason
+  codes and the ABI are unchanged.
+- `game.entities.prefabs` reports ready only when the `spawn.prefabs` rows resolved on the running
+  build. Without them it starts OFF with a stated reason, and a placement returns
+  `SCO_UNAVAILABLE` without latching.
+- `sco.widgets.view` 1.0: a host-side reader for panels and a click queue for a host menu thread
+  ([widgets view](../widgets-view.md)). Host-source seam in the `core-source` kit; not a plugin
+  contract and not in the SDK catalogue.
+- `game.loadout` 1.3: outfit slots 22-31 (clothing, hat, head accessory, head horn and jewellery)
+  behind their own capability `game.loadout.outfit`, OFF by default. It turns on only with the async
+  route and `SCO_LOADOUT_OUTFIT=1` in the product host ([loadout](../game/loadout.md#outfit-slots-13)).
+- SDK reference launcher: a Rust workspace in `examples/launcher/` of the `core` kit, with the
+  [launcher contract](../launcher-contract.md) and the guide
+  [building a launcher](../building-a-launcher.md), and the new skill `sco-build-launcher`. It
+  starts no game, injects nothing and changes nothing on the PC. The capability switches
+  `exp_loadout_async`, `exp_inventory_read`, `exp_actor_stats_write`, `exp_cvars_native` and
+  `exp_audio_native` default on and `exp_entities_diag` defaults off in the reference launcher.
+  Its catalogue client checks a signed index, but no production signing key exists yet, so the
+  trust root it ships with is empty and a catalogue works from a local folder only.
+
 The complete list is the [`## sdk-v2.4.1` section of the changelog](../../CHANGELOG.md).
 
 ## Evidence
 
 SDK tests for this release are synthetic: unit and fixture tests, headless widget rendering,
-archive and checker tests. They do not by themselves show in-game behaviour.
+archive and checker tests, and the reference launcher's own test suite on synthetic folders and
+zips. They do not by themselves show in-game behaviour.
 
-Separately, the sc-offline product ran a development build of this source
-(`2.4.1-dev.6`, process-retained composition) in Star Citizen 4.10.3 (4.10.200.58746) during owner
-test sessions: the host started, creative switches, vehicle spawn and seating, and exit work
-on stop were observed in its logs. That is product evidence for one build and one setup, not
-an SDK guarantee. Loadout equip has no verified game route in this release and is refused.
+Separately, the maintainer ran the game with the sc-offline product and the Core services listed
+below. Those runs used development builds made before this release commit. They are product
+evidence for one game build and one setup, not an SDK guarantee.
+
+### Observed in game by the maintainer
+
+On build 4.10.200.58746, one or two sessions each. These are observations, not verifications:
+no registry row changes its evidence level or default because of them.
+
+- The game host started with the mod, and the classic menu opened.
+- Gear equip through `game.loadout.async` attached items (Game.log `AttachmentReceived`).
+- Prefab placement through `game.entities.prefabs` placed an Outposts item.
+- Ship spawn, boarding and Flight Ready worked, through `game.vehicles` and the spawn service.
+- Character spawn worked, through `game.actors`.
+- A saved-spot move through `game.relocation` really moved the player, while Core did not
+  confirm arrival. The arrival rule and the failure log above were changed for this; the change
+  itself is not yet run in game.
+- A test of the vehicle seat event logged sitting down and standing up.
+
+### Not run in game
+
+Everything else in this release has synthetic evidence only ([game capability status](../game/status.md)). In particular:
+
+- The relocation arrival rule (0.5 m, no rotation test) and the new failure log line.
+- The creative controls, and Stop and exit work.
+- Contracts, mining, hangars and ASOP.
+- Prefab readiness from the resolved rows.
+- `game.loadout` 1.3 outfit slots, the item-port names behind them, and the capability
+  `game.loadout.outfit` (OFF).
+- `sco.widgets.view` and any host menu built on it. No menu reader has run in a game.
+- The reference launcher: it was built and tested on a PC without starting the game, and its
+  capability switches, plugin installs and MCP server have not been used with a running game.
+- The widget renderer change and the MCP changes (these need no game).
+- Travel to another planet or moon by name: not supported, see Known limits.
 
 ## Known limits
 
@@ -90,6 +193,14 @@ an SDK guarantee. Loadout equip has no verified game route in this release and i
 - A direct engine quit does not dispatch `game.exit` or withdraw dependent services; a
   product-owned pre-quit signal remains necessary.
 - Hauling semantics on 4.10.3 (build 4.10.200) are not verified.
+- Zone lookup beyond the player's own zone chain (travel to another planet or moon by name) is
+  not in 2.4.1. Core has no engine row to find a zone by name; see the
+  [design note](../design/zone-lookup.md).
+- The plugin catalogue has no signing key. Until the maintainer adds one at release time, the
+  reference launcher's catalogue works from a local folder, and every entry it installs lands
+  disabled.
+- `game.loadout` outfit slots stay OFF unless a product sets `SCO_LOADOUT_OUTFIT=1`; their port
+  names are not verified engine rows.
 
 ## Previous release
 

@@ -15,6 +15,7 @@ The C++20 layer of the sco plugin SDK: header-only, over [`sco_api.h`](api-v1.md
 - [Storage](#storage)
 - [Storage metadata](#storage-metadata)
 - [DataCore](#datacore)
+- [Renderer-neutral widgets](#renderer-neutral-widgets)
 - [UI](#ui)
 - [Settings](#settings)
 - [Lifetimes](#lifetimes)
@@ -43,10 +44,25 @@ The C++20 layer of the sco plugin SDK: header-only, over [`sco_api.h`](api-v1.md
 | [`scosdk/ui_surfaces.hpp`](../include/scosdk/ui_surfaces.hpp) | `UiSurfaces`: show a `sco.widgets` panel as a HUD rectangle, billboard or world quad (the host service `sco.ui.surfaces`, [`sco_ui_surfaces.h`](../include/sco_ui_surfaces.h)); `Hud`, `Billboard`, `Quad` build poses; include explicitly |
 | [`scosdk/ui.hpp`](../include/scosdk/ui.hpp) | `Ui`: tabs, overlays, badges and hotkeys (the host service `sco.ui`, [`sco_ui.h`](../include/sco_ui.h)); not in `scosdk.hpp`, include it when you use UI |
 | [`scosdk/game/actors.hpp`](../include/scosdk/game/actors.hpp) | `sco::sdk::game::Actors`: `LocalPlayer`, `SpawnNpc`, `Despawn`, `Health`, `State` (game.actors 1.1; `Health`'s `max` is 0, `State` is `SCO_UNAVAILABLE` until `game.actors.state` is ready), `LastError`, `LastReadError` (the game pack's service `game.actors`, [`sc_actors.h`](../include/sc_actors.h); [game services](game-services.md)); not in `scosdk.hpp` |
-| [`scosdk/game/world.hpp`](../include/scosdk/game/world.hpp) | `sco::sdk::game::World`: `Raycast(zone, from, dir, maxDist, hit)`, `Camera(pos, rot, zone)` (world frame; no field of view), `LastError` (the game pack's service `game.world`, [`sc_world.h`](../include/sc_world.h); [API](api-v1.md#gameworld-10-game-pack)); not in `scosdk.hpp` |
+| [`scosdk/game/world.hpp`](../include/scosdk/game/world.hpp) | `sco::sdk::game::World`: `Raycast(zone, from, dir, maxDist, hit)`, `Camera(pos, rot, zone)` (world frame; no field of view), `LastError` (the game pack's service `game.world`, [`sc_world.h`](../include/sc_world.h); [API](api-v1.md#gameworld-11-game-pack)); not in `scosdk.hpp` |
 | [`scosdk/game/input.hpp`](../include/scosdk/game/input.hpp) | `sco::sdk::game::InputRegistry`, `InputAction`: copied static action metadata by id or exact name (`game.input` 1.0; no input dispatch); [contract](game/input.md); not in `scosdk.hpp` |
 | [`scosdk/game/events.hpp`](../include/scosdk/game/events.hpp) | `sco::sdk::game::OnPlayerSpawned`, `OnPlayerDied`, `OnActorDied`, `OnZoneChanged`: `Plugin::Subscribe` helpers for the game pack's bus events ([`sc_game_events.h`](../include/sc_game_events.h); [game services](game-services.md#events)) that hand your function a copy of the payload and drop one shorter than the struct; not in `scosdk.hpp` |
-| [`scosdk/game/entities.hpp`](../include/scosdk/game/entities.hpp) | `sco::sdk::game::Entities`: `Alive`, `ClassOf`, `GetTransform`, `SetTransform`, `Spawn`, `Despawn`, `Keep` (1.1), `Watch`, `Unwatch`, `QueryRadius`, `LastError`, `LastReadError` (the game service `game.entities`, [`sc_entities.h`](../include/sc_entities.h); [API](api-v1.md#gameentities-11-game-pack)); not in `scosdk.hpp` |
+| [`scosdk/game/entities.hpp`](../include/scosdk/game/entities.hpp) | `sco::sdk::game::Entities`: `Alive`, `ClassOf`, `GetTransform`, `SetTransform`, `Spawn`, `Despawn`, `Keep` (1.1), `Watch`, `Unwatch`, `QueryRadius`, `LastError`, `LastReadError` (the game service `game.entities`, [`sc_entities.h`](../include/sc_entities.h); [API](api-v1.md#gameentities-12-game-pack)); not in `scosdk.hpp` |
+| [`scosdk/content.hpp`](../include/scosdk/content.hpp) | `sco::sdk::Content`: guarded access to the host service `sco.content` ([`sco_content.h`](../include/sco_content.h)); not in `scosdk.hpp` |
+| [`scosdk/diagnostics_publisher.hpp`](../include/scosdk/diagnostics_publisher.hpp) | `sco::sdk::DiagnosticsPublisher`: guarded access to `sco.diagnostics.publisher` ([`sco_diagnostics_publisher.h`](../include/sco_diagnostics_publisher.h); [diagnostics sources](diagnostics-sources.md)); not in `scosdk.hpp` |
+| [`scosdk/game/asop_selection.hpp`](../include/scosdk/game/asop_selection.hpp) | `sco::sdk::game::AsopSelection`: the game service `game.asop.selection` ([`sc_asop_selection.h`](../include/sc_asop_selection.h); [ASOP selection](game/asop-selection.md)); not in `scosdk.hpp` |
+| [`scosdk/game/audio.hpp`](../include/scosdk/game/audio.hpp) | `sco::sdk::game::Audio`: the game service `game.audio` ([`sc_audio.h`](../include/sc_audio.h); [audio](game/audio.md)); not in `scosdk.hpp` |
+| [`scosdk/game/container_contents.hpp`](../include/scosdk/game/container_contents.hpp) | `sco::sdk::game::ContainerContents`: the game service `game.inventory.contents` ([`sc_container_contents.h`](../include/sc_container_contents.h); [container contents](game/container-contents.md)); not in `scosdk.hpp` |
+| [`scosdk/game/cvars.hpp`](../include/scosdk/game/cvars.hpp), [`cvars_write.hpp`](../include/scosdk/game/cvars_write.hpp) | `scosdk::game::Cvars` and `CvarsWrite` (note the namespace): the game services `game.cvars` and `game.cvars_write` ([`sc_cvars.h`](../include/sc_cvars.h), [`sc_cvars_write.h`](../include/sc_cvars_write.h); [cvars](game/cvars.md)); not in `scosdk.hpp` |
+| [`scosdk/game/economy.hpp`](../include/scosdk/game/economy.hpp) | `sco::sdk::game::Economy`: the game service `game.economy` ([`sc_economy.h`](../include/sc_economy.h); [game status](game/status.md)); not in `scosdk.hpp` |
+| [`scosdk/game/gamerules.hpp`](../include/scosdk/game/gamerules.hpp) | `sco::sdk::game::GameRules`: read-only copy of the server's game rules (the game service `game.gamerules`, [`sc_gamerules.h`](../include/sc_gamerules.h); [API](api-v1.md#gamegamerules-10-game-pack)); not in `scosdk.hpp` |
+| [`scosdk/game/hangar.hpp`](../include/scosdk/game/hangar.hpp) | `sco::sdk::game::Hangar`: lift requests and ATC cancel (the game service `game.hangar`, [`sc_hangar.h`](../include/sc_hangar.h); [hangar](game/hangar.md)); not in `scosdk.hpp` |
+| [`scosdk/game/inventory_layout.hpp`](../include/scosdk/game/inventory_layout.hpp) | `sco::sdk::game::InventoryLayout`: the copied logical layout of the 1.2 `game.inventory` table ([`sc_inventory.h`](../include/sc_inventory.h); [inventory](game/inventory.md)); not in `scosdk.hpp` |
+| [`scosdk/game/loadout.hpp`](../include/scosdk/game/loadout.hpp) | `sco::sdk::game::Loadout`: synchronous `apply` and async `submit` / `status` / `cancel` (the game service `game.loadout`, [`sc_loadout.h`](../include/sc_loadout.h); [API](api-v1.md#gameloadout-13-game-pack)); not in `scosdk.hpp` |
+| [`scosdk/game/missions.hpp`](../include/scosdk/game/missions.hpp) | `sco::sdk::game::Missions`: the game service `game.missions` ([`sc_missions.h`](../include/sc_missions.h); [game status](game/status.md)); not in `scosdk.hpp` |
+| [`scosdk/game/prefabs.hpp`](../include/scosdk/game/prefabs.hpp) | `sco::sdk::game::Prefabs`: the game service `game.prefabs` ([`sc_prefabs.h`](../include/sc_prefabs.h); [design](design/prefabs.md)); not in `scosdk.hpp` |
+| [`scosdk/game/reputation.hpp`](../include/scosdk/game/reputation.hpp) | `sco::sdk::game::Reputation`: read-only reputation checks (the game service `game.reputation`, [`sc_reputation.h`](../include/sc_reputation.h); [reputation](game/reputation.md)); not in `scosdk.hpp` |
+| [`scosdk/game/world_control.hpp`](../include/scosdk/game/world_control.hpp) | `sco::sdk::game::WorldControl`: filtered rays and the camera lease (the game service `game.world.control`, [`sc_world_control.h`](../include/sc_world_control.h); [design](design/world-control.md)); not in `scosdk.hpp` |
 | [`scosdk/scosdk.hpp`](../include/scosdk/scosdk.hpp) | Core `plugin.hpp`, `command.hpp`, `service.hpp`, `raw.hpp` only; include the optional headers above explicitly |
 
 Put the SDK's `include/` folder on the include path; the headers find `sco_api.h` there.
@@ -130,7 +146,7 @@ if (g.Query(*this, "hello.greeter", sco::sdk::ServiceVersion(1, 0)) == SCO_OK &&
 - `HasMember(ref, &T::field)` checks that the provider's `size` covers `field`; also check the function pointer for null before calling it.
 - `Release(plugin, name)` stops new lookup of that service; the host withdraws the rest at unload. It does not revoke cached pointers or wait for calls through them.
 - With a host table, `Provide`, `Release`, and `Query` return `SCO_UNAVAILABLE` if it does not cover the corresponding function or the function pointer is null; otherwise they return the host's result. A null host table gives `SCO_BAD_ARG`.
-- `ServiceRef` is a borrowed pointer holder, not a lease. Keep a provided table and all backing state valid until provider-coordinated quiescence: stop new lookup, prevent consumers from starting more calls, and wait for all in-flight calls and custom workers to finish before destruction. Without that coordination, retain them for the admitted host session. Once a native table has been handed out, administrative unload/reload is refused for that session; retained code/state after a fault is not permission to call it. Do not use peer tables during shutdown or across sessions; stop using cached tables and restart after a native fault. See [native trust and service lifetime rules](../sdk/docs/plugin-rules.md#native-trust-and-supported-usage).
+- `ServiceRef` is a borrowed pointer, not a lease. What keeps a provided table valid is in [Lifetimes](#lifetimes) and the [plugin rules](../sdk/docs/plugin-rules.md#native-trust-and-supported-usage).
 - Entity ids, never pointers: a service that deals with game objects takes and returns entity and zone ids (opaque `uint64_t` values, as the game's are), resolves them on every call on the game thread, and answers `SCO_NOT_FOUND` or `SCO_UNAVAILABLE` once the entity has streamed out. Never return a pointer into the game: objects stream out and a stored pointer dangles. See [the API rule](api-v1.md#services-11).
 - Zone ids (`zone_id`, as in [`teleport.spatial`](api-v1.md#game-pack-services)) are volatile streaming handles: the same place gets another id after it streams out and back in. Anything you persist or send keeps the zone name string plus `double` x, y, z in that zone, never the raw id; resolve the name back to an id when you need it.
 
@@ -173,9 +189,9 @@ if (store.Open(*this) == SCO_OK) {
 
 ## Storage metadata
 
-SDK 2.4.1 adds `scosdk/storage_metadata.hpp`; it is absent
-from SDK 2.4.0. This separate [`sco.storage.metadata` 2.0](storage-metadata.md)
-service inspects only this plugin's already opened database; it never opens one.
+Since SDK 2.4.1, `scosdk/storage_metadata.hpp` wraps the separate
+[`sco.storage.metadata` 2.0](storage-metadata.md) service. It [`sco.storage.metadata` 2.0](storage-metadata.md)
+inspects only this plugin's already opened database; it never opens one.
 
 ```cpp
 #include "scosdk/storage_metadata.hpp"
@@ -242,9 +258,7 @@ See [widget contract](design/widgets.md) and the
 [renderer-free example](../sdk/examples/widgets/widgets.c). This route has no
 ImGui types or link requirement.
 
-SDK 2.4.1 adds `SetPanelTagged` and `UpdateNodesTagged`;
-these 1.4 callback-tag routes are absent from SDK 2.4.0. Use the headers
-and documentation from the selected kit for older extension support. Both
+Since SDK 2.4.1, `SetPanelTagged` and `UpdateNodesTagged` send the 1.4 callback tags. Both
 helpers take `sco_widget_node_1_2` arrays and negotiate service 1.4, guard the
 complete capabilities and mutation members and their non-null pointers, and
 require `SCO_WIDGETS_FEATURE_STABLE_TAGS`, `SCO_WIDGETS_FEATURE_EVENT_TAG` and
@@ -253,15 +267,7 @@ unsupported provider cannot provide the tagged-event guarantee; check every
 returned `sco_result`. Raw `SetPanel` with an extended stride does not perform
 this feature check and success alone does not guarantee tagged callbacks.
 
-A successful set/update with a nonempty tag enables tagged-event mode; it stays
-on through subtree updates/removals, and a full replacement resets it based on
-its new tree. In that mode the canonical target tag (or null for an untagged
-node) appears in the 48-byte `sco_widget_event_1_4`. Before casting the base
-event reference or pointer, check `event.size >= sizeof(sco_widget_event_1_4)`
-(or `event->size` in a C callback). The event, tag, text and panel ID are
-borrowed only during the callback, including reentrant changes; copy anything
-needed later. Numeric node IDs still route events. See the [1.4 contract](design/widgets.md)
-and [widget guide](../sdk/docs/widgets.md#canonical-callback-tags-14).
+In tagged-event mode the canonical target tag (or null for an untagged node) appears in the 48-byte `sco_widget_event_1_4`. Before casting the base event reference or pointer, check `event.size >= sizeof(sco_widget_event_1_4)` (or `event->size` in a C callback). The event, tag, text and panel ID are borrowed only during the callback, including reentrant changes; copy anything needed later. Numeric node IDs still route events. When tagged mode turns on and off: [UI: 1.4 callback tags](ui.md#scowidgets-14-canonical-callback-tags). See also the [widget guide](../sdk/docs/widgets.md#canonical-callback-tags-14).
 
 `scosdk/menu_builder.hpp` adds `scosdk::PanelBuilder`: nest `Row` / `Column` bodies,
 then `Build()` and `PanelTree::Submit(widgets, id, title)`. A returned `WidgetRef`

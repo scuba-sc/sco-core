@@ -1061,7 +1061,7 @@ sco_result SvcLastError(sco_plugin* self, char* out, uint32_t* inoutSize) {
 
 // Existing game.entities ledger owns prefab IDs too: no parallel removal or mover.
 bool PrefabReady() {
-    return g_started && g_canSpawn && SpawnReleaseHooked() && kPrefabConfirmed && !g_prefabFaulted;
+    return PrefabServiceReady(g_started, g_canSpawn, SpawnReleaseHooked(), SpawnPrefabRowsResolved(), g_prefabFaulted);
 }
 sco_result PrefabReserve(const sco_plugin* owner) {
     size_t count = 0;
@@ -1072,7 +1072,16 @@ sco_result PrefabZone(uint64_t zone) { return ZoneStreamed(zone) ? SCO_OK : SCO_
 sco_result PrefabSpawn(const char* path, uint64_t zone, const double* pos, const double* q, uint64_t* id) {
     const char* error = SpawnPrefabEntityInZone(path, zone, pos, q, *id);
     if (!error) return SCO_OK;
-    if (!strcmp(error, "unknown prefab content path") || !strcmp(error, "unknown entity class")) return SCO_NOT_FOUND;
+    switch (ClassifyPrefabError(error)) {
+    case PrefabOutcome::NotFound: return SCO_NOT_FOUND;
+    case PrefabOutcome::Unavailable:
+        // Not an engine fault, so nothing is latched. Name the rows as the reason only when the
+        // spawner itself is up; a stopped spawner is reported by its own capability state.
+        if (PrefabUnavailableMeansRowsMissing(g_started, g_canSpawn, SpawnReleaseHooked()))
+            caps::Set("game.entities.prefabs", false, "spawn.prefabs rows did not resolve on this build");
+        return SCO_UNAVAILABLE;
+    case PrefabOutcome::Fault: break;
+    }
     g_prefabFaulted = true;
     caps::Set("game.entities.prefabs", false, "prefab provider failed; restart required");
     return SCO_FAILED;
@@ -1182,7 +1191,8 @@ Result StartEntities() {
     const Result prefab = host::ProvideGameService(SC_PREFABS_NAME, SC_PREFABS_VERSION_1_0, &kPrefabs);
     if (prefab != Result::Ok) { StopEntities(); return prefab; }
     g_prefabsPublished = true;
-    caps::Set("game.entities.prefabs", PrefabReady(), PrefabReady() ? "" : "entities spawn/unload cleanup unavailable or prefab provider faulted");
+    caps::Set("game.entities.prefabs", PrefabReady(), PrefabReady() ? "" : SpawnPrefabRowsResolved() ? "entities spawn/unload cleanup unavailable or prefab provider faulted"
+                                                                       : "spawn.prefabs rows did not resolve on this build");
     const Result owned = StartOwned();
     if (owned != Result::Ok) { StopEntities(); return owned; }
     return Result::Ok;

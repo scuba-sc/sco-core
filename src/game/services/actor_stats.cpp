@@ -9,7 +9,7 @@
 // your own player's stats through the game's AdjustStatValue (actor.adjust_stat). Its capability
 // is off unless the product switch (SetActorStatWritesEnabled, default off) is on, and every write
 // asks for fresh offline admission first. Nothing is restored on unload: these stats are gameplay
-// state the game changes itself every tick. Nothing here has been run in game.
+// state the game changes itself every tick. Not run in game.
 #include "actors.h"
 #include "../actor_stats_map.h"
 #include "../../api/internal.h"   // detail::Released

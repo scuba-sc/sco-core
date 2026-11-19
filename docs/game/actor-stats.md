@@ -1,13 +1,8 @@
 # game.actor_stats: an actor's status stats
 
-`sc_actor_stats.h` · service `game.actor_stats` · version 1.1 · game thread only ·
-capability `game.actor_stats.read`.
+`game.actor_stats` reads an actor's survival stats by name: hunger, thirst, body and suit temperature, oxygen, stun, distortion, radiation, health and others. A plugin can use it to show a vitals HUD, warn before a hazard hurts, or log what a med pen, a meal or a radiation zone does. `game.actors` already reads one stat, `health` (the HealthPool stat).
 
-Star Citizen tracks an actor's survival state as a set of numbered stats: hunger, thirst,
-body and suit temperature, oxygen, stun, distortion, body and suit radiation, health and
-others. `game.actors` already reads one of them (`health`, the HealthPool stat). This
-service reads the others by name, so a plugin can show a vitals HUD, warn before a hazard
-hurts, or log what a med pen, a meal or a radiation zone does.
+Header: [`sc_actor_stats.h`](../../include/sc_actor_stats.h). Service `game.actor_stats`, table version 1.1, game thread only. Capability `game.actor_stats.read` (ON). The write table `game.actor_stats_write` is described [below](#writes-gameactor_stats_write); its capability `game.actor_stats.write` is OFF. Status: [status](status.md). Not run in game.
 
 The plugin ABI is the header. The rest of this page is for the game pack and hosts.
 
@@ -38,18 +33,14 @@ These are raw stat floats, not injury-tier masks or normalized medical severity.
 Units/thresholds remain unverified. Stat-write 1.0 still accepts only IDs 1..9;
 adding read vocabulary does not authorize more writes.
 
-Values are the game's own floats, in the game's own units. **Nothing here has been run in
-game**, so units, range and direction are not documented yet: for example, whether hunger
-counts up toward starving or down from full, or whether temperatures are degrees Celsius.
-A plugin should log raw values and not hard-code thresholds until the in-game run below has
-been done.
+Values are the game's own floats, in the game's own units. Units, range and direction are not documented: for example, whether hunger counts up toward starving or down from full, or whether temperatures are degrees Celsius. A plugin should log raw values and not hard-code thresholds until the in-game run below has been done.
 
 An actor that has no record of a stat (the game keeps a record per stat type, and not every
 actor type has every one) answers `SCO_NOT_FOUND`, never a silent 0.
 
 ## How the game pack finds it
 
-All of this is static evidence on the verified build (F-4.10.197.2878-006):
+All of this is static evidence on build 4.10.197.2878:
 
 * The actor's status object and the game's `GetStat(status, index)` are the existing
   `actor.status_accessor` and `actor.get_stat` rows that already back `game.actors.health`.
@@ -64,13 +55,12 @@ All of this is static evidence on the verified build (F-4.10.197.2878-006):
   array's offset from its own instruction. That way the service can tell "no record" from a
   real zero without a hard-coded offset.
 
-Both rows resolve in a local `sco-sigcheck` run on 4.10.197.2878. The full table resolves
-319/319 there.
+Both rows resolve in a local `sco-sigcheck` run on 4.10.197.2878. The whole table resolves 347/347 there and on 4.10.200.58746 ([verified builds](../game-pack.md#verified-game-builds)).
 
 ## What an in-game run must confirm
 
 Before any value semantics are documented, a maintainer run logs every stat for your
-player each tick (the draft test plugin does this) while:
+player each tick (`sdk/examples/actor_stats_probe` does this) while:
 
 1. eating and drinking (hunger, thirst);
 2. standing on a cold planet and a hot one, suited and unsuited (body and suit temperature);
@@ -79,14 +69,11 @@ player each tick (the draft test plugin does this) while:
 5. being hit by a distortion weapon (distortion);
 6. standing in a radiation area (body and suit radiation).
 
-The test plugin and the step-by-step checklist are in `sdk/examples/actor_stats_probe/`
-(`CHECKLIST.md`). That run records units, range and direction per stat. Until then
-`game.actor_stats.read` is evidence level "rows resolved", not "verified in game".
+The checklist is `sdk/examples/actor_stats_probe/CHECKLIST.md`. The run records units, range and direction per stat.
 
 ## Writes: game.actor_stats_write
 
-`sc_actor_stats_write.h` · service `game.actor_stats_write` · version 1.0 · game thread only ·
-capability `game.actor_stats.write` (default **OFF**).
+Header: [`sc_actor_stats_write.h`](../../include/sc_actor_stats_write.h). Service `game.actor_stats_write`, table version 1.0, game thread only. Capability `game.actor_stats.write`, **OFF** by default.
 
 A separate table, so a plugin that only reads never sees a write route.
 
@@ -96,8 +83,7 @@ A separate table, so a plugin that only reads never sees a write route.
 
 `after` is the value read back right after the write, so a plugin sees what took effect.
 
-Both go through the game's own stat-adjust function (row **`actor.adjust_stat`**,
-F-4.10.197.2878-010). The game clamps the value and runs its own consequences: a stat change can
+Both go through the game's own stat-adjust function (row **`actor.adjust_stat`**). The game clamps the value and runs its own consequences: a stat change can
 incapacitate. The game also ignores hunger, thirst and blood-drug changes while their
 `pl_status.enable*` switch is off. In that case the write answers OK and `after` shows the value didn't move.
 
@@ -110,7 +96,7 @@ What must hold before anything is written:
 2. **The rows resolve.** `actor.adjust_stat` and every row `game.actor_stats.read` needs must be
    OK.
 3. **The session is offline.** Every write first asks the host for fresh offline admission. Without
-   it the answer is `SCO_UNAVAILABLE` and nothing is written (rule 11).
+   it the answer is `SCO_UNAVAILABLE` and nothing is written.
 4. **It is your own player.** In 1.0, `id` must be your player's entity id. NPC writes are not
    offered.
 5. **The game would apply it.** Inside the adjust function, the game changes a stat only when the
@@ -123,7 +109,7 @@ What must hold before anything is written:
    `SC_ACTOR_STATS_WRITE_MAX_STEP`, and every input is finite. A step smaller than FLT_EPSILON is not
    passed on: the game would log it as an invalid adjustment and change nothing.
 
-**Nothing is restored when a plugin unloads** (maintainer decision, 2026-10-16). These stats are
+**Nothing is restored when a plugin unloads.** These stats are
 gameplay state that the game itself changes every tick (eating, breathing, weather, damage), not
 settings with a prior value to put back. This is a documented exception to the restore-on-release
 clause of the [quantum amended rule](../quantum.md#amended-rule-2026-10-15), which covers cvars
@@ -131,8 +117,7 @@ and shared parameters.
 
 The adjust function logs whether the caller is the authority or only predicting. **Which `mode`
 your player has in an offline session, and whether a `LOCAL_ONLY` write persists or is overwritten,
-is not known statically.** That is the first thing the in-game run must confirm for each stat. Until then
-`game.actor_stats.write` stays OFF in the status registry.
+is not known statically.** That is the first thing the in-game run must confirm for each stat. `game.actor_stats.write` stays OFF until then.
 
 ## Language routes
 

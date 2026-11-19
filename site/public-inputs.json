@@ -29,6 +29,9 @@
     "docs/sdk-mcp-tutorial.md",
     "docs/reference-snapshots.md",
     "docs/host-source-sc.md",
+    "docs/launcher-contract.md",
+    "docs/building-a-launcher.md",
+    "docs/widgets-view.md",
     "docs/releases/sdk-v2.4.0.md",
     "docs/releases/sdk-v2.4.1.md"
   ]

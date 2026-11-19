@@ -23,9 +23,9 @@
       "absent_capability": "game.gamerules.read defaults false; the table publishes UNAVAILABLE until a host binds a backend grounded on the build's gamerules.params_sync row.",
       "cleanup": "StopGameRules withdraws the service and clears the bound backend; no engine state to restore (read-only).",
       "limitations": [
-        "No backend bound in the default production configuration; nothing has run in game.",
+        "No backend bound in the default production configuration. Not run in game.",
         "Snapshot freshness follows provider binding; no push notification of parameter changes in 1.0.",
-        "Parameter set covers the quantum-travel gate fields observed in the corpus (F-4.10.196.36804-007/-008); the wider GameRules schema is not exposed in 1.0.",
+        "Parameter set covers the quantum-travel gate fields found on 4.10.196.36804; the wider GameRules schema is not exposed in 1.0.",
         "C++/C#/Lua Read wrappers keep the 1.0 snapshot route; separate 1.1 ListParams/list_params wrappers copy static definitions only. The table has no last_error."
       ],
       "tests": [
@@ -101,8 +101,8 @@
       "service": "game.gamerules",
       "id": "sc-gamerules-v1-list-params",
       "since": "`size >= 24`; 1.1",
-      "purpose": "Enumerate the 15 static GameRules parameter definitions (names verified on 4.10.197.2878, F-4.10.197.2878-054) by offset; records carry names, groups and types but no values or engine offsets.",
-      "buffer_contract": "`sco_result (*list_params)(sco_plugin* self, uint32_t offset, sc_gamerules_param_info* out, uint32_t stride, uint32_t cap, uint32_t* out_count, uint32_t* out_total);`<br>Enumerate the 15 static GameRules parameter definitions (names verified on 4.10.197.2878, F-4.10.197.2878-054) by offset; records carry names, groups and types but no values or engine offsets.",
+      "purpose": "Enumerate the 15 static GameRules parameter definitions (names checked statically on 4.10.197.2878) by offset; records carry names, groups and types but no values or engine offsets.",
+      "buffer_contract": "`sco_result (*list_params)(sco_plugin* self, uint32_t offset, sc_gamerules_param_info* out, uint32_t stride, uint32_t cap, uint32_t* out_count, uint32_t* out_total);`<br>Enumerate the 15 static GameRules parameter definitions (names checked statically on 4.10.197.2878) by offset; records carry names, groups and types but no values or engine offsets.",
       "ownership": "Caller owns all output slots; size and unknown tails remain untouched. No pointers retained.",
       "thread_affinity": "Game thread only; live self required.",
       "callback_context": "No plugin callbacks.",
@@ -111,9 +111,9 @@
       "absent_capability": "Static metadata does not require game.gamerules.read or a live backend.",
       "cleanup": "StopGameRules withdraws the table and disables cached list_params pointers.",
       "limitations": [
-        "Names are build-scoped to 4.10.197.2878 (F-4.10.197.2878-054); INT/FLOAT types are not verified; metadata is not proof of a live parameter layout.",
+        "Names are build-scoped to 4.10.197.2878; INT/FLOAT types are not verified; metadata is not proof of a live parameter layout.",
         "Not run in game.",
-        "Current source/development kits include guarded copied C++/C#/Lua enumeration; published RC1 retains its earlier bindings. Static metadata does not establish live values or native type verification."
+        "SDK 2.4.0 and later include guarded copied C++, C# and Lua enumeration. Static metadata does not establish live values or native type verification."
       ],
       "tests": [
         "tests/test_gamerules_params.cpp",

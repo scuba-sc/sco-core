@@ -3,9 +3,9 @@
 A Lua plugin is a folder with `plugin.ini` (`kind = lua`, `entry = main.lua`) and its scripts. sc-offline's bundled `sco-lua` runtime runs the entry script once at load, in a sandbox. The script registers commands and subscribes to events; those callbacks run on the game thread.
 
 <!-- release-block:current-release-brief -->
-SDK **2.4.1** uses Star Citizen game pack **0.8.1** (checked against Star Citizen
+SDK **2.4.1** (release candidate 1, a pre-release for testing; the final release follows) uses Star Citizen game pack **0.8.1** (checked against Star Citizen
 Alpha 4.10.3, build 4.10.200.58746; see [game builds](../../docs/game/builds.md)) and plugin ABI **1.1**. Archives and their digests are on the
-[`sdk-v2.4.1` release page](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.1); the [release notes](https://github.com/scuba-sc/sco-core/blob/sdk-v2.4.1/docs/releases/sdk-v2.4.1.md) list what changed.
+[`sdk-v2.4.1-rc.1` release page](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.1-rc.1); the [release notes](https://github.com/scuba-sc/sco-core/blob/sdk-v2.4.1-rc.1/docs/releases/sdk-v2.4.1.md) list what changed.
 <!-- /release-block:current-release-brief -->
 
 This page describes the `plugins/lua/` runtime and its operation-specific limits, not game-service readiness. Its tests exercise [`examples/greeter`](../examples/greeter) and [`examples/notebook`](../examples/notebook).
@@ -64,7 +64,8 @@ missing services and present read-only services across reload with the pack enab
 
 | Function | Returns | Does |
 |---|---|---|
-| `sco.host_version()` | string | `"sc-offline 0.8.0"` |
+| `sco.host_version()` | string | The host's name and version, for example `"sc-offline 0.8.0"` |
+| `sco.api_major`, `sco.api_minor` | integers | The `sco_api` major and minor version the host provides |
 | `sco.has(name)` | boolean | Whether a capability is available on this game build |
 | `sco.status(message)` | | Shows `<id>: message` on the status line |
 | `sco.log(level, message)` | | Writes `[<id>] message` to `mod.log`. `level` is `"info"`, `"warn"` or `"error"` |
@@ -81,10 +82,10 @@ missing services and present read-only services across reload with the pack enab
 
 ## Renderer-neutral widgets (`sco.widgets` 1.0)
 
-This section shows the base 1.0 route. Current source/development kits also expose
-the guarded 1.1 subtree/capability methods, presentation fields and row/PAGE events,
-plus 1.2 stable tags; see [the widget guide](widgets.md#lua) for version negotiation,
-feature checks and the distinction from the unchanged published RC1 bindings.
+This section shows the base 1.0 route. The Lua binding also exposes the guarded 1.1 subtree
+and capability methods, presentation fields and row and PAGE events, 1.2 stable tags, 1.3 numeric
+presentation and 1.4 event tags. See [the widget guide](widgets.md#lua) for version negotiation
+and feature checks.
 
 `sco.widgets` is always present. `available()` is true only when both complete,
 nonnull table methods exist; `set_panel(id, title, nodes[, fn])` and
@@ -146,8 +147,8 @@ callback remains rooted on the Lua stack during reentrant replacement/removal.
 Ordinary unload withdraws panels/events before closing the Lua state.
 
 See [widgets](widgets.md) and [the Lua example](../examples/widgets_lua).
-The targeted real-loader fixture is `ctest -R '^test_lua_widgets$'`; headless
-synthetic events do not certify production GPU rendering or gameplay.
+The targeted real-loader fixture is `ctest -R '^test_lua_widgets$'`. Its events are headless
+and synthetic.
 
 ## Nested panels (`sco.panel_builder`)
 
@@ -232,7 +233,7 @@ The implementation is embedded Lua text in
 `test_lua_widgets` checks generated trees against the real host validator,
 typed event dispatch, rollback, snapshot/callback lifetime, reentrant
 replacement/removal and callback budget enforcement. These are headless
-synthetic checks, not in-game verification.
+synthetic checks. Not run in game. See [game capability status](../../docs/game/status.md).
 
 ## Commands
 
@@ -296,6 +297,8 @@ Every call fails with `nil, err, message`: `err` is the result name (`"bad_arg"`
 - **Steps**: each storage call, and each row or key read, and each schema retry, counts 100 steps against the [budget](#the-sandbox), on top of the callback's own code.
 - **Cursors** are the runtime's: `sql` closes its cursor on every path, including an error in `fn` or the budget running out. Nothing in `sco.store` names a file or a path.
 - A transaction is the plugin's until `commit` or `rollback`: a callback that fails between `begin` and `commit` leaves it open (the next `begin` answers `bad_arg`), so roll back on your error paths.
+
+The metadata calls `sco.store.metadata.owner_info()`, `next_table(after)`, `row_count(table)` and `quota_info()` are described in [Storage metadata](../../docs/storage-metadata.md).
 
 `lua-check.lua` has an in-memory `sco.store` (key-value and transactions; `exec` and `sql` answer `unavailable`, since a stock Lua has no SQLite).
 
@@ -382,7 +385,7 @@ Present only when the Star Citizen game pack publishes [`game.gamerules`](../../
 | Function | Returns |
 |---|---|
 | `sco.game.gamerules.read()` | A table `{ valid, generation, enforce_group_qt, quantum_travel_allowed, quantum_boost_allowed, travel_target_threshold_angle, target_lock_angular_player, target_lock_angular_ai, target_lock_linear_player, target_lock_linear_ai, boost_group_distance_threshold }`: the first, third, fourth and fifth are booleans, `generation` an integer (an opaque counter, not a session id) and the rest numbers. `valid` is `false` until the client has received a parameter set; every other field is then zero |
-| `sco.game.gamerules.list_params([offset [, capacity]])` | Current source/development kits: copied `{params={ {name, group, type}, ... }, offset, count, total, complete}`, or `nil, err`. Queries service 1.1 with the whole tail/pointer guard; defaults 0/64, capacity 0 counts only and maximum is 64. Numeric type codes 1/2 are the existing metadata hints. No values, read capability or backend required; published RC1 retains its earlier bindings. |
+| `sco.game.gamerules.list_params([offset [, capacity]])` | Copied `{params={ {name, group, type}, ... }, offset, count, total, complete}`, or `nil, err`. Queries service 1.1 with the whole tail/pointer guard; defaults 0/64, capacity 0 counts only and maximum is 64. Numeric type codes 1/2 are the existing metadata hints. No values, read capability or backend required. |
 
 Enumeration uses the exact 88-byte record stride and bounded copied strings.
 Invalid arguments refuse as `bad_arg`; inconsistent counts, changed record sizes
@@ -398,8 +401,7 @@ On failure it returns `nil, err` (`err` as for `sco.store`: `"unavailable"`, ...
 
 The game adapter exposes this static category vocabulary whenever it is registered, including
 when no inventory provider is published. It uses the existing public 192-member table for
-**4.10.197.2878** (`item_type_build`, `item_type_count = 192`). This source addition is absent from
-published RC1; `lua-check.lua` has no inventory stand-in. Names do not imply backend readiness.
+**4.10.197.2878** (`item_type_build`, `item_type_count = 192`). `lua-check.lua` has no inventory stand-in. Names do not imply backend readiness.
 
 | Member | Returns |
 |---|---|
@@ -440,7 +442,7 @@ adds no mutation, per-class ids, or in-game validation.
 
 ## `sco.game.entities`
 
-Present only when the Star Citizen game pack publishes [`game.entities`](../../docs/api-v1.md#gameentities-11-game-pack) (check `if sco.game and sco.game.entities then`); `lua-check.lua` has no stand-in for it. Read-only: a Lua plugin owns no entities, so there is no spawn, despawn, move or watch.
+Present only when the Star Citizen game pack publishes [`game.entities`](../../docs/api-v1.md#gameentities-12-game-pack) (check `if sco.game and sco.game.entities then`); `lua-check.lua` has no stand-in for it. Read-only: a Lua plugin owns no entities, so there is no spawn, despawn, move or watch.
 
 | Function | Returns |
 |---|---|
@@ -451,7 +453,7 @@ Present only when the Star Citizen game pack publishes [`game.entities`](../../d
 
 ## `sco.game.world`
 
-Present only when the Star Citizen game pack publishes [`game.world`](../../docs/api-v1.md#gameworld-10-game-pack) (check `if sco.game and sco.game.world then`). Read-only queries (they take no `self`). Ids are the game's 64-bit ids in Lua integers bit for bit; positions are metres.
+Present only when the Star Citizen game pack publishes [`game.world`](../../docs/api-v1.md#gameworld-11-game-pack) (check `if sco.game and sco.game.world then`). Read-only queries (they take no `self`). Ids are the game's 64-bit ids in Lua integers bit for bit; positions are metres.
 
 | Function | Returns |
 |---|---|
@@ -497,7 +499,7 @@ lua5.4 tools/lua-check.lua examples/greeter --cap teleport --invoke greeter.gree
 
 Lua supports bounded set/remove, guarded 1.1 subtree update/removal and
 capabilities, tooltip/severity/paging fields, row/PAGE events and 1.2 stable tags
-in current source/development kits. Each call checks the negotiated service,
+Each call checks the negotiated service,
 complete member extent and required feature bits; unsupported requests refuse.
 Lua exposes no native FFI. See [widgets](widgets.md) for operation-specific
-support, callback lifetimes and the unchanged published RC1 boundary.
+support and callback lifetimes.

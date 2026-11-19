@@ -289,10 +289,9 @@ class DocumentedBlockTests(unittest.TestCase):
         self.assertEqual([entry for _, _, entry in launchers(read(KIT_PAGE))], [self.generic_entry()])
         self.assertEqual([name for _, name, _ in launchers(read(KIT_PAGE))], [SERVER_NAME])
 
-    def test_readme_repository_setting_is_the_guides_checkout_block(self):
-        checkout = [b for b in self.blocks if validate(*b)[0] == 'checkout']
-        self.assertEqual(launchers(read(README)), checkout,
-                         'the README repeats no client block except the repository setting')
+    def test_readme_repeats_no_client_block(self):
+        self.assertEqual(launchers(read(README)), [],
+                         'the README links to the guide instead of repeating a client block')
 
     def test_retired_contradictions_stay_out_of_the_setup_docs(self):
         for relative in SETUP_DOCS:
@@ -329,6 +328,13 @@ class IntegrationTests(unittest.TestCase):
             (self.kit / target).parent.mkdir(parents=True, exist_ok=True)
             shutil.copy(ROOT / source, self.kit / target)
         shutil.copy(CATALOGUE, self.kit / 'sdk-catalogue.json')
+        # The kit ships the workflow index beside the catalogue; without it the server lists 13 tools.
+        sys.path.insert(0, str(ROOT / 'tools'))
+        import sdk_workflows
+        index = sdk_workflows.build(ROOT, self.catalogue['source_sha'])
+        index['sdk_version'] = self.catalogue['sdk_version']
+        index['content_sha256'] = sdk_workflows.digest(sdk_workflows.encoded(index['workflows']))
+        (self.kit / 'sdk-workflows.json').write_bytes(sdk_workflows.encoded(index))
 
     def launch(self, block, replacement, *calls, drop=(), omit=(), join=(), novalue=(), minimal=False, **overrides):
         """Run a documented block with its placeholder base path replaced by a real folder.

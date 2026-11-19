@@ -1,5 +1,7 @@
 # Runtime MCP acceptance ledger
 
+Historical record: the acceptance status of the runtime diagnostics work on 2026-10-12, kept as written. It is not current release evidence.
+
 ## Local implementation wave (2026-10-12)
 
 Boundary: separate default-off local stdio launcher, fixed six read tools, real

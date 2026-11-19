@@ -13,7 +13,7 @@ data\plugins\travel_pack\
 | Folder | Files | Kind in the content index |
 |---|---|---|
 | `missions\` | `*.cwmission` | `mission` |
-| `missions\` | `<id>.scom`, id of 1..100 lowercase ASCII letters, digits or underscores; no subfolders | `script` (hosts after SDK 2.4 RC1) |
+| `missions\` | `<id>.scom`, id of 1..100 lowercase ASCII letters, digits or underscores; no subfolders | `script` (SDK 2.4.0 and later hosts) |
 | `rules\` | `*.rules` | `rules` |
 | `scripts\` | `*.xml`, up to 16 subfolder levels below `scripts\`; deeper content is ignored | `script` |
 | `lists\` | `*.txt` | `list` |
@@ -23,9 +23,9 @@ The `.scom` namespace is exact and case-sensitive; other extensions match in any
 
 ## How features use it
 
-The host privately indexes enabled packs. New hosts expose **`sco.content` 1.0**
+The host privately indexes enabled packs. It exposes **`sco.content` 1.0**
 (`sco_content.h`; C++ `scosdk/content.hpp`) for public **list/script** enumeration
-and reads; SDK 2.0.0's existing release predates this addition. Discover it using
+and reads. Discover it using
 `sco_api` 1.1 `query_service`, guarding the complete pointer extent and a non-null
 callback. `requires = sco.content` makes absence an explicit discovery refusal.
 The private `ContentIndex` and `app::Content()` are host-source APIs, not plugin
@@ -58,11 +58,11 @@ of that root remain trusted host installation policy. Concurrent writes are not
 an atomic filesystem transaction.
 
 The [native C content reader](../examples/content_reader/README.md) and
-[G14 audit/design](../../docs/design/content-access.md) explain the boundary.
-Script data is not permission to execute scripts. Hosts after SDK 2.4 RC1 also
+[content access design](../../docs/design/content-access.md) explain the boundary.
+Script data is not permission to execute scripts. Hosts from SDK 2.4.0 on also
 expose owned `missions/<id>.scom` declarations as `SCO_CONTENT_SCRIPT`, allowing
 the product contracts consumer to read its declared format through this public
-table. Published RC1 does not discover those files. The host copies opaque bytes;
+table. The host copies opaque bytes;
 the consumer validates the declaration and still needs an available mission
 ingest provider. Native mission capability enablement is separate. Private
 `.cwmission`/rules exposure, C#/Lua bindings and automatic import of legacy

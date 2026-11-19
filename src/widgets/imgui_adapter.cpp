@@ -85,7 +85,11 @@ const char* SeverityName(uint32_t severity, ImVec4& color) {
     default: return nullptr;
     }
 }
+// The line above a node: its severity (if any) and its label. An empty label draws no text, so an
+// unlabelled ROW, COLUMN or TABLE gets no blank line above it. A LABEL node's label is its whole
+// content, so an empty LABEL keeps its (blank) line.
 void Label(const Node& node, bool withLabel = true) {
+    withLabel = withLabel && (!node.label.empty() || node.kind == SCO_WIDGET_LABEL);
     ImVec4 color;
     const char* name = SeverityName(node.severity, color);
     if (!name) { if (withLabel) Plain(node.label); return; }
@@ -256,8 +260,18 @@ void RenderNode(const Panel& panel, size_t& cursor, Context& ctx, bool inherited
             ImGui::SetNextItemWidth(controlWidth);
             if (node.presentation == SCO_WIDGET_NUMERIC_NUMBER) {
                 double value = node.value;
+                // The slider shows the value with up to three decimals: "30", "0.5", "0.125". That
+                // text holds no '%', so ImGui prints it unchanged and does not round input to it.
+                // Input is rounded here instead, to three decimals exactly as ImGui rounded it to the
+                // old "%.3f"; typed text (Ctrl+click) keeps its value, as it did then.
+                const std::string shown = layout::NumberText(node.value);
                 changed = ImGui::SliderScalar("##value", ImGuiDataType_Double, &value,
-                                              &node.minimum, &node.maximum, "%.3f", ImGuiSliderFlags_AlwaysClamp);
+                                              &node.minimum, &node.maximum, shown.c_str(), ImGuiSliderFlags_AlwaysClamp);
+                const auto& io = ImGui::GetIO();
+                if (changed && !(io.WantTextInput && !io.MouseDown[0]))
+                    value = layout::RoundDecimals(value, layout::kNumberDecimals);
+                // Like ImGui: no event when the rounded value equals the current one.
+                changed = changed && !(value == node.value);
                 event.value = value;
             } else {
                 double value = node.value;

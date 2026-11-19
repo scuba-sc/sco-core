@@ -5,6 +5,8 @@
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
+#include <cstdio>
+#include <cstdlib>
 #include <limits>
 #include <string>
 #include <string_view>
@@ -123,6 +125,34 @@ inline std::string_view TooltipText(std::string_view text) {
     size_t length = std::min(text.size(), kMaxMeasuredBytes * 2);
     while (length > 0 && length < text.size() && detail::Continuation(text[length])) --length;
     return text.substr(0, length);
+}
+
+// A NUMBER slider keeps (and shows at most) this many decimals.
+constexpr int kNumberDecimals = 3;
+
+// Rounds to `decimals` places the way ImGui rounds a value to a "%.Nf" format: print it, read it
+// back. Non-finite values are returned unchanged.
+inline double RoundDecimals(double value, int decimals) {
+    if (!std::isfinite(value)) return value;
+    char text[400]; // "%.3f" of the largest double is 309 digits, a sign, a point and 3 decimals
+    std::snprintf(text, sizeof(text), "%.*f", decimals, value);
+    return std::strtod(text, nullptr);
+}
+
+// Text of a NUMBER slider: a whole value without decimals, any other with up to kNumberDecimals,
+// trailing zeros dropped ("30", "0.5", "0.125", "1.235" for 1.23456); never "-0". Contains no '%'.
+inline std::string NumberText(double value) {
+    char text[400];
+    if (!std::isfinite(value)) {
+        std::snprintf(text, sizeof(text), "%f", value);
+        return text;
+    }
+    double shown = RoundDecimals(value, kNumberDecimals);
+    if (shown == 0.0) shown = 0.0; // drops the sign of -0
+    int decimals = 0;
+    while (decimals < kNumberDecimals && RoundDecimals(shown, decimals) != shown) ++decimals;
+    std::snprintf(text, sizeof(text), "%.*f", decimals, shown);
+    return text;
 }
 
 // ImGui hides everything after "##" in the strings it renders as labels. Where a plugin string has

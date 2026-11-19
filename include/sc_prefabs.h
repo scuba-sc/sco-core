@@ -1,7 +1,7 @@
 /* GPL-3.0-only. game.prefabs 1.0: owned object-container spawning.
  * Game-thread only. Host-owned session table; test complete pointer extent and
  * nullness. No game pointers, filesystem access, arbitrary class or attributes.
- * Owner-approved R1 default is enabled; Windows/SEH/gameplay NOT VERIFIED. */
+ * Enabled by default. Windows, SEH and gameplay behaviour: not verified. Not run in game. */
 #ifndef SC_PREFABS_H
 #define SC_PREFABS_H
 #include "sco_api.h"

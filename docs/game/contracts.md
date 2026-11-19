@@ -1,6 +1,8 @@
 # Contracts rows
 
-sc-offline's offline contracts (`src/contracts.cpp` there) take every game address from these rows ([`src/game/contracts_sigs.cpp`](../../src/game/contracts_sigs.cpp), [`include/sco/game/contracts.h`](../../include/sco/game/contracts.h)). The scans moved byte for byte from contracts.cpp; addresses below are RVAs in 4.10.196.36804. The reputation-service checks contracts patches are `contracts.reputation_*` in [features](../../include/sco/game/features.h).
+These are the signature rows behind sc-offline's offline contracts. This is a row reference, so it has no table version. The one service that reads a contracts row is `game.contracts` ([contracts service rows](contracts-service.md)); its capability `game.contracts.stream_radius` is OFF, see [status](status.md). Not run in game.
+
+sc-offline's offline contracts (`src/contracts.cpp` there) take every game address from these rows ([`src/game/contracts_sigs.cpp`](../../src/game/contracts_sigs.cpp), [`include/sco/game/contracts.h`](../../include/sco/game/contracts.h)). The scans moved byte for byte from contracts.cpp. Addresses below are RVAs in 4.10.196.36804; `contracts.hauling_assign` also resolves in its 4.10.200.58746 layout. The reputation-service checks that contracts patches are `contracts.reputation_*` in [features](../../include/sco/game/features.h).
 
 Terms used in the table:
 
@@ -8,7 +10,7 @@ Terms used in the table:
 - **pattern**: unique in `.text`. **call +N** / **RIP +N**: the target of the call or RIP-relative operand at +N in the row named. **in range N**: the one match within the first N bytes of the row named.
 - **vtable**: the one `.rdata` slot holding a function, minus the slot offset. Slots are compared both as the loaded game holds them (relocated) and as the file holds them (the PE header's preferred base), so sco-sigcheck sees what the game sees.
 
-There is no `contracts.actor_kill` row. Actor deaths belong to the game's own death path, which the game pack's `event.player_death` hook owns and publishes as `game.actors.died` (see [events](status.md)); sc-offline subscribes to that instead of detouring the function a second time. A row here resolved `"CActor::Kill"` by string to that same function, so the two detours collided on one target and `sco::hook` (one detour per target) refused the game pack's, which silently took `game.player.died` down with it.
+There is no `contracts.actor_kill` row: actor deaths come from the game pack's `event.player_death` hook, published as `game.actors.died` (see [events](events.md)). A second detour on the same function would be refused, because `sco::hook` allows one detour per target.
 
 | Row | RVA | How found | Checks | Capability |
 |---|---|---|---|---|

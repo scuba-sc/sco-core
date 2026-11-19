@@ -325,7 +325,7 @@ sco_project_target(sco_ui)
 
 # Renderer-neutral retained UI is always part of the kernel. Products optionally
 # compile the ImGui adapter against their own host-side ImGui implementation.
-add_library(sco_widgets STATIC src/widgets/widgets.cpp)
+add_library(sco_widgets STATIC src/widgets/widgets.cpp src/widgets/view.cpp)
 target_link_libraries(sco_widgets PUBLIC sco_host)
 sco_project_target(sco_widgets)
 option(SCO_WIDGETS_IMGUI "Build the host-only ImGui widget adapter" OFF)
@@ -1138,6 +1138,29 @@ if(SCO_BUILD_TESTS)
   endforeach()
   add_test(NAME abi_widgets
            COMMAND "${CMAKE_COMMAND}" --build "${CMAKE_BINARY_DIR}" ${_abi_config} --target ${_abi_widgets_targets})
+
+  # The sco.widgets.view host-source table pins (tests/abi_widgets_view.c), the same three ways.
+  set(_abi_widgets_view_cxx "${SCO_TEST_OUT}/abi_widgets_view.cpp")
+  file(CONFIGURE OUTPUT "${_abi_widgets_view_cxx}"
+       CONTENT "#include \"${CMAKE_CURRENT_SOURCE_DIR}/tests/abi_widgets_view.c\"
+")
+  add_library(sco_abi_widgets_view_c OBJECT tests/abi_widgets_view.c)
+  add_library(sco_abi_widgets_view_cxx OBJECT "${_abi_widgets_view_cxx}")
+  set(_abi_widgets_view_targets sco_abi_widgets_view_c sco_abi_widgets_view_cxx)
+  if(NOT MSVC)
+    add_library(sco_abi_widgets_view_short_enums OBJECT tests/abi_widgets_view.c)
+    target_compile_options(sco_abi_widgets_view_short_enums PRIVATE -fshort-enums)
+    list(APPEND _abi_widgets_view_targets sco_abi_widgets_view_short_enums)
+  endif()
+  foreach(t IN LISTS _abi_widgets_view_targets)
+    target_include_directories(${t} PRIVATE "${SCO_INCLUDE_DIR}")
+    sco_warnings(${t})
+    if(NOT MSVC)
+      target_compile_options(${t} PRIVATE -Wpedantic)
+    endif()
+  endforeach()
+  add_test(NAME abi_widgets_view
+           COMMAND "${CMAKE_COMMAND}" --build "${CMAKE_BINARY_DIR}" ${_abi_config} --target ${_abi_widgets_view_targets})
 
   # The sco.ui.surfaces table and payload pins (tests/abi_ui_surfaces.c), the same three ways.
   set(_abi_ui_surfaces_cxx "${SCO_TEST_OUT}/abi_ui_surfaces.cpp")
@@ -1970,6 +1993,11 @@ if(SCO_BUILD_TESTS)
   target_link_libraries(test_widgets PRIVATE sco_widgets)
   sco_project_target(test_widgets)
   add_test(NAME test_widgets COMMAND test_widgets)
+
+  add_executable(test_widgets_view tests/test_widgets_view.cpp tests/test_widgets_view_reader.c)
+  target_link_libraries(test_widgets_view PRIVATE sco_widgets)
+  sco_project_target(test_widgets_view)
+  add_test(NAME test_widgets_view COMMAND test_widgets_view)
 
   add_executable(test_widgets_layout tests/test_widgets_layout.cpp)
   sco_project_target(test_widgets_layout)

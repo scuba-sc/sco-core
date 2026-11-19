@@ -1,20 +1,15 @@
 # sco-core SDK 2.4.0 release notes
 
-Final tag [`sdk-v2.4.0`](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0), combined archive `sco-sdk-2.4.0.zip`.
-**Current publication.** Stable SDK 2.4.0 was published on 2026-11-01 from
-`main` source commit `6106fa3639cbcc28f78a1ded8de2707de019f4d3`. The five
-profile archives and their SBOMs were built once by [candidate run
-41342490537](https://github.com/scuba-sc/sco-core/actions/runs/41342490537),
-then verified and promoted without rebuilding by [release run
-41343086992](https://github.com/scuba-sc/sco-core/actions/runs/41343086992).
-The published release includes `SHA256SUMS` and `release.json`. No 2.4.0
-behavior has been run in game.
+Tag [`sdk-v2.4.0`](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0), combined archive `sco-sdk-2.4.0.zip`.
+**Published.** Stable SDK 2.4.0 was published on 2026-11-01 from `main` source commit
+`6106fa3639cbcc28f78a1ded8de2707de019f4d3`. The release includes `SHA256SUMS` and `release.json`.
+Not run in game. See [game capability status](../game/status.md).
 
 <a id="stable-archive-identity"></a>
 
 ## Stable SDK 2.4.0 archive identities
 
-These five ZIPs are the immutable assets on the [`sdk-v2.4.0` release page](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0). The digests below match that release's `SHA256SUMS`; select the profile from `COMPATIBILITY.json` and verify the downloaded asset before extraction. A later source-document edit does not change these published bytes.
+These five ZIPs are the assets on the [`sdk-v2.4.0` release page](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0). The digests match that release's `SHA256SUMS`. Select the profile from `COMPATIBILITY.json` and verify the downloaded asset before extraction.
 
 | Profile | Release asset | SHA-256 |
 |---|---|---|
@@ -24,14 +19,7 @@ These five ZIPs are the immutable assets on the [`sdk-v2.4.0` release page](http
 | `core-source` | `sco-sdk-core-source-2.4.0.zip` | `df756719da0de54ead18973258d3bc35640e26d44088b3b6ffcf8672ebb1ee51` |
 | `host-source-sc` | `sco-sdk-host-source-sc-2.4.0.zip` | `a0aaaba07e3d4eb0d8c264912cd6f2ab23f0d237a99fa07816005790a76efc4c` |
 
-**RC1 history.** On 2026-10-21 the five archives were published as the
-release [`sdk-v2.4.0-rc.1`](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0-rc.1), built by the
-release-candidate workflow from `main` commit `48d7055`, with every file attested. Before RC2 was
-published later on 2026-10-28, it was the only SDK release on the release page: the 2.0.0 to 2.3.0
-release downloads were withdrawn (their tags remain in git). Nothing here authorizes approval,
-tagging or that publication. The release workflow publishes the CHANGELOG section
-[`## sdk-v2.4.0`](../../CHANGELOG.md) as the final release's notes; this page is the longer
-reference behind it.
+`sdk-v2.4.0-rc.1` and `sdk-v2.4.0-rc.2` are historical. Their archives are on their own release pages. The release workflow publishes the CHANGELOG section [`## sdk-v2.4.0`](../../CHANGELOG.md) as the release's notes; this page is the longer reference behind it.
 
 <!-- release-scope:start -->
 ```json
@@ -41,73 +29,21 @@ reference behind it.
 
 ## Published RC2 archive identity
 
-The release API records the combined `sco-sdk-2.4.0.zip` archive with SHA-256
+The release API records the RC2 combined `sco-sdk-2.4.0.zip` archive with SHA-256
 `51a7ce266d087bcbeac39c92f26a6f905b4473883dd7ed6f0f5ca823fa88c88e`.
-Verify the downloaded archive and its release `SHA256SUMS` against this identity.
+RC2 was built from source commit `844e136ccb280ad8cb43f73bc43c9447e8f6799d`. Verify a downloaded RC2
+archive against that release's `SHA256SUMS`.
 
-<a id="historical-rc2-candidate-status-before-publication"></a>
+## What this release does
 
-## Historical RC2 candidate status
-
-Before publication on 2026-10-28, tag `sdk-v2.4.0-rc.2` identified candidate source
-`b7541dc91802f5fa1b050151bbc82e0e47834b6f`; the
-[release-candidate workflow run](https://github.com/scuba-sc/sco-core/actions/runs/40639676639)
-produced candidate artifacts from that source. At that point the RC2 release and
-downloads were not published; RC1 remained the published SDK. The later published
-release tag points to source commit `844e136ccb280ad8cb43f73bc43c9447e8f6799d`.
-Keep the published archive hash, release source and host identities separate. A
-later documentation edit does not change the already built release archives.
-
-## Release candidate 1 archives
-
-Download from [`sdk-v2.4.0-rc.1`](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.0-rc.1) (files under
-`https://github.com/scuba-sc/sco-core/releases/download/sdk-v2.4.0-rc.1/<file>`). The digests are that release's
-`SHA256SUMS`; it also carries one `<archive>.spdx.json` SBOM per archive.
-
-| Archive | Profile | SHA-256 |
-|---|---|---|
-| `sco-sdk-core-2.4.0.zip` | `core` | `68ca5ef213fe9be162b974dcb798a6da2402583daf369e26b26634b23d869f7d` |
-| `sco-sdk-game-sc-0.8.0.zip` | `game-sc` (overlay on the exact core archive above) | `fafd2d2d4d86cf479c25a4623e94c7004b45e527e94dceb8354293c6a6b5a8f9` |
-| `sco-sdk-2.4.0.zip` | `legacy` (combined kit) | `124751534277b89f0516af1897919c3485923811596e159a1f683bb80b1c243b` |
-| `sco-sdk-core-source-2.4.0.zip` | `core-source` | `f2f7c35591ed96090240466910e3db408953a9a4f6e0a16a36da83bc2a34ee62` |
-| `sco-sdk-host-source-sc-2.4.0.zip` | `host-source-sc` | `5ca76ff9dac6bbaa183c6f308d610e08d9c1b0daf6ebda6458e222277406dfc6` |
-
-## Known issues in release candidate 1
-
-Release candidate assets are immutable, so neither issue is fixed in them. The setup
-steps for the kit are in [Set up the discovery server from the SDK kit](../agent-integration.md#set-up-the-discovery-server-from-the-sdk-kit).
-
-- **The kit's bundled guides and embedded READMEs predate publication.** `sdk-guides.json`
-  (served by the MCP tools `search_guides` and `get_guide_section`) and the README files
-  inside the kit were frozen before release candidate 1 was published. They can say that
-  2.4.0 is an unreleased development candidate, that its archives are not on the release
-  page, that 2.3.0 is the newest published SDK, and can give 2.3.0 download steps. None of
-  that is current. The [docs site](https://scuba-sc.github.io/sco-core/) and `main`
-  supersede the kit's text, and the final 2.4.0 kit will be built from current docs.
-  The guide links in the kit are out of date too. For a `docs/` page, the `url` that
-  `search_guides` and `get_guide_section` return names the previous docs-site address
-  (`scubamount.github.io`), which now returns 404, so "read the rest at its `url`" does
-  not work in this kit. Use `https://scuba-sc.github.io/sco-core/` with the same path
-  instead. The docs site publishes release notes for 2.4.0 only, so for the 2.1.0, 2.2.0
-  and 2.3.0 notes read `docs/releases/` in the repository. For a guide under `sdk/docs`
-  the `url` is a repository path, not a link.
-- **`check_compatibility` does not accept the release candidate tag.** Its `tag` argument
-  takes only `sdk-vMAJOR.MINOR.PATCH`, so `sdk-v2.4.0-rc.1` is refused as not matching the
-  advertised pattern. Compare with `sdk_version` and `game_pack_version` instead. In a kit
-  the `release` section of the result also reports `unavailable` or
-  `no_matching_approval_record`, because the release approval records are not shipped.
-
-## In plain words
-
-This release adds new read-only views of the game for plugins, keeps the plugin interface exactly
-as it was, and gives two existing features a real implementation. **None of it has been run in the
-game.** "Checked against build 4.10.197.2878" means the game's data is found in the game file on
-disk, not that a feature has been seen working.
+This release adds read-only views of the game for plugins and gives two existing features a real
+implementation. The plugin interface stays exactly as it was. "Checked against build 4.10.197.2878"
+means the game's data is found in the game file on disk, not that a feature has been seen working.
 
 - Plugins built for 2.3.0 keep working: the plugin interface (ABI 1.1) is byte-identical to 2.3.0.
 - ABI 1.1 plugins can run on older hosts when their required services and manifest
-  requirements are satisfied. Optional lookups must handle NOT_FOUND or UNAVAILABLE;
-  new widget/storage features need their own version and complete-member checks.
+  requirements are satisfied. Optional lookups must handle NOT_FOUND or UNAVAILABLE.
+  New widget and storage features need their own version and complete-member checks.
 - New: read an actor's hunger, thirst, temperature, oxygen, stun, distortion and radiation
   (`game.actor_stats`); change one stat of your own player, off by default (`game.actor_stats_write`);
   read the server's quantum-travel settings and list the 15 parameter definitions
@@ -119,26 +55,18 @@ disk, not that a feature has been seen working.
   inventory snapshot with its 192 item categories (`game.inventory` 1.1, read held off).
 - Changed: teleport (`game.relocation`) and quantum boost (`game.quantum`) have real implementations
   behind the same tables. Relocation turns on only when offline play is confirmed and the game's
-  data is found; quantum control stays off.
+  data is found. Quantum control stays off.
 - New, off by default: a fire-and-forget sound trigger (`game.audio` 1.1 `play_once`, no native
   backend yet); guarded native reads of the game's in-memory DataCore records (`game.datacore_live`,
   explicit opt-in, no writes); guarded native reads of four integer CVars (`game.cvars`, opt-in). A
   native CVar write is refused in production, and a regression test pins that.
 - Contracts only, natively unavailable: filtered single-hit rays, exact class-name entity lookup,
-  value-change GameRules reads and fire-and-forget audio. The 2.4.0 scope record
-  ([2026-10-29](../legal/release-decisions/2026-10-29-sdk-v2.4.0-scope.md)) puts these four rows
-  (K-39..K-42) in the release line and supersedes the 2026-10-21 sequencing. Plugins can be written
-  and tested against their synthetic providers; in the game these calls answer unavailable, and each
-  native seam installs nothing until its route is grounded.
+  value-change GameRules reads and fire-and-forget audio. Plugins can be written and tested against
+  their synthetic providers. In the game these calls answer unavailable, and each native seam installs
+  nothing until its route is grounded. The [2.4.0 scope record](../legal/release-decisions/2026-10-29-sdk-v2.4.0-scope.md)
+  lists them.
 
 ## Versions
-
-Expanded-before-release optional contracts also add owner-bound `game.audio` 1.0 (grown to 1.1 by `play_once`),
-copied registry/name/component-presence queries in `game.entities`1.2 and scoped
-bounded multi-hit in `game.world.control`1.1. Each has a bound synthetic provider
-fixture; none supplies a native engine adapter or changes production availability
-to ON. Audio acceptance does not certify audible playback. Entity lookup tails
-are native C/C++ only; managed additions preserve layout but add no callable route.
 
 | What | Version | Where |
 |---|---|---|
@@ -165,94 +93,32 @@ are native C/C++ only; managed additions preserve layout but add no callable rou
 
 `VERSIONS.txt` in the zip states the same lines, generated from the headers by `sdk/package.py`.
 
-## Development contracts
+Optional contracts also add owner-bound `game.audio` 1.0 (grown to 1.1 by `play_once`),
+copied registry, name and component-presence queries in `game.entities` 1.2 and scoped
+bounded multi-hit in `game.world.control` 1.1. Each has a synthetic provider fixture. None
+supplies a native engine adapter or turns production availability ON. Audio acceptance does not
+certify audible playback. Entity lookup tails are native C/C++ only. Managed additions preserve layout
+but add no callable route.
 
-These contracts ship in release candidate 1. This table does not attest native
-availability or game acceptance.
+## New contracts in 2.4.0
 
-| Contract | Development version | Default | Evidence |
+These contracts are in this release. The table does not attest native availability or game acceptance.
+
+| Contract | Version | Default | Evidence |
 |---|---|---|---|
-| `game.build` | 1.0 | ON, pure metadata | `synthetic_only`; not run in game |
-| `game.actor_stats` | 1.1 (with `game.actor_stats_write` 1.0) | read ON when its rows resolve; write OFF; appended read IDs are not writable | `sigcheck_resolved` (read), `off_pending_probe` (write); not run in game |
-| `game.inventory` | 1.1: `flags` and `total_seen` after `ports[]` (a 1.0-sized caller is unchanged), the 192-member `sc_item_type` enumeration with `sc_inventory_item_type_name` and `sc_inventory_port_item_type`, and a production adapter with nine new signature rows | `game.inventory.read` OFF | `synthetic_only`; not run in game; F-4.10.197.2878-011..-016 |
-| `game.input` | 1.0: read-only action registry, 1,297 named actions (ids 1..1297), lookup by id and by name; no input injection | `game.input.registry` ON, which advertises metadata availability only | `synthetic_only`; ids and names re-derived statically from the 4.10.197.2878 action registry, build-scoped; not run in game; F-4.10.197.2878-050 |
-| `game.gamerules` | 1.1: `list_params` appended, 15 name, group and type definitions whose names are verified on 4.10.197.2878 (types not verified); no live values; `read` is unchanged | `game.gamerules.read` OFF | `synthetic_only`; names build-scoped to 4.10.197.2878; not run in game; F-4.10.197.2878-054 |
+| `game.build` | 1.0 | ON, pure metadata | `synthetic_only` |
+| `game.actor_stats` | 1.1 (with `game.actor_stats_write` 1.0) | read ON when its rows resolve; write OFF; appended read IDs are not writable | `sigcheck_resolved` (read), `off_pending_probe` (write) |
+| `game.inventory` | 1.1: `flags` and `total_seen` after `ports[]` (a 1.0-sized caller is unchanged), the 192-member `sc_item_type` enumeration with `sc_inventory_item_type_name` and `sc_inventory_port_item_type`, and a production adapter with nine new signature rows | `game.inventory.read` OFF | `synthetic_only` |
+| `game.input` | 1.0: read-only action registry, 1,297 named actions (ids 1..1297), lookup by id and by name; no input injection | `game.input.registry` ON, which advertises metadata availability only | `synthetic_only`; ids and names re-derived statically from the 4.10.197.2878 action registry, build-scoped |
+| `game.gamerules` | 1.1: `list_params` appended, 15 name, group and type definitions whose names are verified on 4.10.197.2878 (types not verified); no live values; `read` is unchanged | `game.gamerules.read` OFF | `synthetic_only`; names build-scoped to 4.10.197.2878 |
 
-The bus event `game.loadout.respawn_completed` is also on `main`: production capability OFF, native hook unresolved, not run in game (F-INTAKE-004). #185's in-game hold was resolved by the owner's acceptance of static evidence; inventory 1.1 is **not run in game**.
-
-### Post-RC1 additions included in RC2 source
-
-The following changes are in the published RC2 source after RC1. They do not
-alter the published RC1 archives or certify native behavior.
-
-- [Inventory 1.2 logical layouts](../game/inventory.md#logical-layout-observations-12)
-  copy bounded observations; the production host has no layout producer and the
-  capability is OFF.
-- [Position-only relocation 1.1](../game/relocation-position.md) has its own
-  capability and guards; the default native adapter supplies no position callbacks.
-- [ASOP selection 1.0](../game/asop-selection.md) edits a host-owned document
-  through an admitted coordinator; it does not establish native terminal
-  publication or observation.
-- [Widgets 1.3 numeric presentation](../../sdk/docs/widgets.md#numeric-presentation-13)
-  requires a supporting host and explicit version, extent and feature checks.
-
-These source contracts and synthetic fixtures do not certify native behavior.
-Archive hashes, inventory, release source and host identity must be established
-from the actual selected release archives.
-
-### Post-RC2 additions in the final source
-
-These landed after `sdk-v2.4.0-rc.2` and are in the final source. Each ships the
-contract, a synthetic provider and a refusal path. None is enabled, and none is
-in-game evidence.
-
-- **K-39 `game.audio.play_once`** resolves the three Wwise entry points by exported
-  name from the client's export directory. Exports are not the missing piece: the
-  adapter refuses to install without a grounded witness that the audio pump's shared
-  game object is still registered when a submission lands, so nothing is posted and
-  both audio capabilities stay OFF ([audio](../game/audio.md)).
-- **K-40 `game.gamerules.read`** has a native seam that installs only with a read-only
-  accessor for the params blob and a host-owned change counter. No read-only accessor
-  is grounded, so production resolves nothing, refuses and names the first missing
-  part, and the read stays OFF ([gamerules](../game/gamerules.md)).
-- **K-41 `game.entities.lookup`** has a native point-lookup seam that installs only with
-  the registry receiver lifetime. Ungrounded, so no native adapter binds and the
-  capability stays OFF ([entities](../game/entities.md)).
-- **K-42 `game.world.raycast_filtered`** has a native single-hit seam that installs only
-  with the resolved zone, world and grid references and a skip-request lifetime.
-  Ungrounded, so the synthetic policy remains the only behaviour and the capability
-  stays OFF ([world](../game/world.md)).
-
-Scope is not enablement. The four rows ship the contract, the synthetic provider and
-the refusal, and [the game status table](../game/status.md) records each as OFF.
-**Not run in game** is the current result for the intended final release; V7 remains
-deferred, not waived. The RC2 deferral does not establish final acceptance.
-
-### RC2 in-game evidence
-
-For `sdk-v2.4.0-rc.2`, the owner deferred in-game
-validation. **Not run in game** remains the result; this is not a test pass or
-proof of native behavior. This RC2-specific decision does not establish final
-2.4.0 acceptance or waive the other release and provenance checks.
-
-### Final release verification
-
-- The nine required jobs and their main-push workflows passed on source
-  `6106fa3639cbcc28f78a1ded8de2707de019f4d3` before candidate generation.
-- Candidate run 41342490537 completed successfully with the `sdk-v2.4.0` tag
-  designation. Its immutable candidate artifact was verified and promoted as
-  the published stable release.
-- The `sdk-v2.4.0` tag resolves to that same source commit. Release run
-  41343086992 verified the candidate checksums and provenance, checked every
-  asset after the draft round trip, and published the stable release.
-- Native and in-game acceptance were not run; this page does not claim either.
-
+The bus event `game.loadout.respawn_completed` is also in this release: production capability OFF, native hook unresolved. `game.inventory` 1.1 has only static evidence.
 
 ## Coordinates and distribution
 
 - Core SDK, combined/legacy SDK, the neutral core-source kit and the Star Citizen
   host-source kit (`host-source-sc`): 2.4.0.
-- Optional game-sc public overlay: 0.8.0 (was 0.6.0). The combined candidate adds and extends game service tables,
+- Optional game-sc public overlay: 0.8.0 (was 0.6.0). The release adds and extends game service tables,
   and the [game-pack policy](../game-pack.md) raises the minor for a release that adds or grows a
   game service. The overlay ships as `sco-sdk-game-sc-0.8.0.zip`, so its compatibility descriptor,
   which binds the exact 2.4.0 core archive SHA-256, never shares a file name with an earlier
@@ -260,15 +126,15 @@ proof of native behavior. This RC2-specific decision does not establish final
   version string alone.
 - Frozen plugin ABI: 1.1, unchanged. Individual service versions remain independent.
 
-The declared profiles repeat the five profiles published with 2.3.0 (`core`, `game-sc`, `legacy`,
-`core-source`, `host-source-sc`); `sdk/components.json` and the candidate workflow's packaging loop
-list the same five. The assignment of new files to profiles is the `sdk/components.json`
-classification. These notes supply no licence grant or counsel opinion.
+The five profiles are the same as in 2.3.0 (`core`, `game-sc`, `legacy`, `core-source`,
+`host-source-sc`). The assignment of files to profiles is the `sdk/components.json` classification.
+The `game-sc`, `legacy` and `host-source-sc` profiles carry the native-index and status metadata,
+with generated catalogues that match the source.
 
 ## Changes since 2.3.0
 
 The [CHANGELOG `## sdk-v2.4.0` section](../../CHANGELOG.md) holds the complete entries and their
-verification limits. In short:
+limits. In short:
 
 | Change | Where | Profiles (as packaged today) |
 |---|---|---|
@@ -286,81 +152,96 @@ verification limits. In short:
 | `game.input` 1.0: read-only action registry, 1,297 names | `include/sc_input.h` | header in game-sc and host-source-sc |
 | `game.mission.changed` and `game.loadout.respawn_completed` bus events | `include/sc_game_events.h`, [events](../game/events.md) | header in game-sc and host-source-sc |
 | `game.relocation` production path (new row `teleport.relocation`, product switch `SetRelocationEnabled`) | `src/game/services/relocation*.{h,cpp}`, [game services](../game-services.md) | host-source-sc |
-| `game.quantum` default production backend under the maintainer's amended rule of 2026-10-15 | `src/game/services/quantum_engine.cpp`, `quantum_owned.*`, [quantum](../quantum.md), [cvars](../game/cvars.md) | host-source-sc |
+| `game.quantum` default production backend | `src/game/services/quantum_engine.cpp`, `quantum_owned.*`, [quantum](../quantum.md), [cvars](../game/cvars.md) | host-source-sc |
 | Verified build 4.10.197.2878 | `include/sc_game_pack.h`, [game pack](../game-pack.md) | header in game-sc and host-source-sc |
 | Windows diagnostics: `NtQuerySection` takes `SIZE_T` lengths | `src/ipc/diagnostics_platform_win.cpp` | host-source-sc |
-| `sco-new-plugin.py` and MCP `generate_plugin_scaffold`: `--lang csharp` (NativeAOT project) and `--lang lua`; stand-in checks only, not run in game | `sdk/tools/sco-new-plugin.py`, `tools/sco-core-mcp/server.py`, [SDK README](../../sdk/README.md#generate-a-plugin-folder) | core and core-source (the C# layer it targets ships in core) |
+| `sco-new-plugin.py` and MCP `generate_plugin_scaffold`: `--lang csharp` (NativeAOT project) and `--lang lua`; stand-in checks only | `sdk/tools/sco-new-plugin.py`, `tools/sco-core-mcp/server.py`, [SDK README](../../sdk/README.md#generate-a-plugin-folder) | core and core-source (the C# layer it targets ships in core) |
 | MCP documentation at the current release with drift gates; tooling and Windows gate hardening | `tools/`, `docs/sdk-mcp-tutorial.md` | repository |
-| Guide search in the discovery MCP server: `search_guides` and `get_guide_section` behind `--extended-tools` (default six tools unchanged), over `sdk-guides.json` built by `tools/sdk_guides.py` from the public guides; not run in game | `tools/sco-core-mcp/`, [agent integration](../agent-integration.md) | `sdk-guides.json` beside `sdk-catalogue.json` in the combined kit, game-sc and host-source-sc |
-| Discovery MCP server: three opt-in development tools behind `--enable-dev-tools` and `--project-root` (`run_plugin_check`, `build_plugin_project`, `test_plugin_project`); default and extended tool lists unchanged; not run in game | `tools/sco-core-mcp/`, [agent integration](../agent-integration.md) | repository only |
+| Guide search in the discovery MCP server: `search_guides` and `get_guide_section` behind `--extended-tools` (default six tools unchanged), over `sdk-guides.json` built by `tools/sdk_guides.py` from the public guides | `tools/sco-core-mcp/`, [agent integration](../agent-integration.md) | `sdk-guides.json` beside `sdk-catalogue.json` in the combined kit, game-sc and host-source-sc |
+| Discovery MCP server: three opt-in development tools behind `--enable-dev-tools` and `--project-root` (`run_plugin_check`, `build_plugin_project`, `test_plugin_project`); default and extended tool lists unchanged | `tools/sco-core-mcp/`, [agent integration](../agent-integration.md) | repository only |
 | Game status table and engine-native index regenerated | [evidence status](../game/status.md), `sdk/native_index.json` | repository; the native index stays on the docs site and static MCP only |
 
 Profiles are the `sdk/components.json` classification; `legacy` includes `core` and `game-sc`, and
 `host-source-sc` includes `core-source`.
 
+Also in 2.4.0, added after RC1. Each ships a contract, a synthetic provider and a
+refusal path. None is enabled.
+
+- [Inventory 1.2 logical layouts](../game/inventory.md#logical-layout-observations-12)
+  copy bounded observations. The production host has no layout producer and the capability is OFF.
+- [Position-only relocation 1.1](../game/relocation-position.md) has its own capability and guards.
+  The default native adapter supplies no position callbacks.
+- [ASOP selection 1.0](../game/asop-selection.md) edits a host-owned document through an admitted
+  coordinator. It does not establish native terminal publication or observation.
+- [Widgets 1.3 numeric presentation](../../sdk/docs/widgets.md#numeric-presentation-13)
+  requires a supporting host and explicit version, extent and feature checks.
+- **`game.audio.play_once`** resolves the three Wwise entry points by exported name from the
+  client's export directory. The adapter refuses to install without a grounded witness that the audio
+  pump's shared game object is still registered when a submission lands, so nothing is posted and both
+  audio capabilities stay OFF ([audio](../game/audio.md)).
+- **`game.gamerules.read`** has a native seam that installs only with a read-only accessor for the
+  params blob and a host-owned change counter. No read-only accessor is grounded, so production
+  resolves nothing, refuses and names the first missing part, and the read stays OFF
+  ([gamerules](../game/gamerules.md)).
+- **`game.entities.lookup`** has a native point-lookup seam that installs only with the registry
+  receiver lifetime. No native adapter binds and the capability stays OFF ([entities](../game/entities.md)).
+- **`game.world.raycast_filtered`** has a native single-hit seam that installs only with the resolved
+  zone, world and grid references and a skip-request lifetime. The synthetic policy remains the only
+  behaviour and the capability stays OFF ([world](../game/world.md)).
+
+The [game status table](../game/status.md) records each of these four as OFF.
+
 ## Capabilities and evidence
 
 Four states per capability: contract (header and ABI pins), implementation, availability (default),
-evidence. Every row is "not run in game".
+evidence.
 
 | Capability | Default | Evidence level | What is true |
 |---|---|---|---|
-| `game.cvars.read` | OFF; explicit native read opt-in | `synthetic_only` | Current-build integer method identities and actual Windows adapter tested on synthetic objects; not run in game |
+| `game.cvars.read` | OFF; explicit native read opt-in | `synthetic_only` | Current-build integer method identities and actual Windows adapter tested on synthetic objects |
 | `game.cvars.write` | OFF; production native port refuses writes | `synthetic_only` | Setter/restore mechanics and actual host-stop cleanup tested; native lifetime across callbacks and leases remains ungrounded |
 | `game.actor_stats.read` | ON when its rows resolve | `sigcheck_resolved` | Real reads; rows resolve on 4.10.197.2878; units and ranges of each stat unconfirmed |
 | `game.actor_stats.write` | OFF; product switch plus fresh offline admission | `off_pending_probe` | Real adjust through the game's own function; whether local-only writes persist is unknown; nothing is restored on unload |
-| `game.gamerules.read` | OFF | `synthetic_only` | Contract and wrappers; no backend bound, so calls answer unavailable; `list_params` serves static definitions. The native seam refuses without a grounded read-only accessor and a host-owned change counter (K-40) |
+| `game.gamerules.read` | OFF | `synthetic_only` | Contract and wrappers; no backend bound, so calls answer unavailable; `list_params` serves static definitions. The native seam refuses without a grounded read-only accessor and a host-owned change counter |
 | `game.audio.triggers` | OFF | `synthetic_only` | Owner-bound trigger and playback tokens on a synthetic provider; no native or audible verification |
-| `game.audio.play_once` | OFF | `synthetic_only` | Fire-and-forget on a synthetic provider; OK means accepted only. The Wwise exports resolve, and the adapter refuses to install without a registration witness (K-39) |
+| `game.audio.play_once` | OFF | `synthetic_only` | Fire-and-forget on a synthetic provider; OK means accepted only. The Wwise exports resolve, and the adapter refuses to install without a registration witness |
 | `game.datacore_live` | OFF; explicit native read opt-in | `synthetic_only` | Guarded native reads tested on synthetic hosts; activation needs pre-engine quiescence; writes unavailable |
-| `game.entities.lookup` | OFF | `synthetic_only` | Copied lookup on a synthetic provider; the native point-lookup seam refuses without the registry receiver lifetime (K-41) |
-| `game.world.raycast_filtered` | OFF | `synthetic_only` | Filtered rays with copied results on a synthetic provider; the native single-hit seam refuses without the resolved zone, world and grid references and a skip-request lifetime (K-42) |
+| `game.entities.lookup` | OFF | `synthetic_only` | Copied lookup on a synthetic provider; the native point-lookup seam refuses without the registry receiver lifetime |
+| `game.world.raycast_filtered` | OFF | `synthetic_only` | Filtered rays with copied results on a synthetic provider; the native single-hit seam refuses without the resolved zone, world and grid references and a skip-request lifetime |
 | `game.input.registry` | ON (metadata only) | `synthetic_only` | 1,297 named actions, ids 1..1297 on 4.10.197.2878; no injection |
 | `game.events.loadout_respawn_completed` | OFF | `synthetic_only` | Event contract; native hook unresolved |
 | `game.build.info` | ON | `synthetic_only` | Pure metadata, no rows |
-| `game.events.mission_changed` | ON (maintainer ruling 2026-10-16, a product default) | `synthetic_only` | Fires only where a missions backend reports missions; none does today |
+| `game.events.mission_changed` | ON (a product default) | `synthetic_only` | Fires only where a missions backend reports missions; none does today |
 | `game.inventory.read` | OFF | `synthetic_only` | Adapter bound in production behind fail-closed signature-row and bounds checks; held OFF; synthetic objects only |
-| `game.relocation` | ON only while offline admission is fresh, rows resolve, a live player and known system exist and the product switch is on (was OFF) | `synthetic_only` | Real implementation, never run in game |
-| `game.quantum.control` | OFF (unchanged) | `synthetic_only` | Real backend that restores what it changes, never run in game |
+| `game.relocation` | ON only while offline admission is fresh, rows resolve, a live player and known system exist and the product switch is on (was OFF) | `synthetic_only` | Real implementation |
+| `game.quantum.control` | OFF (unchanged) | `synthetic_only` | Real backend that restores what it changes |
 
-## Not in this candidate
+## Not in this release
 
-- A live inventory read: the adapter exists but `game.inventory.read` is held OFF by default and has not run in game.
+- A live inventory read: the adapter exists but `game.inventory.read` is held OFF by default.
 - `p_enable_physical_quantum_travel` writes: there is no grounded route, so the quantum backend
   does not write it. Console command execution for quantum control is not offered.
 - sco.net server-host and the larger session limit are not part of the kernel.
 - Any change to a `sco_api` table.
 - Enabled native backends for filtered single-hit rays, exact class-name entity lookup, value-change
-  GameRules reads and fire-and-forget audio. Their contracts and synthetic providers ship and each
+  GameRules reads and fire-and-forget audio. Their contracts and synthetic providers ship, and each
   seam refuses without its grounded route, because the evidence does not yet show that the game
-  objects each call touches stay valid for the whole call. Scope is not enablement: the rows are in
-  the 2.4.0 release line (K-39..K-42) and every capability stays OFF.
-
-The current manifest selects native-index/status metadata for game-sc, legacy
-and host-source-sc, with source-matched generated catalogues. The
-[RC2 metadata scope record](../legal/release-decisions/2026-10-27-rc2-discovery-metadata.md)
-identifies the selected source files and profiles. Recheck that scope if the files
-or profiles change; selection does not itself publish a release.
+  objects each call touches stay valid for the whole call. Every one of these capabilities stays OFF.
 
 ## Engineering limits
 
-Nothing in this candidate has run in the game. Evidence is host-side builds and tests, synthetic
-backends, ABI pins and static `sco-sigcheck` runs against the build's `StarCitizen.exe` on disk.
-The Windows-only engine code (`relocation_engine.cpp`, `quantum_engine.cpp`, the actor-stat
-engine reads) is compiled by hosted CI, not in the local builds. Real-game, anti-cheat,
-official-network and private-LAN acceptance remain unproven.
+Evidence is host-side builds and tests, synthetic backends, ABI pins and static `sco-sigcheck` runs
+against the build's `StarCitizen.exe` on disk. The Windows-only engine code (`relocation_engine.cpp`,
+`quantum_engine.cpp`, the actor-stat engine reads) is compiled by hosted CI, not in the local builds.
+Real-game, anti-cheat, official-network and private-LAN acceptance remain unproven.
 
 ## Checking the zip
 
-Download the archives you need and `SHA256SUMS` from release candidate 1, then run the same
-checks as every release (`sha256sum --ignore-missing` skips the lines for files you did not
-download):
+Download the archives you need and `SHA256SUMS` from the `sdk-v2.4.0` release, then run
+`sha256sum --ignore-missing`, which skips the lines for files you did not download:
 
 ```sh
-gh release download sdk-v2.4.0-rc.1 -R scuba-sc/sco-core -p 'sco-sdk-2.4.0.zip' -p SHA256SUMS
+gh release download sdk-v2.4.0 -R scuba-sc/sco-core -p 'sco-sdk-2.4.0.zip' -p SHA256SUMS
 sha256sum --ignore-missing -c SHA256SUMS
 unzip -p sco-sdk-2.4.0.zip sco-sdk-2.4.0/VERSIONS.txt
 ```
-
-The final release follows the [maintainer release procedure](../legal/release-checklist.md#releasing);
-these notes do not authorize a tag or a release.

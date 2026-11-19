@@ -1,10 +1,14 @@
 # Contracts service rows
 
-The rows `game.contracts` 1.0 ([`sc_contracts.h`](../../include/sc_contracts.h)) reads. All of them already existed: no row was added for the service. They are in [`src/game/contracts_sigs.cpp`](../../src/game/contracts_sigs.cpp), and [contracts rows](contracts.md) documents each of them. The policy (thread, self and argument checks, the capability gate, `last_error`) is in [`src/game/services/contracts_service.cpp`](../../src/game/services/contracts_service.cpp). The engine read is in [`src/game/services/contracts_engine.cpp`](../../src/game/services/contracts_engine.cpp). The function is a read: the service never writes game memory, installs no hook and applies no patch.
+`game.contracts` reads the mission stream radius that sc-offline's offline contracts feature writes. The function is a read: the service never writes game memory, installs no hook and applies no patch.
 
-The service name `game.contracts` is new; nothing else in the repository used it. The host-internal capabilities `contracts.*` ([`sco/game/contracts.h`](../../include/sco/game/contracts.h)) group rows for sc-offline and are a different namespace. The offline mission backend is the separate `game.missions` service ([`sc_missions.h`](../../include/sc_missions.h)).
+Header: [`sc_contracts.h`](../../include/sc_contracts.h). Table version 1.0. Capability `game.contracts.stream_radius`, **OFF** by default; see [status](status.md). Not run in game.
 
-**The capability is OFF by default** (evidence level `off_pending_probe`, [status](status.md)). The row resolves, but nobody has run this call from a plugin in a game session. The game pack holds the capability off until such a run confirms it. While it is off, the function answers `SCO_UNAVAILABLE` with the reason in `last_error`, and the game is not touched. Nothing on this page has been verified in game.
+The row already existed; none was added for the service. It is in [`src/game/contracts_sigs.cpp`](../../src/game/contracts_sigs.cpp), and [contracts rows](contracts.md) documents each of them. The policy (thread, self and argument checks, the capability gate, `last_error`) is in [`src/game/services/contracts_service.cpp`](../../src/game/services/contracts_service.cpp). The engine read is in [`src/game/services/contracts_engine.cpp`](../../src/game/services/contracts_engine.cpp).
+
+The host-internal capabilities `contracts.*` ([`sco/game/contracts.h`](../../include/sco/game/contracts.h)) group rows for sc-offline and are a different namespace. The offline mission backend is the separate `game.missions` service ([`sc_missions.h`](../../include/sc_missions.h)).
+
+The row resolves, but nobody has run this call from a plugin in a game session, so the game pack holds the capability off. While it is off, the function answers `SCO_UNAVAILABLE` with the reason in `last_error`, and the game is not touched.
 
 | Capability | Function | Rows it reads | What it does with them |
 |---|---|---|---|

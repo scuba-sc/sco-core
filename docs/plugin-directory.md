@@ -23,8 +23,7 @@ reported and what the listing rules below require. It does not mean:
 
 The *sco-plugin-check* column is the last run of the SDK's checker as reported: **full** is
 the default run against the checker's stand-in host, **short** is the same run with
-`--short-tables` (a 1.0-extent host). The checker never starts the game; a pass is development
-evidence, not gameplay validation. *Game pack* is the Star Citizen game-pack version of that SDK
+`--short-tables` (a 1.0-extent host). *Game pack* is the Star Citizen game-pack version of that SDK
 release when the plugin uses `game.*` services, or "none". *Offline* is the author's confirmation
 that the plugin follows the offline-only [plugin rules](../sdk/docs/plugin-rules.md).
 
@@ -43,12 +42,10 @@ that the plugin follows the offline-only [plugin rules](../sdk/docs/plugin-rules
 No community plugins are listed yet. [Request a listing](#request-a-listing).
 <!-- plugin-directory:end -->
 
-First-party entries are listed because they exist publicly today. They follow the same fields,
-and their checker column shows only what is recorded here ("not recorded" where no dated run is
-recorded); each repository keeps its own status page. They are not held to listing rule 1: the
-sc-offline plugins are built in-tree with the host from a pinned sco-core commit, so their
-*SDK tested* value is that commit's SDK baseline, not a published archive (the entry's note says
-so).
+First-party entries use the same fields. The sc-offline plugins are built in-tree against a
+pinned sco-core commit, so for them *SDK tested* is that commit's SDK baseline, not a published
+archive, and listing rule 1 does not apply. "not recorded" means no dated checker run is recorded
+here; each repository keeps its own status page.
 
 ## Listing rules
 
@@ -59,12 +56,13 @@ A community plugin is listed when all of these hold:
    [Start your first plugin](getting-started.md), not an integration branch or a source checkout.
    *SDK tested* names that release.
 2. **Passes `sco-plugin-check` in full mode** on the built plugin folder, with the checker from
-   that same archive ([how to run it](../sdk/README.md#check-a-plugin)). For a native plugin, report
-   the short-mode (`--short-tables`) result too; a failure there is shown, not hidden. Short mode
-   applies to native plugins only and is recorded as "not recorded" for Lua plugins and data packs.
-   For a Lua plugin the checker only reads `plugin.ini` and checks that the entry script exists, and
-   for a data pack it only lists the files, so a Lua plugin also reports a run of the archive's
-   `tools/lua-check.lua` (and a `luac -p` syntax check) in the request.
+   that same archive ([how to run it](../sdk/README.md#check-a-plugin)). Also report:
+   - Native plugin: the short-mode (`--short-tables`) result. A failure there is shown, not hidden.
+   - Lua plugin: a run of the archive's `tools/lua-check.lua` and a `luac -p` syntax check. The
+     checker only reads `plugin.ini` and looks for the entry script.
+   - Data pack: nothing more; the checker only lists the files.
+
+   Short mode applies to native plugins only. It is "not recorded" for Lua plugins and data packs.
 3. **Follows the [plugin rules](../sdk/docs/plugin-rules.md), including offline-only.** No
    connection to Cloud Imperium Games' servers or online services, no anti-cheat bypass, no
    account or entitlement tampering, no telemetry, no personal data, and no network or shared
@@ -115,16 +113,6 @@ request is not a listing.
 
 ## Checking the index
 
-```sh
-python3 tools/plugin_directory.py --check   # validate the index; fail if the tables drifted
-python3 tools/plugin_directory.py --write   # validate the index; rewrite the tables
-python3 tools/test_plugin_directory.py
-```
-
-`--check` validates the schema (documented in the file's own `fields` object), `https`
-repository URLs, unique plugin ids and names, no reserved id (`sco`, `host`, `menu`, `game`),
-plain one-line text cells (no `|`, `<`, `>`, backtick, `[` or `]`, so no HTML, links or code spans
-reach the page), a stated SPDX licence, the language set, SDK and
-game-pack versions no newer than this checkout, checker results and dates (real, UTC, not in the
-future), the offline confirmation and the in-game field. CI runs it next to the game status
-registry check.
+Maintainers: `python3 tools/plugin_directory.py --check` validates the index and fails if the
+tables drifted. `--write` rewrites the tables. `python3 tools/test_plugin_directory.py` runs the
+tests.

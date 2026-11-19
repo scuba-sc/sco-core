@@ -14,12 +14,14 @@ const languages = [
 	['csharp', 'C#'],
 	['lua', 'Lua'],
 ];
+// Hub titles match the HUBS list in scripts/gen.py; the tests compare the two.
 const hubs = [
-	{ key: 'start', index: '01', task: 'Start', title: 'Start & SDK profiles' },
-	{ key: 'sdks', index: '02', task: 'Build', title: 'Language SDKs & cookbooks' },
-	{ key: 'reference', index: '03', task: 'Explore', title: 'Native & service reference' },
-	{ key: 'integration', index: '04', task: 'Integrate', title: 'Host integration & AI agents' },
+	{ key: 'start', index: '01', task: 'Start', title: 'Get started' },
+	{ key: 'sdks', index: '02', task: 'Build', title: 'Language SDKs' },
+	{ key: 'reference', index: '03', task: 'Explore', title: 'API reference' },
+	{ key: 'integration', index: '04', task: 'Integrate', title: 'Hosts, launchers and agents' },
 ];
+const tagline = entry.data.hero?.tagline;
 ---
 
 {
@@ -43,9 +45,14 @@ const hubs = [
 				</div>
 
 				<div class="sco-landing__copy">
-					<p class="sco-landing__eyebrow">The public SDK contract catalogue</p>
+					<p class="sco-landing__eyebrow">For plugin authors</p>
 					<h1 id="_top" data-page-title>sco-core <span>SDK</span></h1>
-					<p class="sco-landing__tagline">Public contracts for Star Citizen offline plugins</p>
+					<p class="sco-landing__tagline">{tagline}</p>
+						<p class="sco-landing__lede">
+							sco-core is the SDK under sc-offline, the Star Citizen offline mod. A plugin calls one versioned C interface
+							instead of game addresses, so a game patch is fixed once in sco-core and not in every mod. Write plugins in
+							C, C++, C# or Lua, or ship a data pack with no code.
+						</p>
 					<nav class="sco-landing__actions" aria-label="Developer tasks">
 						<a class="sco-landing__action sco-landing__action--primary" href={href('guides/getting-started')}>
 							Start a plugin <Icon name="right-arrow" class="sco-landing__arrow" size="1.125rem" />
@@ -54,7 +61,8 @@ const hubs = [
 							Browse API <Icon name="right-arrow" class="sco-landing__arrow" size="1.125rem" />
 						</a>
 					</nav>
-					<nav aria-label="Language mappings">
+					<nav aria-labelledby="sco-landing-languages">
+							<p class="sco-landing__languages-label" id="sco-landing-languages">Status per language</p>
 						<ul class="sco-landing__languages">
 							{languages.map(([key, label]) => <li><a href={href(`languages/${key}`)}>{label}</a></li>)}
 						</ul>
@@ -80,8 +88,7 @@ const hubs = [
 					</ul>
 				</nav>
 				<div class="sco-landing__footer">
-					<p>Independent project · Offline use only</p>
-					<p>One interface. Your next plugin.</p>
+					<p>Independent project, not affiliated with Cloud Imperium Games. Offline use only.</p>
 				</div>
 			</div>
 		</section>

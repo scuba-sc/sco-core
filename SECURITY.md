@@ -4,30 +4,29 @@
 
 | Version | Security support |
 |---|---|
-| SDK 2.4.0 (release candidate 1, `sdk-v2.4.0-rc.1`; the final `sdk-v2.4.0` when published) / plugin ABI 1.x | Supported release line for security reports and fixes. The current frozen plugin ABI is 1.1. |
+| SDK 2.4.1 and 2.4.0 / plugin ABI 1.x | Supported release line for security reports and fixes. The current frozen plugin ABI is 1.1. |
 | SDK 2.3.0 and older | No separate maintenance commitment; their release downloads were withdrawn. Report issues that also affect the supported line. |
 
 SDK packaging versions and plugin ABI versions are different coordinates; support
 does not certify every game build or game-service behavior. See the
-[SDK 2.4.0 release notes](docs/releases/sdk-v2.4.0.md) and
+[SDK 2.4.1 release notes](docs/releases/sdk-v2.4.1.md) and
 [ABI compatibility rules](docs/api-v1.md#compatibility).
 
 ## Reporting a vulnerability privately
 
 Private vulnerability reporting is **enabled** (verified 2026-10-12).
 Submit a [private vulnerability report for scuba-sc/sco-core](https://github.com/scuba-sc/sco-core/security/advisories/new)
-through GitHub; the maintainer coordinates reports and disclosure through
-[GitHub Security Advisories](https://github.com/scuba-sc/sco-core/security/advisories).
+through GitHub.
 Do not put exploit details, credentials, personal data, proprietary files or game
 dumps in public issues/PRs. If GitHub's private intake is temporarily unavailable,
 wait for it to be restored rather than publishing sensitive details publicly.
-This documentation records the enabled setting; this PR does not change it.
 
 Include the affected release/commit, platform, component, minimal synthetic
 reproduction, impact and any suggested mitigation. Prefer project-authored
 fixtures: no proprietary executable, memory/asset dump, personal identifier or
-live secret. The maintainer coordinates a fix and disclosure through GitHub;
-there is no promised response time or automatic bounty.
+live secret. The maintainer coordinates a fix and disclosure through
+[GitHub Security Advisories](https://github.com/scuba-sc/sco-core/security/advisories).
+There is no promised response time or automatic bounty.
 
 ## Scope and trust model
 
@@ -52,7 +51,8 @@ restrictions apply to native plugins. An SDK service name, read-only MCP
 annotation or retained DLL is not proof of safe execution or recovery.
 
 The [runtime MCP design](docs/design/runtime-mcp.md) has default-off host policy and
-a protected Windows collector adapter. The existing discovery server remains catalogue-only.
+a protected Windows collector adapter. The discovery server reads the SDK catalogue and guides and has no game access. Its three development
+tools, which run build and check programs you configure, are off unless you pass `--project-root`.
 Runtime admission requires
 explicit host/client opt-in, positive offline policy, authenticated same-PC IPC,
 metadata minimization and a verified protected audit boundary. No guarantee against

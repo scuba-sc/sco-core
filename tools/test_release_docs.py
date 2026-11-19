@@ -133,6 +133,40 @@ class RenderTests(Fixture):
         self.run_main("--write")
         self.assertEqual(self.read("README.md"), once)
 
+    def test_candidate_designation_points_readers_at_the_candidate_page(self):
+        self.write("sdk/CANDIDATE_TAG", "# Candidate target.\nsdk-v2.4.1-rc.1\n")
+        self.write("README.md", region("current-release") + region("download-core") + region("kit-download-sh"))
+        self.assertEqual(self.run_main("--write")[0], 0)
+        text = self.read("README.md")
+        self.assertIn("SDK **2.4.1** (release candidate 1, a pre-release for testing; the final release follows) uses", text)
+        self.assertIn("[`sdk-v2.4.1-rc.1` release page](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.1-rc.1)", text)
+        self.assertIn("blob/sdk-v2.4.1-rc.1/docs/releases/sdk-v2.4.1.md", text)
+        self.assertIn("gh release download sdk-v2.4.1-rc.1 -R scuba-sc/sco-core -p sco-sdk-core-2.4.1.zip", text)
+        self.assertNotIn("releases/tag/sdk-v2.4.1)", text, "the final release page must not be linked")
+        self.assertNotIn("download sdk-v2.4.1 ", text)
+        self.assertEqual(self.run_main("--check")[0], 0)
+        values = rd.coordinates()
+        self.assertEqual(values["tag"], "sdk-v2.4.1", "tag stays the final tag")
+        self.assertEqual(values["download_tag"], "sdk-v2.4.1-rc.1")
+        self.assertEqual(gate.base_tag(values["download_tag"]), values["tag"])
+
+    def test_final_designation_renders_the_final_page(self):
+        self.write("README.md", region("current-release"))
+        self.run_main("--write")
+        text = self.read("README.md")
+        self.assertNotIn("release candidate", text)
+        self.assertIn("[`sdk-v2.4.1` release page](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.1)", text)
+        values = rd.coordinates()
+        self.assertEqual((values["download_tag"], values["candidate_label"]), ("sdk-v2.4.1", ""))
+
+    def test_candidate_designation_for_another_version_refuses(self):
+        for designation in ("sdk-v2.4.0-rc.1", "sdk-v2.4.1-rc.0", "sdk-v2.4.1-beta.1", "sdk-v2.4.2"):
+            self.write("sdk/CANDIDATE_TAG", designation + "\n")
+            self.write("README.md", region("current-release"))
+            code, _, err = self.run_main("--check")
+            self.assertEqual(code, 1, designation)
+            self.assertIn("sdk/CANDIDATE_TAG", err)
+
     def test_crlf_files_stay_crlf_and_lf_files_stay_lf(self):
         self.write("README.md", "# T\n\n" + region("download-combined") + "\nTail.\n", "\r\n")
         self.write("docs/guide.md", "# G\n\n" + region("download-core") + "\nTail.\n")

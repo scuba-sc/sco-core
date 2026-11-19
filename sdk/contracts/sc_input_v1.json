@@ -23,7 +23,7 @@
       "absent_capability": "game.input.registry is ON while the static registry is published; this does not attest live dispatch.",
       "cleanup": "StopInput withdraws the service and rejects calls through a retained table.",
       "limitations": [
-        "Ids and names come from the 4.10.197.2878 build's own action registry, re-derived statically (F-4.10.197.2878-050); ids are build-scoped. No live binding or input injection.",
+        "Ids and names come from the 4.10.197.2878 build's own action registry, re-derived statically; ids are build-scoped. No live binding or input injection.",
         "The 1,297 named actions occupy ids 1..1297 with no gaps or aliases; 0 and ids above 1297 are NOT_FOUND.",
         "Not run in game.",
         "The C++ typed wrapper is a consumer convenience over this read-only service; C#/Lua wrappers are unsupported. It does not add or verify an in-game provider, and it does not dispatch input."
@@ -103,7 +103,7 @@
       "absent_capability": "game.input.registry is ON while the static registry is published; this does not attest live dispatch.",
       "cleanup": "StopInput withdraws the service and rejects calls through a retained table.",
       "limitations": [
-        "Ids and names come from the 4.10.197.2878 build's own action registry, re-derived statically (F-4.10.197.2878-050); ids are build-scoped. No live binding or input injection.",
+        "Ids and names come from the 4.10.197.2878 build's own action registry, re-derived statically; ids are build-scoped. No live binding or input injection.",
         "The 1,297 named actions occupy ids 1..1297 with no gaps or aliases; 0 and ids above 1297 are NOT_FOUND.",
         "Not run in game.",
         "The C++ typed wrapper is a consumer convenience over this read-only service; C#/Lua wrappers are unsupported. It does not add or verify an in-game provider, and it does not dispatch input."
@@ -183,7 +183,7 @@
       "absent_capability": "game.input.registry is ON while the static registry is published; this does not attest live dispatch.",
       "cleanup": "StopInput withdraws the service and rejects calls through a retained table.",
       "limitations": [
-        "Ids and names come from the 4.10.197.2878 build's own action registry, re-derived statically (F-4.10.197.2878-050); ids are build-scoped. No live binding or input injection.",
+        "Ids and names come from the 4.10.197.2878 build's own action registry, re-derived statically; ids are build-scoped. No live binding or input injection.",
         "The 1,297 named actions occupy ids 1..1297 with no gaps or aliases; 0 and ids above 1297 are NOT_FOUND.",
         "Not run in game.",
         "The C++ typed wrapper is a consumer convenience over this read-only service; C#/Lua wrappers are unsupported. It does not add or verify an in-game provider, and it does not dispatch input."

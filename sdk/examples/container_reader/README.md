@@ -3,14 +3,13 @@
 This C plugin reads `game.inventory.contents` 1.0 through public SDK headers.
 It registers `container_reader.read <session-container-id>`, re-queries the service
 for each call and prints counts, generation and flags only after `SCO_OK`. The
-example is the complete runnable code; `container_reader.c` is also discoverable
-from the current-source catalogue's `sc_container_contents_v1.snapshot` record.
+`container_reader.c` is also discoverable from the current-source catalogue's
+`sc_container_contents_v1.snapshot` record.
 
 Use a combined plugin kit, or compose the exact matching `game-sc` overlay over
 its `core` kit. Check the archive checksums and `COMPATIBILITY.json` first. A
 core-only kit does not include this header or example. For a checkout, use its
-`sdk/` directory instead. Source changes do not update an already published kit:
-RC2 contains this example but its catalogue does not list it in `get_example`.
+`sdk/` directory instead. Source changes do not update an already published kit.
 
 From the kit root, with CMake 3.20+ and a 64-bit C/C++ toolchain, run in a POSIX
 shell (on Windows use a developer shell and add `-A x64` to both configure
@@ -62,5 +61,5 @@ output as data. The complete contract and language limits are in
 The game-pack default has no production native container adapter and reports the
 capability OFF; table discovery alone does not make a read ready. A host may supply
 a provider, and scuba-engine has a portable synthetic provider and test fixtures;
-fixture IDs and results are not game data. Passing the checker or a synthetic test
-does not establish Windows host or in-game behavior.
+fixture IDs and results are not game data. Not run in game.
+See [game capability status](../../../docs/game/status.md).

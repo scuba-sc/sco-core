@@ -1,4 +1,4 @@
-# Owned prefab spawning (G4 / #125)
+# Owned prefab spawning (#125)
 
 ## Boundary and implementation
 
@@ -18,7 +18,7 @@ SEH cannot guarantee recovery from a partially executing engine spawn with no
 returned ID. Outstanding-batch cleanup on an attribute fault and ID recovery
 when spawn faults before returning remain unverified native fault cases.
 
-`kPrefabConfirmed = true`: the owner approved removing the R1 hard-disable.
+`kPrefabConfirmed = true`: the maintainer approved removing the earlier hard-disable.
 Operation and new row dereferences are enabled by default, with existing row,
 startup/cleanup readiness and fault checks retained. This approval does not
 certify Windows/SEH or streamed cleanup. Publication is discovery, not capability;
@@ -66,13 +66,13 @@ failed reopen. C# and sandboxed Lua: unsupported. No parity by command fallback.
 ABI pins cover C11, C++20, short enums and Windows x64 header compilation.
 `tests/test_prefabs.cpp`: canonical/malformed/boundary paths, finite poses, quotas,
 provider absence/refusal/fault-ID cleanup ownership, partial/null C++ tails.
-G9's actual host/runtime fake-provider fixture proves retained/foreign/seat
+The owned-removal host and runtime fake-provider fixture proves retained/foreign/seat
 refusals and release semantics separately; no combined real engine claim.
 
-## Owner decision and owed acceptance
+## Maintainer decision and owed acceptance
 
-R1 enablement is owner-approved; the narrow 511-byte/128-owner limits and existing
+Enabling by default is maintainer-approved; the narrow 511-byte/128-owner limits and existing
 retained-only-while-loaded placement policy are unchanged. Still owed: MSVC/SEH
 build, canonical content resolution, late materialization, cancellation before
 first stream, preview/unload cleanup, native attribute/spawn/batch fault cases
-and missing-capability refusal. **Windows/SEH/gameplay are NOT VERIFIED.**
+and missing-capability refusal. For Windows, SEH and gameplay evidence see [game capability status](../game/status.md).

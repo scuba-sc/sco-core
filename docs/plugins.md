@@ -4,7 +4,7 @@
 
 Hosts may opt into the bounded historical load record at [`data/plugin-startup.json`](plugin-startup-snapshot.md). It is written only by a qualified completed plugin load pass, is not live/authenticated status, and is refused by the strict owned-start path.
 
-Published plugins live in their authors' own repositories; the [community plugin directory](plugin-directory.md) lists them with the SDK release each one reports and its last recorded `sco-plugin-check` result. A listing is not an endorsement and is not verified in game.
+Published plugins are listed in the [community plugin directory](plugin-directory.md).
 
 ## The folder
 
@@ -33,10 +33,24 @@ requires = teleport, spawn.ship   ; optional: capabilities, services, plugin ids
 
 | State | When |
 |---|---|
-| `off` | The caller invoked `Discover` with `options.enabled` false. A host that skips discovery has no external rows to show |
+| `off` | The caller invoked `Discover` with `options.enabled` false |
 | `disabled` | `data/plugins/<id>/disabled` exists (a file or a folder) |
-| `refused: <reason>` | `the folder name 'sco' is reserved for the host` (`sco` is the host's own id, under which it publishes [host-owned services](api-v1.md#host-owned-services); `host`, `menu` and `game` likewise; checked first, even for a disabled folder), `plugin.ini: <parse error>`, `id 'x' does not match folder 'y'`, `id 'x' belongs to a built-in plugin` (a folder whose id is one of the host's built-ins, whatever its kind; checked before the api and entry checks, so a folder that may not load at all never has its entry opened; a disabled folder stays `disabled` and appends the same reason to `disabled file`), `built for api M.m` (major differs or minor newer than the host), `entry 'x' not found`, `missing capability 'x'`, `requires service x.y: no plugin provides it`, `requires cycle: a -> b -> a`, `requires b: plugin 'b' is refused (<reason>)` (see [Load order](#load-order-and-requires)), `too many plugins` (over 128) |
+| `refused: <reason>` | A check failed; the reasons are listed below the table |
 | `ready` | Passed; the loader, the Lua runtime or the content index takes it |
+
+The `refused` reasons, in the order the checks run:
+
+- `the folder name 'sco' is reserved for the host`: `sco` is the host's own id, under which it publishes [host-owned services](api-v1.md#host-owned-services). `host`, `menu` and `game` are refused the same way. This is checked first, even for a disabled folder.
+- `plugin.ini: <parse error>`.
+- `id 'x' does not match folder 'y'`.
+- `id 'x' belongs to a built-in plugin`: the id is one of the host's built-ins, whatever the plugin's kind. This is checked before the api and entry checks, so a folder that may not load never has its entry opened. A disabled folder stays `disabled` and appends the same reason to `disabled file`.
+- `built for api M.m`: the major differs or the minor is newer than the host's.
+- `entry 'x' not found`.
+- `missing capability 'x'`.
+- `requires service x.y: no plugin provides it`.
+- `requires cycle: a -> b -> a`.
+- `requires b: plugin 'b' is refused (<reason>)`; see [Load order](#load-order-and-requires).
+- `too many plugins`: more than 128.
 
 ## Load order and requires
 
@@ -69,7 +83,7 @@ The same check runs again right before each plugin loads (`UnmetRequires`): the 
 1. `LoadLibraryExW(entry, LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR | LOAD_LIBRARY_SEARCH_SYSTEM32)`: the plugin's own dependencies come from its folder or System32, never the game folder or `PATH`.
 2. Resolves `sco_plugin_query`, `sco_plugin_load` and `sco_plugin_unload`; any missing refuses the plugin.
 3. `sco_plugin_query()` must return info whose `size` covers `author`, with `api_major` equal to the host's, `api_minor` not newer, and `name` equal to the id.
-4. `sco_plugin_load(api, self)`; anything but `SCO_OK` refuses the plugin. Cleanup atomically closes query/publication admission before release. If a table was handed out during load, backing state, exports and code are retained instead; host-managed callouts are suppressed.
+4. `sco_plugin_load(api, self)`; anything but `SCO_OK` refuses the plugin. Cleanup closes query and publication admission atomically before release. If a table was handed out during load, backing state, exports and code are retained instead, and host-managed callouts are suppressed.
 
 `self` is the host's owner handle for the plugin; the host never reuses one. A refusal closes the DLL only when no table was handed out and owner release succeeded.
 
@@ -90,7 +104,7 @@ sco::plugins::ContainCallouts(&list);   // every plugin callout -> CallPlugin(pl
 
 - Lookup and scheduling are withdrawn first: the owner cannot publish new services or register new host work; its services, subscriptions, commands, raw handlers and queued work are removed. Host-managed callouts reject the owner, including callbacks already present in a dispatch snapshot. Already-running calls are not interrupted.
 - If a service table of the provider was handed out, the plugin becomes **`faulted` / restart-required**. The host does **not** call `sco_plugin_unload`, `Release(self)` or the resource release hooks; provider state and its module are retained. This applies to built-in providers too (their code is already mapped). The state is terminal for the instance, including at `UnloadAll`; restart the game, do not attempt a reload.
-- Without a handed-out table, host resource hooks still run and the plugin becomes `crashed`; it is never called again. This cleanup is not proof that the native process is healthy; restart after a native fault.
+- Without a handed-out table, host resource hooks still run and the plugin becomes `crashed`; it is never called again.
 - a command that faulted answers `SCO_CRASHED` (with an empty reply) to whoever invoked it;
 - `mod.log`, the status message and `Describe`/`LogReport` expose a faulted provider with `restart the game`; `sco.reload` refuses it with the same instruction. A non-provider still logs `[plugin] hello crashed in tick (0xC0000005) and was disabled`;
 - the DLL stays mapped, because its code may still be on a stack.
@@ -98,7 +112,7 @@ sco::plugins::ContainCallouts(&list);   // every plugin callout -> CallPlugin(pl
 **Who is blamed.** The guard's filter records which module each frame of the faulting thread was in (Windows, x64: `RtlLookupFunctionEntry` + `RtlVirtualUnwind` from the exception's context, at most 32 frames, up to the guard's own frame; `GetModuleHandleExW` with `FROM_ADDRESS | UNCHANGED_REFCOUNT` per instruction pointer). `CallPlugin` takes the first frame, innermost first, that lies in a plugin's DLL:
 
 - it is the callout's owner, or there is none (the fault is in game or host code), or the owner is a built-in (built-ins share the product's module, so a fault in one is a product bug and keeps owner blame): the owner is marked crashed, as above;
-- it is another plugin, typically a provider whose service the owner called through `query_service`: that provider is quiesced as above and the owner stays loaded. Its callout did not complete, so a command still answers `SCO_CRASHED`; keeping the caller loaded does **not** certify its state or the process as healthy. A provider already faulted, crashed or unloaded (its DLL is kept mapped) is only logged (`faulted again in a service call from ...`). For an attributed fault caught inside an off-thread host guard, lookup and host scheduling are quiesced immediately without resource teardown; the `Plugin` state/reason update is queued to the game thread. If quiescence or queuing fails, the host logs the failure and stops the process rather than leaving the provider enabled.
+- it is another plugin, typically a provider whose service the owner called through `query_service`: that provider is quiesced as above and the owner stays loaded. Its callout did not complete, so a command still answers `SCO_CRASHED`; the caller stays loaded, but its state is not known to be sound. A provider already faulted, crashed or unloaded (its DLL is kept mapped) is only logged (`faulted again in a service call from ...`). For an attributed fault caught inside an off-thread host guard, lookup and host scheduling are quiesced immediately without resource teardown; the `Plugin` state/reason update is queued to the game thread. If quiescence or queuing fails, the host logs the failure and stops the process rather than leaving the provider enabled.
 
 A stack overflow leaves too little stack to walk and is blamed on the owner; faults in `query`, `load`, `unload` and the script runtime keep owner blame. Off Windows (host tests) the default guard doesn't contain faults, and a guard installed with `SetCallGuard` may report the module with an internal hook; without one the owner is blamed.
 
@@ -129,9 +143,9 @@ In a host that supports it, `sco::app::Reload(id)` can reload the target **and e
 
 `Ok` means every group member is loaded again; each successful member logs `reloaded`. `BadArg` refuses a built-in/data target. `Failed` with nothing changed covers a target that is not loaded, a busy member (including a dependent asking to reload its provider from its own command), another reload already running, a non-reloadable dependent, unmet requirements, a copy failure, or a service table in use. The service-lifetime refusal remains `provides a service in use; restart the game to reload it`: it applies to **any** group member, before `sco_plugin_unload` or `Release`. Loaded providers remain intact and their services stay available after refusal. A faulted provider instead stays retained with lookup withdrawn; it cannot be reloaded and the refusal instructs a game restart. Failures after teardown are reported in `why` and `mod.log`; an unload/load fault leaves that member `crashed` or restart-required `faulted`, load refusal leaves it `refused`, and dependent failures name the unavailable provider. Two reloads in one tick run sequentially.
 
-The atomic gate prevents administrative teardown under a handed-out table, including a concurrent first lookup versus unload. Cascading dependents does not revoke a raw table pointer or make a handed-out provider reloadable. Neither refusal nor fault retention proves safe calls across a fault, provider-managed withdrawal/replacement or shutdown. A Faulted provider has no supported in-process recovery. See the lifetime audit for those separate limits. Lua plugins and natives with no handed-out tables can participate in the cascade; Lua itself cannot provide tables.
+The atomic gate prevents administrative teardown under a handed-out table, including a concurrent first lookup versus unload. Cascading dependents does not revoke a raw table pointer or make a handed-out provider reloadable. A Faulted provider has no supported in-process recovery. The lifetime audit lists the remaining limits. Lua plugins and natives with no handed-out tables can participate in the cascade; Lua itself cannot provide tables.
 
-Limits: handles are never reused and `host::kMaxPlugins` (256) counts every handle for the life of the process, reloads included; at the limit the plugin is left `unloaded`. Command slots are recycled on release (L5), so reloads do not use them up; plugin handles are not recycled, so the 256 are the per-session limit on loads plus reloads (and raw handler records, 1,024 registrations for the process, are not recycled either). Copies are deleted when the next reload (or `Stop`) can; on Windows a copy that is still mapped stays, and `Start` removes every `.reload-*` file of a native plugin folder before it loads, so a run that died leaves nothing behind. The plugin's own state (a file it wrote, its `sco.storage` database) survives; anything it kept in memory does not.
+Limits: handles are never reused and `host::kMaxPlugins` (256) counts every handle for the life of the process, reloads included; at the limit the plugin is left `unloaded`. Command slots are recycled on release, so reloads do not use them up; plugin handles are not recycled, so the 256 are the per-session limit on loads plus reloads (and raw handler records, 1,024 registrations for the process, are not recycled either). Copies are deleted when the next reload (or `Stop`) can; on Windows a copy that is still mapped stays, and `Start` removes every `.reload-*` file of a native plugin folder before it loads, so a run that died leaves nothing behind. The plugin's own state (a file it wrote, its `sco.storage` database) survives; anything it kept in memory does not.
 
 ## Lua plugins
 
@@ -223,13 +237,12 @@ pages; it does not certify native recovery or authorize reload.
 
 `Capture` keys use host-assigned identities, never plugin prefixes. Structured
 host events are the default; free-form input requires a separate consent bit and
-uncertain text is withheld and counted. Step 1 provides the host-side buffer only:
-it does not install capture in products, tail `mod.log`, change the ordinary logging
-sink, or expose an endpoint. Capture loss does not change plugin/capability state.
+uncertain text is withheld and counted. Only the host-side buffer exists: no
+product installs capture, nothing tails `mod.log`, the ordinary logging sink is
+unchanged and no endpoint exposes it. Capture loss does not change plugin/capability state.
 See [log privacy](log-privacy.md) for limits and what is deliberately not implemented.
 
 ## Tests
 
-- `tools/test.sh` runs `tests/test_plugins.cpp` on the host under ASan+UBSan: manifest rules, discovery over `tests/fixtures/plugins/tree/`, the content index, and the loader against real shared libraries built from `tests/fixtures/plugins/native/fake_plugin.c`, one per behavior. Off Windows the crash guard is a signal handler the test installs. `TestServices` (provider `svc_provider`, caller `svc_caller`, three more providers) covers service blame and the pin: the provider is Faulted/restart-required and the caller loaded, the command answers `crashed`; release hooks/unload/close do not run for a handed-out provider, further ticks/tasks do not run and new registrations are refused; a stale table into an already faulted provider; an owner fault staying the owner's; the same inside a nested callout; the off-thread verdict; and a counting `ModuleOps.close` for a handed-out and a plain provider. The frame walk itself only runs where the real `__try` guard does: off Windows the test's guard reports the faulting module, so the blame logic is covered there and the walk on Windows (CI's `windows` job; `tools/test-win.sh` under Wine).
-- `tools/test.sh` also runs `tests/test_app.cpp`: built-in plugins through the loader (the same checks, crash containment, built-ins unloaded last) and through `sco::app` with the fake plugins, `greeter` and `travel_pack`; the `TestReload` fault case checks lookup withdrawal, stopped ticks, retained module through Stop, faulted reports and restart-required command refusal; then `sco-host-sim` over the SDK examples.
-- `tools/test-win.sh` builds the same tests and plugins for Windows with mingw (the guard with clang, since GCC has no `__try`) and runs them under Wine: the real `LoadLibraryExW` and SEH path.
+- `tools/test.sh` runs `tests/test_plugins.cpp` and `tests/test_app.cpp` under ASan+UBSan: manifest rules, discovery over `tests/fixtures/plugins/tree/`, the content index, the loader against shared libraries built from `tests/fixtures/plugins/native/fake_plugin.c`, crash blame, built-ins, reload, then `sco-host-sim` over the SDK examples. Off Windows the crash guard is a signal handler the test installs, so the blame logic is covered there and the stack walk only on Windows.
+- `tools/test-win.sh` builds the same tests for Windows with mingw (the guard with clang, since GCC has no `__try`) and runs them under Wine, which exercises the real `LoadLibraryExW` and SEH path.

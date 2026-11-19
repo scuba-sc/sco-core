@@ -1,6 +1,10 @@
 # Creative rows
 
-The addresses `game.creative` uses, all of them rows that already existed for sc-offline's cheats: no row was added for the service. Rows are in [`src/game/actors_sigs.cpp`](../../src/game/actors_sigs.cpp) and [`src/game/features_sigs.cpp`](../../src/game/features_sigs.cpp), the accessor constants (fly speed displacement, god mode offsets, magazine fields) in [`include/sco/game/actors.h`](../../include/sco/game/actors.h). Checked against 4.10.196.36804. [`src/game/services/creative.cpp`](../../src/game/services/creative.cpp) is sc-offline's `spawner.cpp` (`ProcessNoclip`, `ProcessGodMode`) and `ammo.cpp`, moved with the same offsets and slots.
+`game.creative` gives a plugin the local player's god mode, fly (noclip) and fly speed, and infinite ammo for carried weapons and for the ship the player is aboard. This page lists the rows it reads. All of them already existed for sc-offline's cheats.
+
+Header: [`sc_creative.h`](../../include/sc_creative.h). Table version 1.0. Capabilities `game.creative.god_mode`, `game.creative.fly`, `game.creative.ammo` and `game.creative.ship_ammo`, all ON; see [status](status.md). Not run in game.
+
+Rows are in [`src/game/actors_sigs.cpp`](../../src/game/actors_sigs.cpp) and [`src/game/features_sigs.cpp`](../../src/game/features_sigs.cpp), the accessor constants (fly speed displacement, god mode offsets, magazine fields) in [`include/sco/game/actors.h`](../../include/sco/game/actors.h). The rows resolve on 4.10.196.36804 and 4.10.200.58746 ([verified builds](../game-pack.md#verified-game-builds)). [`src/game/services/creative.cpp`](../../src/game/services/creative.cpp) is sc-offline's `spawner.cpp` (`ProcessNoclip`, `ProcessGodMode`) and `ammo.cpp`, moved with the same offsets and slots.
 
 | Feature | Rows it reads | What it does with them |
 |---|---|---|
@@ -10,4 +14,4 @@ The addresses `game.creative` uses, all of them rows that already existed for sc
 | Infinite ammo | `teleport.entity_system`, `spawn.handle_to_id`, `ammo.set_ammo` | A `sco::hook` detour on the magazine setter (14 stolen bytes, pinned by the row's checks): a decrease on a container within four parents of your actor is raised to the container's maximum |
 | Infinite ship ammo | the ammo rows and `spawn.landing_helper` | The same detour, for containers within eight parents of the ship you're aboard, plus a direct top-up of the ship's `AmmoContainerComponent`s every 500 ms |
 
-Capabilities: `game.creative.god_mode`, `game.creative.fly`, `game.creative.ammo`, `game.creative.ship_ammo`, each set from its rows with `caps::SetFromSignatures` (a feature is also off when the `teleport.*` reads aren't ready). What the service does not carry over from sc-offline: ship ammo for the Crew & seats target ship (the product's own selection, not reachable from a plugin). [API](../api-v1.md#gamecreative-10-game-pack), [game services](../game-services.md).
+Each capability is set from its rows with `caps::SetFromSignatures` (a feature is also off when the `teleport.*` reads aren't ready). What the service does not carry over from sc-offline: ship ammo for the Crew & seats target ship (the product's own selection, not reachable from a plugin). [API](../api-v1.md#gamecreative-10-game-pack), [game services](../game-services.md).

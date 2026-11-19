@@ -11,7 +11,7 @@ export default defineConfig({
   trailingSlash: 'always',
   integrations: [starlight({
     title: 'sco-core SDK',
-    description: 'Public SDK contracts and engineering guides',
+    description: 'SDK documentation for writing Star Citizen offline mods on sco-core: plugin guides, service contracts and release downloads.',
     customCss: ['./src/styles/portal.css'],
     components: { Search: './src/components/Search.astro', Hero: './src/components/LandingHero.astro' },
     sidebar,

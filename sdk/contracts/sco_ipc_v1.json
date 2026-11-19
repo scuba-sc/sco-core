@@ -13,14 +13,14 @@
       "member_extent": 16,
       "table_size": 80,
       "since": "`size >= 16`; 1.0",
-      "purpose": "Creates (or, if the peer still holds it, re-opens) Local\\SCO_&lt;plugin id&gt;.&lt;name&gt; with bytes bytes and lays out the sc_ipc_hdr with the bridge's layout_id / layout_version and a new epoch (rings must be laid out again). SCO_BAD_ARG: a bad name or size, or a channel of that name already open. SCO_TOO_MANY: the channel or byte quota is full. SCO_FAILED: the OS refused, or an existing mapping of that name is smaller or another user's. New Windows mappings receive a current-user-only DACL; reuse checks ownership and size, not the existing DACL, so access by other accounts is not excluded on reuse.",
-      "buffer_contract": "`sco_result (*create)(sco_plugin* self, const char* name, uint64_t bytes, uint32_t layout_id, uint32_t layout_version, uint64_t* out_channel);`<br>Creates (or, if the peer still holds it, re-opens) Local\\SCO_&lt;plugin id&gt;.&lt;name&gt; with bytes bytes and lays out the sc_ipc_hdr with the bridge's layout_id / layout_version and a new epoch (rings must be laid out again). SCO_BAD_ARG: a bad name or size, or a channel of that name already open. SCO_TOO_MANY: the channel or byte quota is full. SCO_FAILED: the OS refused, or an existing mapping of that name is smaller or another user's. New Windows mappings receive a current-user-only DACL; reuse checks ownership and size, not the existing DACL, so access by other accounts is not excluded on reuse.",
+      "purpose": "Creates (or, if the peer still holds it, re-opens) Local\\SCO_&lt;plugin id&gt;.&lt;name&gt; with bytes bytes and lays out the sc_ipc_hdr with the bridge's layout_id / layout_version and a new epoch (rings must be laid out again). New Windows mappings receive a current-user-only DACL; reuse checks ownership and size, not the existing DACL, so access by other accounts is not excluded on reuse.",
+      "buffer_contract": "`sco_result (*create)(sco_plugin* self, const char* name, uint64_t bytes, uint32_t layout_id, uint32_t layout_version, uint64_t* out_channel);`<br>Creates (or, if the peer still holds it, re-opens) Local\\SCO_&lt;plugin id&gt;.&lt;name&gt; with bytes bytes and lays out the sc_ipc_hdr with the bridge's layout_id / layout_version and a new epoch (rings must be laid out again). New Windows mappings receive a current-user-only DACL; reuse checks ownership and size, not the existing DACL, so access by other accounts is not excluded on reuse.",
       "ownership": "Host owns mapping/channel; data copied via host staging buffers. No allocation transfer except borrowed view, never free it.",
       "thread_affinity": "Any thread; per-channel lock during copy. Recursive reentrancy unspecified.",
       "callback_context": "unspecified",
       "reentrancy": "unspecified",
-      "results": "Absent table: query_service NOT_FOUND; stopped: UNAVAILABLE; invalid/released self: BAD_ARG; unknown/non-owned channel: NOT_FOUND; allocation exceptions: TOO_MANY. Additional failures/output state unspecified unless described in the buffer contract.",
-      "absent_capability": "Absent table: query_service NOT_FOUND",
+      "results": "Absent table: query_service NOT_FOUND; stopped: UNAVAILABLE; invalid/released self: BAD_ARG; unknown/non-owned channel: NOT_FOUND; allocation exceptions: TOO_MANY. Result codes: SCO_BAD_ARG: a bad name or size, or a channel of that name already open. SCO_TOO_MANY: the channel or byte quota is full. SCO_FAILED: the OS refused, or an existing mapping of that name is smaller or another user's. Additional failures/output state unspecified unless described here or in the buffer contract.",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND.",
       "cleanup": "No in-flight cancellation; close/ordinary unload/non-retained crash cleanup marks closed and unmaps channels. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls.",
       "language_mappings": {
         "c": {
@@ -76,10 +76,7 @@
         "tests/test_ipc.cpp",
         "tools/test.sh"
       ],
-      "limitations": [
-        "Recursive reentrancy unspecified.",
-        "Additional failures/output state unspecified unless described in the buffer contract."
-      ]
+      "limitations": []
     },
     {
       "id": "sco-ipc-v1-peer-age-ms",
@@ -100,7 +97,7 @@
       "callback_context": "unspecified",
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND; stopped: UNAVAILABLE; invalid/released self: BAD_ARG; unknown/non-owned channel: NOT_FOUND; allocation exceptions: TOO_MANY. Additional failures/output state unspecified unless described in the buffer contract.",
-      "absent_capability": "Absent table: query_service NOT_FOUND",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND.",
       "cleanup": "No in-flight cancellation; close/ordinary unload/non-retained crash cleanup marks closed and unmaps channels. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls.",
       "language_mappings": {
         "c": {
@@ -156,10 +153,7 @@
         "tests/test_ipc.cpp",
         "tools/test.sh"
       ],
-      "limitations": [
-        "Recursive reentrancy unspecified.",
-        "Additional failures/output state unspecified unless described in the buffer contract."
-      ]
+      "limitations": []
     },
     {
       "id": "sco-ipc-v1-block-write",
@@ -180,7 +174,7 @@
       "callback_context": "unspecified",
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND; stopped: UNAVAILABLE; invalid/released self: BAD_ARG; unknown/non-owned channel: NOT_FOUND; allocation exceptions: TOO_MANY. Additional failures/output state unspecified unless described in the buffer contract.",
-      "absent_capability": "Absent table: query_service NOT_FOUND",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND.",
       "cleanup": "No in-flight cancellation; close/ordinary unload/non-retained crash cleanup marks closed and unmaps channels. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls.",
       "language_mappings": {
         "c": {
@@ -236,10 +230,7 @@
         "tests/test_ipc.cpp",
         "tools/test.sh"
       ],
-      "limitations": [
-        "Recursive reentrancy unspecified.",
-        "Additional failures/output state unspecified unless described in the buffer contract."
-      ]
+      "limitations": []
     },
     {
       "id": "sco-ipc-v1-block-read",
@@ -260,7 +251,7 @@
       "callback_context": "unspecified",
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND; stopped: UNAVAILABLE; invalid/released self: BAD_ARG; unknown/non-owned channel: NOT_FOUND; allocation exceptions: TOO_MANY. Additional failures/output state unspecified unless described in the buffer contract.",
-      "absent_capability": "Absent table: query_service NOT_FOUND",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND.",
       "cleanup": "No in-flight cancellation; close/ordinary unload/non-retained crash cleanup marks closed and unmaps channels. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls.",
       "language_mappings": {
         "c": {
@@ -316,10 +307,7 @@
         "tests/test_ipc.cpp",
         "tools/test.sh"
       ],
-      "limitations": [
-        "Recursive reentrancy unspecified.",
-        "Additional failures/output state unspecified unless described in the buffer contract."
-      ]
+      "limitations": []
     },
     {
       "id": "sco-ipc-v1-ring-init",
@@ -340,7 +328,7 @@
       "callback_context": "unspecified",
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND; stopped: UNAVAILABLE; invalid/released self: BAD_ARG; unknown/non-owned channel: NOT_FOUND; allocation exceptions: TOO_MANY. Additional failures/output state unspecified unless described in the buffer contract.",
-      "absent_capability": "Absent table: query_service NOT_FOUND",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND.",
       "cleanup": "No in-flight cancellation; close/ordinary unload/non-retained crash cleanup marks closed and unmaps channels. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls.",
       "language_mappings": {
         "c": {
@@ -396,10 +384,7 @@
         "tests/test_ipc.cpp",
         "tools/test.sh"
       ],
-      "limitations": [
-        "Recursive reentrancy unspecified.",
-        "Additional failures/output state unspecified unless described in the buffer contract."
-      ]
+      "limitations": []
     },
     {
       "id": "sco-ipc-v1-ring-push",
@@ -420,7 +405,7 @@
       "callback_context": "unspecified",
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND; stopped: UNAVAILABLE; invalid/released self: BAD_ARG; unknown/non-owned channel: NOT_FOUND; allocation exceptions: TOO_MANY. Additional failures/output state unspecified unless described in the buffer contract.",
-      "absent_capability": "Absent table: query_service NOT_FOUND",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND.",
       "cleanup": "No in-flight cancellation; close/ordinary unload/non-retained crash cleanup marks closed and unmaps channels. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls.",
       "language_mappings": {
         "c": {
@@ -476,10 +461,7 @@
         "tests/test_ipc.cpp",
         "tools/test.sh"
       ],
-      "limitations": [
-        "Recursive reentrancy unspecified.",
-        "Additional failures/output state unspecified unless described in the buffer contract."
-      ]
+      "limitations": []
     },
     {
       "id": "sco-ipc-v1-ring-pop",
@@ -500,7 +482,7 @@
       "callback_context": "unspecified",
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND; stopped: UNAVAILABLE; invalid/released self: BAD_ARG; unknown/non-owned channel: NOT_FOUND; allocation exceptions: TOO_MANY. Additional failures/output state unspecified unless described in the buffer contract.",
-      "absent_capability": "Absent table: query_service NOT_FOUND",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND.",
       "cleanup": "No in-flight cancellation; close/ordinary unload/non-retained crash cleanup marks closed and unmaps channels. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls.",
       "language_mappings": {
         "c": {
@@ -556,10 +538,7 @@
         "tests/test_ipc.cpp",
         "tools/test.sh"
       ],
-      "limitations": [
-        "Recursive reentrancy unspecified.",
-        "Additional failures/output state unspecified unless described in the buffer contract."
-      ]
+      "limitations": []
     },
     {
       "id": "sco-ipc-v1-view",
@@ -580,7 +559,7 @@
       "callback_context": "unspecified",
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND; stopped: UNAVAILABLE; invalid/released self: BAD_ARG; unknown/non-owned channel: NOT_FOUND; allocation exceptions: TOO_MANY. Additional failures/output state unspecified unless described in the buffer contract.",
-      "absent_capability": "Absent table: query_service NOT_FOUND",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND.",
       "cleanup": "No in-flight cancellation; close/ordinary unload/non-retained crash cleanup marks closed and unmaps channels. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls.",
       "language_mappings": {
         "c": {
@@ -637,9 +616,7 @@
         "tools/test.sh"
       ],
       "limitations": [
-        "synchronization with close and direct-view access unspecified.",
-        "Recursive reentrancy unspecified.",
-        "Additional failures/output state unspecified unless described in the buffer contract."
+        "Synchronization with close and direct-view access unspecified."
       ]
     },
     {
@@ -661,7 +638,7 @@
       "callback_context": "unspecified",
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND; stopped: UNAVAILABLE; invalid/released self: BAD_ARG; unknown/non-owned channel: NOT_FOUND; allocation exceptions: TOO_MANY. Additional failures/output state unspecified unless described in the buffer contract.",
-      "absent_capability": "Absent table: query_service NOT_FOUND",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND.",
       "cleanup": "No in-flight cancellation; close/ordinary unload/non-retained crash cleanup marks closed and unmaps channels. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls.",
       "language_mappings": {
         "c": {
@@ -717,10 +694,7 @@
         "tests/test_ipc.cpp",
         "tools/test.sh"
       ],
-      "limitations": [
-        "Recursive reentrancy unspecified.",
-        "Additional failures/output state unspecified unless described in the buffer contract."
-      ]
+      "limitations": []
     }
   ]
 }

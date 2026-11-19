@@ -1,6 +1,8 @@
 # sco-core SDK 2.1.0 (release notes)
 
-Tag `sdk-v2.1.0`, combined zip `sco-sdk-2.1.0.zip`. **Published on 2026-10-13 at 22:42:09 UTC:** [SDK 2.1.0 release and assets](https://github.com/scubamount/sco-core/releases/tag/sdk-v2.1.0). The tag peels to approval commit `8ef24243b4b8ee45fb49bde4192bdbdfa7473ace`, which adds only the signed approval record (`docs/legal/release-decisions/sdk-v2.1.0.json` and `.sig`); the published archives were built from source commit `77c328fc088f85336f1241c0c054bc461fe8b64c`. The two identities are distinct. The release publishes all five profiles (combined/legacy, core, core-source, Star Citizen game-sc overlay and the Star Citizen host-source kit), their SBOMs and `SHA256SUMS`. Published assets are immutable approved payloads; a local build with the same version is not proof of byte equality. The release workflow publishes the CHANGELOG section [`## sdk-v2.1.0`](../../CHANGELOG.md#sdk-v210-2026-10-13) as the release's notes; this page is the longer reference behind it. For the newest published SDK, use [latest release](https://github.com/scubamount/sco-core/releases/latest).
+Tag `sdk-v2.1.0`, combined zip `sco-sdk-2.1.0.zip`. **Published on 2026-10-13 at 22:42:09 UTC:** [SDK 2.1.0 release and assets](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.1.0). The release publishes all five profiles (combined/legacy, core, core-source, Star Citizen game-sc overlay and the Star Citizen host-source kit), their SBOMs and `SHA256SUMS`. The release workflow publishes the CHANGELOG section [`## sdk-v2.1.0`](../../CHANGELOG.md#sdk-v210-2026-10-13) as the release's notes; this page is the longer reference behind it. For the newest published SDK, use [latest release](https://github.com/scuba-sc/sco-core/releases/latest).
+
+The release downloads for this version were withdrawn; the tag remains in git. Use SDK 2.4.1 or 2.4.0.
 
 <!-- release-scope:start -->
 ```json
@@ -59,13 +61,3 @@ Native Windows and portable synthetic CI fixtures provide no-game engineering ev
 not engine or gameplay acceptance. Real-game, anti-cheat/official-network,
 private-LAN/firewall and GPU renderer acceptance of the new contracts remain unproven.
 No offline consumer pin or legacy deletion is part of this release.
-
-## Checking the zip
-
-```sh
-sha256sum -c SHA256SUMS
-unzip -p sco-sdk-2.1.0.zip sco-sdk-2.1.0/VERSIONS.txt
-```
-
-Publication followed the [maintainer release procedure](../legal/release-checklist.md#releasing);
-these notes do not authorize a new release or asset replacement.

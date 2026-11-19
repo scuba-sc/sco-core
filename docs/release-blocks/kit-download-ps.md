@@ -1,6 +1,6 @@
 <!-- Template for the release-block named kit-download-ps; edit here, then run tools/release_docs.py --write. -->
 ```powershell
-gh release download {{tag}} -R scuba-sc/sco-core -p '{{archive_combined}}' -p SHA256SUMS
+gh release download {{download_tag}} -R scuba-sc/sco-core -p '{{archive_combined}}' -p SHA256SUMS
 if ($LASTEXITCODE -ne 0) { throw 'SDK download failed' }
 $expected = ((Get-Content SHA256SUMS | Where-Object { $_ -match (' ' + [regex]::Escape('{{archive_combined}}') + '$') }) -split '\s+')[0]
 if (!$expected -or (Get-FileHash {{archive_combined}} -Algorithm SHA256).Hash -ine $expected) { throw 'SHA256 mismatch; stop' }

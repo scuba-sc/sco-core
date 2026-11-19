@@ -25,7 +25,7 @@
       "limitations": [
         "String form of the verified build lives in sc_game_pack.h; the service exposes the numeric mirrors and refuses to start when the mirrors disagree.",
         "No game manifest fields (branch, changelist) cross the ABI in 1.0.",
-        "No C# or Lua game.build routes are supported."
+        "No C# or Lua route."
       ],
       "tests": [
         "tests/abi_game_build.c"
