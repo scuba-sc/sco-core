@@ -1,147 +1,87 @@
-# Scoped game cvars (G7 / #128)
+# Scoped game cvars
 
-`game.cvars` 1.0 (`sc_cvars_v1`, 16 bytes) reads canonical bool values on the
-game thread using a live plugin handle. It is not `sco.settings`.
+`game.cvars` reads four allowlisted boolean game cvars on the game thread. `game.cvars_write` sets them with leases and restores the prior values on release. Neither is `sco.settings`, and neither accepts arbitrary console text.
 
-Only these exact, case-sensitive interoperability names are accepted:
+| Service | Header | Table | Capability | Default |
+|---|---|---|---|---|
+| `game.cvars` 1.0 | [`sc_cvars.h`](../../include/sc_cvars.h) | `sc_cvars_v1`, 16 bytes (`get_bool`) | `game.cvars.read` | OFF |
+| `game.cvars_write` 1.0 | [`sc_cvars_write.h`](../../include/sc_cvars_write.h) | `sc_cvars_write_v1`, 24 bytes (`set_bool`, `restore_all`) | `game.cvars.write` | OFF |
+
+The native read adapter (Windows, reference-integer) is opt-in with `SCO_CVARS_NATIVE=1`. Production native writes are refused, even when the environment variable asks for them. Status: [status](status.md). Not run in game.
+
+## Reading: `game.cvars`
+
+`get_bool` needs a live plugin handle. Only these exact, case-sensitive names are accepted:
+
 - `i_target_selector.targeting2_enabled`
 - `pl_lensdisplay.minimap_enabled`
 - `pl_lensdisplay.greebles_enabled`
 - `g_squadron_frontend`
 
-The request type must be `SC_CVAR_BOOL`; outputs are copied `uint32_t` 0 or 1,
-unchanged on failure. Unknown names/types and invalid/released handles are
-`SCO_BAD_ARG`; other threads receive `SCO_WRONG_THREAD`. Missing readiness,
-capability, admission or stopped runtime is `SCO_UNAVAILABLE`. Reentrant calls
-are `SCO_FAILED`. An adapter-reported `SCO_CRASHED` latches restart-required;
-no more adapter calls or replacement/restart are allowed in that process.
+The request type must be `SC_CVAR_BOOL`. The output is a copied `uint32_t`, 0 or 1, and is unchanged on failure.
 
-## Separate reversible writes (4B second acceptance)
+| Result | Cause |
+|---|---|
+| `SCO_BAD_ARG` | Unknown name or type, or an invalid or released handle |
+| `SCO_WRONG_THREAD` | Called off the game thread |
+| `SCO_UNAVAILABLE` | Missing readiness, capability or admission, or a stopped runtime |
+| `SCO_FAILED` | Reentrant call |
+| `SCO_CRASHED` | Reported by the adapter. It latches restart-required: no further adapter calls, replacement or restart in that process. |
 
-`game.cvars_write` 1.0 (`sc_cvars_write_v1`, 24 bytes) has `set_bool` and
-`restore_all`. `scosdk::game::CvarsWrite` validates the complete table extent and
-both callbacks; failed reopen discards the old table. C# and Lua remain unsupported.
-Writes need independently verified write callbacks, offline admission, read/write
-capabilities and the existing spawn release dispatcher. They are unavailable if
-that dispatcher failed to install; no ninth kernel release-hook slot was added.
+C and C++ are supported. C++ `scosdk::game::Cvars` checks the complete member extent and null callbacks, and clears stale state when a reopen fails. C# and Lua routes are explicitly unsupported.
 
-One lease per exact name: the first canonical prior value is saved BEFORE engine
-mutation; repeated same-owner updates preserve it. Another owner receives
-`SCO_UNAVAILABLE` without touching the engine. All writes require readback match.
-Explicit restore removes only the caller's leases and is idempotent when none exist.
-Restoration ignores feature capability loss to permit cleanup, but public calls are
-refused after session/terminal admission closes. No load-time mutation is performed
-by the provider; the test-only consumer deliberately requests one write on load.
+## Writing: `game.cvars_write`
 
-Ordinary unload/crash owner cleanup is forwarded by `spawn.cpp` to
-`ReleaseCvarsOwner`. A `game.exit` subscription and `StopCvars` restore all leases
-before closing admission. The host MUST emit session exit/stop while engine context
-is still valid, before replacing/releasing it; an ended session does not auto-reopen
-on `game.ready`. A fresh stop/install/start is required for the next reviewed port.
-The copied port/context must outlive every outstanding lease and any retained fault.
+`scosdk::game::CvarsWrite` validates the complete table extent and both callbacks, and a failed reopen discards the old table. C# and Lua remain unsupported.
 
-A failed engine write, restore or post-write verification conservatively retains
-unrestored leases, disables both capabilities and latches process restart-required.
-There are no unsafe retries or port replacement after a fault; host diagnostics can
-inspect `PendingCvarRestores`, and `StopCvars` returns `Failed` while withdrawing
-tables. Never free retained engine context merely because discovery was withdrawn.
-A loader-retained provider fault skips ordinary resource hooks; those leases remain
-until the host-owned session/stop restoration (if the engine itself is still trusted).
+Writes need all of these: independently verified write callbacks, offline admission, the read and write capabilities, and the existing spawn release dispatcher. They are unavailable if that dispatcher failed to install.
 
-Synthetic write fixtures cover native load/write/unload twice, actual runtime owner
-release, actual loader retained-provider verdict, first-prior preservation,
-contention, session exit/reset, stop, wrong thread/live handles, unavailable
-admission, failed restore, failed write and false-success readback. The portable
-release dispatcher is a labeled stand-in: Windows `spawn.cpp`/SEH and gameplay
-remain unverified. Only engine callbacks are synthetic; the SDK host/loader are real.
+Leases:
 
-## Engine boundary and evidence
+- There is one lease per exact name. The first canonical prior value is saved before the engine is mutated, and repeated same-owner updates keep it.
+- Another owner receives `SCO_UNAVAILABLE` and the engine is not touched.
+- Every write requires the readback to match.
+- Explicit `restore_all` removes only the caller's leases and is idempotent when none exist.
+- Restoration ignores loss of the feature capability so that cleanup can proceed. Public calls are refused once session or terminal admission closes.
+- The provider does no load-time mutation.
 
-Game-pack-only `src/game/services/cvars.h` defines a host-injected reviewed port.
-Callbacks get a bounded index, never arbitrary command text or engine pointers.
-Adapters must guard native faults, return `SCO_CRASHED`, and validate the actual
-engine type before copying a bool. The Windows reference-integer adapter is
-default OFF. `SCO_CVARS_NATIVE=1` requests the read-only adapter, requiring the
-console, lookup, reference-integer vtable and method identities to resolve.
-Every read re-queries the exact allowlisted name, validates its receiver/type and
-method identities, checks fresh host admission, and copies only canonical 0/1.
-Receiver drift is refused; native exceptions latch restart-required. Capabilities
-are published only after successful service registration. Signature resolution
-and this opt-in do not establish in-game acceptance.
+Cleanup:
 
-Production native writes remain unavailable, including when an environment
-variable requests them. Address/vtable/name equality does not rule out native
-object destruction and same-address reuse across setter callbacks or a retained
-lease. The adapter's setter and restore mechanics are exercised with synthetic
-objects; no native lifetime pin or generation contract is claimed. Do not enable
-the production write port until object and backing-storage lifetime are grounded.
+- Ordinary unload or crash cleanup is forwarded by `spawn.cpp` to `ReleaseCvarsOwner`.
+- A `game.exit` subscription and `StopCvars` restore all leases before closing admission. The host must emit session exit or stop while the engine context is still valid, before replacing or releasing it. An ended session does not reopen on `game.ready`.
+- A fresh stop, install and start is required to use a new port.
+- The copied port and context must outlive every outstanding lease and any retained fault.
 
-For host teardown, ordinary fresh admission closes before unload. A separate
-game-thread-only CVar cleanup scope is established only after a fresh positive
-inspection. The optional native restore callback rechecks the full actual
-offline admission predicate before access, immediately before mutation, and after
-setter callbacks; ordinary plugin reads/writes cannot use this scope. Genuine
-admission loss refuses restoration and retains the lease with restart-required.
-The cleanup callback verifies readback itself before the provider clears a lease.
-Legacy injected ports without it retain the ordinary write/readback restore path.
+Faults:
 
-The Windows native-boundary fixtures cover callback-time admission/console/method
-changes, rejected active/faulted reconfiguration, receiver drift and retained
-leases. The host-stop fixture runs actual host/app Stop with the production spawn
-cleanup dispatcher and synthetic engine objects. It verifies restoration while
-offline evidence remains valid, no write after real admission loss, and refusal
-of ordinary service calls and worker-thread cleanup during teardown. These tests
-are not native-object lifetime or game evidence.
+- A failed engine write, restore or post-write verification keeps the unrestored leases, turns both capabilities off and latches restart-required. There is no retry and no port replacement.
+- Host diagnostics can inspect `PendingCvarRestores`. `StopCvars` returns `Failed` while it withdraws the tables.
+- Never free retained engine context merely because discovery was withdrawn.
+- A loader-retained provider fault skips ordinary resource hooks. Those leases stay until the host-owned session or stop restoration runs, if the engine is still trusted.
 
-The production-route fixture (`tests/test_cvars_production.cpp`; CTest
-`cvars_production_refusal`) uses the real signature registry with synthetic
-resolver outputs and positive synthetic offline admission. Its assertions map to:
-`CHECK(FreshAdmissionAllowed())` — positive-admission precondition only;
-`CHECK(ConfigureProductionCvars() == Result::Ok)` followed by
-`CHECK(read->get_bool(...))` — production configuration and successful canonical
-read through the actual configured provider; `CHECK(write->set_bool(...) == SCO_UNAVAILABLE)`
-— production write refusal even with `SCO_CVARS_NATIVE=1`; and
-`CHECK(setters == 0 ...)` — no synthetic setter executes. These are assertion
-descriptions, not executable test-case IDs. Synthetic host evidence only; not run
-in game.
+For host teardown, ordinary fresh admission closes before unload. A separate game-thread-only cvar cleanup scope is established only after a fresh positive inspection. The optional native restore callback rechecks the full offline admission predicate before access, immediately before mutation, and after setter callbacks. Ordinary plugin reads and writes cannot use this scope. If admission is really lost, restoration is refused and the lease is retained with restart-required. The cleanup callback verifies the readback itself before the provider clears a lease. Legacy injected ports without it use the ordinary write and readback restore path.
 
-The existing boundary matrix maps as follows: `test_cvars.cpp` —
-`cvars_four_exact_names_and_types`, `cvars_canonical_0_1_and_unchanged_outputs`,
-and `cvars_read_fault_latches_restart`; `cvars_engine` —
-`native_exact_allowlist_and_canonical_values`; `cvars_engine_fault` —
-`native_SEH_latches_restart_and_preserves_output`; `cvars_engine_callback_admission`
-— `fresh_admission_loss_refuses_native_access`; `cvars_engine_replace` and
-`cvars_engine_callback_method` — `receiver_and_method_identity_drift_refuse`;
-`cvars_engine_lease_replace` and `cvars_engine_lease_admission` —
-`first_prior_lease_is_retained_when_safe_restore_cannot_proceed`; `cvars_host_stop`
-— `stop_restores_lease_while_positive_cleanup_admission_remains`; and
-`cvars_host_stop_loss` — `admission_loss_refuses_restore_and_retains_lease`.
-The synthetic engine and host fixtures do not constitute in-game evidence.
+## Engine boundary
 
-The legacy product's float GetCVarNow/SetCVarNow calls are not the new adapter's
-ABI. The new route uses independently checked reference-integer methods and
-rejects arbitrary nonzero values rather than normalizing them. Native setters
-preserve engine callbacks; direct backing-storage writes are not a substitute.
+The game-pack-only `src/game/services/cvars.h` defines a host-injected, reviewed port. Callbacks get a bounded index, never arbitrary command text or engine pointers. Adapters must guard native faults, return `SCO_CRASHED`, and validate the actual engine type before copying a bool.
 
-No arbitrary console execution, networking/anti-cheat cvars, quantum keeper
-values, optional bridge values, game extracts or `USER.cfg` writes are included.
-`game.cvars` still carries none of the quantum cvars.
+`SCO_CVARS_NATIVE=1` requests the read-only adapter, which needs the console, lookup, reference-integer vtable and method identities to resolve. Every read re-queries the exact allowlisted name, validates its receiver, type and method identities, checks fresh host admission, and copies only a canonical 0 or 1. Receiver drift is refused. Native exceptions latch restart-required. Capabilities are published only after successful service registration.
 
-**Maintainer decision (approved; scubamount (maintainer), 2026-10-15):** the
-`game.quantum` backend, and only it, may write `v_qdrive2.quantumTravelAllowed`,
-`v_qdrive2.quantumBoostAllowed`, `v_qdrive2.setting_ignoreBlockedBoost`,
-`v_qdrive2.setting_ignoreBlockedTravel` and `p_enable_physical_quantum_travel`, and the
-shared drive parameter cell v0.7.7 set to `1e9`, under the conditions in
-[the amended rule](../quantum.md#amended-rule-2026-10-15): fresh positive offline
-admission before every write, first prior saved first, every value restored on every
-release path, engine type verified before any access, writes only while it holds
-control, no console execution. The default adapter owns four of the five (int storage
-rows); `p_enable_physical_quantum_travel` has no grounded route and is not written.
-C and C++ are supported (C++ `scosdk::game::Cvars` checks complete member extent,
-null callbacks and clears stale state on failed reopen). C# and Lua routes are
-explicitly unsupported; no blanket binding parity is claimed.
+The new route uses independently checked reference-integer methods and rejects arbitrary nonzero values instead of normalizing them. It is not the ABI of the legacy product's float `GetCVarNow` and `SetCVarNow` calls. Native setters preserve engine callbacks, and direct backing-storage writes are not a substitute.
 
-Portable tests use the actual game-pack provider, neutral host registry and
-native loader with synthetic engine callbacks; extent tests physically truncate
-pointer tails under ASan/UBSan. macOS module loading is not Windows SEH, MSVC or
-in-game acceptance. Owner-run Windows and four real-value observations remain owed.
+Production native writes stay unavailable. Address, vtable and name equality do not rule out native object destruction and same-address reuse across setter callbacks or a retained lease. The adapter's setter and restore mechanics run only against synthetic objects, and no native lifetime pin or generation contract is claimed. Do not enable the production write port until object and backing-storage lifetime are grounded.
+
+Not included: arbitrary console execution, networking or anti-cheat cvars, quantum keeper values, optional bridge values, game extracts and `USER.cfg` writes. `game.cvars` carries none of the quantum cvars.
+
+The `game.quantum` backend, and only it, may write `v_qdrive2.quantumTravelAllowed`, `v_qdrive2.quantumBoostAllowed`, `v_qdrive2.setting_ignoreBlockedBoost`, `v_qdrive2.setting_ignoreBlockedTravel` and `p_enable_physical_quantum_travel`, and the shared drive parameter cell (the drive's parameter record at `+0xC0`, set to `1e9` as sc-offline v0.7.7 did). The conditions are in [the amended rule](../quantum.md#amended-rule-2026-10-15): fresh positive offline admission before every write, the first prior value saved first, every value restored on every release path, the engine type verified before any access, writes only while it holds control, and no console execution. The default adapter owns four of the five cvars (int storage rows). `p_enable_physical_quantum_travel` has no grounded route and is not written.
+
+## Evidence
+
+All evidence is synthetic: the SDK host and loader are real, and the engine callbacks are synthetic.
+
+- Portable tests use the actual game-pack provider, neutral host registry and native loader. Extent tests physically truncate pointer tails under ASan/UBSan. macOS module loading is not Windows SEH or MSVC evidence.
+- The write fixtures cover native load, write and unload twice, actual runtime owner release, the actual loader retained-provider verdict, first-prior preservation, contention, session exit and reset, stop, wrong thread and live handles, unavailable admission, failed restore, failed write and false-success readback. The portable release dispatcher is a labeled stand-in.
+- The Windows native-boundary fixtures cover callback-time admission, console and method changes, rejected active or faulted reconfiguration, receiver drift and retained leases. The host-stop fixture runs actual host and app `Stop` with the production spawn cleanup dispatcher. It checks restoration while offline evidence stays valid, no write after real admission loss, and refusal of ordinary service calls and worker-thread cleanup during teardown.
+- The production-route fixture (`tests/test_cvars_production.cpp`, CTest `cvars_production_refusal`) uses the real signature registry with synthetic resolver outputs and positive synthetic offline admission. It checks that production configuration succeeds, that a canonical read works through the configured provider, that a write answers `SCO_UNAVAILABLE` even with `SCO_CVARS_NATIVE=1`, and that no synthetic setter runs.
+
+No Windows run and no real-value observation of the four cvars exists yet.

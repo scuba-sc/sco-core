@@ -257,24 +257,21 @@ class RealTreeTests(unittest.TestCase):
     def test_stable_release_status_in_index(self):
         data = guides.build(ROOT, SHA)
         entries = {(s['doc'], s['heading']): s for s in data['sections']}
-        status = entries[('docs/releases/sdk-v2.4.0.md', 'Historical RC2 candidate status')]['text']
-        self.assertIn('sdk-v2.4.0-rc.2', status)
-        self.assertIn('b7541dc91802f5fa1b050151bbc82e0e47834b6f', status)
-        self.assertIn('not published', status)
+        status = entries[('docs/releases/sdk-v2.4.0.md', 'Published RC2 archive identity')]['text']
+        self.assertIn('RC2 combined', status)
+        self.assertIn('844e136ccb280ad8cb43f73bc43c9447e8f6799d', status)
+        self.assertIn('SHA256SUMS', status)
         lua = next(s for s in data['sections'] if s['doc'] == 'sdk/docs/lua.md' and s['level'] == 1)
         version = (ROOT / 'sdk/VERSION').read_text().strip()
         self.assertIn('SDK ' + version + ' uses Star Citizen game pack', lua['text'])
         self.assertNotIn('release candidate 1, tag', lua['text'])
-        tutorial = entries[('docs/sdk-mcp-tutorial.md', '2. Obtain SDK and build your own copies in isolation')]['text']
-        self.assertIn('tutorial wrapper', tutorial)
-        self.assertIn('do not accept those candidate overrides', ' '.join(tutorial.split()))
 
     def test_mission_and_audio_boundaries_reach_guide_index(self):
         data = guides.build(ROOT, SHA)
         sections = {s['heading']: s for s in data['sections'] if s['doc'] == 'docs/game-services.md'}
         mission = sections['Mission event polling and session boundaries']['text']
         audio = sections['Audio ownership and cleanup']['text']
-        for phrase in ('session', 'empty poll', 'no native mission backend'):
+        for phrase in ('session', 'empty poll', 'prunes absent IDs'):
             self.assertIn(phrase, mission)
         for phrase in ('play_once', 'cleanup', 'does not clear', 'No native audio backend'):
             self.assertIn(phrase, audio)

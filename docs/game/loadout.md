@@ -1,159 +1,37 @@
 # Typed offline local-player loadout (`game.loadout` 1.3)
 
-## Asynchronous extension (1.2)
+`game.loadout` equips items on the local player. `apply` equips synchronously. From 1.2, `submit`, `status` and `cancel` equip asynchronously, because native item creation and equip requests finish later.
 
-The owner approved an asynchronous API on 2026-10-18 because native item creation
-and equip requests complete later. The frozen `sc_loadout_v1` and all 1.0/1.1
-records keep their exact layout and behavior. Query `SC_LOADOUT_VERSION_1_2` and
-check each full pointer extent before using the `sc_loadout_v1_2` tail:
-`submit(self, request, out_job)`, `status(self, job, out_report)`, `cancel(self, job)`.
-C++ exposes `Loadout::Submit`, `Status` and `Cancel`. C# and Lua async mutation are
-unsupported. No service discovery or signature match alone authorizes mutation.
+Header: [`sc_loadout.h`](../../include/sc_loadout.h). Table version 1.3 (`SC_LOADOUT_VERSION_1_3`, `0x00010003`). `SC_LOADOUT_SERVICE_VERSION` stays 1.0, the synchronous prefix. One published table answers 1.0 to 1.3 queries.
 
-Submit validates and copies 1..16 distinct slots with fixed class names, then
-returns an owner-scoped process-unique id. One retained job per plugin, eight
-total. It does not call an equip function while borrowing the request. Game-thread
-ticks process one slot at a time in input order; later weapon attachments observe
-the previously completed parent weapon. Status returns a completed prefix and
-per-slot results. PENDING is never reported as APPLIED. COMPLETE means processing
-finished, including per-slot refusals; check applied count and every slot result.
+Capabilities, all OFF by default: `game.loadout.apply`, `game.loadout.weapons`, `game.loadout.async`, `game.loadout.outfit` and the event capability `game.events.loadout_respawn_completed`. Each is described below and listed in [status](status.md). Not run in game.
 
-Timeout after 120 seconds, changed local-player session, admission loss or a
-provider fault ends the job as FAILED. No retry or rollback occurs. Cancel forgets
-the job and releases unfinished native resources; already confirmed equipment
-stays equipped. Unload/host stop cancel retained jobs. Status never advances a job
-or performs an engine mutation. A provider fault disables both mutation routes
-until process restart and retains uncertain native resources rather than invoking
-more callbacks. Unknown/online/EAC-present admission refuses before mutation.
+## Requests and reports
 
-The Windows async adapter is explicitly opt-in with `SCO_LOADOUT_ASYNC=1` and only
-configures when all required signature rows resolve. It uses the existing local
-spawn boundary, waits for that exact entity to become live, calls the typed port
-attachment once and confirms the same entity in the same owned port on a later
-tick. The parent may not change while a spawn is pending. Port walks are bounded
-and reject duplicate names; visor has no grounded separate port and returns
-UNSUPPORTED. No XML loader or inventory-service request fallback is used.
+The service is a separate size-prefixed table. The frozen `sco_api` 1.1 is unchanged. Requests and reports start with `size` and need the full v1 extent. The item and result records are frozen for 1.x.
 
-Cancellation removes a spawned, not-yet-attached candidate. Once attachment was
-attempted, uncertain state is retained rather than deleting possible equipment.
-No removal/rollback of prior equipment is promised. The native adapter itself is
-executed in a Windows synthetic-object fixture, including delayed spawn, exact
-attachment arguments, confirmation, missing class and admission-loss cleanup.
-This is native-boundary evidence, not in-game port or gameplay certification.
+- 1..16 items, with the exact `item_stride`.
+- Unique numeric slots.
+- `item_class`: NUL-terminated ASCII `[A-Za-z0-9_]`, 1..95 bytes.
+- Reserved fields zero.
 
-**Synthetic/native-boundary checked; not run in game.** Production game-service
-startup currently refuses before publishing this table. `game.loadout.apply` is
-unavailable, and the synchronous route has no verified typed per-slot equip
-implementation. Signature resolution or a successful query is not permission to
-mutate a player.
-
-Version 1.1 adds slot vocabulary only: weapon and multitool slots 8..21 (see
-[Slots](#slots)). Records are unchanged, `SC_LOADOUT_SERVICE_VERSION` stays 1.0; when
-a 1.2 table is published, it also answers 1.0/1.1 queries. The capability
-`game.loadout.weapons` defaults **OFF**. In a fixture or service started without a
-synchronous backend, apply returns UNAVAILABLE for every slot; production currently
-does not publish the table.
-
-## Outfit slots (1.3)
-
-Version 1.3 (`SC_LOADOUT_VERSION_1_3`, `0x00010003`) appends slot ids 22..34 so a product
-can ask to wear the item ports that shipped Squadron 42 outfits use. Vocabulary only: no
-table member, record or struct changes, and the 1.2 table answers 1.0 to 1.3 queries.
-The port names are item-port names the product already uses. They are consumer-side data
-names, not verified engine rows, and nothing here ran in game.
-
-| Value | Name | Item port |
-|---|---|---|
-| 22 | `SC_LOADOUT_SLOT_CLOTHING_TORSO_0` | `Clothing_Torso_0` |
-| 23 | `SC_LOADOUT_SLOT_CLOTHING_TORSO_1` | `Clothing_Torso_1` |
-| 24 | `SC_LOADOUT_SLOT_CLOTHING_TORSO_2` | `Clothing_Torso2` |
-| 25 | `SC_LOADOUT_SLOT_CLOTHING_LEGS` | `Clothing_Legs` |
-| 26 | `SC_LOADOUT_SLOT_CLOTHING_FEET` | `Clothing_Feet` |
-| 27 | `SC_LOADOUT_SLOT_CLOTHING_HANDS` | `Clothing_Hands` |
-| 28 | `SC_LOADOUT_SLOT_HAT` | `Hat_ItemPort` |
-| 29 | `SC_LOADOUT_SLOT_HAIR` | `Hair_ItemPort` |
-| 30 | `SC_LOADOUT_SLOT_HAIR_COLOR` | `Hair_Color` |
-| 31 | `SC_LOADOUT_SLOT_EYEBROW` | `Eyebrow_ItemPort` |
-| 32 | `SC_LOADOUT_SLOT_HEAD_ACCESSORY` | `Head_Accessory_ItemPort` |
-| 33 | `SC_LOADOUT_SLOT_HEAD_HORN` | `Head_Horn_ItemPort` |
-| 34 | `SC_LOADOUT_SLOT_JEWELLERY` | `Jewellery_ItemPort` |
-
-Values 35 and above are unassigned and stay UNSUPPORTED with no engine call.
-
-**Which ports are offered, and why.**
-
-- Worn items (clothing, hat, jewellery, head accessory, head horn): offered. They sit on
-  top of the character. A wrong or missing item changes the look, not the character.
-- Appearance overlays (hair, hair colour, eyebrow; slots 29-31): offered only behind a
-  separate capability, `game.loadout.appearance`, which is OFF by default. They overwrite
-  the character's look permanently: 1.x has no removal, so the previous hair cannot be
-  restored by this API. `Hair_Color` is also an assumed item port (the inventory header
-  names a separate hair-colour item type), so it may not be the right target at all. A
-  product that turns the capability on should ask the player first and should never send
-  these slots as part of a plain outfit swap. Without the capability, `submit` refuses any
-  request that holds one of them.
-- `Head_ItemPort` and `Body_ItemPort`: **not offered, no slot.** They hold the character's
-  head and body. Other parts are built to fit them (eyes, teeth, hair, clothing fit).
-  Swapping one for an item that does not match the rest can leave a headless, invisible
-  or mis-skinned character, and 1.x has no removal to undo it. We have no evidence of
-  what a safe swap looks like, so they are left out.
-- `Eyes_ItemPort` and `Teeth_ItemPort`: **not offered, no slot.** They are parts of the
-  face that follow the head. Replacing them alone risks a mismatch with the head and
-  gives a visible fault, with no way to undo it. Same reason, same decision. These four
-  can be added later by appending new ids, once there is in-game evidence.
-
-Gating:
-
-- Asynchronous route only. The synchronous `apply` reports 22..34 UNSUPPORTED and makes
-  no equip call, as for any slot it does not know.
-- Capability `game.loadout.outfit` is **OFF by default** and is on only while the async
-  route is installed and the adapter says it has a name mapping (`LoadoutAsyncBackend::outfit`;
-  this does not mean the names are verified). It goes off on a provider fault and on Stop.
-  The Windows adapter sets the flag, so the capability follows `SCO_LOADOUT_ASYNC=1`.
-- Capability `game.loadout.appearance` gates slots 29-31 on top of the outfit capability. It
-  is **OFF by default** and needs `LoadoutAsyncBackend::appearance`, which the Windows
-  adapter sets only when `SCO_LOADOUT_APPEARANCE=1` is also set. It goes off on a fault and on Stop.
-- `submit` refuses the whole request with UNAVAILABLE when it holds any slot in 22..34
-  and the matching capability is off (outfit for 22..34, appearance as well for 29..31). No job starts, so there is no half-started outfit. Other
-  checks are unchanged (BAD_ARG for malformed input or duplicate slots comes first).
-- If a capability is revoked after a job was accepted, that job's slots it gated end as
-  UNAVAILABLE with no engine call, and its other slots proceed.
-- Each slot is a lookup by name through the same port search as the 1.1 slots (bounded
-  walk, duplicate names refused). A missing port gives UNSUPPORTED, a missing item class
-  gives ITEM_MISSING, and APPLIED needs the same readback as every other slot.
-- The 16-item cap holds: all 13 outfit slots fit in one request, with room for 3 more.
-
-Compatibility note: in 1.2, ids 22..34 were unassigned, and `submit` accepted them and ended
-the slot UNSUPPORTED. In 1.3 it refuses the request with UNAVAILABLE while the capability is
-off. The refusal comes before the job-capacity check, so UNAVAILABLE can win over TOO_MANY.
-
-Evidence: portable tests cover the gating, the whole 22..34 range in order, unassigned
-values, revocation of each capability, a mixed batch, ITEM_MISSING, and queries at 1.0 to 1.3 and a refused 1.4. The Windows synthetic-object fixture checks that each slot looks
-up its own port name, that unassigned values never reach the port search, and one full
-spawn, attach and readback on an outfit port. Synthetic only. **Not run in game.**
-
-## Inputs and outputs
-
-`sc_loadout.h` adds a separate size-prefixed service; frozen `sco_api` 1.1 is
-unchanged. Requests and reports also start with size, requiring the full v1 extent.
-The item/result records are frozen for 1.x. Supply exact `item_stride`, 1..16 items,
-unique numeric slots and NUL-terminated ASCII `[A-Za-z0-9_]` class names (1..95 bytes).
-Reserved fields are zero. No XML, file/path ingestion, raw game pointers, account
-inventory, entitlements, telemetry or network operations are exposed.
+There is no XML, file or path input, raw game pointer, account inventory, entitlement, telemetry or network operation.
 
 ## Slots
 
-HEAD, TORSO, ARMS, LEGS, UNDERSUIT, BACKPACK and VISOR (1..7) identify *logical* slots,
-not verified engine port names. Unknown numeric slots are valid input, reported
-UNSUPPORTED without an equip call. Known slots can also be UNSUPPORTED by the adapter.
-List/outfit parsing, spoiler confirmation and labels remain consumer policy.
+Slot 0 is unassigned. Slots 1..7 are logical slots, not verified engine port names. An unknown numeric slot is valid input and is reported UNSUPPORTED without an equip call. A known slot can also be UNSUPPORTED if the adapter does not handle it. Outfit lists, spoiler confirmation and labels are consumer policy.
 
-Version 1.1 adds slots 8..21. The record shape is frozen, so each number encodes its
-parent weapon. The port column is the consumer-side logical meaning, not a verified
-engine port name.
+Version 1.1 added slots 8..21 and 1.3 added slots 22..31. The record shape is frozen, so each number encodes its parent weapon or port. The last column is the consumer-side meaning, not a verified engine port name. Values 32 and above are unassigned and stay UNSUPPORTED. Published numbers never change, so later slots can only be appended.
 
-| Value | Name | Parent weapon / port |
+| Value | Name | Parent weapon, port or item port |
 |---|---|---|
+| 1 | `SC_LOADOUT_SLOT_HEAD` | logical head |
+| 2 | `SC_LOADOUT_SLOT_TORSO` | logical torso |
+| 3 | `SC_LOADOUT_SLOT_ARMS` | logical arms |
+| 4 | `SC_LOADOUT_SLOT_LEGS` | logical legs |
+| 5 | `SC_LOADOUT_SLOT_UNDERSUIT` | logical undersuit |
+| 6 | `SC_LOADOUT_SLOT_BACKPACK` | logical backpack |
+| 7 | `SC_LOADOUT_SLOT_VISOR` | logical visor |
 | 8 | `SC_LOADOUT_SLOT_PRIMARY` | the primary weapon itself |
 | 9 | `SC_LOADOUT_SLOT_SIDEARM` | the sidearm itself |
 | 10 | `SC_LOADOUT_SLOT_PRIMARY_OPTIC` | primary, `optics_attach` |
@@ -168,142 +46,133 @@ engine port name.
 | 19 | `SC_LOADOUT_SLOT_SIDEARM_TOOL_MODULE` | sidearm multitool, `module_attach` |
 | 20 | `SC_LOADOUT_SLOT_SIDEARM_TOOL_CANISTER` | sidearm multitool, `canister_attach` |
 | 21 | `SC_LOADOUT_SLOT_SIDEARM_TOOL_BATTERY` | sidearm multitool, `magazine_attach` |
+| 22 | `SC_LOADOUT_SLOT_CLOTHING_TORSO_0` | `Clothing_Torso_0` |
+| 23 | `SC_LOADOUT_SLOT_CLOTHING_TORSO_1` | `Clothing_Torso_1` |
+| 24 | `SC_LOADOUT_SLOT_CLOTHING_TORSO_2` | `Clothing_Torso2` |
+| 25 | `SC_LOADOUT_SLOT_CLOTHING_LEGS` | `Clothing_Legs` |
+| 26 | `SC_LOADOUT_SLOT_CLOTHING_FEET` | `Clothing_Feet` |
+| 27 | `SC_LOADOUT_SLOT_CLOTHING_HANDS` | `Clothing_Hands` |
+| 28 | `SC_LOADOUT_SLOT_HAT` | `Hat_ItemPort` |
+| 29 | `SC_LOADOUT_SLOT_HEAD_ACCESSORY` | `Head_Accessory_ItemPort` |
+| 30 | `SC_LOADOUT_SLOT_HEAD_HORN` | `Head_Horn_ItemPort` |
+| 31 | `SC_LOADOUT_SLOT_JEWELLERY` | `Jewellery_ItemPort` |
 
-Values 22..34 are the 1.3 outfit slots (see [Outfit slots](#outfit-slots-13)); 35 and above
-are unassigned and stay UNSUPPORTED. Numbers are frozen once published, so later slots can
-only be appended.
+Rules for a batch:
 
-Semantics:
+- The batch is processed in input order. An attachment or tool slot targets whatever item occupies its parent port when that slot is processed, so put 8 and 9 before 10..21 in the same batch.
+- Replacing a weapon (8 or 9) does not carry attachments over. What the new weapon spawns with is engine-defined, and the report claims nothing about it.
+- There is no removal in 1.x. `item_class` is at least 1 byte, so "clear this slot" cannot be expressed, and unspecified slots stay unchanged.
+- A multitool variant swap is consumer policy: send 8 or 9 with the multitool class plus the module slot (16 or 19) in the same batch. The provider has no special rule for it.
+- The 16-item cap fits every realistic request. Seven body slots, two weapons and one triple per weapon make 15. All ten outfit slots fit in one request with room for 6 more.
 
-- The batch is processed in input order. An attachment or tool slot targets whatever
-  item occupies its parent port when that slot is processed, so put 8 and 9 before
-  10..21 in the same batch.
-- Replacing a weapon (8 or 9) does not carry attachments over. What the new weapon
-  spawns with is engine-defined, and the report claims nothing about it.
-- There is **no removal** in 1.x. `item_class` is 1..95 bytes, so "clear this slot" can't
-  be expressed, and unspecified slots stay unchanged. A clear or detach operation is a
-  2.x or separate-method question.
-- A multitool variant swap is consumer policy: send 8 or 9 with the multitool class plus
-  the module slot (16 or 19) in the same batch. The provider has no special rule for it.
-- The 16-item cap still fits every realistic request: 7 body slots, 2 weapons, and one
-  triple per weapon is 15.
+There is no slot for hair, hair colour, eyebrow, head, body, eyes or teeth. These items overwrite the character's look or are parts other items are built to fit. 1.x has no removal, so a wrong item cannot be undone. A slot can be appended later once an in-game run shows a safe swap.
 
-Status behaviour for 8..21:
+## Synchronous `apply`
+
+C calls the full-extent, non-null `apply` member directly. It is game-thread only (command, tick or queued game-thread task). Caller data lives until return. The route uses bounded stack copies and keeps no input, work queue or cancellation. It handles slots 1..21. Outfit slots 22..31 are UNSUPPORTED with no equip call.
+
+Status per slot:
 
 | Case | Status | Engine call |
 |---|---|---|
-| Slot 0 or above 21 (the synchronous route does not handle 22..34) | UNSUPPORTED | no |
+| Slot 0 or above 21 | UNSUPPORTED | no |
 | Host provides 1.0 only (range ends at VISOR) | UNSUPPORTED | no |
-| Backend doesn't declare weapon support | UNSUPPORTED | no |
+| Backend does not declare weapon support (slots 8..21) | UNSUPPORTED | no |
 | `game.loadout.weapons` OFF while body apply is ON | UNAVAILABLE | no |
 | Parent port empty, or the parent lacks that port (optic on a multitool, module on a firearm) | UNSUPPORTED | no mutation |
 | Class not found | ITEM_MISSING | lookup only |
 | Engine refuses, fit mismatch, or the confirmation read differs | FAILED | yes |
 
-Structural errors reject the whole batch before any equip: BAD_ARG (including null,
-foreign/released self, short size, bad stride/name, duplicates), or TOO_MANY above 16.
-Report stays unchanged on structural errors and WRONG_THREAD. Valid requests receive
-input-ordered copied results and applied count. OK means every slot APPLIED; FAILED
-means a partial or wholly refused processed batch. ITEM_MISSING skips that slot and
-continues. No rollback or duplication-prevention claim is made: only a verified
-adapter may report APPLIED after confirming its operation. Consumers must not retry
-already applied slots blindly. Successful changes are player state, not plugin-owned
-entities, and remain on ordinary consumer unload.
+Structural errors reject the whole batch before any equip: BAD_ARG (null, foreign or released `self`, short size, bad stride or name, duplicates) or TOO_MANY above 16. The report stays unchanged on structural errors and WRONG_THREAD.
 
-Absent service queries return NOT_FOUND. Missing/unverified backend, missing method,
-revoked capability or unknown/online/EAC-present admission returns UNAVAILABLE with
-all slots UNAVAILABLE and zero engine equip calls. Admission is checked before each
-supported slot; loss mid-batch preserves earlier applied slots and leaves later slots
-UNAVAILABLE (aggregate FAILED). Report count/status is synchronous completion of
-each adapter call, not a streaming ticket or global inventory snapshot.
+A valid request gets input-ordered copied results and an applied count. OK means every slot is APPLIED. FAILED means a partial or wholly refused processed batch. ITEM_MISSING skips that slot and continues. Only a verified adapter may report APPLIED, and only after confirming its operation. There is no rollback or duplication guard, so do not retry applied slots blindly. Changes are player state, not plugin-owned entities, and stay when a consumer unloads.
+
+An absent service query returns NOT_FOUND. A missing or unverified backend, missing method, revoked capability, or unknown, online or EAC-present admission returns UNAVAILABLE with all slots UNAVAILABLE and no equip call. Admission is checked before each supported slot. If it is lost mid-batch, earlier applied slots stay and later slots are UNAVAILABLE (aggregate FAILED). The report is the synchronous completion of each adapter call, not a streaming ticket or an inventory snapshot.
+
+A recursive `apply` returns UNAVAILABLE with no nested engine call. Backend Start is refused and Stop is ignored during `apply`.
+
+## Asynchronous `submit`, `status`, `cancel` (1.2)
+
+Query `SC_LOADOUT_VERSION_1_2` and check each full pointer extent before using the `sc_loadout_v1_2` tail: `submit(self, request, out_job)`, `status(self, job, out_report)`, `cancel(self, job)`. C++ has `Loadout::Submit`, `Status` and `Cancel`. C# and Lua async mutation are unsupported.
+
+- `submit` validates and copies 1..16 distinct slots, then returns an owner-scoped, process-unique job id. It does not call an equip function while borrowing the request.
+- Each plugin may retain one job. At most eight jobs exist in total.
+- Game-thread ticks process one slot at a time in input order. A later weapon attachment sees the previously completed parent weapon.
+- `status` returns a completed prefix and per-slot results. It never advances a job or mutates the engine. PENDING is never reported as APPLIED.
+- COMPLETE means processing finished, including per-slot refusals. Check the applied count and every slot result.
+- A job ends as FAILED after 120 seconds, on a changed local-player session, on loss of admission, or on a provider fault. There is no retry or rollback.
+- `cancel` forgets the job and releases unfinished native resources. Equipment already confirmed stays equipped. Plugin unload and host stop cancel retained jobs.
+- Unknown, online or EAC-present admission refuses before any mutation.
+
+The Windows async adapter is opt-in with `SCO_LOADOUT_ASYNC=1`, and it configures only when all required signature rows resolve. It does this per slot:
+
+1. It uses the local spawn boundary and waits for that exact entity to become live.
+2. It calls the typed port attachment once.
+3. It confirms the same entity in the same owned port on a later tick.
+
+The parent may not change while a spawn is pending. Port walks are bounded and reject duplicate names. The visor has no grounded separate port and returns UNSUPPORTED. There is no XML loader or inventory-service fallback.
+
+Cancelling removes a spawned item that is not yet attached. Once an attachment was attempted, the uncertain state is kept rather than deleting possible equipment. Prior equipment is never removed or rolled back.
+
+## Capabilities
+
+| Capability | Gates | Default | Switch |
+|---|---|---|---|
+| `game.loadout.apply` | `apply` (slots 1..7) | OFF | A verified host backend. Production installs none. |
+| `game.loadout.weapons` | slots 8..21 of `apply` | OFF | A backend that declares weapon support. |
+| `game.loadout.async` | `submit`, `status`, `cancel` | OFF | `SCO_LOADOUT_ASYNC=1` and all signature rows resolved. |
+| `game.loadout.outfit` | slots 22..31 of `submit` | OFF | The async route plus `SCO_LOADOUT_OUTFIT=1`. |
+
+`game.loadout.outfit` is on only while the async route is installed and its adapter reports an outfit name mapping. The Windows adapter reports it only when `SCO_LOADOUT_OUTFIT=1` is set as well as `SCO_LOADOUT_ASYNC=1`. The port names are consumer-side data, not verified engine rows. The capability goes off on a provider fault and on Stop.
+
+### Outfit slots (1.3)
+
+Outfit slots 22..31 behave like this:
+
+- `submit` refuses the whole request with UNAVAILABLE when it holds any slot in 22..31 and `game.loadout.outfit` is off. No job starts, so no outfit is half applied. BAD_ARG for malformed input or duplicate slots comes first. The refusal comes before the job-capacity check, so UNAVAILABLE can win over TOO_MANY.
+- If the capability is revoked after a job was accepted, that job's outfit slots end UNAVAILABLE with no engine call. Its other slots proceed.
+- Each slot is a lookup by name through the same bounded port search as slots 8..21. A missing port gives UNSUPPORTED. A missing item class gives ITEM_MISSING. APPLIED needs the same readback as every other slot.
+- In 1.2, ids 22..31 were unassigned, and `submit` accepted them and ended the slot UNSUPPORTED. In 1.3 it refuses the request while the capability is off.
+
+Production game-service startup does not currently publish this table (see [status](status.md)). A fixture or service started without a synchronous backend answers UNAVAILABLE for every `apply` slot.
 
 ## Thread, lifetime and faults
 
-Synchronous `apply` is game-thread only (command/tick/queued game-thread task);
-caller data lives until return. That route uses bounded stack copies, with no
-retained input, work queue or cancellation. The 1.2 asynchronous route instead
-retains validated copied job state and exposes status/cancel.
-The host owns publication and withdraws after consumers unload. Borrowed tables must
-not be called after terminal shutdown. Recursive apply returns UNAVAILABLE without
-a nested engine call; backend Start is refused and Stop ignored during apply.
+The host owns publication and withdraws the table after consumers unload. Do not call a borrowed table after terminal shutdown.
 
-Internal `LoadoutBackend` is game-pack/host code, **not a public plugin installation
-API**. It supplies verified typed equip and live fail-closed offline admission;
-current production passes no synchronous backend. Async callbacks use the separate
-LoadoutAsyncBackend and retain copied job state. Callbacks live through Stop.
-Portable guards catch C++ exceptions. Windows MSVC guard frames additionally use
-SEH, not locally exercised. A callback fault or invalid callback result disables
-apply for the rest of the process; restart is required even after Stop/Start.
-This does not guarantee native memory corruption recovery or callback attribution
-outside the host loader guard.
+`LoadoutBackend` is game-pack and host code, not a plugin installation API. It supplies verified typed equip and live, fail-closed offline admission. Production passes no synchronous backend. The async route uses the separate `LoadoutAsyncBackend` and retains copied job state. Its callbacks live through Stop.
+
+Guards catch C++ exceptions. On Windows, MSVC guard frames also use SEH. A callback fault or invalid callback result disables both mutation routes until process restart, even after Stop and Start. Uncertain native resources are retained and no more callbacks run. The guards do not promise recovery from native memory corruption or attribution outside the host loader guard.
 
 ## Respawn-completed event (`game.loadout.respawn_completed`)
 
-Additive notification on the kernel event bus; `sc_loadout_v1` keeps its layout and
-version (no table member). **OFF in production, not run in game.** Capability
-`game.events.loadout_respawn_completed` is false until a verified host adapter attests
-the producer; an event whose capability is off never fires, so subscribing is harmless.
+An additive notification on the kernel event bus. `sc_loadout_v1` keeps its layout and version. Capability `game.events.loadout_respawn_completed` is OFF in production until a verified host adapter attests the producer. An event whose capability is off never fires, so subscribing is harmless.
 
-- Name: `SC_GAME_EVENT_LOADOUT_RESPAWN_COMPLETED`, defined (identically, guarded) in both
-  `sc_loadout.h` and `sc_game_events.h`. A plugin that copies only `sc_loadout.h` can
-  subscribe by name with `sco_api` `subscribe`; the independent native fixture does.
-- Payload `sc_game_loadout_respawn_completed` (`sc_game_events.h`, 8 bytes): `size` and
-  `_pad` only. **Occurrence only.** It names no entity, zone, slot or item and is not a
-per-slot confirmation; use synchronous or asynchronous per-slot reports for those. Check `size` before reading any
-  field a later minor appends.
-- Callbacks run on the game thread from the host tick, a frame or so after the occurrence.
-  Occurrences recorded within one tick coalesce into one event. The pointer is valid only
-  during the callback.
-- Why no fields: the only evidence is the type name `SPI_Player_OnRespawnLoadoutCompleted`,
-  whose declaration in the intake type export is an empty marker struct (finding
-  F-INTAKE-004; the export's provenance and build identity are unverified). Where the game
-  raises it, its calling convention and what "completed" means for a given player are
-  unverified (T-3). No native hook exists in this change.
-- Host seam (`src/game/services/loadout.h`, never exposed to plugins):
-  `LoadoutBackend::respawnCompleted` is an attestation by a verified adapter and needs
-  `verified` and a live `offline` admission check. `RecordRespawnLoadoutCompleted()` records
-  one occurrence from the adapter's hook, from any thread, running no plugin code; it
-  returns false and records nothing unless the attested backend is started and the
-  capability is on. The host dispatches from its `tick` subscription on the game thread
-  after re-checking admission; a refused occurrence is dropped, not replayed. A callback
-  fault disables the event with `apply` until process restart; Stop clears a pending
-  occurrence, withdraws the tick subscription and turns the capability off.
-- Production game-service startup currently refuses before `StartLoadout()` is reached,
-  so the capability stays off and the event never fires. A service started without a
-  backend also leaves this capability off.
+- Name: `SC_GAME_EVENT_LOADOUT_RESPAWN_COMPLETED`, defined identically (guarded) in `sc_loadout.h` and `sc_game_events.h`. A plugin that copies only `sc_loadout.h` can subscribe by name with `sco_api` `subscribe`.
+- Payload `sc_game_loadout_respawn_completed` (`sc_game_events.h`, 8 bytes): `size` and `_pad` only. It reports that a respawn completed. It names no entity, zone, slot or item and is not a per-slot confirmation. Use the `apply` or `status` reports for that. Check `size` before reading any field a later minor appends.
+- Callbacks run on the game thread from the host tick, a frame or so after the occurrence. Occurrences recorded within one tick coalesce into one event. The pointer is valid only during the callback.
+- The payload has no fields because the only evidence is a type name, `SPI_Player_OnRespawnLoadoutCompleted`, declared as an empty marker struct. Where the game raises it, its calling convention and what "completed" means for a given player are unverified. No native hook exists.
+
+Host seam (`src/game/services/loadout.h`, never exposed to plugins):
+
+- `LoadoutBackend::respawnCompleted` is an attestation by a verified adapter. It needs `verified` and a live `offline` admission check.
+- `RecordRespawnLoadoutCompleted()` records one occurrence from the adapter's hook, from any thread, and runs no plugin code. It returns false and records nothing unless the attested backend is started and the capability is on.
+- The host dispatches from its `tick` subscription on the game thread after re-checking admission. A refused occurrence is dropped, not replayed.
+- A callback fault disables the event together with `apply` until process restart. Stop clears a pending occurrence, withdraws the tick subscription and turns the capability off.
+- Production game-service startup refuses before `StartLoadout()` is reached, so the event never fires. A service started without a backend also leaves the capability off.
 
 ## Language and package routes
 
-C calls the full-extent, non-null `apply` member directly. C++20 uses
-`scosdk/game/loadout.hpp` (`Loadout::Open/Apply`), which rejects complete-pointer-tail
-truncation/null callbacks and clears failed reopen state. C# is unsupported for loadout 1.0;
-Lua mutation is unsupported (no FFI/binding or read-only inventory route).
-Header, wrapper, docs and ABI fixture are in `game-sc` and combined legacy profiles,
-never the neutral core/core-source archive. Repository-only provider tests compile
-an independent C native module from copied public headers, load it through the real
-host loader and invoke the actual game-pack provider with synthetic engine callbacks.
-These are not Windows DLL, renderer, engine or gameplay acceptance.
+C++20 uses `scosdk/game/loadout.hpp` (`Loadout::Open/Apply`), which rejects truncated pointer tails and null callbacks and clears failed reopen state. C# is unsupported for loadout 1.0. Lua mutation is unsupported. The header, wrapper, docs and ABI fixture are in the `game-sc` and combined legacy profiles, never in the neutral core or core-source archive.
 
-## Pending engine acceptance (G6 / charter 4A)
+Repository provider tests compile an independent C native module from copied public headers, load it through the real host loader and call the game-pack provider with synthetic engine callbacks. A Windows synthetic-object fixture runs the async adapter, including delayed spawn, exact attachment arguments, confirmation, a missing class, admission-loss cleanup, and per-slot port lookup for each outfit slot. These are not Windows DLL, renderer, engine or gameplay checks.
 
-- Identify exact supported per-slot engine calls, item-existence checking and local
-  player selection; do not infer individual status from the old all-at-once XML loader.
-- Verify build-specific slot/outfit/head/visor mapping, no duplication/corruption,
-  no-player and missing-item behavior on an owner-approved offline Windows build.
-- Supply current session offline/EAC admission from game-pack composition (unknown
-  refuses), and verify calling conventions/SEH with MSVC.
-- Verify where the game raises the respawn-completed occurrence (F-INTAKE-004, T-3), its
-  calling convention and timing relative to the equip being visible, before any adapter
-  sets `respawnCompleted`.
-- Only then install/attest the typed backend and enable its capability. Consumer
-  extraction/engine activation and charter gameplay acceptance remain blocked.
+## What an in-game run still has to show
 
-Outfit slots 22..34 (1.3) each need their own in-game evidence, and head, body, eyes and
-teeth stay out until there is evidence of a safe swap. `game.loadout.outfit` stays OFF by
-default until then, whatever the async route does.
+- The exact per-slot engine calls, item-existence checking and local-player selection. Do not infer per-slot status from the old all-at-once XML loader.
+- The build-specific slot, outfit and visor mapping, with no duplication or corruption, and the no-player and missing-item behavior.
+- Current offline and EAC admission from the game-pack composition (unknown refuses), and calling conventions and SEH under MSVC.
+- Where the game raises the respawn-completed occurrence, its calling convention, and its timing relative to the equip becoming visible, before any adapter sets `respawnCompleted`.
+- Weapon and multitool slots 8..21 and outfit slots 22..31 each need their own evidence before `game.loadout.weapons` or `game.loadout.outfit` can default ON. Port mappings in the slot table stay unverified until then.
 
-**Owner decision (approved):** logical slots were extended for the sc-offline #127
-consumer need (weapon attachments and multitool slots 8..21). The port mappings in the
-slot table are still unverified, and each new slot needs its own in-game evidence
-before `game.loadout.weapons` can default ON. There is no removal in 1.x. No arbitrary
-console, XML loader or account inventory fallback is authorized by this contract.
+No arbitrary console, XML loader or account inventory fallback is part of this contract.

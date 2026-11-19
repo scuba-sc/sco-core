@@ -352,7 +352,7 @@ DEV_TOOLS = [
 WORKFLOW_TOOLS = [
     tool("list_workflows", "List SDK workflows",
          "List the step-by-step SDK workflows shipped with this catalogue (planning SDK work, building and checking, "
-         "debugging, packaging and upgrading a plugin, reporting an SDK gap): id, description and entry file. Read one with "
+         "debugging, packaging and upgrading a plugin, reporting an SDK gap, building a launcher): id, description and entry file. Read one with "
          "get_workflow. Nothing is run or installed."),
     tool("get_workflow", "Read an SDK workflow",
          "Return the text of one workflow's instructions, or of one of the reference files it lists. The text is guidance to "

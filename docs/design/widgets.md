@@ -266,7 +266,7 @@ ignoring unknown node tails. Such success is not a tagged-event guarantee.
 The headless checker advertises 1.4 and exercises canonical copied tags,
 reentrant mutation, sticky null tags, legacy-size reset and short-table refusal.
 ABI, real-host, C++ fake-provider, managed and Lua fixtures cover these paths.
-These are synthetic results; not run in game. NativeAOT/archive-consumer and
+These are synthetic results. Not run in game. NativeAOT/archive-consumer and
 product-host qualification remain separate from source fixture results.
 
 ## Host-side view

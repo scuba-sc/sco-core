@@ -20,7 +20,7 @@
       "callback_context": "unspecified",
       "reentrancy": "unspecified",
       "results": "Returns OPEN or LOADED; no sco_result. Absent table NOT_FOUND; stopped-state value unspecified as a contract.",
-      "absent_capability": "Absent table NOT_FOUND",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND.",
       "cleanup": "No in-flight cancellation; discard drops open/queued patch, not applied or saved effects. Unload forgets owned patches.",
       "language_mappings": {
         "c": {
@@ -85,9 +85,7 @@
         "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
       ],
       "limitations": [
-        "Internal allocation/failure guarantee unspecified.",
-        "Recursive/concurrent same-patch reentrancy unspecified.",
-        "stopped-state value unspecified as a contract."
+        "Stopped-state value unspecified as a contract."
       ]
     },
     {
@@ -109,7 +107,7 @@
       "callback_context": "unspecified",
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND; stopped operations: UNAVAILABLE. Unknown/released patch: NOT_FOUND; closed patch: BAD_ARG; operation cap: TOO_MANY. Additional failures/output state unspecified unless described in the buffer contract.",
-      "absent_capability": "Absent table: query_service NOT_FOUND",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND.",
       "cleanup": "No in-flight cancellation; discard drops open/queued patch, not applied or saved effects. Unload forgets owned patches.",
       "language_mappings": {
         "c": {
@@ -173,11 +171,7 @@
         "tools/test.sh",
         "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
       ],
-      "limitations": [
-        "Internal allocation/failure guarantee unspecified.",
-        "Recursive/concurrent same-patch reentrancy unspecified.",
-        "Additional failures/output state unspecified unless described in the buffer contract."
-      ]
+      "limitations": []
     },
     {
       "id": "sco-datacore-v1-set",
@@ -198,7 +192,7 @@
       "callback_context": "unspecified",
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND; stopped operations: UNAVAILABLE. Unknown/released patch: NOT_FOUND; closed patch: BAD_ARG; operation cap: TOO_MANY. Additional failures/output state unspecified unless described in the buffer contract.",
-      "absent_capability": "Absent table: query_service NOT_FOUND",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND.",
       "cleanup": "No in-flight cancellation; discard drops open/queued patch, not applied or saved effects. Unload forgets owned patches.",
       "language_mappings": {
         "c": {
@@ -262,11 +256,7 @@
         "tools/test.sh",
         "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
       ],
-      "limitations": [
-        "Internal allocation/failure guarantee unspecified.",
-        "Recursive/concurrent same-patch reentrancy unspecified.",
-        "Additional failures/output state unspecified unless described in the buffer contract."
-      ]
+      "limitations": []
     },
     {
       "id": "sco-datacore-v1-add-instance",
@@ -287,7 +277,7 @@
       "callback_context": "unspecified",
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND; stopped operations: UNAVAILABLE. Unknown/released patch: NOT_FOUND; closed patch: BAD_ARG; operation cap: TOO_MANY. Additional failures/output state unspecified unless described in the buffer contract.",
-      "absent_capability": "Absent table: query_service NOT_FOUND",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND.",
       "cleanup": "No in-flight cancellation; discard drops open/queued patch, not applied or saved effects. Unload forgets owned patches.",
       "language_mappings": {
         "c": {
@@ -351,11 +341,7 @@
         "tools/test.sh",
         "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
       ],
-      "limitations": [
-        "Internal allocation/failure guarantee unspecified.",
-        "Recursive/concurrent same-patch reentrancy unspecified.",
-        "Additional failures/output state unspecified unless described in the buffer contract."
-      ]
+      "limitations": []
     },
     {
       "id": "sco-datacore-v1-set-pointer",
@@ -376,7 +362,7 @@
       "callback_context": "unspecified",
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND; stopped operations: UNAVAILABLE. Unknown/released patch: NOT_FOUND; closed patch: BAD_ARG; operation cap: TOO_MANY. Additional failures/output state unspecified unless described in the buffer contract.",
-      "absent_capability": "Absent table: query_service NOT_FOUND",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND.",
       "cleanup": "No in-flight cancellation; discard drops open/queued patch, not applied or saved effects. Unload forgets owned patches.",
       "language_mappings": {
         "c": {
@@ -440,11 +426,7 @@
         "tools/test.sh",
         "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
       ],
-      "limitations": [
-        "Internal allocation/failure guarantee unspecified.",
-        "Recursive/concurrent same-patch reentrancy unspecified.",
-        "Additional failures/output state unspecified unless described in the buffer contract."
-      ]
+      "limitations": []
     },
     {
       "id": "sco-datacore-v1-append",
@@ -465,7 +447,7 @@
       "callback_context": "unspecified",
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND; stopped operations: UNAVAILABLE. Unknown/released patch: NOT_FOUND; closed patch: BAD_ARG; operation cap: TOO_MANY. Additional failures/output state unspecified unless described in the buffer contract.",
-      "absent_capability": "Absent table: query_service NOT_FOUND",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND.",
       "cleanup": "No in-flight cancellation; discard drops open/queued patch, not applied or saved effects. Unload forgets owned patches.",
       "language_mappings": {
         "c": {
@@ -529,11 +511,7 @@
         "tools/test.sh",
         "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
       ],
-      "limitations": [
-        "Internal allocation/failure guarantee unspecified.",
-        "Recursive/concurrent same-patch reentrancy unspecified.",
-        "Additional failures/output state unspecified unless described in the buffer contract."
-      ]
+      "limitations": []
     },
     {
       "id": "sco-datacore-v1-add-record",
@@ -554,7 +532,7 @@
       "callback_context": "unspecified",
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND; stopped operations: UNAVAILABLE. Unknown/released patch: NOT_FOUND; closed patch: BAD_ARG; operation cap: TOO_MANY. Additional failures/output state unspecified unless described in the buffer contract.",
-      "absent_capability": "Absent table: query_service NOT_FOUND",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND.",
       "cleanup": "No in-flight cancellation; discard drops open/queued patch, not applied or saved effects. Unload forgets owned patches.",
       "language_mappings": {
         "c": {
@@ -618,11 +596,7 @@
         "tools/test.sh",
         "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
       ],
-      "limitations": [
-        "Internal allocation/failure guarantee unspecified.",
-        "Recursive/concurrent same-patch reentrancy unspecified.",
-        "Additional failures/output state unspecified unless described in the buffer contract."
-      ]
+      "limitations": []
     },
     {
       "id": "sco-datacore-v1-commit",
@@ -643,7 +617,7 @@
       "callback_context": "unspecified",
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND; stopped operations: UNAVAILABLE. Unknown/released patch: NOT_FOUND; closed patch: BAD_ARG; operation cap: TOO_MANY. Additional failures/output state unspecified unless described in the buffer contract.",
-      "absent_capability": "Absent table: query_service NOT_FOUND",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND.",
       "cleanup": "No in-flight cancellation; discard drops open/queued patch, not applied or saved effects. Unload forgets owned patches.",
       "language_mappings": {
         "c": {
@@ -707,11 +681,7 @@
         "tools/test.sh",
         "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
       ],
-      "limitations": [
-        "Internal allocation/failure guarantee unspecified.",
-        "Recursive/concurrent same-patch reentrancy unspecified.",
-        "Additional failures/output state unspecified unless described in the buffer contract."
-      ]
+      "limitations": []
     },
     {
       "id": "sco-datacore-v1-discard",
@@ -732,7 +702,7 @@
       "callback_context": "unspecified",
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND; stopped operations: UNAVAILABLE. Unknown/released patch: NOT_FOUND; closed patch: BAD_ARG; operation cap: TOO_MANY. Additional failures/output state unspecified unless described in the buffer contract.",
-      "absent_capability": "Absent table: query_service NOT_FOUND",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND.",
       "cleanup": "No in-flight cancellation; discard drops open/queued patch, not applied or saved effects. Unload forgets owned patches.",
       "language_mappings": {
         "c": {
@@ -796,11 +766,7 @@
         "tools/test.sh",
         "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
       ],
-      "limitations": [
-        "Internal allocation/failure guarantee unspecified.",
-        "Recursive/concurrent same-patch reentrancy unspecified.",
-        "Additional failures/output state unspecified unless described in the buffer contract."
-      ]
+      "limitations": []
     },
     {
       "id": "sco-datacore-v1-report",
@@ -821,7 +787,7 @@
       "callback_context": "unspecified",
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND; stopped operations: UNAVAILABLE. Unknown/released patch: NOT_FOUND; closed patch: BAD_ARG; operation cap: TOO_MANY. Additional failures/output state unspecified unless described in the buffer contract.",
-      "absent_capability": "Absent table: query_service NOT_FOUND",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND.",
       "cleanup": "No in-flight cancellation; discard drops open/queued patch, not applied or saved effects. Unload forgets owned patches.",
       "language_mappings": {
         "c": {
@@ -885,11 +851,7 @@
         "tools/test.sh",
         "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
       ],
-      "limitations": [
-        "Internal allocation/failure guarantee unspecified.",
-        "Recursive/concurrent same-patch reentrancy unspecified.",
-        "Additional failures/output state unspecified unless described in the buffer contract."
-      ]
+      "limitations": []
     }
   ]
 }

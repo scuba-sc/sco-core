@@ -56,19 +56,9 @@ cmake --build build --config RelWithDebInfo
 ctest --test-dir build -C RelWithDebInfo --output-on-failure
 ```
 
-With `SCO_BUILD_TESTS=ON`, configuration requires Python 3 and creates a fresh,
-uniquely named `<build>/sco-fixtures-*` directory for plugin discovery fixtures.
-The generated CTest commands and library output paths point to that directory;
-reconfiguring creates another one and leaves previous directories intact. This
-avoids consuming stale plugins and preserves existing data, at the cost of disk
-space and rebuilding the fixture libraries after regeneration. Generated test inputs and CTest output paths use that namespace. The
-configuration log prints the fixture path.
+With `SCO_BUILD_TESTS=ON`, configuration requires Python 3 and creates a fresh `<build>/sco-fixtures-*` directory for the plugin discovery fixtures. The generated CTest commands and library output paths point to it, and the configuration log prints its path. Reconfiguring creates another directory and leaves the old ones, so tests never pick up stale plugins. The cost is disk space and a rebuild of the fixture libraries.
 
-Multi-config generators currently share a fixture namespace across build
-configurations. Use a separate build tree for each configuration: switching or
-running configurations concurrently in one tree can reuse or overwrite the
-other configuration’s fixture libraries.
-
+Multi-config generators share one fixture namespace across configurations. Use a separate build tree for each configuration: switching or running configurations concurrently in one tree can reuse or overwrite the other configuration's fixture libraries.
 
 ### Options
 
@@ -148,16 +138,22 @@ add_subdirectory(external/sco-core EXCLUDE_FROM_ALL)
 
 ### Tests
 
+The table lists the main tests. `ctest --test-dir build -N` lists all of them.
+
 | CTest name | What |
 |---|---|
 | `abi_v1` | Rebuilds the ABI pin objects (C11, C++20 and, off MSVC, `-fshort-enums`); fails if any static assert breaks |
 | `abi_storage` | The same for the `sco.storage` table pin, `tests/abi_storage.c` |
 | `abi_ui` | The same for the `sco.ui` table pin, `tests/abi_ui.c` |
 | `abi_widgets` | The `sco.widgets` table, node and event layout pins, `tests/abi_widgets.c` |
+| `abi_widgets_view` | Layout pins of `sco/widgets_view.h` |
 | `abi_ui_surfaces` | The `sco.ui.surfaces` table, desc and pose layout pins, `tests/abi_ui_surfaces.c` |
 | `test_widgets` | Every neutral widget kind, events, bounds, malformed inputs, atomic replacement and owner cleanup through a headless renderer |
 | `test_widgets_sdk` | C++ table extent/null/reopen guards and optional ImGui adapter API shim (no GPU) |
 | `test_widgets_app` | Automatic widget publication and teardown through the real host kit across two sessions |
+| `test_widgets_view` | The panel list, copy and click queue of `sco.widgets.view` with synthetic panels and threads |
+| `test_host_menu`, `test_host_menu_owner` | `sco/host_menu.h` over the real host |
+| `test_sig_index_equivalence` | The per-pass signature scan index against verbatim copies of the loops it replaced |
 | `abi_settings` | The same for the `sco.settings` table pin, `tests/abi_settings.c` |
 | `test_settings` | `sco.settings` over the real host table and storage: defaults, typed sets, `settings.changed`, persistence across a restart, stale kept values |
 | `test_surfaces` | `sco.ui.surfaces`: every kind, every refused field, ownership of ids and panels, per-plugin and host limits, release through sco.ui's hook, threads registering beside snapshots, `scosdk/ui_surfaces.hpp` |
@@ -214,6 +210,34 @@ python3 sdk/package.py --profile game-sc --out dist-profiles
 sdk/test-zip.sh dist-profiles/sco-sdk-core-*.zip dist-profiles/sco-sdk-game-sc-*.zip
 ```
 
+### Packaging checks
+
+`sdk/components.json` lists every SDK file with its profile, origin and licence. `sdk/package.py` builds a zip from it and nothing else (`--check` validates it, `--list-headers core` prints the public headers of a profile).
+
+- Reproducibility: `python3 sdk/test_package.py` builds every profile in separate fresh working and output directories under different `TZ`, `LC_ALL`, Python hash seeds and umasks, then compares SHA-256 digests. It checks fixed ZIP timestamps and modes and the absence of checkout and output paths. This proves byte identity within one Python/zlib environment, not across compression-library versions. Repository document links in packaged docs are pinned to the source commit, not a moving branch.
+- A locally built normal package can share the published archive's version and filename without identical bytes. Release identity is the digest in the published `SHA256SUMS`.
+- Secret shapes: packaging refuses recognized PEM/OpenSSH private-key and GitHub token shapes before writing ZIP bytes. The check is bounded and does not recognize every possible secret.
+- SPDX: `ip_audit.py zip` and the packaging tests use an offline stdlib structural check of the required SPDX 2.3 fields, IDs, relationships, inventories and checksums. It is not a full SPDX validator. The optional `ip_audit.py zip --sbom` sidecar also binds the complete archive hash; the embedded SBOM describes the extracted payload.
+- Source-kit extraction: `package.py --profile core-source` produces the kernel source kit. `test-zip.sh <source.zip>` verifies checksums, configures and builds from the extracted files alone, then runs the focused synthetic host tests. `python3 sdk/test_package.py` also verifies the manifest-classified game exclusions and exact public-header membership (including nested includes), then configures, builds and runs every neutral CTest from a freshly extracted archive. This runs locally and in the SDK CI job. Game-only cases of shared test drivers live in separate include fragments that `SCO_GAME_SC=OFF` never includes. The `game-contract` group in `sdk/components.json` defines the exclusion inventory. The released 1.1 header in `tests/abi/released/sco_api.h` is checked against its golden SHA-256, so the frozen-plugin test needs neither Git nor a network.
+- Header dependencies: external C and C++ example sources are copied outside the extraction and compiled against its installed headers. Compiler dependency output must name each SDK header as an exact approved public destination in `components.json`; directory prefixes do not approve nested files. Macro, transitive and system-marked includes are checked, and hidden checkout dependencies are refused. `test-zip.sh` runs the same check, or run `package.py --profile core --check-installed-headers <extracted-root>`.
+- CI also inspects the full checkout's kernel-only target graph, compiler depfiles, compiled objects and link inputs. Symbol scans are supplementary.
+- Development packages: `sdk/package.py --development --profile host-source-sc --out <directory>` (or another profile) from a clean Git checkout uses the committed `sdk/DEVELOPMENT_VERSION` as the coordinate in archive names and generated metadata, writes it to the kit `VERSION`, excludes the input file and records the exact source commit. It implies no tag or release. The game-sc overlay keeps its game-pack version and adds the development SDK identifier to its archive name.
+- The `core-source` and `host-source-sc` kits exclude the runtime MCP peer. Keep `SCO_BUILD_RUNTIME_MCP=OFF` there; building that peer needs a full source checkout.
+
+### ImGui pins for the legacy `sco.ui` route
+
+The shipped public headers target sc-offline's ImGui snapshot at `1ee0727cc63866a95e709ae61dd5dd355b511253`: 1.92.8 WIP, `IMGUI_VERSION_NUM` 19277.
+
+| File in `third_party/imgui/` | SHA-256 |
+| --- | --- |
+| `imgui.h` | `cd65b1905d5cbdaeab82f6ff180ae8767bd72c7bc99ee258c74665eb2d3ee1fa` |
+| `imconfig.h` | `1353bfa59da16eec481723fd4e5d910356f0406b79e3c4142e0c9867bafffab5` |
+| `LICENSE.txt` | `173506a2d6f7fb67990d257fb2507f188690eca39060c39469ae7bef43aae2a3` |
+
+### Platform notes for the kernel source kit
+
+Hook execution tests run on x64 Windows and Linux. Byte decoding and unsupported-host checks run on every development platform. ARM64 detour installation returns `Error::Unsupported` without changing memory.
+
 ## CI
 
 | Workflow | Runs on | Does |
@@ -223,6 +247,9 @@ sdk/test-zip.sh dist-profiles/sco-sdk-core-*.zip dist-profiles/sco-sdk-game-sc-*
 | [`sdk`](../.github/workflows/sdk.yml) | ubuntu-24.04, then windows-2025 (MSVC x64) | Packages the SDK zip, builds and checks every example from it, keeps the zip as an artifact |
 | [`release`](../.github/workflows/release.yml) | ubuntu-24.04, manual dispatch | Promotes an exact candidate run and artifact after checking its source, hashes and attestations; re-downloads and verifies the draft assets before publication. Never rebuilds ([release procedure](legal/release-checklist.md#releasing)) |
 | [`docs-site`](../.github/workflows/docs-site.yml) | ubuntu-24.04 | PRs build read-only site artifacts; trusted `main` pushes and manual dispatches deploy the validated site to GitHub Pages |
+| [`release-candidate`](../.github/workflows/release-candidate.yml) | ubuntu-24.04, after the required checks pass on `main`, or manual dispatch | Builds the five archives once on a checked `main` commit and keeps them as one artifact |
+| [`ip-compliance`](../.github/workflows/ip-compliance.yml) | ubuntu-24.04 | Provenance, licence and package checks; keeps the reports |
+| [`experimental-rust-qualification`](../.github/workflows/experimental-rust-qualification.yml) | pull requests and manual runs | Rust bindings qualification. Not a release gate |
 | [`discord`](../.github/workflows/discord.yml) | ubuntu | Posts repository activity to the sc-offline Discord channel |
 
 Workflow actions are pinned to commit SHAs. The release workflow defaults to `contents: read`; its verification job also has `actions: read`, and only its publication job has `contents: write`. The docs-site build remains read-only; its trusted-main deployment job has `pages: write` and `id-token: write`. PR site builds cannot deploy. A pull request needs `test`, `cmake` and `sdk` green; release candidates additionally require the exact-commit checks listed in the [release procedure](legal/release-checklist.md#releasing).
@@ -239,7 +266,7 @@ Alpha 4.10.3, build 4.10.200.58746; see [game builds](../docs/game/builds.md)) a
 [SDK 2.4.0](https://github.com/scuba-sc/sco-core/blob/sdk-v2.4.0/docs/releases/sdk-v2.4.0.md).
 <!-- /release-block:current-release -->
 
-Its five archives and their checksums are listed in its `SHA256SUMS` on the release page. SDK 2.4.0 (`sdk-v2.4.0`) was published on 2026-11-01 from source commit `6106fa3639cbcc28f78a1ded8de2707de019f4d3`. Its five archive identities and checksums are in the [2.4.0 release notes](releases/sdk-v2.4.0.md#stable-archive-identity); later `main` commits do not change those published bytes. RC2, published on 2026-10-28 from `844e136ccb280ad8cb43f73bc43c9447e8f6799d`, and RC1 are historical releases with their own immutable archives. The [`sdk-v2.4.0-rc.2` release notes](releases/sdk-v2.4.0.md#published-rc2-archive-identity) preserve that artifact identity and the prepublication history. The `sdk-v2.0.0` to `sdk-v2.3.0` tags remain in git, but their release downloads were withdrawn. The version lives in `sdk/VERSION`; the plugin ABI's own version is `SCO_API_MAJOR` / `SCO_API_MINOR` in `sco_api.h`, and version 1 only grows ([Compatibility](api-v1.md#compatibility)).
+Each release's archives and digests are in its release notes and on its release page. SDK 2.4.0 was published on 2026-11-01. The tags `sdk-v2.0.0` to `sdk-v2.3.0` remain in git, but their downloads were withdrawn. `sdk-v2.4.0-rc.1` and `-rc.2` are historical. The version is in `sdk/VERSION`. The plugin ABI has its own version, `SCO_API_MAJOR` / `SCO_API_MINOR` in `sco_api.h`; version 1 only grows ([Compatibility](api-v1.md#compatibility)).
 
 Follow the [maintainer release procedure](legal/release-checklist.md#releasing): prepare the version and notes, build a candidate on checked main, tag its exact source, and dispatch the [`release`](../.github/workflows/release.yml) workflow with its run and artifact IDs. The workflow checks the candidate, hashes and attestations and verifies the draft assets before publication without rebuilding.
 

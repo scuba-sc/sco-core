@@ -14,7 +14,7 @@ sco-core puts the game's internals (addresses, file formats, engine calls) behin
 
 ## Who it is for
 
-- **Mod authors:** write a plugin in C, C++20, C# (NativeAOT, so players need no .NET), sandboxed Lua, or as a data pack with no code. Experimental raw Rust bindings ship from SDK 2.4.1 ([Rust support](sdk/rust/README.md)); they are in the `core` profile archives from SDK 2.4.1 and not in the 2.4.0 archives.
+- **Mod authors:** write a plugin in C, C++20, C# (NativeAOT, so players need no .NET), sandboxed Lua, or as a data pack with no code. Experimental raw Rust bindings are included from SDK 2.4.1 ([Rust support](sdk/rust/README.md)).
 - **Products** such as sc-offline: build sco-core in and ship features as built-in plugins on the same interface.
 - **Patch-day maintainers:** check a new game build without starting the game.
 
@@ -22,8 +22,8 @@ sco-core puts the game's internals (addresses, file formats, engine calls) behin
 
 - **A stable ABI:** [`sco_api.h`](include/sco_api.h), version 1.1. Version 1 only grows, so a plugin built today keeps loading in later 1.x hosts.
 - **Game-neutral host services:** storage (SQLite), retained widgets, UI and hotkeys, typed settings, local IPC and private-session messages.
-- **Optional Star Citizen extension:** DataCore patches and game services for actors, actor stats, vehicles, world, entities, events and more. Contract presence, native availability, static signature checks and in-game verification are separate: [status of every game.* table](docs/game/status.md). No current game-service implementation is claimed verified in game.
-- **Native fault handling and hot reload:** guarded host-entered calls on Windows support best-effort fault attribution and withdrawal, not safe recovery. Native plugins are trusted in-process code, not sandboxed; raw service calls and custom workers are not automatically guarded, and corruption can still end the process. Eligible plugins can reload while the game runs; restart after a native fault. [Guard limits and restart rules](docs/plugins.md#crash-containment).
+- **Optional Star Citizen extension:** DataCore patches and game services for actors, actor stats, vehicles, world, entities, events and more. [Game capability status](docs/game/status.md) lists the contract, availability and evidence of every `game.*` table. Services with only synthetic or static evidence are marked Not run in game.
+- **Native fault handling and hot reload:** on Windows, host-entered plugin calls are guarded, so a fault is attributed to a plugin and its registrations are withdrawn. That is not recovery: native plugins run in-process with the game's rights, raw service calls and your own threads are not guarded, and after a native fault you restart the game. Eligible plugins reload while the game runs. [Guard limits and restart rules](docs/plugins.md#crash-containment).
 
 ## Quick start: write a plugin
 
@@ -37,7 +37,7 @@ Alpha 4.10.3, build 4.10.200.58746; see [game builds](docs/game/builds.md)) and 
 
 Choose the combined archive (or the core archive) from that release page, check the digest as in
 [Start your first plugin](docs/getting-started.md), or build an archive with
-`python3 sdk/package.py`. The SDK does not claim that anything in this release works in game. Then:
+`python3 sdk/package.py`. Then:
 
 ```sh
 cd sco-sdk-<version>

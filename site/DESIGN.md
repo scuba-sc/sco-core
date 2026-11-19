@@ -16,8 +16,6 @@ before adding a new visual primitive.
 - Starlight owns navigation, theme selection, accessibility landmarks and
   Expressive Code blocks with their copy buttons. The local Search override retains
   its native dialog and lazy Pagefind UI. Custom CSS uses Starlight public tokens.
-- The redesign applies Open Design's redesign, typography, color, anti-AI-slop and
-  state-coverage guidance within the constraints of a static documentation site.
 - No web fonts, remote assets or new dependencies. System fonts render immediately.
   Search adds a small local query normalizer and category controls around Pagefind;
   its UI and index remain lazily loaded from the static site. The existing inline
@@ -52,16 +50,11 @@ Published and tier 1 use Starlight's green ramps; preview and tier 3 use orange;
 tier 4 uses red; tier 2 is neutral. Every chip also names its status. Structural
 rules are subtle; control boundaries and focus indicators need stronger contrast.
 
-The home landing retains the supplied deepwater identity in both themes:
-`#030d16` background, `#8de4e0` teal, white display text, `#dae7ea` supporting
-copy, and translucent teal rules. These values are scoped to `[data-sco-landing]`;
-the documentation body and built-in header keep the selected Starlight theme.
-The cinematic atmosphere adds violet and teal clouds with a restrained warm
-core, concentrated to the right of the reading area. Six seeded star groups
-vary color, size and brightness; rare warm highlights and brighter near stars
-provide depth. The right-hand particle field sits behind a dark veil, with only
-a sparse foreground plane crossing the copy. The static CSS nebula remains with
-JavaScript off or field initialization unavailable; no image or font is fetched.
+The home landing uses one deepwater palette in both themes: `#030d16` background,
+`#8de4e0` teal, white display text, `#dae7ea` supporting copy and translucent teal
+rules. These values are scoped to `[data-sco-landing]`; the documentation body and
+built-in header keep the selected Starlight theme. The static CSS nebula stays
+with JavaScript off or field initialization unavailable; no image or font is fetched.
 
 ## 3. Typography
 
@@ -77,10 +70,11 @@ case. Monospace is reserved for identifiers, versions, archives, hashes and code
 Facts and counts use tabular figures. Long prose identifiers wrap without truncation.
 
 The landing title is a single semantic `h1#_top[data-page-title]`: **sco-core SDK**,
-with a responsive 3rem–8rem system-sans scale, tight line height and tracking. Its
-tagline remains **Public contracts for Star Citizen offline plugins**. Monospace
-eyebrow, language links, hub indices and footer details echo the supplied design;
-no rendered image contains text.
+with a responsive 3rem–8rem system-sans scale, tight line height and tracking. The
+tagline is read from the home page's `hero.tagline` front matter, which `gen.py`
+writes, and a short paragraph under it says what sco-core is and who it is for.
+Monospace eyebrow, language links, hub indices and footer details use the mono
+stack; no rendered image contains text.
 
 ## 4. Spacing and layout
 
@@ -95,10 +89,10 @@ Current links use a tinted surface, stronger weight and underline. Hover and foc
 do not move elements or change layout.
 
 The home landing is full width within Starlight's content panel. Its bracket/core
-mark, large title, tagline, **Start a plugin**, **Browse API**, four language links
-and four thinly ruled library links use normal responsive flow. The content is
-never a fixed 1920px composition or zoomed canvas. The original evidence banner,
-library summaries and release metadata continue below in a centered reading area.
+mark, large title, tagline, short introduction, **Start a plugin**, **Browse API**,
+four language links and four thinly ruled library links use normal responsive flow.
+The content is never a fixed 1920px composition or zoomed canvas. The version banner,
+library summaries, release boxes and downloads continue below in a centered reading area.
 Actions wrap naturally, remain at least 2.75rem high and do not depend on a wide
 viewport. The native header and search retain their semantics. On the splash
 page, the native theme selector is also visible in the mobile header.
@@ -118,14 +112,16 @@ page, the native theme selector is also visible in the mobile header.
 - **Actions** (`.sco-actions`, `.sco-action`, `.sco-action--primary`): real links;
   one filled primary action and a quiet underlined secondary action.
 - **Language shortcuts** (`.sco-language-links`): wrapping, underlined text links.
-- **Catalogue snapshot notice**: the existing labelled caution aside, set at
-  0.875rem with a restrained semantic tint and 2px caution rule. Its full source SHA,
-  release qualification and verification warning remain visible.
+- **Version banner** (`.sco-banner`): one line on every page, set at 0.875rem on a
+  raised surface with a 2px teal rule. It names the source commit, SDK and game pack
+  versions and the latest release, and links the versions page. It also carries
+  the empty Pagefind `Type` filter span, so keep that span when editing it.
 - **Hub card** (`.sco-card--hub` in `.sco-hubs`): muted index, title link, summary
   and metadata, separated with open rules in canonical sidebar order.
 - **Track panel** (`.sco-track`): raised surface, status chip, title, fact list and note.
-- **Profile card** (`.sco-profile`): heading, archive, version, purpose, relation and
-  guide/verification links. **Link card** (`.sco-card`) uses the same quiet surface.
+- **Archive table** (`tr.sco-profile`): the home page's verify section lists profile and
+  archive name per row, with `data-profile`, `data-archive` and `data-version`
+  for tests. **Link card** (`.sco-card`) uses the same quiet surface.
 - **Fact list** (`.sco-facts`): semantic `<dl>`, muted labels and wrapping monospace values.
 - **Status / tier chips** (`.sco-status--published`, `.sco-status--preview`,
   `.sco-tier--1` through `--4`): semantic color and explicit text labels.
@@ -144,9 +140,8 @@ page, the native theme selector is also visible in the mobile header.
 
 ## 6. Motion and performance
 
-HyperFrames informs responsive feedback and stillness after an action; this is
-interface CSS, with no video, player, GSAP or animation dependency. New motion is
-opt-in under `prefers-reduced-motion: no-preference`: action, sidebar and search
+Feedback motion is interface CSS, with no video, player, GSAP or animation
+dependency. New motion is opt-in under `prefers-reduced-motion: no-preference`: action, sidebar and search
 control colors use 120ms ease-out transitions. A desktop search dialog may enter
 over 160ms from 0.96 opacity and a 4px vertical offset. No exit delay, result
 animation, layout animation, smooth scrolling or prose reveal on documentation routes. Documentation
@@ -155,13 +150,11 @@ Focus outlines and active feedback remain immediate. Reduced motion disables
 these effects. Disclosure markers
 remain still. Cards are not click targets; their labelled links are.
 
-The landing adds a local canvas particle field through `initParticleField(root)`.
-The enlarged galaxy extends beyond the hero edges, clipped by its isolated
-section. A sparse foreground canvas lets a few stars and thin, short trails pass
-across the hero text; most particles stay behind the text veil. Both layers use
-the same simulation snapshot, with no extra worker or blur filter. Canvas layers
-ignore pointer events and cannot cover the documentation below the hero.
-Its bundled worker samples four seeded orbital bands with 40, 60, 80 and
+The landing adds a local canvas particle field through `initParticleField(root)`,
+clipped to the hero. A sparse foreground canvas lets a few stars and short trails
+pass across the hero text; most particles stay behind the text veil. Both layers
+use the same simulation snapshot. Canvas layers ignore pointer events and cannot
+cover the documentation below the hero. Its bundled worker samples four seeded orbital bands with 40, 60, 80 and
 96-second rotations and a continuous 480-second full-field period; counts are
 capped at 12,000 desktop and 3,000 mobile particles, with bounded DPR, at most
 one request in flight and a maximum 30fps update cadence. The two canvas backing
@@ -184,16 +177,13 @@ back reverses these effects. Focused or targeted sections stay fully visible.
 The effects add no scroll listener or animation loop. Unsupported browsers and
 reduced motion retain visible, still content; documentation routes stay still.
 
-The orbital model caches per-particle rotations, four band rotations and global
-harmonics. Its approximation must keep deterministic 480-second closure and
-maximum position error below 0.01 reference pixels against an independent exact
-trigonometric implementation of the same visual model. Orbit parameters remain
-bounded at 288KB, plus 64 bytes of band scratch. Per-plane culling includes glow
-and trail extents, avoiding submissions for wholly offscreen points. Six small
-32px glow sprites and seeded style buckets are cached at initialization; only
-about one star in 151 receives a glow. Brighter, larger glows add bounded fill
-area even at similar draw counts. CPU microbenchmarks exclude worker transfer,
-scheduling, rasterization, GPU/power and whole-page frame-rate measurements.
+The orbital model must keep deterministic 480-second closure and a maximum
+position error below 0.01 reference pixels against an independent exact
+trigonometric implementation of the same visual model
+(`scripts/test_field_model.mjs`). Orbit parameters stay bounded at 288KB, plus
+64 bytes of band scratch. Per-plane culling includes glow and trail extents.
+`scripts/benchmark_field.mjs` compares warm CPU math only; it excludes worker
+transfer, scheduling, rasterization, GPU, power and whole-page frame rate.
 
 The site remains statically generated. Search normalization uses a bounded task
 vocabulary, preserves exact symbols and quoted searches, and leaves unknown terms

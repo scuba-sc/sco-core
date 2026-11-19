@@ -20,7 +20,7 @@
       "callback_context": "Host-only verified offline engine port; no plugin callbacks.",
       "reentrancy": "Refused with FAILED.",
       "results": "BAD_ARG invalid name/type/output/self or released handle; UNAVAILABLE absent capability/admission/adapter/session; FAILED noncanonical backend bool; CRASHED adapter fault latches restart-required.",
-      "absent_capability": "Table absent: query_service NOT_FOUND; feature unavailable: UNAVAILABLE.",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND. Feature unavailable: SCO_UNAVAILABLE.",
       "cleanup": "No mutation in this table. Stop withdraws discovery and refuses cached calls; fault retains adapter context and prevents restart.",
       "language_mappings": {
         "c": {
@@ -77,7 +77,7 @@
       ],
       "limitations": [
         "Production engine ABI/type bridge unverified; capability OFF without a reviewed port.",
-        "Windows/MSVC/SEH and in-game acceptance not verified."
+        "Windows/MSVC/SEH not verified. Not run in game."
       ]
     }
   ]

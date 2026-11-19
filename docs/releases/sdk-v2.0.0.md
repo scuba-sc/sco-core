@@ -1,6 +1,8 @@
 # sco-core SDK 2.0.0 (release notes)
 
-Tag `sdk-v2.0.0`, combined zip `sco-sdk-2.0.0.zip`. **Published on 2026-10-12 at 17:04:57 UTC:** [SDK 2.0.0 release and assets](https://github.com/scubamount/sco-core/releases/tag/sdk-v2.0.0). It includes combined, core, core-source and Star Citizen overlay archives, their SBOMs, `SHA256SUMS`, `release.json` and `release.json.sig`. Published assets are immutable approved payloads; a local build with the same version is not proof of byte equality. The release workflow publishes the CHANGELOG section `## sdk-v2.0.0` as the release's notes; this page is the longer reference behind it. For the newest published SDK, use [latest release](https://github.com/scubamount/sco-core/releases/latest).
+Tag `sdk-v2.0.0`, combined zip `sco-sdk-2.0.0.zip`. **Published on 2026-10-12 at 17:04:57 UTC:** [SDK 2.0.0 release and assets](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.0.0). It includes combined, core, core-source and Star Citizen overlay archives, their SBOMs, `SHA256SUMS`, `release.json` and `release.json.sig`. The release workflow publishes the CHANGELOG section `## sdk-v2.0.0` as the release's notes; this page is the longer reference behind it. For the newest published SDK, use [latest release](https://github.com/scuba-sc/sco-core/releases/latest).
+
+The release downloads for this version were withdrawn; the tag remains in git. Use SDK 2.4.1 or 2.4.0.
 
 ## Versions
 
@@ -18,8 +20,6 @@ Tag `sdk-v2.0.0`, combined zip `sco-sdk-2.0.0.zip`. **Published on 2026-10-12 at
 SDK 2.0.0 is a major packaging/profile and release-process change, not a plugin ABI bump. ABI 1.1 is unchanged. The prepared SDK 1.2.0 was never tagged or published; all of its changes ship here instead.
 
 Choose `sco-sdk-core-2.0.0.zip` for neutral plugin development, overlay `sco-sdk-game-sc-0.3.0.zip` for the Star Citizen extension, or use the combined `sco-sdk-2.0.0.zip` legacy profile. `sco-sdk-core-source-2.0.0.zip` is the independently buildable kernel source kit. Keep the extension's separate metadata when overlaying it; update tooling that assumed one combined archive. See [SDK profiles](../../sdk/README.md) and [building](../building.md).
-
-For SDK 2.0.0, the release process built once in `release-candidate.yml` on an exact green main commit and promoted immutable, audited bytes after a maintainer-signed approval. See the [release checklist](../legal/release-checklist.md#releasing).
 
 ## Compatibility
 
@@ -55,12 +55,3 @@ Wrappers: C++ (`scosdk/game/`), C# (`Sco.Sdk.Game`) and read-only Lua (`sco.game
 
 - **Plugin authors:** no ABI migration is required; select the appropriate archive profile as described above. To use a game service, query it, check the capability (`has("game.vehicles.seats")`) and handle `SCO_UNAVAILABLE`; the Lua wrappers are read-only.
 - **Products (sc-offline):** set `Platform::gameServices` to start the game services, resolve the `teleport.*` and `spawn.*` rows first, and drop your own provider of `teleport.spatial` or `spawn.entities` (the second provider of a name is refused). Register the player's own vehicles with `sco::game::services::RegisterPlayerVehicle` so plugins may move them.
-
-## Checking the zip
-
-```sh
-sha256sum -c SHA256SUMS
-unzip -p sco-sdk-2.0.0.zip sco-sdk-2.0.0/VERSIONS.txt
-```
-
-Publication followed the [maintainer release procedure](../legal/release-checklist.md#releasing); these notes do not authorize a new release or asset replacement.

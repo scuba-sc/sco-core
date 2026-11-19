@@ -33,7 +33,7 @@
       ],
       "limitations": [
         "Production typed engine equip/slot mapping is unverified and disabled. No XML loader fallback, account inventory or entitlements.",
-        "MSVC calling conventions/SEH and game acceptance not verified locally.",
+        "MSVC calling conventions and SEH not verified. Not run in game.",
         "No claim of native corruption recovery; portable test catches C++ exceptions only."
       ],
       "language_mappings": {
@@ -116,8 +116,8 @@
         "tests/game_contracts/loadout/test_metadata.py"
       ],
       "limitations": [
-        "Opt-in native adapter is static/synthetic checked, not run in game. Visor unsupported.",
-        "Outfit item-port names (1.3) are consumer-side data names, not verified engine rows; no in-game proof. Hair, hair colour, eyebrow, head, body, eyes and teeth are not offered: this version cannot undo them and a wrong one can break the character.",
+        "Opt-in native adapter; its evidence is recorded in the status registry (game.loadout.async). Visor unsupported.",
+        "Outfit item-port names (1.3) are consumer-side data names, not verified engine rows. Not run in game. Hair, hair colour, eyebrow, head, body, eyes and teeth are not offered: this version cannot undo them and a wrong one can break the character.",
         "Existing synchronous 1.0/1.1 methods retain their contract and remain unavailable without a synchronous backend."
       ],
       "language_mappings": {
@@ -200,7 +200,7 @@
         "tests/game_contracts/loadout/test_metadata.py"
       ],
       "limitations": [
-        "Opt-in native adapter is static/synthetic checked, not run in game. Visor unsupported.",
+        "Opt-in native adapter; its evidence is recorded in the status registry (game.loadout.async). Visor unsupported.",
         "Existing synchronous 1.0/1.1 methods retain their contract and remain unavailable without a synchronous backend."
       ],
       "language_mappings": {
@@ -283,7 +283,7 @@
         "tests/game_contracts/loadout/test_metadata.py"
       ],
       "limitations": [
-        "Opt-in native adapter is static/synthetic checked, not run in game. Visor unsupported.",
+        "Opt-in native adapter; its evidence is recorded in the status registry (game.loadout.async). Visor unsupported.",
         "Existing synchronous 1.0/1.1 methods retain their contract and remain unavailable without a synchronous backend."
       ],
       "language_mappings": {
@@ -366,7 +366,7 @@
         "tests/game_contracts/loadout/test_metadata.py"
       ],
       "limitations": [
-        "Opt-in native adapter is static/synthetic checked, not run in game. Visor unsupported.",
+        "Opt-in native adapter; its evidence is recorded in the status registry (game.loadout.async). Visor unsupported.",
         "Existing synchronous 1.0/1.1 methods retain their contract and remain unavailable without a synchronous backend."
       ],
       "language_mappings": {

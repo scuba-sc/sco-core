@@ -23,8 +23,8 @@
       "absent_capability": "Candidate service is unavailable until explicitly composed by the host.",
       "cleanup": "Owner release revokes the editor and pre-commit work; a post-permit outcome remains host-owned. Stop withdraws the service.",
       "limitations": [
-        "Unpublished candidate; no native publication or game verification.",
-        "C# and Lua unsupported."
+        "Unpublished candidate; no native publication. Not run in game.",
+        "No C# or Lua route."
       ],
       "tests": [
         "tests/abi_asop_selection.c",
@@ -100,8 +100,8 @@
       "absent_capability": "Candidate service is unavailable until explicitly composed by the host.",
       "cleanup": "Owner release revokes the editor and pre-commit work; a post-permit outcome remains host-owned. Stop withdraws the service.",
       "limitations": [
-        "Unpublished candidate; no native publication or game verification.",
-        "C# and Lua unsupported."
+        "Unpublished candidate; no native publication. Not run in game.",
+        "No C# or Lua route."
       ],
       "tests": [
         "tests/abi_asop_selection.c",
@@ -177,8 +177,8 @@
       "absent_capability": "Candidate service is unavailable until explicitly composed by the host.",
       "cleanup": "Owner release revokes the editor and pre-commit work; a post-permit outcome remains host-owned. Stop withdraws the service.",
       "limitations": [
-        "Unpublished candidate; no native publication or game verification.",
-        "C# and Lua unsupported."
+        "Unpublished candidate; no native publication. Not run in game.",
+        "No C# or Lua route."
       ],
       "tests": [
         "tests/abi_asop_selection.c",
@@ -254,8 +254,8 @@
       "absent_capability": "Candidate service is unavailable until explicitly composed by the host.",
       "cleanup": "Owner release revokes the editor and pre-commit work; a post-permit outcome remains host-owned. Stop withdraws the service.",
       "limitations": [
-        "Unpublished candidate; no native publication or game verification.",
-        "C# and Lua unsupported."
+        "Unpublished candidate; no native publication. Not run in game.",
+        "No C# or Lua route."
       ],
       "tests": [
         "tests/abi_asop_selection.c",
@@ -331,8 +331,8 @@
       "absent_capability": "Candidate service is unavailable until explicitly composed by the host.",
       "cleanup": "Owner release revokes the editor and pre-commit work; a post-permit outcome remains host-owned. Stop withdraws the service.",
       "limitations": [
-        "Unpublished candidate; no native publication or game verification.",
-        "C# and Lua unsupported."
+        "Unpublished candidate; no native publication. Not run in game.",
+        "No C# or Lua route."
       ],
       "tests": [
         "tests/abi_asop_selection.c",
@@ -408,8 +408,8 @@
       "absent_capability": "Candidate service is unavailable until explicitly composed by the host.",
       "cleanup": "Owner release revokes the editor and pre-commit work; a post-permit outcome remains host-owned. Stop withdraws the service.",
       "limitations": [
-        "Unpublished candidate; no native publication or game verification.",
-        "C# and Lua unsupported."
+        "Unpublished candidate; no native publication. Not run in game.",
+        "No C# or Lua route."
       ],
       "tests": [
         "tests/abi_asop_selection.c",
@@ -485,8 +485,8 @@
       "absent_capability": "Candidate service is unavailable until explicitly composed by the host.",
       "cleanup": "Owner release revokes the editor and pre-commit work; a post-permit outcome remains host-owned. Stop withdraws the service.",
       "limitations": [
-        "Unpublished candidate; no native publication or game verification.",
-        "C# and Lua unsupported."
+        "Unpublished candidate; no native publication. Not run in game.",
+        "No C# or Lua route."
       ],
       "tests": [
         "tests/abi_asop_selection.c",

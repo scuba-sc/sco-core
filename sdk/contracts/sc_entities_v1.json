@@ -20,7 +20,7 @@
       "callback_context": "unspecified",
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND; missing operation capability: UNAVAILABLE (alive: 0); invalid/released self: BAD_ARG. Additional failures/output state unspecified unless described in the buffer contract.",
-      "absent_capability": "Absent table: query_service NOT_FOUND",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND.",
       "cleanup": "No in-flight cancellation entrypoint; owned entities removed and watches ended on ordinary unload/non-retained crash cleanup, except kept entities. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls.",
       "language_mappings": {
         "c": {
@@ -89,10 +89,7 @@
         "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
       ],
       "limitations": [
-        "Internal allocation unspecified.",
-        "Recursive reentrancy unspecified except unwatch in callback.",
-        "Additional failures/output state unspecified unless described in the buffer contract.",
-        "Game-service behavior not verified in a game session."
+        "Recursive reentrancy unspecified except unwatch in callback."
       ]
     },
     {
@@ -114,7 +111,7 @@
       "callback_context": "unspecified",
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND; missing operation capability: UNAVAILABLE (alive: 0); invalid/released self: BAD_ARG. Additional failures/output state unspecified unless described in the buffer contract.",
-      "absent_capability": "Absent table: query_service NOT_FOUND",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND.",
       "cleanup": "No in-flight cancellation entrypoint; owned entities removed and watches ended on ordinary unload/non-retained crash cleanup, except kept entities. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls.",
       "language_mappings": {
         "c": {
@@ -183,10 +180,7 @@
         "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
       ],
       "limitations": [
-        "Internal allocation unspecified.",
-        "Recursive reentrancy unspecified except unwatch in callback.",
-        "Additional failures/output state unspecified unless described in the buffer contract.",
-        "Game-service behavior not verified in a game session."
+        "Recursive reentrancy unspecified except unwatch in callback."
       ]
     },
     {
@@ -208,7 +202,7 @@
       "callback_context": "unspecified",
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND; missing operation capability: UNAVAILABLE (alive: 0); invalid/released self: BAD_ARG. Additional failures/output state unspecified unless described in the buffer contract.",
-      "absent_capability": "Absent table: query_service NOT_FOUND",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND.",
       "cleanup": "No in-flight cancellation entrypoint; owned entities removed and watches ended on ordinary unload/non-retained crash cleanup, except kept entities. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls.",
       "language_mappings": {
         "c": {
@@ -277,10 +271,7 @@
         "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
       ],
       "limitations": [
-        "Internal allocation unspecified.",
-        "Recursive reentrancy unspecified except unwatch in callback.",
-        "Additional failures/output state unspecified unless described in the buffer contract.",
-        "Game-service behavior not verified in a game session."
+        "Recursive reentrancy unspecified except unwatch in callback."
       ]
     },
     {
@@ -302,7 +293,7 @@
       "callback_context": "unspecified",
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND; missing operation capability: UNAVAILABLE (alive: 0); invalid/released self: BAD_ARG. Additional failures/output state unspecified unless described in the buffer contract.",
-      "absent_capability": "Absent table: query_service NOT_FOUND",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND.",
       "cleanup": "No in-flight cancellation entrypoint; owned entities removed and watches ended on ordinary unload/non-retained crash cleanup, except kept entities. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls.",
       "language_mappings": {
         "c": {
@@ -373,10 +364,7 @@
         "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
       ],
       "limitations": [
-        "Internal allocation unspecified.",
-        "Recursive reentrancy unspecified except unwatch in callback.",
-        "Additional failures/output state unspecified unless described in the buffer contract.",
-        "Game-service behavior not verified in a game session."
+        "Recursive reentrancy unspecified except unwatch in callback."
       ]
     },
     {
@@ -398,7 +386,7 @@
       "callback_context": "unspecified",
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND; missing operation capability: UNAVAILABLE (alive: 0); invalid/released self: BAD_ARG. Additional failures/output state unspecified unless described in the buffer contract.",
-      "absent_capability": "Absent table: query_service NOT_FOUND",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND.",
       "cleanup": "No in-flight cancellation entrypoint; owned entities removed and watches ended on ordinary unload/non-retained crash cleanup, except kept entities. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls.",
       "language_mappings": {
         "c": {
@@ -469,10 +457,7 @@
         "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
       ],
       "limitations": [
-        "Internal allocation unspecified.",
-        "Recursive reentrancy unspecified except unwatch in callback.",
-        "Additional failures/output state unspecified unless described in the buffer contract.",
-        "Game-service behavior not verified in a game session."
+        "Recursive reentrancy unspecified except unwatch in callback."
       ]
     },
     {
@@ -494,7 +479,7 @@
       "callback_context": "unspecified",
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND; missing operation capability: UNAVAILABLE (alive: 0); invalid/released self: BAD_ARG. Additional failures/output state unspecified unless described in the buffer contract.",
-      "absent_capability": "Absent table: query_service NOT_FOUND",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND.",
       "cleanup": "No in-flight cancellation entrypoint; owned entities removed and watches ended on ordinary unload/non-retained crash cleanup, except kept entities. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls.",
       "language_mappings": {
         "c": {
@@ -565,10 +550,7 @@
         "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
       ],
       "limitations": [
-        "Internal allocation unspecified.",
-        "Recursive reentrancy unspecified except unwatch in callback.",
-        "Additional failures/output state unspecified unless described in the buffer contract.",
-        "Game-service behavior not verified in a game session."
+        "Recursive reentrancy unspecified except unwatch in callback."
       ]
     },
     {
@@ -590,7 +572,7 @@
       "callback_context": "callback runs game thread and may call unwatch/unload",
       "reentrancy": "callback runs game thread and may call unwatch/unload",
       "results": "Absent table: query_service NOT_FOUND; missing operation capability: UNAVAILABLE (alive: 0); invalid/released self: BAD_ARG. Additional failures/output state unspecified unless described in the buffer contract.",
-      "absent_capability": "Absent table: query_service NOT_FOUND",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND.",
       "cleanup": "unwatch/ordinary unload/non-retained crash cleanup ends delivery; callback may unwatch itself or unload without further events. Oldest queued events dropped under overflow (256 held per watch). Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls. Fault quarantine stops guarded delivery without removing the retained watch.",
       "language_mappings": {
         "c": {
@@ -661,9 +643,7 @@
         "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
       ],
       "limitations": [
-        "other reentrancy unspecified.",
-        "Additional failures/output state unspecified unless described in the buffer contract.",
-        "Game-service behavior not verified in a game session."
+        "Other reentrancy unspecified."
       ]
     },
     {
@@ -756,9 +736,7 @@
         "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
       ],
       "limitations": [
-        "Internal allocation unspecified.",
-        "Other reentrancy unspecified.",
-        "Game-service behavior not verified in a game session."
+        "Other reentrancy unspecified."
       ]
     },
     {
@@ -773,14 +751,14 @@
       "member_extent": 80,
       "table_size": 128,
       "since": "`size >= 80`; 1.0",
-      "purpose": "Ids of streamed-in entities within radius metres of pos in zone zone_id's frame, whose class matches class_filter (a class name or a \"PREFIX*\"; NULL or \"\" = any class). Up to max ids are written to out_ids (max 0 counts only); *out_count = how many were written and *out_more = how many matched but didn't fit. SCO_BAD_ARG: a null pos, out_count or out_more, a null out_ids with max &gt; 0, zone 0, a radius that isn't finite and positive, a filter that isn't a class name or prefix. SCO_NOT_FOUND: the zone isn't streamed in. SCO_FAILED: the walk faulted or saw more than 65536 entities. SCO_UNAVAILABLE: no \"game.entities.query_radius\" on this game build, or while its in-game check is pending (docs/game-services.md). Read-only: last_error(NULL, ...).",
-      "buffer_contract": "`sco_result (*query_radius)(uint64_t zone_id, const double pos[3], double radius, const char* class_filter, uint64_t* out_ids, uint32_t max, uint32_t* out_count, uint32_t* out_more);`<br>Ids of streamed-in entities within radius metres of pos in zone zone_id's frame, whose class matches class_filter (a class name or a \"PREFIX*\"; NULL or \"\" = any class). Up to max ids are written to out_ids (max 0 counts only); *out_count = how many were written and *out_more = how many matched but didn't fit. SCO_BAD_ARG: a null pos, out_count or out_more, a null out_ids with max &gt; 0, zone 0, a radius that isn't finite and positive, a filter that isn't a class name or prefix. SCO_NOT_FOUND: the zone isn't streamed in. SCO_FAILED: the walk faulted or saw more than 65536 entities. SCO_UNAVAILABLE: no \"game.entities.query_radius\" on this game build, or while its in-game check is pending (docs/game-services.md). Read-only: last_error(NULL, ...).",
+      "purpose": "Ids of streamed-in entities within radius metres of pos in zone zone_id's frame, whose class matches class_filter (a class name or a \"PREFIX*\"; NULL or \"\" = any class). Up to max ids are written to out_ids (max 0 counts only); *out_count = how many were written and *out_more = how many matched but didn't fit. SCO_BAD_ARG: a null pos, out_count or out_more, a null out_ids with max &gt; 0, zone 0, a radius that isn't finite and positive, a filter that isn't a class name or prefix. SCO_NOT_FOUND: the zone isn't streamed in. SCO_FAILED: the walk faulted or saw more than 65536 entities. SCO_UNAVAILABLE: no \"game.entities.query_radius\" on this game build, or while the capability is off (it is off until it has been run in game) (docs/game-services.md). Read-only: last_error(NULL, ...).",
+      "buffer_contract": "`sco_result (*query_radius)(uint64_t zone_id, const double pos[3], double radius, const char* class_filter, uint64_t* out_ids, uint32_t max, uint32_t* out_count, uint32_t* out_more);`<br>Ids of streamed-in entities within radius metres of pos in zone zone_id's frame, whose class matches class_filter (a class name or a \"PREFIX*\"; NULL or \"\" = any class). Up to max ids are written to out_ids (max 0 counts only); *out_count = how many were written and *out_more = how many matched but didn't fit. SCO_BAD_ARG: a null pos, out_count or out_more, a null out_ids with max &gt; 0, zone 0, a radius that isn't finite and positive, a filter that isn't a class name or prefix. SCO_NOT_FOUND: the zone isn't streamed in. SCO_FAILED: the walk faulted or saw more than 65536 entities. SCO_UNAVAILABLE: no \"game.entities.query_radius\" on this game build, or while the capability is off (it is off until it has been run in game) (docs/game-services.md). Read-only: last_error(NULL, ...).",
       "ownership": "Caller buffers; no allocation crosses boundary. Host owns entity/watch tracking; IDs are session values. Internal allocation unspecified.",
       "thread_affinity": "Game thread only (WRONG_THREAD elsewhere, alive returns 0); last_error any thread. Recursive reentrancy unspecified except unwatch in callback.",
       "callback_context": "unspecified",
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND; missing operation capability: UNAVAILABLE (alive: 0); invalid/released self: BAD_ARG. Additional failures/output state unspecified unless described in the buffer contract.",
-      "absent_capability": "Absent table: query_service NOT_FOUND",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND.",
       "cleanup": "No in-flight cancellation entrypoint; owned entities removed and watches ended on ordinary unload/non-retained crash cleanup, except kept entities. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls.",
       "language_mappings": {
         "c": {
@@ -851,10 +829,7 @@
         "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
       ],
       "limitations": [
-        "Internal allocation unspecified.",
-        "Recursive reentrancy unspecified except unwatch in callback.",
-        "Additional failures/output state unspecified unless described in the buffer contract.",
-        "Game-service behavior not verified in a game session."
+        "Recursive reentrancy unspecified except unwatch in callback."
       ]
     },
     {
@@ -945,10 +920,7 @@
         "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
       ],
       "limitations": [
-        "Internal allocation unspecified.",
-        "recursive reentrancy unspecified.",
-        "stopped-service refusal unspecified (no started check).",
-        "Game-service behavior not verified in a game session."
+        "Stopped-service refusal unspecified (no started check)."
       ]
     },
     {
@@ -970,7 +942,7 @@
       "callback_context": "unspecified",
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND; missing operation capability: UNAVAILABLE (alive: 0); invalid/released self: BAD_ARG. Additional failures/output state unspecified unless described in the buffer contract.",
-      "absent_capability": "Absent table: query_service NOT_FOUND",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND.",
       "cleanup": "For unretained legacy keep only: entity untouched and survives unload; no SDK undo/removal authority. Retained builds refuse keep and use game.owned removal/unload instead.",
       "language_mappings": {
         "c": {
@@ -1041,9 +1013,7 @@
         "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
       ],
       "limitations": [
-        "Recursive reentrancy unspecified except unwatch in callback.",
-        "Additional failures/output state unspecified unless described in the buffer contract.",
-        "Game-service behavior not verified in a game session."
+        "Recursive reentrancy unspecified except unwatch in callback."
       ]
     },
     {
@@ -1065,7 +1035,7 @@
       "callback_context": "No plugin callbacks; synchronous bounded host backend.",
       "reentrancy": "Recursive backend entry FAILED; stop during callback invalidates output.",
       "results": "OK copied observation; BAD_ARG invalid name/kind/output/capacity; WRONG_THREAD; NOT_FOUND stale epoch or absent item; FAILED malformed/ambiguous provider; UNAVAILABLE unbound/stopped. Known output prefix zeroed on failure, size/tail preserved.",
-      "absent_capability": "game.entities.lookup OFF; no native registry/name/component adapter, not run in game.",
+      "absent_capability": "game.entities.lookup is off; no native registry, name or component adapter. Not run in game.",
       "cleanup": "No retained plugin resource. Stop invalidates admission and epochs; requery session/streaming observations before use.",
       "language_mappings": {
         "c": {
@@ -1119,8 +1089,8 @@
         "tests/abi_game_entities.c"
       ],
       "limitations": [
-        "Synthetic provider evidence only; no native adapter or in-game verification.",
-        "Registry beyond64classes requires TOO_MANY, never silent subset."
+        "Synthetic provider tests only; no native adapter. Not run in game.",
+        "Registry beyond 64 classes requires TOO_MANY, never silent subset."
       ]
     },
     {
@@ -1142,7 +1112,7 @@
       "callback_context": "No plugin callbacks; synchronous bounded host backend.",
       "reentrancy": "Recursive backend entry FAILED; stop during callback invalidates output.",
       "results": "OK copied observation; BAD_ARG invalid name/kind/output/capacity; WRONG_THREAD; NOT_FOUND stale epoch or absent item; FAILED malformed/ambiguous provider; UNAVAILABLE unbound/stopped. Known output prefix zeroed on failure, size/tail preserved.",
-      "absent_capability": "game.entities.lookup OFF; no native registry/name/component adapter, not run in game.",
+      "absent_capability": "game.entities.lookup is off; no native registry, name or component adapter. Not run in game.",
       "cleanup": "No retained plugin resource. Stop invalidates admission and epochs; requery session/streaming observations before use.",
       "language_mappings": {
         "c": {
@@ -1196,8 +1166,8 @@
         "tests/abi_game_entities.c"
       ],
       "limitations": [
-        "Synthetic provider evidence only; no native adapter or in-game verification.",
-        "Registry beyond64classes requires TOO_MANY, never silent subset."
+        "Synthetic provider tests only; no native adapter. Not run in game.",
+        "Registry beyond 64 classes requires TOO_MANY, never silent subset."
       ]
     },
     {
@@ -1219,7 +1189,7 @@
       "callback_context": "No plugin callbacks; synchronous bounded host backend.",
       "reentrancy": "Recursive backend entry FAILED; stop during callback invalidates output.",
       "results": "OK copied observation; BAD_ARG invalid name/kind/output/capacity; WRONG_THREAD; NOT_FOUND stale epoch or absent item; FAILED malformed/ambiguous provider; UNAVAILABLE unbound/stopped. Known output prefix zeroed on failure, size/tail preserved.",
-      "absent_capability": "game.entities.lookup OFF; no native registry/name/component adapter, not run in game.",
+      "absent_capability": "game.entities.lookup is off; no native registry, name or component adapter. Not run in game.",
       "cleanup": "No retained plugin resource. Stop invalidates admission and epochs; requery session/streaming observations before use.",
       "language_mappings": {
         "c": {
@@ -1273,8 +1243,8 @@
         "tests/abi_game_entities.c"
       ],
       "limitations": [
-        "Synthetic provider evidence only; no native adapter or in-game verification.",
-        "Registry beyond64classes requires TOO_MANY, never silent subset."
+        "Synthetic provider tests only; no native adapter. Not run in game.",
+        "Registry beyond 64 classes requires TOO_MANY, never silent subset."
       ]
     },
     {
@@ -1296,7 +1266,7 @@
       "callback_context": "No plugin callbacks; synchronous bounded host backend.",
       "reentrancy": "Recursive backend entry FAILED; stop during callback invalidates output.",
       "results": "OK copied observation; BAD_ARG invalid name/kind/output/capacity; WRONG_THREAD; NOT_FOUND stale epoch or absent item; FAILED malformed/ambiguous provider; UNAVAILABLE unbound/stopped. Known output prefix zeroed on failure, size/tail preserved.",
-      "absent_capability": "game.entities.lookup OFF; no native registry/name/component adapter, not run in game.",
+      "absent_capability": "game.entities.lookup is off; no native registry, name or component adapter. Not run in game.",
       "cleanup": "No retained plugin resource. Stop invalidates admission and epochs; requery session/streaming observations before use.",
       "language_mappings": {
         "c": {
@@ -1350,8 +1320,8 @@
         "tests/abi_game_entities.c"
       ],
       "limitations": [
-        "Synthetic provider evidence only; no native adapter or in-game verification.",
-        "Registry beyond64classes requires TOO_MANY, never silent subset."
+        "Synthetic provider tests only; no native adapter. Not run in game.",
+        "Registry beyond 64 classes requires TOO_MANY, never silent subset."
       ]
     }
   ]

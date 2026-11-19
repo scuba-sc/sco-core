@@ -94,10 +94,7 @@
         "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
         "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
       ],
-      "limitations": [
-        "Internal allocation unspecified.",
-        "reentrancy unspecified."
-      ]
+      "limitations": []
     },
     {
       "id": "sco-api-has",
@@ -204,9 +201,7 @@
         "tools/test.sh",
         "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
       ],
-      "limitations": [
-        "reentrancy unspecified."
-      ]
+      "limitations": []
     },
     {
       "id": "sco-api-run-on-game-thread",
@@ -317,9 +312,7 @@
         "tools/test.sh",
         "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
       ],
-      "limitations": [
-        "reentrancy unspecified."
-      ]
+      "limitations": []
     },
     {
       "id": "sco-api-subscribe",
@@ -430,9 +423,7 @@
         "tools/test.sh",
         "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
       ],
-      "limitations": [
-        "reentrancy unspecified."
-      ]
+      "limitations": []
     },
     {
       "id": "sco-api-unsubscribe",
@@ -540,7 +531,7 @@
         "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
       ],
       "limitations": [
-        "other reentrancy unspecified."
+        "Other reentrancy unspecified."
       ]
     },
     {
@@ -648,9 +639,7 @@
         "tools/test.sh",
         "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
       ],
-      "limitations": [
-        "reentrancy unspecified."
-      ]
+      "limitations": []
     },
     {
       "id": "sco-api-log",
@@ -757,9 +746,7 @@
         "tools/test.sh",
         "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
       ],
-      "limitations": [
-        "reentrancy unspecified."
-      ]
+      "limitations": []
     },
     {
       "id": "sco-api-register-command",
@@ -870,9 +857,7 @@
         "tools/test.sh",
         "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
       ],
-      "limitations": [
-        "reentrancy unspecified."
-      ]
+      "limitations": []
     },
     {
       "id": "sco-api-invoke",
@@ -1084,10 +1069,7 @@
         "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
         "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
       ],
-      "limitations": [
-        "Internal allocation unspecified.",
-        "reentrancy unspecified."
-      ]
+      "limitations": []
     },
     {
       "id": "sco-api-provide-service",
@@ -1197,9 +1179,7 @@
         "tools/test.sh",
         "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
       ],
-      "limitations": [
-        "reentrancy unspecified."
-      ]
+      "limitations": []
     },
     {
       "id": "sco-api-query-service",
@@ -1307,9 +1287,7 @@
         "tools/test.sh",
         "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
       ],
-      "limitations": [
-        "reentrancy unspecified."
-      ]
+      "limitations": []
     },
     {
       "id": "sco-api-release-service",
@@ -1420,8 +1398,7 @@
       ],
       "limitations": [
         "Concurrency/quiescence for callers holding it unspecified.",
-        "reentrancy unspecified.",
-        "effects on calls already executing unspecified."
+        "Effects on calls already executing unspecified."
       ]
     },
     {
@@ -1532,7 +1509,7 @@
         "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
       ],
       "limitations": [
-        "recursive raw-handler invocation unspecified.",
+        "Recursive raw-handler invocation unspecified.",
         "Error output-byte contents unspecified."
       ]
     },
@@ -1643,9 +1620,7 @@
         "tools/test.sh",
         "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
       ],
-      "limitations": [
-        "reentrancy unspecified."
-      ]
+      "limitations": []
     }
   ]
 }

@@ -1,13 +1,12 @@
 # game.build — what is running, and was it verified
 
-`sc_game_build.h` · service `game.build` · version 1.0 · game thread only ·
-capability `game.build.info` (**ON** when published).
-
-`game.build.read` copies a small struct: the running `StarCitizen.exe`'s PE
+`game.build` tells a plugin which game build is running and whether it is the build the game pack was verified on. `read` copies a small struct: the running `StarCitizen.exe`'s PE
 `TimeDateStamp` and `SizeOfImage`, the game pack's version triple, the four-part
 game build the pack's rows were verified on, that build's PE timestamp, and
 `pin_matches` = (running timestamp == verified timestamp). No pointers, no engine
 reads beyond the module header; the answer is constant for the process lifetime.
+
+Header: [`sc_game_build.h`](../../include/sc_game_build.h). Table version 1.0, game thread only. Capability `game.build.info`, **ON** when published; see [status](status.md). Not run in game.
 
 Why: a plugin that gates behavior on "this build is one we checked" currently
 greps log lines. `pin_matches` is the same fact the game pack's own gate uses,

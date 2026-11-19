@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
-"""Standard-library generation, publication-boundary and built-output checks."""
+"""Standard-library generation, publication-boundary and built-output checks.
+
+With --built site/dist this also runs the real-browser checks (test_navigation.mjs):
+the home page at 360, 390, 430, 600, 820, 1024, 1366, 1440 and 1920px in both themes,
+Pagefind queries for services, C symbols, wrapper tokens and task phrases, the Type
+filter, keyboard navigation of the search dialog, and a scan for non-local requests.
+"""
 import argparse
 from copy import deepcopy
 import gzip
@@ -213,7 +219,7 @@ class SiteTests(unittest.TestCase):
             with tempfile.TemporaryDirectory(prefix='site-published-source-') as work:
                 output = Path(work)
                 gen.generate(ROOT, catalogue, output)
-                for name in ('index.md', 'hubs/start.md'):
+                for name in ('index.md',):
                     text = (output / 'src/content/docs' / name).read_text()
                     for guide, _ in gen.PROFILE_GUIDES.values():
                         path, _, fragment = guide.partition('#')
@@ -225,9 +231,9 @@ class SiteTests(unittest.TestCase):
                 for name in guide_names:
                     guide = output / 'src/content/docs' / (gen.guide_id(name) + '.md')
                     text = guide.read_text()
-                    self.assertIn('Current published SDK:', text)
+                    self.assertIn('Latest release:', text)
                     self.assertIn(meta['tag'], text)
-                    self.assertIn(meta['source_sha'], text)
+                    self.assertIn(meta['source_sha'][:12], text)
                     self.assertIn('Dated status and candidate records below', text)
                 final_release, final_data = fixture.build(tag='sdk-v2.4.0')
                 final_meta = fixture.r.resolve(fixture.REPO, fixture.client_for(final_release, final_data), fixture.fake_git)
@@ -268,10 +274,14 @@ class SiteTests(unittest.TestCase):
             check_leaks(output)
             for page in docs.rglob('*.md'):
                 text = page.read_text()
-                self.assertIn('development preview', text)
+                self.assertIn('Development preview of source `' + self.catalogue['source_sha'][:12] + '`', text)
                 self.assertIn(gen.RELEASES + gen.PUBLISHED_DOWNLOAD_TAG + ')', text)
-                for key in ('sdk_version', 'game_pack_version', 'source_sha'):
+                self.assertIn('[Versions and evidence](' + gen.route('versions') + ')', text)
+                for key in ('sdk_version', 'game_pack_version'):
                     self.assertIn(self.catalogue[key], text)
+                self.assertEqual(text.count('data-pagefind-ignore'), 1)
+                banner_lines = [line for line in text.splitlines() if line.startswith('Development preview of source')]
+                self.assertEqual(len(banner_lines), 1)
             self.assertEqual(json.loads((output / 'public/sdk-catalogue.json').read_text()), self.catalogue)
             print('Verified records:', len(records), 'services:', len(services))
 
@@ -296,15 +306,16 @@ class SiteTests(unittest.TestCase):
                 self.assertGreater(int(weighted[0][0]), 1)
                 self.assertIn(phrase, html.unescape(weighted[0][1]))
                 self.assertNotIn('teleport', weighted[0][1].lower())
-                self.assertIn('not an additional API alias', text)
-                self.assertIn('ABI pins prove layout, not semantic behavior or a live game session.', text)
+                self.assertNotIn('not an additional API alias', text)
+                self.assertNotIn('ABI pins prove layout', text)
                 for limitation in records[identifier]['limitations']:
                     self.assertIn(gen.rewrite_links(limitation, self.catalogue['contract_context']['source'],
                                                    self.catalogue['source_sha'], routes), text)
 
     def test_search_categories_cover_every_generated_page(self):
         categories = {'reference': 'APIs', 'services': 'Services', 'languages': 'Languages',
-                      'guides': 'Guides', 'hubs': 'Overview', 'natives.md': 'APIs', 'index.md': 'Overview'}
+                      'guides': 'Guides', 'hubs': 'Overview', 'natives.md': 'APIs', 'index.md': 'Overview',
+                      'versions.md': 'Overview'}
         seen = set()
         with tempfile.TemporaryDirectory(prefix='site-search-types-') as work:
             output = Path(work)
@@ -316,8 +327,8 @@ class SiteTests(unittest.TestCase):
                     expected = categories[relative.parts[0]]
                     text = path.read_text()
                     self.assertEqual(re.findall(r'data-pagefind-filter="([^"]+)"', text), ['Type:' + expected])
-                    self.assertIn('<span data-pagefind-filter="Type:' + expected + '">Source-backed inventory '
-                                  'is not a runtime or in-game verification claim.</span>', text)
+                    self.assertIn('<span data-pagefind-filter="Type:' + expected + '"></span>', text)
+                    self.assertNotIn('Source-backed inventory', text)
                     seen.add(expected)
         self.assertEqual(seen, {'APIs', 'Services', 'Languages', 'Guides', 'Overview'})
         with self.assertRaisesRegex(ValueError, 'Unknown search page type'):
@@ -325,12 +336,13 @@ class SiteTests(unittest.TestCase):
 
     def test_snapshot_notice_is_visible_but_not_searchable(self):
         notice = gen.banner(self.catalogue, None, 'APIs')
-        self.assertTrue(notice.startswith('<div data-pagefind-ignore="index">\n\n:::caution['))
-        self.assertTrue(notice.endswith('\n:::\n\n</div>\n\n'))
-        self.assertIn('data-pagefind-filter="Type:APIs"', notice)
-        self.assertIn('development preview', notice)
-        self.assertIn(self.catalogue['source_sha'], notice)
-        self.assertIn('not a runtime or in-game verification claim', notice)
+        self.assertTrue(notice.startswith('<div class="sco-banner" data-pagefind-ignore="index">\n\n'))
+        self.assertTrue(notice.endswith('</span>\n\n</div>\n\n'))
+        self.assertIn('<span data-pagefind-filter="Type:APIs"></span>', notice)
+        self.assertIn('Development preview of source `' + self.catalogue['source_sha'][:12] + '`', notice)
+        self.assertNotIn(self.catalogue['source_sha'], notice)
+        self.assertEqual(len(notice.strip().splitlines()), 5)
+        self.assertNotIn('not a runtime or in-game verification claim', notice)
         self.assertNotRegex(notice, r'\bhidden\b|aria-hidden|display\s*:\s*none')
         page = gen.page('Title', 'Indexed contract purpose', self.catalogue, None, 'APIs')
         self.assertIn(notice + 'Indexed contract purpose', page)
@@ -347,26 +359,23 @@ class SiteTests(unittest.TestCase):
         self.assertEqual(archive['source_commits']['core'], catalogue['source_sha'])
 
         notice = gen.banner(catalogue, None, 'Guides')
-        self.assertIn('Source catalogue SDK **' + source_version + '**', notice)
-        self.assertIn('Development archives may use a different SDK version for this source', notice)
-        self.assertIn('`COMPATIBILITY.json.game-sc`', notice)
-        self.assertIn('`sdk/VERSION`', notice)
+        self.assertIn('SDK ' + source_version + ', game pack', notice)
+        self.assertNotIn('COMPATIBILITY.json', notice)
         self.assertNotIn(archive_version, notice)
         routes = {name: gen.guide_id(name) for name in gen.inputs(ROOT)}
         portal = gen.release_portal(ROOT, catalogue, None, routes)
         preview = portal.split('data-od-id="release-build"', 1)[1].split('</section>', 1)[0]
         published = portal.split('data-od-id="release-published"', 1)[1].split('</section>', 1)[0]
-        self.assertIn('<dt>Source catalogue SDK</dt><dd>' + source_version + '</dd>', preview)
-        self.assertIn('Development archive versions may differ from the source catalogue', preview)
-        self.assertIn('COMPATIBILITY.json.game-sc', preview)
-        self.assertIn('sdk/VERSION', preview)
+        self.assertIn('<dt>SDK</dt><dd>' + source_version + '</dd>', preview)
+        self.assertIn('An archive built from it may carry another version', preview)
+        self.assertIn('COMPATIBILITY.json', preview)
         self.assertIn('<dt>SDK</dt>', published)
-        self.assertNotIn('Source catalogue SDK', published)
+        self.assertNotIn('another version', published)
 
         release_notice = gen.banner(catalogue, 'sdk-v' + source_version, 'Guides')
-        self.assertNotIn('Development archives may use a different SDK version', release_notice)
+        self.assertNotIn('Development preview', release_notice)
         release_portal = gen.release_portal(ROOT, catalogue, 'sdk-v' + source_version, routes)
-        self.assertNotIn('Development archive versions may differ', release_portal)
+        self.assertNotIn('may carry another version', release_portal)
 
     def test_banner_follows_published_release_data(self):
         catalogue = deepcopy(self.catalogue)
@@ -376,21 +385,19 @@ class SiteTests(unittest.TestCase):
         try:
             gen.PUBLISHED_METADATA = meta
             notice = gen.banner(catalogue, None, 'Guides')
-            self.assertTrue(notice.startswith('<div data-pagefind-ignore="index">\n\n:::note[SDK 9.8.7]'))
+            self.assertTrue(notice.startswith('<div class="sco-banner" data-pagefind-ignore="index">\n\nDocuments SDK 9.8.7'))
             self.assertIn('published as [sdk-v9.8.7]', notice)
-            self.assertIn(catalogue['source_sha'], notice)
-            self.assertIn('not a runtime or in-game verification claim', notice)
-            self.assertNotIn('development preview', notice)
-            self.assertNotIn('Development archives may use', notice)
+            self.assertIn(catalogue['source_sha'][:12], notice)
+            self.assertNotIn('Development preview', notice)
             self.assertIn('may include changes made after the release', notice)
             gen.PUBLISHED_METADATA = dict(meta, source_sha=catalogue['source_sha'])
             self.assertNotIn('may include changes', gen.banner(catalogue, None, 'Guides'))
             gen.PUBLISHED_METADATA = meta
             for key, value in (('sdk_version', '9.8.8'), ('game_pack_version', '6.5.5')):
                 moved = dict(catalogue, **{key: value})
-                self.assertIn('development preview', gen.banner(moved, None, 'Guides'))
+                self.assertIn('Development preview', gen.banner(moved, None, 'Guides'))
             gen.PUBLISHED_METADATA = dict(meta, tag='sdk-v9.8.7-rc.1')
-            self.assertIn('development preview', gen.banner(catalogue, None, 'Guides'))
+            self.assertIn('Development preview', gen.banner(catalogue, None, 'Guides'))
         finally:
             gen.PUBLISHED_METADATA = saved
 
@@ -399,7 +406,7 @@ class SiteTests(unittest.TestCase):
         for language in record['language_mappings']:
             record['language_mappings'][language]['status'] = 'unsupported'
             rendered = gen.mapping_rows(record, self.catalogue['source_sha'])
-            row = next(line for line in rendered.splitlines() if line.startswith('| ' + language + ' |'))
+            row = next(line for line in rendered.splitlines() if line.startswith('| ' + gen.LANGUAGE_LABELS[language] + ' |'))
             self.assertIn('| **unsupported** |', row)
             self.assertNotRegex(row, r'\| \*\*supported\*\* \|')
         record['language_mappings']['lua']['status'] = 'supported'
@@ -503,23 +510,26 @@ class SiteTests(unittest.TestCase):
             self.assertIn('\ntemplate: splash\n', home)
             hero = json.loads(re.search(r'^hero: (.+)$', home, re.M)[1])
             self.assertEqual(hero['title'], 'sco-core SDK')
-            self.assertEqual(hero['tagline'], 'Public contracts for Star Citizen offline plugins')
+            self.assertEqual(hero['tagline'], gen.HERO_TAGLINE)
             self.assertEqual([(action['link'], action['text']) for action in hero['actions']], [
                 (gen.route('guides/getting-started'), 'Start a plugin'),
                 (gen.route('hubs/reference'), 'Browse API')])
             self.assertNotIn('sco-intro', home)
             self.assertIsNone(re.search(r'^# ', home, re.M))
-            snapshot_start = home.index(':::caution[Catalogue snapshot')
-            self.assertLess(snapshot_start, home.index('## Libraries'))
+            self.assertLess(home.index('sco-banner'), home.index('**New here:**'))
+            self.assertLess(home.index('**New here:**'), home.index('## Libraries'))
             self.assertLess(home.index('data-hub="integration"'), home.index('## Releases'))
-            self.assertLess(home.index('## Verify a download'), home.index('## Reading rules'))
-            self.assertLess(home.index('## Reading rules'), home.index('## Remaining gaps'))
-            for rule in self.catalogue['contract_context']['reading_rules'].splitlines():
-                self.assertIn(rule, home)
-            routes = {name: gen.guide_id(name) for name in gen.inputs(ROOT)}
-            self.assertIn(gen.rewrite_links(self.catalogue['contract_context']['remaining_gaps'],
-                                           self.catalogue['contract_context']['source'],
-                                           self.catalogue['source_sha'], routes), home)
+            self.assertLess(home.index('## Releases'), home.index('## Download'))
+            self.assertLess(home.index('## Download'), home.index('## Verify a download'))
+            self.assertLess(home.index('## Verify a download'), home.index('## Reading the contract pages'))
+            self.assertEqual(home.count('## Verify a download'), 1)
+            self.assertEqual(home.count('curl -fLO'), 2)
+            self.assertIn('| Profile | Take this when |', home)
+            # The long reading rules and remaining gaps live in the contracts guide, not on the home page.
+            self.assertNotIn('## Reading rules', home)
+            self.assertNotIn('## Remaining gaps', home)
+            self.assertNotIn(self.catalogue['contract_context']['reading_rules'].splitlines()[0], home)
+            self.assertIn(gen.route(gen.guide_id('docs/contracts.md')), home)
             self.assertNotIn('template: splash', (output / 'src/content/docs/guides/getting-started.md').read_text())
             check_markdown_links(output / 'src/content/docs', output / 'public')
 
@@ -543,7 +553,7 @@ class SiteTests(unittest.TestCase):
 
             def handle_starttag(self, tag, attrs):
                 attrs = dict(attrs)
-                if tag == 'li' and 'data-profile' in attrs:
+                if tag == 'tr' and 'data-profile' in attrs:
                     self.cards.append({k: attrs[k] for k in ('data-profile', 'data-archive', 'data-version')})
                 if tag == 'section' and 'data-track' in attrs:
                     self.current = attrs['data-track']
@@ -569,13 +579,17 @@ class SiteTests(unittest.TestCase):
             self.assertIn(gen.RELEASES + gen.PUBLISHED_DOWNLOAD_TAG, portal.track_links['published'])
             self.assertEqual(portal.tracks['preview']['data-source-sha'], self.catalogue['source_sha'])
             self.assertIn(gen.COMMITS + self.catalogue['source_sha'], portal.track_links['preview'])
-            downloads = gen.DOWNLOADS + gen.PUBLISHED_DOWNLOAD_TAG + '/'
+            downloads = gen.DOWNLOADS + '$TAG/'
+            section = index.split('## Verify a download\n', 1)[1].split('\n```\n', 1)[0]
+            self.assertIn('TAG=' + gen.PUBLISHED_DOWNLOAD_TAG, section)
+            self.assertIn('ARCHIVE=' + expected[0]['data-archive'], section)
+            self.assertIn(downloads + 'SHA256SUMS', section)
+            self.assertIn(downloads + '$ARCHIVE', section)
+            self.assertIn("awk -v f=\"$ARCHIVE\" '$2 == f'", section)
+            self.assertEqual(index.count('### Verify with Python'), 1)
             for card in expected:
-                section = index.split('### Verify ' + card['data-profile'] + '\n', 1)[1].split('\n```\n', 1)[0]
-                self.assertIn(downloads + 'SHA256SUMS', section)
-                self.assertIn(downloads + card['data-archive'], section)
-                self.assertIn('$2 == "' + card['data-archive'] + '"', section)
-                self.assertIn('href="' + gen.BASE + '/#verify-' + card['data-profile'] + '"', index)
+                self.assertIn('<code>' + card['data-archive'] + '</code>', index)
+                self.assertNotIn('### Verify ' + card['data-profile'], index)
             check_markdown_links(output / 'src/content/docs', output / 'public')
             check_leaks(output)
             release = gen.release_portal(ROOT, self.catalogue, 'sdk-v9.9.9', {n: gen.guide_id(n) for n in gen.inputs(ROOT)})
@@ -658,14 +672,16 @@ class SiteTests(unittest.TestCase):
             for language in gen.LANGUAGES:
                 text = (docs / ('languages/' + language + '.md')).read_text()
                 for record in self.catalogue['records']:
-                    self.assertIn(gen.route('reference/' + record['id']), text)
-                    self.assertIn('**' + record['language_mappings'][language]['status'] + '**', text)
-                self.assertIn('Unsupported entries remain explicit', text)
+                    row = next(line for line in text.splitlines() if gen.route('reference/' + record['id']) in line)
+                    self.assertIn('| **' + record['language_mappings'][language]['status'] + '** |', row)
+                self.assertIn('**unsupported**: no supported route is established.', text)
+                self.assertIn('title: "' + gen.LANGUAGE_LABELS[language] + ' language mappings"', text)
             npc = next(r for r in self.catalogue['records'] if r['id'] == 'sc-actors-v1-spawn-npc')
             self.assertEqual(npc['language_mappings']['lua']['status'], 'unsupported')
             lua = (docs / 'languages/lua.md').read_text()
-            self.assertIn('| [' + npc['symbol'] + '](' + gen.route('reference/' + npc['id'])
-                          + ') | ' + npc['service'] + ' | **unsupported** |', lua)
+            row = next(line for line in lua.splitlines() if gen.route('reference/' + npc['id']) in line)
+            self.assertTrue(row.startswith('| ' + npc['service'] + ' | **unsupported** | '), row)
+            self.assertIn('[' + npc['symbol'] + '](' + gen.route('reference/' + npc['id']) + ')', row)
             routes = {p.relative_to(docs).as_posix() for p in docs.rglob('*.md')}
             reordered = deepcopy(self.catalogue)
             reordered['records'].reverse()
@@ -865,7 +881,7 @@ class SiteTests(unittest.TestCase):
             self.skipTest('Use --built site/dist for built-output verification')
         pages, links = check_built(BUILT)
         expected = (len(self.catalogue['records']) + len({r['service'] for r in self.catalogue['records']})
-                    + len(gen.inputs(ROOT)) + len(gen.LANGUAGES) + len(gen.HUBS) + 1 + 1)  # hubs, natives, home
+                    + len(gen.inputs(ROOT)) + len(gen.LANGUAGES) + len(gen.HUBS) + 1 + 1 + 1)  # hubs, natives, home, versions
         self.assertEqual(pages, expected + 1 + len(SHORT_ROUTES))  # Starlight's 404 page and the short-URL pages.
         for identifier in PINNED_ROUTES + tuple('hubs/' + key for key, _, _ in gen.HUBS) + ('natives',):
             self.assertTrue((BUILT / identifier / 'index.html').is_file(), identifier)
@@ -887,11 +903,11 @@ class SiteTests(unittest.TestCase):
             self.generate(ROOT, output)
             docs = output / 'src/content/docs'
             groups = json.loads((output / gen.SIDEBAR).read_text())
-            self.assertEqual(groups[0], {'label': 'Home', 'slug': 'index'})
-            self.assertEqual([group['label'] for group in groups[1:]],
-                             ['Start & SDK profiles', 'Language SDKs & cookbooks', 'Native & service reference',
-                              'Host integration & AI agents'])
-            self.assertTrue(all(group.get('collapsed') is True for group in groups[1:]))
+            self.assertEqual(groups[:2], [{'label': 'Home', 'slug': 'index'},
+                                          {'label': 'Versions and evidence', 'slug': 'versions'}])
+            self.assertEqual([group['label'] for group in groups[2:]],
+                             ['Get started', 'Language SDKs', 'API reference', 'Hosts, launchers and agents'])
+            self.assertTrue(all(group.get('collapsed') is True for group in groups[2:]))
 
             def items(entries):
                 for entry in entries:
@@ -904,7 +920,7 @@ class SiteTests(unittest.TestCase):
                 self.assertNotIn('`', entry['label'])
             expected = ({gen.route_key(gen.guide_id(name)) for name in gen.inputs(ROOT)}
                         | {'services/' + gen.service_id(r['service']) for r in self.catalogue['records']}
-                        | {'languages/' + language for language in gen.LANGUAGES} | {'natives', 'index'}
+                        | {'languages/' + language for language in gen.LANGUAGES} | {'natives', 'index', 'versions'}
                         | {'hubs/' + key for key, _, _ in gen.HUBS})
             self.assertEqual(set(slugs), expected)
             for identifier in PINNED_ROUTES:
@@ -920,8 +936,8 @@ class SiteTests(unittest.TestCase):
             self.assertLess(home.index('data-hub="integration"'), home.index('data-track="published"'))
             self.assertLess(home.index('data-hub="integration"'), home.index('data-profile='))
             start = (docs / 'hubs/start.md').read_text()
-            self.assertEqual(len(re.findall(r'<li class="sco-profile"', start)),
-                             len(re.findall(r'<li class="sco-profile"', home)))
+            self.assertNotIn('data-profile=', start)
+            self.assertIn(gen.route('index') + '#download', start)
             check_markdown_links(docs, output / 'public')
         docs = gen.inputs(ROOT)
         for bad in (docs + ['docs/unassigned.md'], docs[1:]):
@@ -946,9 +962,13 @@ class SiteTests(unittest.TestCase):
                 self.assertEqual(text[hexrun.start() - 1], '_')
                 self.assertIn('_0x' + hexrun.group()[2:].upper(), known)
             self.assertIn('Entries list row names and readiness only: no byte patterns, masks, offsets or addresses.', text)
-            self.assertIn('Nothing here is verified in game unless an entry is marked so', text)
-            for tier, about in index['tiers'].items():
-                self.assertIn('sco-tier--' + tier + '">' + tier + ' · ' + about.split(':', 1)[0], text)
+            self.assertIn('Not run in game.', text)
+            self.assertNotIn('unless an entry is marked', text)
+            for tier, (name, about) in gen.NATIVE_TIER_TEXT.items():
+                self.assertIn('sco-tier--' + tier + '">' + tier + ' · ' + name, text)
+                self.assertIn(about, text)
+            for internal in ('spike', 'sig_rows', 'evidence_level', 'status_registry'):
+                self.assertNotIn(internal, text)
             self.assertEqual(re.findall(r'<script[^>]*>', text), ['<script>'])
             body = text[text.index('Every signature row'):]
             self.assertNotRegex(body, r'https?://(?!github\.com/scuba-sc/sco-core/blob/[0-9a-f]{40}/)')

@@ -23,7 +23,7 @@ RELEASES = 'https://github.com/scuba-sc/sco-core/releases/tag/'
 # Offline fixture for local/PR previews. Deployments supply freshly verified release
 # metadata; neither value is a live-release selector.
 PUBLISHED_RELEASE = 'sdk-v2.4.0'
-PUBLISHED_DOWNLOAD_TAG = 'sdk-v2.4.0-rc.1'
+PUBLISHED_DOWNLOAD_TAG = 'sdk-v2.4.0'
 PUBLISHED_METADATA = None
 DOWNLOADS = 'https://github.com/scuba-sc/sco-core/releases/download/'
 COMMITS = 'https://github.com/scuba-sc/sco-core/commit/'
@@ -41,6 +41,23 @@ PROFILE_GUIDES = {
     'core-source': ('sdk/README.md#build-the-kernel-source-kit', 'Build the kernel source kit'),
     'host-source-sc': ('docs/host-source-sc.md', 'Host-source guide'),
 }
+# When to take each archive; the profile purposes in sdk/components.json describe contents.
+PROFILE_USE = {
+    'core': 'You write a plugin against the game-neutral SDK: the C, C++, C# and Lua layers, host services, examples and tools.',
+    'game-sc': 'Your plugin calls Star Citizen `game.*` services. Unpack it over the core archive of the version it names.',
+    'legacy': 'You already use the single combined zip. It is not game-neutral and stays until consumers move to core and game-sc.',
+    'core-source': 'You build the kernel host and loaders from source, without any game code.',
+    'host-source-sc': 'You build the Star Citizen host from source. It includes the core-source kit.',
+}
+# Plain-language tier names for the native index page and hub card.
+NATIVE_TIER_TEXT = {
+    '1': ('exposed', 'A game capability uses this row.'),
+    '2': ('resolved, not exposed', 'Registered, but no game capability uses it yet.'),
+    '3': ('held', 'Backs a capability that is off by default until it has been run in game.'),
+    '4': ('blocked', 'Backs a capability that has no trustworthy locator.'),
+}
+VERSIONS_ROUTE = 'versions'
+VERSIONS_TITLE = 'Versions and evidence'
 STATUSES = {'direct', 'typed-wrapper', 'restricted', 'unsupported'}
 LANGUAGES = ('c', 'cpp', 'csharp', 'lua')
 # Editorial task phrases, not API aliases or claims of additional entrypoints.
@@ -59,21 +76,21 @@ PAGE_TYPES = {'APIs', 'Services', 'Languages', 'Guides', 'Overview'}
 # has none, so a new public input cannot drop out of navigation. Grouping only
 # changes navigation; every page keeps its route.
 HUBS = (
-    ('start', 'Start & SDK profiles',
-     'Choose an SDK archive, build and check a first plugin, and learn how plugins are found and loaded.'),
-    ('sdks', 'Language SDKs & cookbooks',
-     'The C++ and C# SDK layers, worked examples and the per-language status of every contract.'),
-    ('reference', 'Native & service reference',
+    ('start', 'Get started',
+     'Pick an SDK archive, build and check a first plugin, and learn how plugins are found and loaded.'),
+    ('sdks', 'Language SDKs',
+     'The C++ and C# SDK layers, plus Lua, data packs, examples and the per-language status of every contract.'),
+    ('reference', 'API reference',
      'Service tables, callable contracts, game services and the engine-native index.'),
-    ('integration', 'Host integration & AI agents',
-     'MCP discovery for agents and IDEs, the host-source kit, release notes and provenance.'),
+    ('integration', 'Hosts, launchers and agents',
+     'Launcher and host contracts, the host-source kit, MCP discovery for agents and IDEs, and release notes.'),
 )
 # Editorial one-line summaries for hub cards; navigation text, not contract claims.
 HUB_DOCS = {
     'start': (
-        ('docs/roadmap.md', 'Where the SDK stands, what 2.4.0 delivers, what comes after, and how to contribute.'),
+        ('docs/roadmap.md', 'Where the SDK stands, what it delivers today, what comes next and how to contribute.'),
         ('docs/getting-started.md', 'One path from a published SDK archive to a checked C plugin deployed on Windows.'),
-        ('docs/README.md', 'Curated guides grouped by audience.'),
+        ('docs/README.md', 'Which guide to read first: plugin author, host integrator, game-pack contributor, agent user or maintainer.'),
         ('docs/plugins.md', 'Plugin folders, `plugin.ini`, discovery, loading and data packs.'),
         ('docs/plugin-design.md', 'Design principles for modular plugins, with a provider and consumer example pair.'),
         ('docs/plugin-directory.md', 'Community plugins in their own repositories, with reported SDK compatibility.'),
@@ -88,8 +105,8 @@ HUB_DOCS = {
         ('docs/contracts.md', 'How to read the per-method service contract catalogue.'),
         ('docs/stability.md', 'What stays compatible across SDK 2.x: Stable and Experimental service tables.'),
         ('docs/game-services.md', 'Services the Star Citizen game pack publishes under the reserved owner `game`.'),
-        ('docs/game/relocation-position.md', 'Explicit position-only relocation requests, completion evidence and unavailable native producer boundaries.'),
-        ('docs/game/status.md', 'Status of every `game.*` table.'),
+        ('docs/game/relocation-position.md', 'Position-only relocation of the local player: the `request_position` method added in `game.relocation` 1.1.'),
+        ('docs/game/status.md', 'Which `game.*` tables have a contract, a native implementation, signature checks or in-game verification.'),
         ('docs/game/builds.md', 'Every Star Citizen patch the game pack was checked against, and which rows each one changed.'),
         ('docs/storage.md', 'Per-plugin key-value and SQL storage over SQLite.'),
         ('docs/ui.md', 'Renderer-neutral `sco.widgets` and the legacy `sco.ui` service.'),
@@ -99,17 +116,17 @@ HUB_DOCS = {
         ('docs/api.md', 'Internal C++ namespace `sco`; version 0, not the plugin ABI.'),
     ),
     'integration': (
-        ('docs/agent-workflows.md', 'Roadmap-driven skills for building, checking, packaging and maintaining public SDK consumers.'),
-        ('docs/defaults-readiness.md', 'Default discovery and plugin behavior, with per-capability backend prerequisites and evidence still owed.'),
+        ('docs/agent-workflows.md', 'Skills that help agents build, check, package and maintain plugins against the public SDK.'),
+        ('docs/defaults-readiness.md', 'Which game capabilities are on by default, and what each backend needs before it is available.'),
         ('docs/agent-integration.md', 'Read-only MCP discovery tools for agents and IDEs.'),
         ('docs/sdk-mcp-tutorial.md', 'Discover a contract, request a scaffold, validate manifest/widgets and run a native checker.'),
         ('docs/host-source-sc.md', 'Build the Star Citizen host from the generated host-source kit.'),
         ('docs/launcher-contract.md', 'What a launcher and a host agree on: environment variables, folder layout, the disabled marker, settings and events.'),
-        ('docs/building-a-launcher.md', 'Build a launcher on the SDK: the reference launcher, adding a plugin from a zip, and what a product must bring itself.'),
-        ('docs/widgets-view.md', 'The host-side panel reader and click queue for a host menu thread (`sco.widgets.view`, host-source seam).'),
+        ('docs/building-a-launcher.md', 'Build a launcher on the SDK with the reference launcher in `sdk/examples/launcher`: install a plugin from a zip, and see what a product must supply itself. Source-level and synthetic tests only; not run in game.'),
+        ('docs/widgets-view.md', 'The host-side panel reader and click queue for a host menu thread (`sco.widgets.view`).'),
         ('docs/releases/sdk-v2.4.1.md', 'SDK 2.4.1 release notes: what is new, compatibility and evidence.'),
-        ('docs/releases/sdk-v2.4.0.md', 'SDK 2.4.0 release notes, candidate history and archives.'),
-        ('docs/reference-snapshots.md', 'Snapshots that bind reference content to SDK inputs.'),
+        ('docs/releases/sdk-v2.4.0.md', 'SDK 2.4.0 release notes and archive identities.'),
+        ('docs/reference-snapshots.md', 'For maintainers: freeze a copy of this reference against specific SDK archives and a source commit.'),
     ),
 }
 LANGUAGE_LABELS = {'c': 'C', 'cpp': 'C++', 'csharp': 'C#', 'lua': 'Lua'}
@@ -117,10 +134,10 @@ LANGUAGE_LABELS = {'c': 'C', 'cpp': 'C++', 'csharp': 'C#', 'lua': 'Lua'}
 NAV_LABELS = {'docs/README.md': 'Guides by audience'}
 # Repository guides and examples outside docs/: pinned source links, never imported.
 SDK_SOURCES = (
-    ('sdk/docs/lua.md', 'Lua plugins', 'Lua plugin guide.'),
+    ('sdk/docs/lua.md', 'Lua plugins', 'Write a plugin in sandboxed Lua.'),
     ('sdk/docs/data-packs.md', 'Data packs', 'Content-only packs without native code.'),
     ('sdk/docs/widgets.md', 'Widgets', 'Building native UI with `sco.widgets`.'),
-    ('sdk/examples', 'Example plugins', 'Buildable examples in C, C++, C# and Lua.'),
+    ('sdk/examples', 'Examples', 'Buildable examples in C, C++, C#, Lua and Rust, plus the reference launcher.'),
 )
 NATIVE_INDEX = 'sdk/native_index.json'
 NATIVE_DOWNLOAD = 'native-index.json'
@@ -274,14 +291,13 @@ def rewrite_links(text, source, sha, doc_routes):
 
 
 def published_stage():
-    """(status label, asset note) of PUBLISHED_DOWNLOAD_TAG: the final release or one of its candidates."""
+    """(status label, note) of PUBLISHED_DOWNLOAD_TAG: the final release or one of its candidates."""
     match = re.fullmatch(re.escape(PUBLISHED_RELEASE) + r'(?:-rc\.([1-9][0-9]*))?', PUBLISHED_DOWNLOAD_TAG)
     if not match:
         raise ValueError('PUBLISHED_DOWNLOAD_TAG must be PUBLISHED_RELEASE or one of its -rc.N tags')
     if match[1]:
-        return ('Published release candidate',
-                'release candidate ' + match[1] + '; the final release follows')
-    return 'Published release', 'published assets; verify their identity'
+        return 'Published release candidate', 'Release candidate ' + match[1] + '; the final release follows.'
+    return 'Published release', ''
 
 
 def documents_published_release(catalogue):
@@ -293,36 +309,25 @@ def documents_published_release(catalogue):
 
 
 def banner(catalogue, release_tag, category):
+    """One line on every page: what the page documents. The detail lives on the home page and the versions page."""
+    sdk, pack = catalogue['sdk_version'], catalogue['game_pack_version']
+    source = '`' + catalogue['source_sha'][:12] + '`'
     if not release_tag and documents_published_release(catalogue):
         # The deployed source documents the published release; later main commits may only fix docs.
         tag = PUBLISHED_METADATA['tag']
-        return ('<div data-pagefind-ignore="index">\n\n:::note[SDK ' + catalogue['sdk_version'] + ']\n'
-                + 'Documents SDK **' + catalogue['sdk_version'] + '** · game pack **' + catalogue['game_pack_version']
-                + '**, published as [' + tag + '](' + RELEASES + quote(tag, safe='') + '). Built from source `'
-                + catalogue['source_sha'] + '`'
+        line = ('Documents SDK ' + sdk + ', game pack ' + pack + ', published as [' + tag + '](' + RELEASES
+                + quote(tag, safe='') + '). Source ' + source
                 + ('' if catalogue['source_sha'] == PUBLISHED_METADATA['source_sha']
-                   else ', which may include changes made after the release') + '.\n'
-                + '<span data-pagefind-filter="Type:' + esc(category) + '">Source-backed inventory is not a runtime '
-                + 'or in-game verification claim.</span>\n:::\n\n</div>\n\n')
-    label = 'release ' + release_tag if release_tag else 'development preview'
-    published = release_tag or PUBLISHED_DOWNLOAD_TAG
-    stage = 'published assets; verify their identity' if release_tag else published_stage()[1]
-    published_source = (' · release source `' + PUBLISHED_METADATA['source_sha'] + '`'
-                        if PUBLISHED_METADATA and not release_tag else '')
-    release_label = 'Published release' if PUBLISHED_METADATA or release_tag else 'Offline release fixture'
-    if not PUBLISHED_METADATA and not release_tag:
-        stage = 'offline fixture; not current publication data'
-    return ('<div data-pagefind-ignore="index">\n\n:::caution[Catalogue snapshot — ' + label + ']\n'
-            + 'Source catalogue SDK **' + catalogue['sdk_version'] + '** · game pack **' + catalogue['game_pack_version']
-            + '** · source `' + catalogue['source_sha'] + '`\n'
-            + ('' if release_tag else 'Development archives may use a different SDK version for this source; '
-               'check `COMPATIBILITY.json` (or `COMPATIBILITY.json.game-sc` for the standalone game overlay), '
-               '`VERSION` or `sdk/VERSION` where present, and the archive checksum.\n')
-            + release_label + ': [' + published + '](' + RELEASES + quote(published, safe='') + ')' + published_source
-            + (' (' + stage + ').\n' if release_tag
-               else ' (' + stage + '; this development preview is not an approved release).\n')
-            + '<span data-pagefind-filter="Type:' + esc(category) + '">Source-backed inventory is not a runtime '
-            + 'or in-game verification claim.</span>\n:::\n\n</div>\n\n')
+                   else ', which may include changes made after the release') + '.')
+    elif release_tag:
+        line = ('Release [' + release_tag + '](' + RELEASES + quote(release_tag, safe='') + '): SDK ' + sdk
+                + ', game pack ' + pack + ', source ' + source + '.')
+    else:
+        line = ('Development preview of source ' + source + ': SDK ' + sdk + ', game pack ' + pack
+                + '. ' + ('Latest release: ' if PUBLISHED_METADATA else 'Release in the offline fixture: ')
+                + '[' + PUBLISHED_DOWNLOAD_TAG + '](' + RELEASES + quote(PUBLISHED_DOWNLOAD_TAG, safe='') + ').')
+    return ('<div class="sco-banner" data-pagefind-ignore="index">\n\n' + line + ' [' + VERSIONS_TITLE + '](' + route(VERSIONS_ROUTE)
+            + ')<span data-pagefind-filter="Type:' + esc(category) + '"></span>\n\n</div>\n\n')
 
 
 def release_scope(text, tag):
@@ -377,33 +382,62 @@ def repo_link(target, sha, doc_routes):
     return source_link(path, sha) + ('#' + fragment if fragment else '')
 
 
-def profile_cards(cards, sha, doc_routes, pinned_release=False):
-    """Archive cards for each published profile: name, archive, version, purpose, guide and checksum link."""
-    out = ['<ul class="sco-profiles not-content">']
+def profile_choice(cards, sha, doc_routes, pinned_release=False):
+    """Which archive to take: one row per published profile, with a guide link."""
+    out = ['| Profile | Take this when |', '| --- | --- |']
     for card in cards:
-        relation = ('Includes ' + ', '.join(card['includes']) if card['includes']
-                    else 'Requires ' + card['requires'] if card['requires'] else 'Standalone')
         guide, guide_label = PROFILE_GUIDES[card['profile']]
         path, _, fragment = guide.partition('#')
         guide_url = (source_link(path, sha) + ('#' + fragment if fragment else '')
                      if pinned_release else repo_link(guide, sha, doc_routes))
-        out += ['<li class="sco-profile" data-profile="' + esc(card['profile']) + '" data-archive="'
-                + esc(card['archive']) + '" data-version="' + esc(card['version']) + '">',
-                '<h3>' + esc(card['profile']) + '</h3>',
-                '<p class="sco-profile__archive"><code>' + esc(card['archive']) + '</code></p>',
-                '<p class="sco-profile__meta"><span class="sco-pill">' + esc(card['version']) + '</span> '
-                + esc(relation) + '</p>',
-                '<p>' + esc(card['about']) + '</p>',
-                '<p class="sco-profile__links"><a href="' + esc(guide_url) + '">'
-                + esc(guide_label) + '</a><a href="' + esc(route('index') + '#verify-' + card['profile'])
-                + '">Verify checksum</a></p>',
-                '</li>']
-    out.append('</ul>')
+        out.append('| `' + card['profile'] + '` | ' + PROFILE_USE[card['profile']] + ' [' + guide_label + '](' + guide_url + ') |')
+    return out
+
+
+def archive_table(cards):
+    """The archive file name of each profile; each row carries its profile, name and version for tools."""
+    out = ['<table>', '<thead><tr><th scope="col">Profile</th><th scope="col">Archive</th></tr></thead>', '<tbody>']
+    for card in cards:
+        out.append('<tr class="sco-profile" data-profile="' + esc(card['profile']) + '" data-archive="'
+                   + esc(card['archive']) + '" data-version="' + esc(card['version']) + '"><td><code>'
+                   + esc(card['profile']) + '</code></td><td><code>' + esc(card['archive']) + '</code></td></tr>')
+    out += ['</tbody>', '</table>']
+    return out
+
+
+def download_section(cards, sha, doc_routes, tag):
+    """Which archive to take and one block that verifies any of them."""
+    pinned = PUBLISHED_METADATA is not None
+    out = ['\n## Download',
+           ('Archives in ' if pinned else 'Offline archive fixture for ') + PUBLISHED_DOWNLOAD_TAG
+           + '. Most plugin authors need only `core`; add `game-sc` for Star Citizen services.\n',
+           *profile_choice(cards, sha, doc_routes, pinned_release=pinned)]
+    out += ['\n## Verify a download',
+            'Put `SHA256SUMS` and the archive from the [release page](' + RELEASES + tag + ') in one folder. '
+            'Set `ARCHIVE` to one of these names:\n',
+            *archive_table(cards), '',
+            '```sh wrap',
+            'TAG=' + PUBLISHED_DOWNLOAD_TAG,
+            'ARCHIVE=' + cards[0]['archive'],
+            'curl -fLO ' + DOWNLOADS + '$TAG/SHA256SUMS',
+            'curl -fLO ' + DOWNLOADS + '$TAG/$ARCHIVE',
+            "awk -v f=\"$ARCHIVE\" '$2 == f' SHA256SUMS | shasum -a 256 -c -",
+            '```',
+            '`OK` means the file matches the release list. This is an integrity check, not a signature check. '
+            'On Linux use `sha256sum -c -` in place of `shasum -a 256 -c -`. On Windows use the Python version below.',
+            '\n### Verify with Python',
+            'Works on Windows too (fetch the files with `curl.exe`). Set `archive` to your file.',
+            '```python wrap', 'import hashlib', 'from pathlib import Path', '',
+            'archive = "' + cards[0]['archive'] + '"',
+            'sums = dict(line.split()[::-1] for line in Path("SHA256SUMS").read_text().splitlines() if line.strip())',
+            'actual = hashlib.sha256(Path(archive).read_bytes()).hexdigest()',
+            'print(archive + (": OK" if actual == sums[archive] else ": FAILED"))',
+            'raise SystemExit(actual != sums[archive])', '```']
     return out
 
 
 def release_portal(root, catalogue, release_tag, doc_routes):
-    """Home-page release tracks, profile cards and checksum commands, all from repository facts."""
+    """Home-page release boxes, archive choice and checksum commands, all from repository facts."""
     notes = 'docs/releases/' + PUBLISHED_RELEASE + '.md'
     if notes not in doc_routes:
         raise ValueError('Published release notes must be an allowlisted input: ' + notes)
@@ -414,77 +448,67 @@ def release_portal(root, catalogue, release_tag, doc_routes):
     sha = catalogue['source_sha']
     status, stage = published_stage()
     if PUBLISHED_METADATA is None:
-        status, stage = 'Offline release fixture', 'offline fixture; not current publication data'
+        status, stage = 'Offline release fixture', 'Offline fixture; not current publication data.'
     tag = quote(PUBLISHED_DOWNLOAD_TAG, safe='')
 
     def facts(pairs):
         return ('<dl class="sco-facts">' + ''.join('<dt>' + esc(k) + '</dt><dd>' + v + '</dd>' for k, v in pairs)
                 + '</dl>')
 
+    published_source = ([('Source', '<a href="' + esc(COMMITS + PUBLISHED_METADATA['source_sha']) + '">'
+                          + esc(PUBLISHED_METADATA['source_sha'][:12]) + '</a>')] if PUBLISHED_METADATA else [])
     published = [
         '<section class="sco-track" data-od-id="release-published" data-track="published" data-tag="' + esc(scope['tag'])
         + '" data-download-tag="' + esc(PUBLISHED_DOWNLOAD_TAG) + '" aria-labelledby="track-published">',
         '<span class="sco-status sco-status--published">' + esc(status) + '</span>',
         '<h3 id="track-published"><a href="' + esc(RELEASES + tag) + '">' + esc(PUBLISHED_DOWNLOAD_TAG)
         + '</a></h3>',
-        facts(([('Source', '<a href="' + esc(COMMITS + PUBLISHED_METADATA['source_sha']) + '">' + esc(PUBLISHED_METADATA['source_sha']) + '</a>')] if PUBLISHED_METADATA else []) + [('SDK', esc(scope['sdk_version'])), ('Game pack', esc(scope['game_pack_version'])),
-               ('Plugin ABI', esc(scope['plugin_abi'])), ('Archives', str(len(cards)) + ' profiles')]),
-        '<p class="sco-track__note">' + esc(stage[0].upper() + stage[1:]) + '. <a href="'
+        facts(published_source + [('SDK', esc(scope['sdk_version'])), ('Game pack', esc(scope['game_pack_version'])),
+                                  ('Plugin ABI', esc(scope['plugin_abi'])), ('Archives', str(len(cards)) + ' profiles')]),
+        '<p class="sco-track__note">' + (esc(stage) + ' ' if stage else '') + '<a href="'
         + esc(route(doc_routes[notes])) + '">Release notes</a></p>',
         '</section>']
     if release_tag:
         label, title = 'Release build', release_tag
         note = 'This site build was generated from the commit its release tag identifies.'
     else:
-        label, title = 'Mainline development preview', 'This documentation build'
-        note = ('Not an approved release. Pages describe this source commit. Development archive versions '
-                'may differ from the source catalogue; check COMPATIBILITY.json (COMPATIBILITY.json.game-sc '
-                'for the standalone game overlay), VERSION or sdk/VERSION where present, and the archive checksum.')
+        label, title = 'Development preview', 'This site\'s source'
+        note = ('Not a release. These pages describe this source commit. An archive built from it may carry '
+                'another version: read COMPATIBILITY.json inside the archive.')
     preview = [
         '<section class="sco-track" data-od-id="release-build" data-track="' + ('release' if release_tag else 'preview')
         + '" data-source-sha="' + esc(sha) + '" aria-labelledby="track-build">',
         '<span class="sco-status sco-status--' + ('published' if release_tag else 'preview') + '">' + esc(label) + '</span>',
         '<h3 id="track-build">' + esc(title) + '</h3>',
-        facts([('Source', '<a href="' + esc(COMMITS + sha) + '">' + esc(sha) + '</a>'),
-               ('Source catalogue SDK', esc(catalogue['sdk_version'])), ('Game pack', esc(catalogue['game_pack_version']))]),
+        facts([('Source', '<a href="' + esc(COMMITS + sha) + '">' + esc(sha[:12]) + '</a>'),
+               ('SDK', esc(catalogue['sdk_version'])), ('Game pack', esc(catalogue['game_pack_version']))]),
         '<p class="sco-track__note">' + esc(note) + '</p>',
         '</section>']
-    profile_source = PUBLISHED_METADATA['source_sha'] if PUBLISHED_METADATA else sha
-    profile_basis = ('the verified release identity' if PUBLISHED_METADATA else
-                     'the release-scope declaration in the ' + scope['tag'] + ' release notes')
     out = ['\n## Releases', '<div class="sco-tracks not-content">', *published, *preview, '</div>',
-           '\n## Choose an archive',
-           ('Archives published in ' if PUBLISHED_METADATA else 'Offline archive fixture for ') + PUBLISHED_DOWNLOAD_TAG + '. Profiles and versions come from '
-           + profile_basis + '.\n',
-           *profile_cards(cards, profile_source, doc_routes, pinned_release=PUBLISHED_METADATA is not None)]
-    out += ['\n## Verify a download',
-            'Each archive\'s SHA-256 digest is listed in the release\'s [SHA256SUMS](' + DOWNLOADS + tag
-            + '/SHA256SUMS). Download it and the archive into one folder, then check that archive\'s line: '
-            '`OK` means the bytes match the published list. This checks integrity against the '
-            'release\'s own list; it is not a signature check. On Linux, use `sha256sum` '
-            'in place of `shasum -a 256`.']
-    for card in cards:
-        out += ['\n### Verify ' + card['profile'], '```sh wrap',
-                'curl -fLO ' + DOWNLOADS + tag + '/SHA256SUMS',
-                'curl -fLO ' + DOWNLOADS + tag + '/' + card['archive'],
-                "awk '$2 == \"" + card['archive'] + "\"' SHA256SUMS | shasum -a 256 -c -", '```']
-    out += ['\n### Verify with Python',
-            'For any platform, including Windows (download with `curl.exe`). Set `archive` to the file you downloaded.',
-            '```python wrap', 'import hashlib', 'from pathlib import Path', '',
-            'archive = "' + cards[0]['archive'] + '"',
-            'sums = dict(line.split()[::-1] for line in Path("SHA256SUMS").read_text().splitlines() if line.strip())',
-            'actual = hashlib.sha256(Path(archive).read_bytes()).hexdigest()',
-            'print(archive + (": OK" if actual == sums[archive] else ": FAILED"))',
-            'raise SystemExit(actual != sums[archive])', '```']
+           *download_section(cards, PUBLISHED_METADATA['source_sha'] if PUBLISHED_METADATA else sha, doc_routes, tag)]
     return '\n'.join(out)
 
 
-def page(title, body, catalogue, release_tag, category, toc=True, hero=None):
+def first_sentence(text, limit=220, plain=True):
+    """First sentence of Markdown-ish text, cut at a word boundary past limit; plain drops the markup."""
+    if plain:
+        text = re.sub(r'\[([^\]]*)\]\([^)]*\)', r'\1', text)
+        text = re.sub(r'<[^>]+>', '', text)
+        text = re.sub(r'[`*]', '', text)
+    text = ' '.join(text.split())
+    text = re.split(r'(?<=[.!?])\s+(?=[A-Z(])', text, maxsplit=1)[0]
+    if len(text) > limit:
+        text = text[:limit].rsplit(' ', 1)[0].rstrip(',;:') + ' ...'
+    return text
+
+
+def page(title, body, catalogue, release_tag, category, toc=True, hero=None, description=None):
     if category not in PAGE_TYPES:
         raise ValueError('Unknown search page type: ' + category)
     title = plain_title(title)
+    description = description or title + ' | sco-core SDK for Star Citizen offline plugins'
     return ('---\ntitle: ' + json.dumps(title, ensure_ascii=False)
-            + '\ndescription: ' + json.dumps('sco-core public engineering documentation: ' + title)
+            + '\ndescription: ' + json.dumps(description, ensure_ascii=False)
             + ('' if toc else '\ntableOfContents: false')
             + ('\ntemplate: splash\nhero: ' + json.dumps(hero, ensure_ascii=False) if hero else '')
             + '\n---\n\n'
@@ -503,7 +527,8 @@ def hub_docs(docs):
 
 def sidebar(doc_routes, titles, services, natives):
     """Starlight sidebar: home, then the four library hubs in order."""
-    groups: list[dict[str, object]] = [{'label': 'Home', 'slug': 'index'}]
+    groups: list[dict[str, object]] = [{'label': 'Home', 'slug': 'index'},
+                                       {'label': VERSIONS_TITLE, 'slug': VERSIONS_ROUTE}]
     for key, label, _ in HUBS:
         items: list[dict[str, object]] = [{'label': 'Overview', 'slug': 'hubs/' + key}]
         if key == 'reference':
@@ -541,7 +566,7 @@ def cards(entries, cls='sco-cards'):
 def hub_cards(groups):
     """Home-page library cards, numbered in sidebar order."""
     out = ['<ol class="sco-hubs not-content">']
-    for number, ((key, label, blurb), group) in enumerate(zip(HUBS, groups[1:]), 1):
+    for number, ((key, label, blurb), group) in enumerate(zip(HUBS, groups[2:]), 1):
         out += ['<li class="sco-card sco-card--hub" data-hub="' + esc(key) + '">',
                 '<span class="sco-card__index" aria-hidden="true">' + '%02d' % number + '</span>',
                 '<h3><a href="' + esc(route('hubs/' + key)) + '">' + esc(label) + '</a></h3>',
@@ -583,7 +608,7 @@ def native_index(root):
 
 
 def tier_name(tiers, tier):
-    return tiers[str(tier)].split(':', 1)[0].strip()
+    return NATIVE_TIER_TEXT[str(tier)][0]
 
 
 # The only client script on the site: filters the server-rendered rows and resolves
@@ -675,20 +700,20 @@ def natives_body(index, sha):
     by_subsystem = Counter(entry['subsystem'] for entry in entries)
     example = entries[0]['hash']
     out = ['Every signature row the game pack registers, listed under a stable symbolic hash with its '
-           'promotion tier. Filter by subsystem and tier, or open `' + BASE + '/natives/?' + example
+           'tier. Filter by subsystem and tier, or open `' + BASE + '/natives/?' + example
            + '` to jump to one row. [Download native-index.json](' + BASE + '/' + NATIVE_DOWNLOAD + ')\n',
            ':::note[What an entry is]',
            'Entries list row names and readiness only: no byte patterns, masks, offsets or addresses. '
            'A hash is derived from the row id; it is a name, not an address. '
-           'Nothing here is verified in game unless an entry is marked so, and no entry in this index carries that mark.',
+           'Not run in game. [What that means](' + route(VERSIONS_ROUTE) + ')',
            ':::\n',
            '## Tier legend\n',
            '<dl class="sco-tiers not-content">']
     for tier in sorted(NATIVE_TIERS):
-        name, _, about = tiers[tier].partition(':')
+        name, about = NATIVE_TIER_TEXT[tier]
         out += ['<div class="sco-tiers__item">',
-                '<dt><span class="sco-tier sco-tier--' + tier + '">' + tier + ' · ' + esc(name.strip()) + '</span></dt>',
-                '<dd>' + esc(about.strip()[:1].upper() + about.strip()[1:]) + '. <span class="sco-tiers__count">'
+                '<dt><span class="sco-tier sco-tier--' + tier + '">' + tier + ' · ' + esc(name) + '</span></dt>',
+                '<dd>' + esc(about) + ' <span class="sco-tiers__count">'
                 + str(by_tier[tier]) + (' row' if by_tier[tier] == 1 else ' rows') + '</span></dd>',
                 '</div>']
     out += ['</dl>\n', '## Rows\n',
@@ -735,34 +760,35 @@ def natives_body(index, sha):
     return '\n'.join(out)
 
 
-def hub_body(key, blurb, catalogue, doc_routes, titles, services, natives, profiles):
+def hub_body(key, blurb, catalogue, doc_routes, titles, services, natives):
     """A hub landing page: the hub's pages as cards, plus its generated indexes."""
     sha = catalogue['source_sha']
     guides = cards([(route(doc_routes[name]), NAV_LABELS.get(name, titles[name]), summary, None)
                     for name, summary in HUB_DOCS[key]])
     out = [blurb + '\n']
     if key == 'start':
-        out += ['## Guides', guides, '\n## SDK profiles',
-                ('Archives published in ' if PUBLISHED_METADATA else 'Offline archive fixture for ') + PUBLISHED_DOWNLOAD_TAG + '. Each card links to its guide and to the checksum '
-                'steps on the [home page](' + route('index') + '#verify-a-download).\n', *profiles]
+        out += ['## Guides', guides, '\n## Which archive to take',
+                'Archive choice and checksum steps are on the home page: [Download](' + route('index') + '#download) and '
+                '[Verify a download](' + route('index') + '#verify-a-download).']
     elif key == 'sdks':
         languages = cards([(route('languages/' + language), LANGUAGE_LABELS[language] + ' language mappings',
-                            'Catalogue status of every contract for ' + LANGUAGE_LABELS[language] + '.', None)
+                            'How each contract is exposed to ' + LANGUAGE_LABELS[language] + ' plugins.', None)
                            for language in LANGUAGES])
         sources = cards([(source_link(path, sha), label, summary, 'Source, pinned at <code>' + esc(sha[:12]) + '</code>')
                          for path, label, summary in SDK_SOURCES])
         out += ['## SDK guides', guides, '\n## Language mappings',
-                'Static views of the catalogue. A status is metadata, not a runtime support filter.\n', languages,
+                'Each page lists the status of every contract for one language: direct, typed-wrapper, restricted or unsupported.\n',
+                languages,
                 '\n## Lua, data packs and examples',
-                'These live with the SDK archive rather than in this site; links open the source at the catalogue commit.\n',
+                'These live with the SDK archive, not on this site. The links open the source at this site\'s source commit.\n',
                 sources]
     elif key == 'reference':
         tiers = Counter(entry['tier'] for entry in natives['entries'])
         native = cards([(route('natives'), NATIVE_TITLE,
-                         'Every registered signature row by symbolic hash and promotion tier, with search, '
+                         'Every registered signature row by symbolic hash and tier, with search, '
                          'filters and deep links. Names and readiness only; no patterns or addresses.',
-                         esc(str(len(natives['entries'])) + ' rows · ' + str(tiers[1]) + ' promoted · '
-                             + str(tiers[3]) + ' spike hold'))], 'sco-cards sco-cards--single')
+                         esc(str(len(natives['entries'])) + ' rows · ' + str(tiers[1]) + ' exposed · '
+                             + str(tiers[3]) + ' held'))], 'sco-cards sco-cards--single')
         out += ['## Engine-native index', native, '\n## Guides', guides, '\n## Service tables',
                 'One index per service, linking each callable contract record.\n',
                 '<ul class="sco-links not-content">',
@@ -782,7 +808,7 @@ def cell(value):
 
 
 def mapping_rows(record, sha):
-    rows = ['| Language | Catalogue status | Source evidence / wrapper tokens |',
+    rows = ['| Language | Status | Evidence |',
             '| --- | --- | --- |']
     if set(record['language_mappings']) != set(LANGUAGES):
         raise ValueError('Missing or unknown language mapping')
@@ -794,55 +820,180 @@ def mapping_rows(record, sha):
         for item in mapping['evidence']:
             evidence.append('[' + cell(item['path']) + '](' + source_link(item['path'], sha)
                             + ')<br><code>' + cell(item['token']) + '</code>')
-        rows.append('| ' + language + ' | **' + mapping['status'] + '** | ' + '<br>'.join(evidence) + ' |')
+        rows.append('| ' + LANGUAGE_LABELS[language] + ' | **' + mapping['status'] + '** | ' + '<br>'.join(evidence) + ' |')
     return '\n'.join(rows) + '\n'
+
+
+def table_version(packed):
+    """Packed table version 0x00010001 as '1.1 (`0x00010001`)'."""
+    return str(packed >> 16) + '.' + str(packed & 0xFFFF) + ' (`0x%08x`)' % packed
+
+
+def declaration(record):
+    """(C declaration with parameter names, remaining text) of a record's buffer contract."""
+    head, _, rest = record['buffer_contract'].partition('<br>')
+    if head.startswith('`') and head.endswith('`') and head.count('`') == 2:
+        return head[1:-1], rest
+    return None, record['buffer_contract']
 
 
 def render_record(record, catalogue, doc_routes):
     sha = catalogue['source_sha']
     prose = lambda text: rewrite_links(text, catalogue['contract_context']['source'], sha, doc_routes)
     table = catalogue['tables'].get(record['table'], {})
-    out = [prose(record['purpose']), '\n:::danger[Limitations / unestablished guarantees]',
-           *['- ' + prose(item) for item in record['limitations']], ':::\n',
-           '## Signature', '```c', record['signature'], '```',
-           '## Service and availability',
-           '[Service index](' + route('services/' + service_id(record['service'])) + ')',
-           '| Property | Value |', '| --- | --- |',
-           '| Symbol | <code>' + cell(record['symbol']) + '</code> |',
-           '| Record ID | <code>' + cell(record['id']) + '</code> |',
-           '| Service | ' + cell(record['service']) + ' |',
-           '| Table | ' + cell(record['table'] or 'Native entrypoint (no table)') + ' |',
-           '| Version macro | ' + cell(record['version_macro']) + ' |',
-           '| Packed table version | ' + cell(table.get('version', 'Not applicable')) + ' |',
-           '| Since / availability | ' + cell(record['since']) + ' |',
-           '| Complete member extent (x64 bytes) | ' + cell(record['member_extent']) + ' |',
-           '| Table size (x64 bytes) | ' + cell(record['table_size']) + ' |',
-           '\n[Header source](' + source_link(record['source_header'], sha) + ')',
-           '\n## Parameters and buffers', prose(record['buffer_contract']),
-           '\n## Results and failures', prose(record['results']),
-           '\n## Absent capability', prose(record['absent_capability']),
-           '\n## Ownership', prose(record['ownership']),
-           '\n## Thread affinity', prose(record['thread_affinity']),
-           '\n## Callback context', prose(record['callback_context']),
-           '\n## Reentrancy', prose(record['reentrancy']),
-           '\n## Cleanup and cancellation', prose(record['cleanup']),
-           '\n## Language mappings',
-           'Status labels are copied verbatim from the catalogue: **direct** is native access; '
-           '**typed-wrapper** is wrapper-backed; **restricted** is a subset/adaptation; '
-           '**unsupported** means no supported route is established. No status implies universal safety.',
-           mapping_rows(record, sha)]
+    code, rest = declaration(record)
+    out = [prose(record['purpose'])]
+    if code is not None:
+        out += ['\n```c', code, '```']
+    if rest and rest != record['purpose']:
+        out += ['\n' + prose(rest)]
+    since = record['since'].replace('|', '&#124;').replace('\n', '<br>')
+    rows = [('Symbol', '<code>' + cell(record['symbol']) + '</code>'),
+            ('Service', '[' + cell(record['service']) + '](' + route('services/' + service_id(record['service'])) + ')'),
+            ('Table', cell(record['table'] or 'Native entrypoint (no table)')),
+            ('Version macro', cell(record['version_macro']))]
+    if 'version' in table:
+        rows.append(('Table version', table_version(table['version'])))
+    rows.append(('Since', since))
+    if record['member_extent'] is not None:
+        rows.append(('Member extent (x64 bytes)', cell(record['member_extent'])))
+    if record['table_size'] is not None:
+        rows.append(('Table size (x64 bytes)', cell(record['table_size'])))
+    rows.append(('Header', '[' + cell(record['source_header']) + '](' + source_link(record['source_header'], sha) + ')'))
+    out += ['\n## Availability', '| Property | Value |', '| --- | --- |',
+            *['| ' + name + ' | ' + value + ' |' for name, value in rows],
+            '\n## Results and failures', prose(record['results'])]
+    if record['absent_capability'] != 'unspecified':
+        out += ['\n## Absent capability', prose(record['absent_capability'])]
+    recorded = [('Thread', record['thread_affinity']), ('Callbacks', record['callback_context']),
+                ('Reentrancy', record['reentrancy'])]
+    threading = [(name, value) for name, value in recorded if value != 'unspecified']
+    if threading:
+        out += ['\n## Threading and callbacks', *['- **' + name + ':** ' + prose(value) for name, value in threading]]
+    ownership = [('Ownership', record['ownership']), ('Cleanup and cancellation', record['cleanup'])]
+    ownership = [(name, value) for name, value in ownership if value != 'unspecified']
+    if ownership:
+        out += ['\n## Ownership and cleanup', *['- **' + name + ':** ' + prose(value) for name, value in ownership]]
+    unspecified = [name for name, value in (('callbacks', record['callback_context']), ('reentrancy', record['reentrancy']),
+                                            ('behaviour when the table is absent', record['absent_capability']))
+                   if value == 'unspecified']
+    limitations = [prose(item) for item in record['limitations']]
+    if unspecified:
+        limitations.append('Not specified: ' + ', '.join(unspecified) + '. See [how to read the rows]('
+                           + route(doc_routes['docs/contracts.md']) + ').')
+    if limitations:
+        out += ['\n## Limitations', *['- ' + item for item in limitations]]
+    out += ['\n## Language mappings',
+            'Status per language ([what the labels mean](' + route('languages/c') + ')).\n',
+            mapping_rows(record, sha)]
     for key in ('examples', 'tests'):
-        out.append('\n## ' + key.title())
-        out.extend('- [' + name + '](' + source_link(name, sha) + ')' for name in record[key])
-        if not record[key]:
-            out.append('None identified in the catalogue; this is not proof none can exist.')
+        if record[key]:
+            out.append('\n## ' + key.title())
+            out.extend('- [' + name + '](' + source_link(name, sha) + ')' for name in record[key])
     if record['id'] in TASK_TERMS:
-        out += ['\n## Find by task', '<p data-pagefind-weight="10">' + esc(TASK_TERMS[record['id']]) + '</p>',
-                'This is a search phrase for the existing contract, not an additional API alias.']
-    out.append('\nABI pins prove layout, not semantic behavior or a live game session.')
+        out += ['\n## Find by task', '<p data-pagefind-weight="10">' + esc(TASK_TERMS[record['id']]) + '</p>']
     # Evidence tokens include wrapper names and Lua adapters, making those terms
     # discoverable by the built-in Pagefind body index without invented aliases.
     return '\n'.join(out)
+
+
+HERO_TAGLINE = 'A versioned plugin interface for Star Citizen offline mods'
+
+
+def registry_by_service(root):
+    """Service entries of sdk/status_registry.json by service name, for default capability state."""
+    path = root / 'sdk/status_registry.json'
+    if not no_symlink_component(root, 'sdk/status_registry.json') or not path.is_file():
+        return {}
+    data = json.loads(path.read_text(encoding='utf-8'))
+    return {entry['service']: entry for entry in data.get('services', []) if 'service' in entry}
+
+
+def method_list(records, prose):
+    """Bullet list: contract link, then the first sentence of its purpose."""
+    return ['- [' + r['symbol'] + '](' + route('reference/' + r['id']) + '): ' + prose(first_sentence(r['purpose'], plain=False))
+            for r in records]
+
+
+def service_body(service, records, catalogue, entry, prose, doc_routes):
+    mine = [r for r in records if r['service'] == service]
+    tables = sorted((name, table) for name, table in catalogue['tables'].items() if table['service'] == service)
+    methods = [r for r in mine if r['table']]
+    entrypoints = [r for r in mine if not r['table']]
+    bits = []
+    if methods:
+        bits.append(str(len(methods)) + (' method' if len(methods) == 1 else ' methods') + ' in '
+                    + str(len(tables)) + (' table' if len(tables) == 1 else ' tables'))
+    if entrypoints:
+        bits.append(str(len(entrypoints)) + (' entrypoint' if len(entrypoints) == 1 else ' entrypoints'))
+    parts = ['`' + service + '` has ' + ' and '.join(bits) + '.']
+    if entry:
+        parts[0] += ' Stability: ' + entry['stability'] + '.' if 'stability' in entry else ''
+        capabilities = [cap for cap in entry['capabilities'] if cap.get('default') in ('ON', 'OFF')]
+        if capabilities:
+            parts += ['\n## Capabilities',
+                      *['- `' + cap['name'] + '`: ' + cap['default'].lower() + ' by default' for cap in capabilities]]
+    for name, table in tables:
+        parts += ['\n## ' + name, 'Version ' + table_version(table['version']) + '.\n', prose(table['context']), '',
+                  *method_list([r for r in mine if r['table'] == name], prose)]
+    if entrypoints:
+        parts += ['\n## Entrypoints']
+        if service == 'native-plugin':
+            parts.append(prose(catalogue['contract_context']['entrypoint_context']) + '\n')
+        parts += method_list(entrypoints, prose)
+    return '\n'.join(parts)
+
+
+def language_body(language, records):
+    """Status of every contract for one language, grouped by service and status."""
+    label = LANGUAGE_LABELS[language]
+    counts = Counter(r['language_mappings'][language]['status'] for r in records)
+    order = [status for status in ('direct', 'typed-wrapper', 'restricted', 'unsupported') if counts[status]]
+    summary = ('All ' + str(len(records)) + ' contracts are ' + order[0] + '.' if len(order) == 1
+               else ', '.join(str(counts[status]) + ' ' + status for status in order) + '.')
+    parts = ['How each contract is exposed to ' + label + ' plugins. ' + summary + '\n',
+             '- **direct**: native access to the C table.',
+             '- **typed-wrapper**: backed by a wrapper in the language SDK.',
+             '- **restricted**: a subset or an adaptation.',
+             '- **unsupported**: no supported route is established.\n',
+             'The status describes the catalogue entry; it does not test the host at run time.\n',
+             '| Service | Status | Contracts |', '| --- | --- | --- |']
+    for service in sorted({r['service'] for r in records}):
+        for status in order:
+            group = [r for r in records if r['service'] == service and r['language_mappings'][language]['status'] == status]
+            if group:
+                parts.append('| ' + cell(service) + ' | **' + status + '** | '
+                             + '<br>'.join('[' + r['symbol'] + '](' + route('reference/' + r['id']) + ')' for r in group) + ' |')
+    return '\n'.join(parts)
+
+
+def versions_body(doc_routes):
+    """The one explanation of version numbers, development previews and evidence wording."""
+    status = route(doc_routes['docs/game/status.md'])
+    builds = route(doc_routes['docs/game/builds.md'])
+    contracts = route(doc_routes['docs/contracts.md'])
+    return '\n'.join([
+        'Every page of this site names the source commit it was built from, the SDK version and the game pack version.',
+        '\n## Version numbers',
+        '| Number | What it is |', '| --- | --- |',
+        '| SDK version | The sco-core release, for example `2.4.1`. Release tags are `sdk-v<version>`. |',
+        '| Game pack version | The Star Citizen extension, shipped as the `game-sc` archive. It has its own number. |',
+        '| Plugin ABI | The version of `sco_api.h`. Version 1 only grows, so a plugin built against 1.x keeps loading in later 1.x hosts. |',
+        '| Game build | The Star Citizen build the game pack was checked against. See [game builds](' + builds + '). |',
+        '\n## Development preview and releases',
+        'A page marked **Development preview** describes a source commit that is not a release. '
+        'An archive built from that commit can carry another version. Read `COMPATIBILITY.json` inside the archive '
+        '(`COMPATIBILITY.json.game-sc` for the standalone game overlay), and `VERSION` or `sdk/VERSION` where present.',
+        'When the source documents the latest release, the line at the top of the page says so and links the release. '
+        'Releases and their checksums are on the [home page](' + route('index') + '#download).',
+        '\n## Evidence',
+        'These pages list what the headers declare. A listed method is not a promise that it works in the game.',
+        'A feature marked **Not run in game.** has only synthetic tests or static analysis behind it. '
+        'Synthetic tests run against fake game objects. Static analysis reads the game binary without running it. '
+        'A passing ABI test shows the table layout, not the behavior.',
+        'The status of every `game.*` table, with its evidence level, is on the [game capability status page](' + status
+        + '). How to read a method page: [Public service contract catalogue](' + contracts + ').',
+    ])
 
 
 def generate(root, catalogue, output, release_tag=None):
@@ -893,28 +1044,24 @@ def generate(root, catalogue, output, release_tag=None):
     if len(services) != len({service_id(s) for s in services}):
         raise ValueError('Service route collision')
     pages = {}
+    prose = lambda text: rewrite_links(text, catalogue['contract_context']['source'], catalogue['source_sha'], doc_routes)
+    registry_services = registry_by_service(root)
     for record in records:
         pages['reference/' + record['id']] = page(record['symbol'], render_record(record, catalogue, doc_routes),
-                                                  catalogue, release_tag, 'APIs')
+                                                  catalogue, release_tag, 'APIs',
+                                                  description=first_sentence(record['purpose']))
     for service in services:
-        parts = ['Methods and entrypoints for **' + service + '**.\n']
-        for name, table in sorted(catalogue['tables'].items()):
-            if table['service'] == service:
-                parts += ['## ' + name, rewrite_links(table['context'], catalogue['contract_context']['source'], catalogue['source_sha'], doc_routes)]
-        if service == 'native-plugin':
-            parts.append(rewrite_links(catalogue['contract_context']['entrypoint_context'], catalogue['contract_context']['source'], catalogue['source_sha'], doc_routes))
-        parts += ['\n## Contract records']
-        parts += ['- [' + r['symbol'] + '](' + route('reference/' + r['id']) + ')' for r in records if r['service'] == service]
-        pages['services/' + service_id(service)] = page(service, '\n'.join(parts), catalogue, release_tag, 'Services')
+        pages['services/' + service_id(service)] = page(
+            service, service_body(service, records, catalogue, registry_services.get(service), prose, doc_routes),
+            catalogue, release_tag, 'Services',
+            description='Methods of the ' + service + ' service and the table versions that carry them.')
     for language in LANGUAGES:
-        parts = ['Static language view. Status is authoritative catalogue metadata, '
-                 'not a runtime support filter. Unsupported entries remain explicit.\n',
-                 '| Contract | Service | Status |', '| --- | --- | --- |']
-        parts += ['| [' + r['symbol'] + '](' + route('reference/' + r['id']) + ') | '
-                  + cell(r['service']) + ' | **' + r['language_mappings'][language]['status'] + '** |'
-                  for r in records]
-        pages['languages/' + language] = page(language + ' language mappings', '\n'.join(parts),
-                                             catalogue, release_tag, 'Languages')
+        pages['languages/' + language] = page(
+            LANGUAGE_LABELS[language] + ' language mappings', language_body(language, records),
+            catalogue, release_tag, 'Languages',
+            description='How each contract is exposed to ' + LANGUAGE_LABELS[language]
+            + ' plugins: direct, typed-wrapper, restricted or unsupported.')
+    summaries = {name: summary for entries in HUB_DOCS.values() for name, summary in entries}
     titles = {}
     for name in docs:
         text = (root / name).read_text(encoding='utf-8')
@@ -926,43 +1073,42 @@ def generate(root, catalogue, output, release_tag=None):
                 'docs/releases/' + PUBLISHED_RELEASE + '.md', 'docs/roadmap.md',
                 'docs/game/status.md',
                 'docs/agent-integration.md'}:
-            text = ('> **Current published SDK:** [' + PUBLISHED_METADATA['tag'] + ']('
-                    + RELEASES + PUBLISHED_METADATA['tag'] + ') · release source `'
-                    + PUBLISHED_METADATA['source_sha'] + '`. Dated status and candidate '
+            text = ('> **Latest release:** [' + PUBLISHED_METADATA['tag'] + ']('
+                    + RELEASES + PUBLISHED_METADATA['tag'] + '), source `'
+                    + PUBLISHED_METADATA['source_sha'][:12] + '`. Dated status and candidate '
                     'records below describe the state when written; see the release for current assets.\n\n'
                     + text)
         if doc_routes[name] in pages:
             raise ValueError('Generated route collision: ' + name)
-        pages[doc_routes[name]] = page(titles[name], text, catalogue, release_tag, 'Guides')
+        pages[doc_routes[name]] = page(titles[name], text, catalogue, release_tag, 'Guides',
+                                       description=first_sentence(summaries[name], limit=300))
     groups = sidebar(doc_routes, titles, services, natives)
-    notes = 'docs/releases/' + PUBLISHED_RELEASE + '.md'
-    profile_scope = release_scope((root / notes).read_text(encoding='utf-8'), PUBLISHED_RELEASE)
-    if PUBLISHED_METADATA is not None:
-        profile_scope = {key: PUBLISHED_METADATA[key] for key in ('sdk_version', 'game_pack_version', 'plugin_abi', 'profiles')} | {'tag': PUBLISHED_RELEASE}
-    profile_source = PUBLISHED_METADATA['source_sha'] if PUBLISHED_METADATA else catalogue['source_sha']
-    profiles = profile_cards(published_profiles(root, profile_scope), profile_source, doc_routes,
-                             pinned_release=PUBLISHED_METADATA is not None)
     for key, label, blurb in HUBS:
-        pages['hubs/' + key] = page(label, hub_body(key, blurb, catalogue, doc_routes, titles, services,
-                                                     natives, profiles), catalogue, release_tag, 'Overview')
+        pages['hubs/' + key] = page(label, hub_body(key, blurb, catalogue, doc_routes, titles, services, natives),
+                                    catalogue, release_tag, 'Overview', description=blurb)
     # No table of contents: the row table takes the wider content column (portal.css).
     pages['natives'] = page(NATIVE_TITLE, natives_body(natives, catalogue['source_sha']), catalogue, release_tag, 'APIs',
-                            toc=False)
+                            toc=False, description='Every registered signature row by symbolic hash and tier. '
+                            'Names and readiness only.')
+    pages[VERSIONS_ROUTE] = page(VERSIONS_TITLE, versions_body(doc_routes), catalogue, release_tag, 'Overview',
+                                 description='What the SDK, game pack and plugin ABI versions on these pages mean, '
+                                 'and what "Not run in game." means.')
     libraries = '\n## Libraries\n\n' + hub_cards(groups)
-    home = ['Public SDK contracts generated from a compiler-validated catalogue. '
-            'Engineering guides are selected by an explicit public-input allowlist.\n',
-            '[Download sdk-catalogue.json](' + BASE + '/sdk-catalogue.json) · [Roadmap and direction]('
-            + route(doc_routes['docs/roadmap.md']) + ')',
+    home = ['**New here:** [Start your first plugin](' + route(doc_routes['docs/getting-started.md']) + '). [Roadmap]('
+            + route(doc_routes['docs/roadmap.md']) + ') · [Download sdk-catalogue.json](' + BASE + '/sdk-catalogue.json)',
             libraries,
-            release_portal(root, catalogue, release_tag, doc_routes)]
-    home += ['\n## Reading rules', catalogue['contract_context']['reading_rules'],
-             '\n## Remaining gaps', rewrite_links(catalogue['contract_context']['remaining_gaps'], catalogue['contract_context']['source'], catalogue['source_sha'], doc_routes)]
-    hero = {'title': 'sco-core SDK', 'tagline': 'Public contracts for Star Citizen offline plugins',
+            release_portal(root, catalogue, release_tag, doc_routes),
+            '\n## Reading the contract pages',
+            'Each method page follows the same headings. [How to read the rows, and what is still unspecified]('
+            + route(doc_routes['docs/contracts.md']) + '). [' + VERSIONS_TITLE + '](' + route(VERSIONS_ROUTE)
+            + ') explains the version numbers and what "Not run in game." means.']
+    hero = {'title': 'sco-core SDK', 'tagline': HERO_TAGLINE,
             'actions': [
                 {'text': 'Start a plugin', 'link': route(doc_routes['docs/getting-started.md']),
                  'icon': 'right-arrow'},
                 {'text': 'Browse API', 'link': route('hubs/reference'), 'variant': 'secondary'}]}
-    pages['index'] = page('sco-core SDK', '\n'.join(home), catalogue, release_tag, 'Overview', hero=hero)
+    pages['index'] = page('sco-core SDK', '\n'.join(home), catalogue, release_tag, 'Overview', hero=hero,
+                          description=HERO_TAGLINE + '.')
     # Only the generated content directory is replaced. No recursive repository
     # publication, and stale pages cannot survive a removed record or input.
     content = output / 'src/content/docs'

@@ -20,7 +20,7 @@
       "callback_context": "No plugin callback.",
       "reentrancy": "Snapshot read; the adapter reads the container's port vector in place and calls only per-port accessors, each checked against its signature row first.",
       "results": "OK snapshot copied, UNAVAILABLE service off, no backend bound, out null, out->size below the 1.0 snapshot size, no local player, no item-port container on the player, or the adapter's guards failed; BAD_ARG invalid self.",
-      "absent_capability": "game.inventory.read defaults OFF (a product switch, and every inventory.* signature row must be OK); off, unbound or unready, the service publishes UNAVAILABLE. Adapter grounded on F-4.10.197.2878-011..-016; synthetic evidence only, not run in game.",
+      "absent_capability": "game.inventory.read defaults OFF (a product switch, and every inventory.* signature row must be OK); off, unbound or unready, the service publishes UNAVAILABLE. Adapter grounded by static analysis; synthetic tests only. Not run in game.",
       "cleanup": "StopGameInventory withdraws the service; read-only, no engine state to restore.",
       "limitations": [
         "Local player ports only in 1.0 (ships/mounts are follow-ups).",
@@ -106,7 +106,7 @@
       "callback_context": "No plugin callback.",
       "reentrancy": "Snapshot read; the adapter reads the container's port vector in place and calls only per-port accessors, each checked against its signature row first.",
       "results": "OK snapshot copied, UNAVAILABLE service off, no backend bound, out null, out->size below the 1.0 snapshot size, no local player, no item-port container on the player, or the adapter's guards failed; BAD_ARG invalid self.",
-      "absent_capability": "game.inventory.read defaults OFF (a product switch, and every inventory.* signature row must be OK); off, unbound or unready, the service publishes UNAVAILABLE. Adapter grounded on F-4.10.197.2878-011..-016; synthetic evidence only, not run in game.",
+      "absent_capability": "game.inventory.read defaults OFF (a product switch, and every inventory.* signature row must be OK); off, unbound or unready, the service publishes UNAVAILABLE. Adapter grounded by static analysis; synthetic tests only. Not run in game.",
       "cleanup": "StopGameInventory withdraws the service; read-only, no engine state to restore.",
       "limitations": [
         "Local player ports only in 1.0 (ships/mounts are follow-ups).",
@@ -189,7 +189,7 @@
       "absent_capability": "game.inventory.layout defaults OFF; no production native layout producer is installed.",
       "cleanup": "Stop withdraws the service and clears the host producer.",
       "limitations": [
-        "Synthetic host provider only; no gameplay or native producer established.",
+        "Synthetic host provider only; no native producer. Not run in game.",
         "No item class identity, quantity, equip, move or persistence authority."
       ],
       "tests": [

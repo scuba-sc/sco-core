@@ -1,6 +1,10 @@
 # World rows: build mode, missions, cvars, quantum boost
 
-The rows in [`src/game/world_sigs.cpp`](../../src/game/world_sigs.cpp) are the scans sc-offline's `build.cpp`, `missions.cpp`, `cvars.cpp` and `quantum.cpp` ran themselves, moved byte for byte. Where the old scan took the first match, the row insists on the count found in 4.10.196.36804. Accessor: [`sco/game/world.h`](../../include/sco/game/world.h).
+This page lists the signature rows behind sc-offline's build mode, missions, cvars and quantum boost features, and the one service call built on them: `game.world` 1.1 `free_camera_flag`. The rest of this page is a row reference with no table version of its own.
+
+Header: [`sc_world.h`](../../include/sc_world.h). Service `game.world`, table version 1.1. Capabilities `game.world.raycast` and `game.world.camera` (ON); `game.world.free_camera_flag` (OFF); the separate `game.world.control` service has its own capabilities, all OFF. See [status](status.md). Not run in game.
+
+The rows in [`src/game/world_sigs.cpp`](../../src/game/world_sigs.cpp) are the scans sc-offline's `build.cpp`, `missions.cpp`, `cvars.cpp` and `quantum.cpp` ran themselves, moved byte for byte. Where the old scan took the first match, the row insists on the count found in 4.10.196.36804. They also resolve on 4.10.200.58746 ([verified builds](../game-pack.md#verified-game-builds)). Accessor: [`sco/game/world.h`](../../include/sco/game/world.h).
 
 | Capability | Rows |
 |---|---|
@@ -38,31 +42,33 @@ The rows in [`src/game/world_sigs.cpp`](../../src/game/world_sigs.cpp) are the s
 | `cvars.*` (seven) | the one registration of each name (`call [rax+0x40]`, floats `0x48`) | storage `lea r8` within 0x20 bytes before |
 | `quantum.*` | one unique pattern each; `quantum.audio_system` is the global the match reads at `+0x2F` | |
 
-## game.world 1.1: `free_camera_flag`
+## game.world.control 1.1
 
-The separate `game.world.control` 1.1 service also appends a bounded filtered
-multi-hit query; it does not alter this read-only table or its single-ray behavior.
-The query copies at most64 hits, reports omitted count, and releases its host-owned
-grid scope before publishing validated results. Its native capability remains OFF;
-synthetic provider tests are not in-game evidence. See [world control](../design/world-control.md).
+`game.world.control` is a separate service. Version 1.1 appends a bounded filtered
+multi-hit query. It does not alter the read-only `game.world` table or its single-ray behavior.
+The query copies at most 64 hits, reports the omitted count, and releases its host-owned
+grid scope before publishing validated results. Its native capability remains OFF.
+See [world control](../design/world-control.md).
 
 The single-hit filtered query has its own native seam, `InstallNativeWorldRay`: it requires the
 resolved zone, world and grid references, a single-hit query and a skip-request lifetime, and
 refuses with the first missing part. None of the three is grounded, so production installs nothing
 and `game.world.raycast_filtered` keeps answering from the synthetic provider. An installed route
 publishes no hit when the skip array is invalidated during the call, and latches unavailable for
-the rest of the process after that or after a fault, as the multi-hit contract requires. One
-synchronous query, never a repeated-single-ray approximation. Not run in game.
+the rest of the process after that or after a fault, as the multi-hit contract requires. It makes
+one synchronous query and is never a repeated-single-ray approximation.
+
+## game.world 1.1: `free_camera_flag`
 
 `game.world` 1.1 ([`sc_world.h`](../../include/sc_world.h)) appends one read-only function, `free_camera_flag`, behind its own capability `game.world.free_camera_flag`. It uses only rows that already existed: no row was added. The policy (thread and argument checks, the capability gate) is in [`src/game/services/world_free_cam.cpp`](../../src/game/services/world_free_cam.cpp); the read is in [`src/game/services/world.cpp`](../../src/game/services/world.cpp).
 
-**The capability is OFF by default** (evidence level `off_pending_probe`, [status](status.md)). The rows resolve, but nobody has read the flag from a plugin in a game session, and nothing pins what its value shows on screen. While it is off, `free_camera_flag` answers `SCO_UNAVAILABLE` with the reason in `last_error`, and the game is not touched. Nothing on this page has been verified in game.
+The rows resolve, but nobody has read the flag from a plugin in a game session, and nothing pins what its value shows on screen. While the capability is off, `free_camera_flag` answers `SCO_UNAVAILABLE` with the reason in `last_error`, and the game is not touched.
 
 | Capability | Function | Rows it reads | What it does with them |
 |---|---|---|---|
 | `game.world.free_camera_flag` | `free_camera_flag` | `build.free_cam_on`, `build.free_cam_off`, `build.free_cam_flag` (the `build.free_cam` group) | Reads the byte `build.free_cam_flag` finds, the one the `FreeCamDisable` console handler (`build.free_cam_off`) tests before it disables the free camera, and reports 1 when it is non-zero, else 0. Reads only; it calls neither handler |
 
-C++: [`scosdk/game/world.hpp`](../../include/scosdk/game/world.hpp)'s `sco::sdk::game::World::FreeCameraFlag(set)` (`bool& set`, false on failure). `World::Open` still asks for `game.world` 1.0, so the wrapper keeps working on a 1.0 game pack: `FreeCameraFlag` calls `free_camera_flag` only when the published table's `size` covers that member and it is set, and otherwise answers `SCO_UNAVAILABLE` without touching the game. Tests: `tests/test_sdk.cpp` (`TestGameWorld`: a 1.0-sized table, a null member and a 1.1 table) and `tests/test_language_routes.cpp` (the size sweep).
+C++: [`scosdk/game/world.hpp`](../../include/scosdk/game/world.hpp)'s `sco::sdk::game::World::FreeCameraFlag(set)` (`bool& set`, false on failure). `World::Open` still asks for `game.world` 1.0, so the wrapper keeps working on a 1.0 game pack: `FreeCameraFlag` calls `free_camera_flag` only when the published table's `size` covers that member and it is set, and otherwise answers `SCO_UNAVAILABLE` without touching the game.
 
 Not wrapped:
 

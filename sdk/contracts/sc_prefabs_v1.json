@@ -13,14 +13,14 @@
       "member_extent": 16,
       "table_size": 16,
       "since": "`size >= 16`; 1.0",
-      "purpose": "Canonical ObjectContainers content-relative .socpak path (511 bytes max), finite zone-local pose and normalized quaternion. Caller-owned final entity ID, zero on failure; success means spawn initiation only. Shared 1024 owned quota and 128 own entities maximum, checked before mutation. Pending prefab ownership is never pruned by alive=0. Capability game.entities.prefabs is enabled by default for R1 by owner approval; Windows/SEH/streamed cleanup NOT VERIFIED.",
-      "buffer_contract": "`sco_result (*spawn)(sco_plugin* self, const char* content_path, uint64_t zone_id, const double pos[3], const double rot_xyzw[4], uint64_t* out_id);`<br>Canonical ObjectContainers content-relative .socpak path (511 bytes max), finite zone-local pose and normalized quaternion. Caller-owned final entity ID, zero on failure; success means spawn initiation only. Shared 1024 owned quota and 128 own entities maximum, checked before mutation. Pending prefab ownership is never pruned by alive=0. Capability game.entities.prefabs is enabled by default for R1 by owner approval; Windows/SEH/streamed cleanup NOT VERIFIED.",
+      "purpose": "Canonical ObjectContainers content-relative .socpak path (511 bytes max), finite zone-local pose and normalized quaternion. Caller-owned final entity ID, zero on failure; success means spawn initiation only. Shared 1024 owned quota and 128 own entities maximum, checked before mutation. Pending prefab ownership is never pruned by alive=0. Capability game.entities.prefabs is on by default; Windows/SEH and streamed cleanup are not verified.",
+      "buffer_contract": "`sco_result (*spawn)(sco_plugin* self, const char* content_path, uint64_t zone_id, const double pos[3], const double rot_xyzw[4], uint64_t* out_id);`<br>Canonical ObjectContainers content-relative .socpak path (511 bytes max), finite zone-local pose and normalized quaternion. Caller-owned final entity ID, zero on failure; success means spawn initiation only. Shared 1024 owned quota and 128 own entities maximum, checked before mutation. Pending prefab ownership is never pruned by alive=0. Capability game.entities.prefabs is on by default; Windows/SEH and streamed cleanup are not verified.",
       "ownership": "Live caller owns result through existing game.entities ledger. Inputs copied for synchronous provider call, host-session table borrowed; no cross-boundary allocation.",
       "thread_affinity": "Game thread only; WRONG_THREAD otherwise.",
       "callback_context": "No plugin callbacks. Host-only provider callbacks synchronous, bounded and nonthrowing.",
       "reentrancy": "No recursive reentry; host adapter must not call plugins.",
       "results": "BAD_ARG invalid handle/path/pose/output; WRONG_THREAD; TOO_MANY quota; NOT_FOUND zone/content/class; UNAVAILABLE disabled capability or cleanup; FAILED provider refusal/fault. Output ID zero on failure.",
-      "absent_capability": "Absent service: query_service NOT_FOUND; present disabled operation: UNAVAILABLE.",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND. A present but disabled operation returns SCO_UNAVAILABLE.",
       "cleanup": "Use existing entities despawn/set_transform and game.owned retention/removal. Ordinary owner unload removes pending/streamed owned prefab via delayed removal primitive; no materialization/removal completion promise. Known ID on provider failure remains tracked for cleanup. Fault-retained native provider follows restart-required lifetime contract.",
       "language_mappings": {
         "c": {
@@ -74,8 +74,8 @@
         "tests/test_prefabs.cpp"
       ],
       "limitations": [
-        "Windows engine/SEH/gameplay and streamed cleanup not verified.",
-        "Owner-approved R1 default enabled; portable provider policy is synthetic evidence only, not Windows/SEH/gameplay acceptance.",
+        "Windows engine, SEH and streamed cleanup not verified. Not run in game.",
+        "Capability game.entities.prefabs is on by default. Portable provider policy is tested with synthetic fixtures only; not verified on Windows/SEH. Not run in game.",
         "No packaged content or filesystem/online path access."
       ]
     }

@@ -1,6 +1,8 @@
 # sco-core SDK 2.2.0 (release notes)
 
-Tag `sdk-v2.2.0`, combined zip `sco-sdk-2.2.0.zip`. **Published on 2026-10-14 at 20:01:25 UTC:** [SDK 2.2.0 release and assets](https://github.com/scubamount/sco-core/releases/tag/sdk-v2.2.0). The tag peels to approval commit `686187ce936400450d448f1fe754b1e58263e4af`, which adds only the signed approval record (`docs/legal/release-decisions/sdk-v2.2.0.json` and `.sig`); the published archives were built from source commit `81437e1a12993a4484308bd76443a003ae57b7fa` by candidate run `38627571934`. The two identities are distinct. The release publishes all five profiles (combined/legacy, core, core-source, the Star Citizen game-sc 0.5.0 overlay and the Star Citizen host-source kit), their SBOMs and `SHA256SUMS`. The scope is the maintainer's [SDK 2.2.0 scope decision](../legal/release-decisions/2026-10-14-sdk-v2.2.0-scope.md). The release workflow publishes the CHANGELOG section [`## sdk-v2.2.0`](../../CHANGELOG.md) as the release's notes; this page is the longer reference behind it.
+Tag `sdk-v2.2.0`, combined zip `sco-sdk-2.2.0.zip`. **Published on 2026-10-14 at 20:01:25 UTC:** [SDK 2.2.0 release and assets](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.2.0). The release publishes all five profiles (combined/legacy, core, core-source, the Star Citizen game-sc 0.5.0 overlay and the Star Citizen host-source kit), their SBOMs and `SHA256SUMS`. The scope is the maintainer's [SDK 2.2.0 scope decision](../legal/release-decisions/2026-10-14-sdk-v2.2.0-scope.md). The release workflow publishes the CHANGELOG section [`## sdk-v2.2.0`](../../CHANGELOG.md) as the release's notes; this page is the longer reference behind it.
+
+The release downloads for this version were withdrawn; the tag remains in git. Use SDK 2.4.1 or 2.4.0.
 
 <!-- release-scope:start -->
 ```json
@@ -83,14 +85,3 @@ adapter, and real-game, anti-cheat, official-network and private-LAN acceptance 
 The Windows game-pack adapters for the new game tables have not run in game. The MCP `generate_plugin_scaffold` tool and the native-index page
 were exercised by unit tests and a local site build only. New game capabilities stay default-off: no production adapter turns on
 the four this release adds.
-
-## Checking the zip
-
-The same checks as every release apply:
-
-```sh
-sha256sum -c SHA256SUMS
-unzip -p sco-sdk-2.2.0.zip sco-sdk-2.2.0/VERSIONS.txt
-```
-
-Publication followed the [maintainer release procedure](../legal/release-checklist.md#releasing).

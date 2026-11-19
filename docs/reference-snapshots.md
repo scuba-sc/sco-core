@@ -1,51 +1,12 @@
-# Reference snapshots bound to SDK inputs
+# Reference snapshots
 
-`site/scripts/snapshot.py` freezes a catalogue and its explicitly referenced
-examples against selected SDK ZIPs and a full immutable source commit. It is a
-local, standard-library tool using Git and that revision's `sdk/package.py`.
-It does **not** approve, sign, deploy or publish anything.
+A reference snapshot freezes an SDK catalogue and the examples it names, bound to the exact SDK ZIPs and the source commit they came from. You use it to prove later that a catalogue and its examples match a set of archives. It is a local tool for people who build or review SDK archives. It needs Python, Git and that commit's `sdk/package.py`. Plugin authors do not need it.
 
-## Inputs and guarantees
+Snapshots are never marked approved.
 
-- `--source-sha` must identify an existing lowercase 40-hex commit object.
-  Branches, tags and short SHAs are not accepted. Sources come from that Git
-  revision, not the current dirty working tree. Every exported file and mode is
-  checked against that revision's Git blob inventory; export substitutions or
-  omissions cannot silently change the bound sources.
-- Catalogue source, SDK/game coordinates, every contract record (including
-  signatures, language status and example paths), common/service prose, table
-  inventory and literal version macros are checked against those sources.
-  Repository `blob`/`tree` URLs must use the same immutable commit.
-- Select `core`, `core` plus `game-sc`, `core-source`, or `legacy`. Every ZIP
-  member and its executable flag must match the committed packaging tool's
-  expected selection, transformed documentation and generated metadata. That
-  includes versions, compatibility descriptors, attribution, SPDX SBOM and the
-  exact checksum inventory; checking a ZIP's self-reported sums alone is not
-  sufficient. ZIP directories, duplicate/unsafe members and symlinks are refused.
-- A game overlay must bind the **supplied core ZIP hash**, not merely the same
-  SDK version. The actual selected ZIP hashes and metadata hashes are frozen.
-  Packaging expectations are computed in a temporary tree/in memory; supplied
-  artifacts are never rewritten. Different compression is permitted for a
-  standalone ZIP, but is a different pinned input and may invalidate its overlay.
-- Only examples explicitly named by the canonical records are copied. Each must
-  exist in the exact source tree and equal every selected archive's shipped copy
-  where present. `shipped_in` records the profile, destination and byte hash;
-  an empty list means **source-only**, not an archive compilation/availability
-  claim. The catalogue remains the combined contract inventory; choosing core
-  alone does not make game services part of that package.
+## Create a snapshot
 
-The snapshot is a binding check, not a replacement for compiler-backed
-`tools/sdk_catalogue.py build/check`. Signatures are compared to the source's
-canonical contracts; re-proving that the contracts agree with compiled headers
-and rendered method cells is the catalogue producer's responsibility. Literal
-version macros are deliberately fail-closed; a future expression-valued macro
-requires an explicit tool update, not an unchecked evaluation.
-
-## Create a preview or an unapproved candidate
-
-Build the catalogue with `tools/sdk_catalogue.py build` and package the selected
-profiles with `sdk/package.py` from the intended source revision first. Supply
-those actual files, not independently rebuilt replacements for signed inputs:
+First build the catalogue with `tools/sdk_catalogue.py build` and package the profiles you want with `sdk/package.py`, both from the source commit. Pass those exact files, not rebuilt copies:
 
 ```sh
 python3 site/scripts/snapshot.py create \
@@ -56,38 +17,28 @@ python3 site/scripts/snapshot.py create \
   --channel candidate --out reference-output
 ```
 
-Default channel is `preview`. Result directories are separated:
+- `--source-sha` is the full lowercase 40-hex commit ID. Branches, tags and short IDs are refused. Sources come from that commit, not from your working tree.
+- `--archive PROFILE=ZIP` takes `core`, `core` plus `game-sc`, `core-source` or `legacy`. A `game-sc` overlay binds the hash of the `core` ZIP you supply, not just the same SDK version.
+- `--channel` is `preview` (default) or `candidate`. Both write `publication_status: not-approved`.
+- `--out` receives one directory per coordinate. A coordinate that exists is never overwritten, even by an identical run:
 
 ```text
 reference-output/previews/sdk-<version>/game-<version>/<source-sha>/
 reference-output/candidates/sdk-<version>/game-<version>/<source-sha>/
 ```
 
-Both channels always say `publication_status: not-approved`. There is no
-approved/release channel or unchecked release-tag label. Existing snapshot
-coordinates are never overwritten, including an identical regeneration.
-
 Each directory contains:
 
-- `catalogue.json`: the checked catalogue's original bytes;
-- `examples/sdk/examples/...`: only its named source examples;
-- `inputs.json`: sorted source-relative SHA-256 inventory of packaging inputs,
-  selected components, contract/generator inputs and referenced source evidence;
-  hashes are not permission to publish those source files;
-- `inventory.json`: deterministic coordinates, selected archive/metadata hashes,
-  example locations and the complete snapshot file inventory with sizes/hashes.
-  It excludes itself to avoid a circular digest. Its SHA-256 is printed by create.
+- `catalogue.json`: the checked catalogue, byte for byte.
+- `examples/sdk/examples/...`: only the examples the catalogue records name.
+- `inputs.json`: a sorted SHA-256 inventory of the packaging inputs, components, generator inputs and referenced source files.
+- `inventory.json`: the coordinates, the selected archive and metadata hashes, the example locations, and the sizes and hashes of every other snapshot file. It excludes itself. `create` prints its SHA-256.
 
-No absolute input paths, timestamps, Git author information or inferred approval
-enter these files. For identical source, catalogue bytes and archive bytes,
-output bytes are deterministic independent of ZIP argument order or output path.
+The files hold no absolute paths, timestamps or Git author data. The same source, catalogue and archives give the same bytes whatever the ZIP argument order or output path.
 
-## Verify frozen artifacts
+## Verify a snapshot
 
-Keep the inventory SHA-256 **outside** the snapshot, eventually in the approved
-canonical candidate/release inventory. Do not calculate it from the received
-snapshot and call that approval. Verification also requires the originally
-selected ZIPs and access to the exact Git source object:
+Keep the inventory SHA-256 outside the snapshot, for example in your release notes. A hash computed from the snapshot you received proves nothing about it. Verification also needs the original ZIPs and the Git source commit:
 
 ```sh
 python3 site/scripts/snapshot.py verify \
@@ -97,43 +48,21 @@ python3 site/scripts/snapshot.py verify \
   --archive game-sc="$GAME_ZIP"
 ```
 
-The verifier checks the external pin, reconstructs expected binding records,
-rechecks package inputs and compares every actual file and byte. Missing,
-modified, extra or symlinked snapshot files fail. Changing the inventory as well
-as the payload still fails the original external pin. Never regenerate a
-snapshot after approval/signing and reuse the old pin or approval; new bytes are
-new candidate inputs requiring review.
+`verify` compares the pin, rebuilds the expected records from the commit, rechecks the packaging inputs, and compares every file and byte. A missing, changed, extra or symlinked file fails. Changing both the payload and the inventory still fails the original pin. If you change a snapshot, create a new one and pin its hash again.
 
-## Narrow local check and remaining acceptance
+## What is checked
+
+- Every ZIP member and its executable flag must match what that commit's packaging tool would produce, including versions, compatibility descriptors, attribution, the SPDX SBOM and the checksum inventory. ZIP directories, duplicate or unsafe member names and symlinks are refused. A ZIP's own list of sums is not enough.
+- The catalogue's source, SDK and game-pack coordinates, every contract record, the service prose, the table inventory and the literal version macros are checked against the commit. Repository `blob` and `tree` URLs must name the same commit.
+- Each example must exist in the commit and equal the copy in every selected archive that ships it. An empty `shipped_in` list means the example is source-only.
+- Signatures are compared with the source's canonical contracts. That the contracts match the compiled headers is the job of `tools/sdk_catalogue.py build` and `check`. A version macro that is an expression, not a literal, is refused until the tool is updated.
+
+A snapshot does not compile its examples: `compile_status` is always `not-checked`.
+
+## Test the tool
 
 ```sh
 python3 site/scripts/test_snapshot.py
 ```
 
-The focused test file packages core/game fixtures from the immutable source,
-checks deterministic creation and real CLI verification, and exercises wrong
-source/versions/signature/example/table members, archive tampering, wrong overlay
-base, changed/unlisted snapshot files, inventory rehashing and overwrite refusal.
-When CMake is available, it unpacks the selected **core ZIP**, configures the
-archive's SDK CMake project and builds **only `hello`**. No repository headers are
-used for that example build. If CMake is absent, that test explicitly skips;
-compilation is then still owed. Snapshots always keep `compile_status:
-not-checked`: the local test is not a durable attestation bundled into a candidate.
-
-Still owed before claiming full candidate acceptance:
-
-1. Compile/check **all** referenced examples/snippets from the exact intended
-   candidate archives, including C++, C#, Lua and applicable game overlays on the
-   supported toolchains; attach results bound to those ZIP hashes. One local C
-   example build is not all-example coverage or runtime/in-game validation.
-2. Produce/check the catalogue at the candidate SHA with the compiler-backed
-   catalogue gate. Package/snapshot inputs must be stable before approval.
-3. Integrate the permitted snapshot files and their frozen inventory hash into
-   the existing canonical candidate/release inventory. This tool does not change
-   `sdk/components.json`, SDK ZIP contents, release schemas or release gates.
-   Adapt the existing inventory explicitly rather than claiming this sidecar is
-   already signed or shipped. A rendered site needs its own complete output
-   inventory; this snapshot is catalogue/examples, not the entire website.
-4. Obtain the maintainer's approval for the **same** source, catalogue, archive
-   and snapshot hashes, and separately authorize any public export/deployment.
-   A passing local verifier is evidence for review, never publication approval.
+The test packages core and game fixtures from a commit and checks creation, verification and refusals: wrong source, versions, signature, example or table members, tampered archives, a wrong overlay base, changed or unlisted snapshot files, a rehashed inventory and an overwrite. With CMake available it also unpacks the core ZIP, configures the archive's SDK project and builds only `hello`. Without CMake that step is skipped.

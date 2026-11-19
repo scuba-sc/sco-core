@@ -1,35 +1,10 @@
 # Entities rows
 
-## Copied lookup extension1.2
+`game.entities` reads and changes entities: transform, spawn, class name of an entity, watching spawns, radius queries and, from 1.2, copied class and instance lookups. This page lists the signature rows behind it, then the 1.2 lookup extension and the native lookup seam.
 
-1.2 appends class registry pages, exact class lookup, debug-grade instance-name
-lookup and typed component presence. Existing1.0/1.1 members retain their offsets.
-The new native C++ methods guard complete member extents on older providers.
-1.2 tails: C# and Lua unsupported; existing earlier language routes are unchanged.
+Header: [`sc_entities.h`](../../include/sc_entities.h). Table version 1.2. Capabilities `game.entities.transform`, `game.entities.spawn` and `game.entities.class_of` (ON); `game.entities.watch`, `game.entities.query_radius` and `game.entities.lookup` (OFF). See [status](status.md). Not run in game.
 
-Registry snapshots contain at most64complete copied classes, not just classes
-observed through class_of. Provider overflow must refuse TOO_MANY rather than
-claim an observed subset is complete. Pages sort by host-issued class_id; epoch
-pins later pages and expires on registry/tick/session changes. Class names are
-exact case-sensitive printable ASCII up to95bytes. Missing/stale records return
-NOT_FOUND. Duplicate IDs/names or malformed later records publish no partial page.
-
-Instance names are debug-grade ASCII case-insensitive; ambiguous matches return
-FAILED instead of promising a stable traversal winner. Component lookup accepts
-only ACTOR and INVENTORY discriminators and copies entity/kind/generation presence.
-It is not an arbitrary component-memory reader or a cross-call native handle.
-Requery before using a streaming observation; generation is not a permanent key.
-
-Production lookup capability is OFF: the table publishes unbound callbacks that
-refuse UNAVAILABLE until independently grounded native admission exists. No new
-native row, offset or hook is invented. `tests/test_entity_lookup.cpp` exercises
-bound synthetic providers, epoch mismatch, duplicate/malformed snapshots, name
-folding/ambiguity, typed presence, future tails, physical short tables and callback
-stop invalidation. C/C++ ABI pins retain old offsets. Not run in game.
-
-Which capabilities are on, and how far each has been checked: [status](status.md) (`game.entities.query_radius` and `.watch` are off until an in-game run).
-
-The addresses `game.entities` uses, from Appendix B of [game world spikes](../design/game-world-spikes.md) (B3 and B9). Rows are in [`src/game/entities_sigs.cpp`](../../src/game/entities_sigs.cpp), the accessor constants and capability groups in [`include/sco/game/entities.h`](../../include/sco/game/entities.h). Checked against 4.10.196.36804.
+The rows come from Appendix B of [game world spikes](../design/game-world-spikes.md) (B3 and B9). They are in [`src/game/entities_sigs.cpp`](../../src/game/entities_sigs.cpp), and the accessor constants and capability groups are in [`include/sco/game/entities.h`](../../include/sco/game/entities.h). They resolve on 4.10.196.36804 and 4.10.200.58746 ([verified builds](../game-pack.md#verified-game-builds)).
 
 | Row | Finds | Checks |
 |---|---|---|
@@ -42,7 +17,19 @@ The addresses `game.entities` uses, from Appendix B of [game world spikes](../de
 
 Capability groups (`sco::game::entities::Capabilities`): `entities.class_name` (class_of), `entities.enumerate` (query_radius), `entities.stream_hooks` (watch). `keep` (1.1) reads no game memory and needs no row of its own: it is the `game.entities.spawn` capability's, like `despawn`. What the rows can't pin, and the constants that stay `false` until an in-game run: [game services](../game-services.md).
 
-## Native point-lookup seam (K-41)
+## Copied lookup extension (1.2)
+
+Capability `game.entities.lookup` is OFF.
+
+1.2 appends class registry pages, exact class lookup, debug-grade instance-name lookup and typed component presence. Existing 1.0 and 1.1 members keep their offsets. The new native C++ methods guard complete member extents on older providers. 1.2 tails: C# and Lua unsupported. Earlier language routes are unchanged.
+
+Registry snapshots contain at most 64 complete copied classes, not just classes observed through `class_of`. A provider that overflows must refuse with TOO_MANY rather than claim an observed subset is complete. Pages sort by host-issued `class_id`. The epoch pins later pages and expires on registry, tick or session changes. Class names are exact, case-sensitive printable ASCII up to 95 bytes. Missing or stale records return NOT_FOUND. Duplicate IDs or names, or malformed later records, publish no partial page.
+
+Instance names are debug-grade ASCII and case-insensitive. An ambiguous match returns FAILED instead of promising a stable traversal winner. Component lookup accepts only ACTOR and INVENTORY discriminators and copies entity, kind and generation presence. It is not an arbitrary component-memory reader or a cross-call native handle. Requery before using a streaming observation, because generation is not a permanent key.
+
+Production publishes the table with unbound callbacks that refuse with UNAVAILABLE until independently grounded native admission exists. No new native row, offset or hook is added. `tests/test_entity_lookup.cpp` exercises bound synthetic providers, epoch mismatch, duplicate and malformed snapshots, name folding and ambiguity, typed presence, future tails, physically short tables and callback stop invalidation. C and C++ ABI pins keep the old offsets.
+
+## Native point-lookup seam
 
 `InstallNativeEntityLookup` takes the class registry instance, an exact class-name lookup and a
 registry teardown generation, and installs nothing unless all three are present. The receiver
@@ -54,4 +41,4 @@ The seam wires `name` only and leaves `classes` and `component` null: it is a po
 snapshot provider, and it cannot be mistaken for one. A registry generation that moved since
 install means the registry was torn down, so the seam answers `SCO_UNAVAILABLE` rather than handing
 out a stale class id; a host-issued id of zero is refused as `SCO_FAILED` because zero is not a
-class. Not grounded, not enabled, not run in game.
+class. The seam is not grounded and not enabled.

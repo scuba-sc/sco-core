@@ -23,7 +23,7 @@
       "absent_capability": "Table absent: query_service NOT_FOUND. game.actor_stats.read not ready (a row failed, e.g. actor.stat_names on a build that reordered the stat enum): read answers UNAVAILABLE.",
       "cleanup": "Read-only: nothing to restore. game.actors' stop withdraws the table and clears the capability.",
       "limitations": [
-        "Indices and names are static evidence on 4.10.197.2878 (F-4.10.197.2878-006); not run in game.",
+        "Indices and names are static evidence on 4.10.197.2878. Not run in game.",
         "Units, range and direction of each stat are not pinned; values are raw game floats.",
         "No maximum, threshold or injury-tier interpretation; 1.1 adds read IDs 10..29 without broadening stat-write 1.0.",
         "No C# or Lua route."

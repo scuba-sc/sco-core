@@ -4,257 +4,194 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
-- `game.relocation`: arrival is now confirmed for a move that really happened. An in-game run moved the
-  player to the saved spot every time and still logged `arrived=no ... position_near=no` after 30 s,
-  because the test asked for 0.05 m and 1 degree and the game settles a character on the ground and
-  normalises its orientation. After the move is applied, a request now completes as soon as any later
-  tick sees the player within 0.5 m of the target position (full-pose and position-only requests alike);
-  rotation is still measured and logged but is no longer required. A request already within 0.5 m at
-  admission completes at once without moving. Arrival is kept once seen, so a player who walks away
-  afterwards does not turn it into a timeout. A request never seen within 0.5 m still times out with
-  `applied` 1. The failure log line replaces `off_by` with the pose trail, for example
-  `first=0.412 m 3.100 deg closest=0.212 m 2.900 deg last=12.351 m 95.263 deg`: the first observation
-  after the apply, the closest approach and the last observation, so the next run shows what the game
-  does. Struct layouts, result codes and table sizes are unchanged; the contract rows, header comments
-  and docs state the 0.5 m rule. Not run in game. Covered by the synthetic relocation tests only.
 ## sdk-v2.4.1
 
 SDK 2.4.1 with game pack 0.8.1 for Star Citizen build 4.10.200.58746. Plugin ABI stays 1.1;
 plugins built against 2.4.0 load unchanged. Release notes: `docs/releases/sdk-v2.4.1.md`.
 
-- Docs: [game builds](docs/game/builds.md) records every Star Citizen build the game pack was
-  checked against (public patch name, file version, changelist, LIVE date, the game pack and
-  SDK releases pinned to it, and which rows changed from the build before), generated from
-  `docs/game/builds.json`. Build 4.10.200.58746 is Alpha 4.10.3. `tools/release_docs.py`
-  refuses a verified build that is not the newest entry there, and release banners name the
-  patch.
+### Added
 
-- Set the stable source version to `2.4.1` and the automatic candidate designation to
-  `sdk-v2.4.1`; development archives built after this release use `2.4.2-dev.N`.
+- **Process-retained host composition.** `Composition::ProcessRetained` in the game host
+  (`sco/game/host.h`) is an explicit contract: the shell retains all code and dependencies until
+  process exit and attests install quiescence, the host runs the normal app runtime, and Stop
+  closes admission without unloading anything, claiming a drain, or stopping or withdrawing
+  services. It reaches the real game-service start and the DataCore pak enable through private
+  entries; the public `services::Start`, `app::Start` with `gameServices` and `pak::Enable` still
+  refuse everyone else. Its pak enable is latched against `Disable`. The strict default is
+  unchanged and the two compositions exclude each other per process. Startup logs the time of each
+  Prepare phase.
+- **Stop request phase.** `OwnedShutdown::request_stop` closes cooperative admission without
+  draining, and `game::host::RequestStopDetailed` applies it through the adopted capsule root.
+  Detailed reports expose the cooperative drain state, and Stop reuses completed proof without
+  retrying the one-shot drain. Control-thread drainage and the retained cleanup obligations stay
+  separate.
+- **Widgets 1.4.** Copied canonical event tags with size-gated callback tails, guarded tagged
+  operations and C++, C# and Lua routes. Legacy event prefixes are preserved.
+- **`sco.storage.metadata` 2.0** (`sco_storage_v2.h`, `scosdk/storage_metadata.hpp`). A separate
+  read-only view of an owner's database schema, row counts and SQLite quota. Storage 1.1 is
+  unchanged. Default-off copied Profile and Storage observations are added to the host diagnostics
+  without expanding runtime JSON v1.
+- **`game.input` C++ wrapper.** A read-only wrapper for the action registry. It copies results and
+  checks service availability. It does not dispatch input.
+- **Plugin startup snapshot.** An opt-in historical record of the load pass for the qualified host
+  path. It is not live status, and the owned startup path still refuses it.
+- **Startup diagnostics in the game-pack logs.** Per-capability readiness with the signature rows
+  that are not OK for `game.creative`, once-per-reason refusal lines for `game.creative` and
+  `game.entities`, and a relocation failure line naming which completion conditions held.
+  `[game] event ...: 0 subscribers` is logged once per event name per session instead of at every
+  zone change. Logging only.
+- **`game.loadout` 1.3: outfit slots 22-31, capability `game.loadout.outfit` OFF**
+  ([docs](docs/game/loadout.md#outfit-slots-13)). `include/sc_loadout.h` adds
+  `SC_LOADOUT_VERSION_1_3` and ten slot names after `SC_LOADOUT_SLOT_SIDEARM_TOOL_BATTERY`:
+  `CLOTHING_TORSO_0/1/2`, `CLOTHING_LEGS`, `CLOTHING_FEET`, `CLOTHING_HANDS`, `HAT`,
+  `HEAD_ACCESSORY`, `HEAD_HORN` and `JEWELLERY`. No struct or table change. Only the async `submit`
+  route handles them; `apply` reports them UNSUPPORTED. The capability is on only with the opt-in
+  async route and an adapter that supplies a name mapping (`LoadoutAsyncBackend::outfit`; the
+  Windows adapter needs `SCO_LOADOUT_OUTFIT=1` as well as `SCO_LOADOUT_ASYNC=1`). It goes off on a
+  fault or Stop. `submit` refuses a request that holds an outfit slot with UNAVAILABLE while the
+  capability is off, before the job-capacity check; in 1.2 it accepted ids 22-31 and ended them
+  UNSUPPORTED. Hair, hair colour, eyebrow, head, body, eyes and teeth have no slot, because 1.x has
+  no removal and replacing them can break the character. Port names are consumer-side data, not
+  verified engine rows.
+- **`sco.widgets.view` 1.0, a host-side panel reader and event queue**
+  ([docs](docs/widgets-view.md)). A host-source seam, `include/sco/widgets_view.h`, in the
+  `core-source` profile. It is not a plugin kit contract, is outside the SDK catalogue and is never
+  published by `query_service`. A menu thread that registers itself through the table lists panels,
+  copies one panel as a flat relocatable blob (offsets, no pointers, password text never copied)
+  and queues the player's clicks. A click carries the epoch of the copy and a node key (tag, or
+  kind, id, parent and label), so it reaches the same control after a `set_panel` republish. It is
+  dropped, and counted, when that control is gone, disabled or relabelled without a tag. SLIDER and
+  TEXT_INPUT events merge in the queue, and `events_done` says which events are finished.
+  `dispatch_events` runs on the game thread through the same validation as `RenderPanel`. Host
+  code gets the table through `HostWidgetsView` and `HostWidgetsViewReleaseMenuThread` in
+  `sco/host_menu.h`. The `sco.widgets` tables and `ImGuiRenderer` are unchanged. `RenderPanel` now
+  reads a panel's callback from the live panel, and its released-owner and tag-copy failure paths
+  report Crashed or Failed steps instead of `TOO_MANY`.
+- **SDK reference launcher** (`sdk/examples/launcher/`, `examples/launcher/` in the `core` kit; no
+  ABI or plugin-visible change). A Rust workspace with the product name, file names, environment
+  prefix, default packs and update source in one `ProductConfig`. Crates: contract constants,
+  settings and `plugin.ini` reading, the zip verifier and manifest parser (same rules as
+  `tools/sco-plugin-verify.py`), install folder and plugin management, a signed-catalogue index
+  client (format and policy only, no fetching), the log redactor and a read-only MCP server. CLI
+  `sco-reference-launcher`: `status`, `plugins list|enable|disable|install-from-zip`,
+  `capabilities` (and `env`, `enable`, `disable`), `mcp`. A zip is verified before anything is
+  written and installed through a staging folder. The `disabled` marker is the only on/off switch.
+  The capability switches `exp_loadout_async`, `exp_inventory_read`, `exp_actor_stats_write`,
+  `exp_cvars_native` and `exp_audio_native` default on in the launcher and `exp_entities_diag`
+  defaults off. The launcher starts no game, injects nothing, changes nothing on the PC, uses no
+  network and does not update itself. It builds with `cargo build --release` and passes
+  `cargo test` from a clean copy of the folder.
+- **Launcher docs and skill.** `docs/launcher-contract.md` (variables including the capability
+  switches, folder layout and `disabled` marker, settings key format, stop and ready events,
+  package and compatibility rules) and `docs/building-a-launcher.md` (download and verify the kit,
+  what the SDK gives a launcher and a host, what a product must bring itself, build and run the
+  reference launcher, add a plugin from a zip, connect an agent through `mcp`). New skill
+  `sco-build-launcher` in `sdk/skills`, registered in the skills manifest (seven workflows). The
+  example is in the `core` profile, and the new skill and docs are in `core` and `core-source`.
+- **Tools.** A bounded, no-extraction plugin archive verifier and a non-loading folder preflight;
+  neither establishes plugin trust or runtime compatibility. Legacy initialised and
+  metadata-based MCP stdio clients are both supported, with source-bound SDK workflow discovery.
+  A typed, fail-closed exact-build candidate selector with a synthetic fixture; the production
+  catalog is empty, and it neither changes `game.build` v1 nor authorizes native activation.
+  Experimental Rust ABI bindings and a sample plugin with offline build and checker coverage.
+- **Docs.** [Game builds](docs/game/builds.md) records every Star Citizen build the game pack was
+  checked against (public patch name, file version, changelist, LIVE date, the game pack and SDK
+  releases pinned to it, and which rows changed from the build before), generated from
+  `docs/game/builds.json`. Build 4.10.200.58746 is Alpha 4.10.3. `tools/release_docs.py` refuses a
+  verified build that is not the newest entry there, and release banners name the patch. A design
+  note on zone lookup explains why `game.spatial` cannot reach another planet or moon by name with
+  the rows Core has today and names the one engine row that would unlock it. The direct
+  engine-quit limitation is documented: `BeforeQuit` can synchronously drain on the quit hook but
+  does not dispatch `game.exit` or withdraw dependent services, so a product-owned pre-quit
+  signal and completion receipt remain necessary before ASOP withdrawal can be coordinated with
+  direct quit. `docs/game/status.md` is regenerated from `sdk/status_registry.json`; evidence
+  levels and defaults are unchanged.
+
+### Changed
+
+- **Game pack 0.8.1 for build 4.10.200.58746.** The ATC, impound, quantum and hauling locators
+  were updated and scan on both 197 and 200. Hauling semantics and native activation are
+  unverified.
+- **`game.relocation` arrival.** After the move is applied, a request completes as soon as any
+  later tick sees the player within 0.5 m of the target position, for full-pose and position-only
+  requests alike. Rotation is still measured and logged but is no longer required. The old
+  tolerance of 0.05 m and 1 degree could be missed after a completed move, because the game
+  settles a character on the ground and normalises its orientation. A request already within
+  0.5 m at admission completes at once without moving (`applied` stays 0). Arrival is kept once
+  seen, so a player who walks away afterwards does not turn it into a timeout. A request never
+  seen within 0.5 m still times out with `applied` 1. The failure line says `timeout, applied but
+  arrival not confirmed` when the move ran and replaces `off_by` with the pose trail, for example
+  `first=0.412 m 3.100 deg closest=0.212 m 2.900 deg last=12.351 m 95.263 deg`: the first
+  observation after the apply, the closest approach and the last observation. Struct layouts,
+  result codes and table sizes are unchanged. The contract rows, header comments and docs state
+  the 0.5 m rule.
+- **`game.entities.prefabs`** is reported ON only when the `spawn.prefabs` rows resolved on the
+  running build. Before, the capability read ON without them, the first placement failed with
+  `SCO_FAILED`, and the capability stayed OFF until restart. Now it starts OFF with the reason
+  "spawn.prefabs rows did not resolve on this build". A placement that still reaches the spawner
+  without the rows returns `SCO_UNAVAILABLE` without latching; only a real engine fault latches. A
+  stopped spawner is not blamed on the rows.
+- **App shutdown** refuses while a managed service pin is live. Once begun, it closes managed
+  acquisition, service publication and plugin loader entry until the next app start. Host startup
+  stops before signature registration when inspection synchronously requests shutdown.
+- **Signature scanning.** `FindPattern` anchors on the pattern's rarest fixed byte instead of its
+  first byte. The rows that walked the game's whole `.text` once per row for a RIP-relative `lea`
+  read one per-resolve-pass index of those instructions (built on first use, sorted by target,
+  dropped when the pass ends), and the row families that repeated one scan per row (social group,
+  handshake gates, `Libs/OfflineDB`) scan once per pass. Results are unchanged: `tools/sigcheck.sh`
+  output is identical to the previous receipt, and `test_sig_index_equivalence` compares each
+  replaced loop with a verbatim copy. In-game Prepare time is not measured.
+- **ImGui widgets renderer** (host adapter, source kit only; no ABI or plugin-visible change).
+  Options are one full-width selectable row with an ellipsis and a full-text tooltip. Combos show
+  their value as the preview with the label to the left and their popups are capped. The label
+  column of a form is the widest label up to 40% of its container (100 px floor), the control
+  takes the rest of the row, and only containers wider than 900 px cap controls (560 px). A ROW of
+  COLUMNs shares its width equally. Labelled groups get a section header. A ROW, COLUMN or TABLE
+  with an empty label draws no blank line. A NUMBER slider shows whole values without decimals and
+  others with up to three (`30`, `0.5`, `0.125`); dragged values are still rounded to three
+  decimals, typed values are kept and clamping is unchanged, so events are identical. Products pick
+  this up with the first SDK published after it.
+- **MCP servers.** Every tool has a `title`, a description that says what it returns, when to use
+  it and its limits, and a description for each argument. This covers the discovery tools
+  (`tools/sco-core-mcp`: 15 by default, 13 without a workflow index, three more with
+  `--project-root`) and the six runtime tools (`tools/sco-core-mcp-runtime`). Tool names, argument
+  names, schemas and results are unchanged. In the discovery server, `search_api` matches any word
+  of a multi-word query, ranks by how many and how well words match (whole word above prefix, exact
+  symbol or id first) and returns a `hint` when nothing matches. `get_example` with a `language`
+  the contract has no example in returns `languages_with_examples` and a `hint`. `list_workflows`
+  and `get_workflow` are listed only when a valid workflow index is loaded; a bad or mismatched
+  `--workflows` file prints a warning on stderr and disables only those two tools instead of
+  stopping the server. `validate_manifest_and_widgets` says it reports the first manifest error.
+- **`game.vehicles` seat log.** An accepted `seat` call logs `seat request sent (actor ..., seat
+  ...); the game links it on its next update` instead of `link actor ... isLinked 0`, which read as
+  a failure on success because the value is read before the game applies the request. `isLinked` is
+  logged only when already 1. Behaviour and return values are unchanged.
+
+### Fixed
 
 - Signature resolution's per-pass scan index holds its sites in one nothrow allocation instead of
   a `std::vector`. With MSVC checked iterators (Debug), a vector allocates in its `noexcept`
-  constructor, so an allocation failure while a resolve pass started terminated the process
-  instead of returning `OutOfMemory`; the allocation-failure capacity test now passes in Debug
-  as it did before the index. Release builds and sigcheck results are unchanged.
-
-- SDK packaging refuses a `core-source` file that unconditionally includes the game pack; the
+  constructor, so an allocation failure while a resolve pass started terminated the process instead
+  of returning `OutOfMemory`. Release builds and sigcheck results are unchanged.
+- SDK packaging refuses a `core-source` file that unconditionally includes the game pack. The
   signature-index equivalence test moved to the `host-source-sc` kit, so the extracted
   `core-source` kit builds again.
+- A foreign-released read lease's origin is kept for self-maintenance refusal, including when
+  nested reads or other origins later release. A host transition destroyed on a different thread
+  fails closed and keeps the original thread's maintenance refusal and all backing. Neither
+  establishes native lifetime safety or authorizes native activation.
+- Shutdown-owner publication stays atomic on C++20 standard libraries without an
+  `atomic<shared_ptr>` specialization, including Apple libc++.
+- A synthetic fleet transaction is not staged when the existing fleet slot count is invalid. Native
+  reconfiguration stays disabled.
+- Archive checks preserve Git file modes, the Linux x86 UAPI header symlink layout and the C# build
+  environment on Windows.
 
-- `game.vehicles` seat log: an accepted `seat` call logs `seat request sent (actor ..., seat ...); the game links it on
-  its next update` instead of `link actor ... isLinked 0`, which read as a failure on success because the value is
-  read before the game applies the request. `isLinked` is logged only when already 1. Behaviour and return values
-  are unchanged.
+### Not run in game
 
-- Advance the unpublished development SDK coordinate to `2.4.1-dev.6`.
-
-- Signature resolution: the rows that walked the game's whole `.text` once per row for a RIP-relative
-  `lea` now read one per-resolve-pass index of those instructions (built on first use, sorted by
-  target, exact for every byte position, dropped when the pass ends), and the row families that
-  repeated one scan per row (social group, handshake gates, `Libs/OfflineDB`) scan once per pass.
-  Results are unchanged: `tools/sigcheck.sh` output is identical to the previous receipt and
-  `test_sig_index_equivalence` compares each replaced loop with a verbatim copy. In-game Prepare
-  time not yet measured. Widgets renderer: the label column of a form is the widest label up to 40%
-  of its container (100 px floor) and the control takes the rest of the row, so two-column panels
-  no longer squeeze combos to ~100 px; only containers wider than 900 px cap controls (560 px).
-  `[game] event ...: 0 subscribers` is logged once per event name per session instead of at every
-  zone change.
-
-- Advance the unpublished development SDK coordinate to `2.4.1-dev.5` (faster signature
-  scan with identical results, widget renderer layout, service diagnostics).
-
-- ImGui widgets renderer: options are one full-width selectable row with an ellipsis and a
-  full-text tooltip, combos show their value as the preview with the label to the left, labelled
-  form controls align in one label column per group, a ROW of COLUMNs shares its width equally,
-  labelled groups get a section header, and combo popups are capped. No ABI or event change.
-  Rendering checked headlessly only; not seen on screen or in game.
-
-- Add startup diagnostics to the game pack logs: per-capability readiness with the signature rows
-  that are not OK for `game.creative`, once-per-reason refusal lines for `game.creative` and
-  `game.entities`, a relocation failure line naming which completion conditions held, and
-  per-phase timings of the process-retained host's Prepare. Logging only.
-
-- Speed up signature pattern scans: `FindPattern` now anchors on the pattern's rarest fixed byte
-  instead of its first byte. Results are identical (checked against the previous scan over
-  randomized buffers and wildcard patterns).
-
-- Advance the unpublished development SDK coordinate to `2.4.1-dev.4` for the
-  process-retained host composition, keeping earlier development archive identities distinct.
-
-- Add the game host's `Composition::ProcessRetained` option: an explicit contract in which
-  the shell retains all code and dependencies until process exit and attests install
-  quiescence, the host runs the normal app runtime, and Stop closes admission without
-  unloading anything or claiming a drain. The strict default is unchanged and the two
-  compositions exclude each other per process. The composition reaches the real game-service
-  start and the DataCore pak enable through private entries (the public `services::Start`,
-  `app::Start` with `gameServices` and `pak::Enable` still refuse everyone else); its pak
-  enable is latched against `Disable`, and its stop closes admission without stopping or
-  withdrawing services. Synthetic tests only; nothing was run in game, and several
-  services stay off or unavailable on their own terms.
-
-- App shutdown now refuses while a managed service pin is live and, once begun, closes
-  managed acquisition, service publication and plugin loader entry until the next app
-  start. Synthetic tests only; native activation and in-game behavior remain unverified.
-
-- Advance the unpublished development SDK coordinate to `2.4.1-dev.3` for the
-  build-200 game-pack candidate, keeping earlier development archive identities distinct.
-
-- Prepare game pack 0.8.1 for build 4.10.200.58746 in the 2.4.1 candidate.
-  Updated ATC, impound, quantum and hauling locators scan on both 197 and 200;
-  hauling semantics, native activation and in-game behavior remain unverified.
-
-- Advance the local unpublished development SDK coordinate to `2.4.1-dev.2` and
-  qualify supplied host-source metadata against the exact current stable or
-  development version, source and profile before compilation. Preserve stable
-  SDK `2.4.0`; this is not a release or native activation acceptance.
-
-- Add widgets 1.4 copied canonical event tags with size-gated callback tails,
-  guarded tagged operations and C++/C#/Lua routes; preserve legacy event prefixes
-  and native activation refusal. Headless synthetic tests; not run in game.
-
-- Add the separate read-only `sco.storage.metadata` 2.0 interface for an owner's
-  existing database schema/counts and SQLite quota accounting; keep storage 1.1
-  unchanged. Add default-off copied Profile/Storage host diagnostic observations
-  without expanding runtime JSON v1. Synthetic evidence only; not run in game.
-
-- Label the documentation site's source catalogue SDK version separately from the identity of a development archive.
-
-- Correct SDK template and actor-stats example licence comments without asserting a licence for other plugins.
-
-- Correct plugin discovery and SDK installation guidance to distinguish launcher setup checks from plugin startup reports.
-
-- Clarify that the first-plugin checker invokes commands synthetically and that product command routing and native startup require separate verification.
-
-- Correct the plugin guide's host-specific enablement defaults and disabled discovery logging.
-
-- Direct the first-plugin quickstart to the published stable SDK 2.4.0 archive and its checksum; retain the RC1 example as history.
-
-- Preserve the exact native-index download bytes when generating the documentation site on Windows and Unix.
-
-- Keep the content-name fixture shallow and report file-write failures directly; very long Windows build roots still require a shorter test root.
-
-- Retain every foreign-released read lease's origin for self-maintenance
-  refusal, including when nested reads or other origins later release. This
-  does not establish native lifetime safety or authorize native activation.
-
-- Fail closed if a host transition is destroyed on a different thread, retaining
-  the original thread's maintenance refusal and all backing. This does not
-  establish native lifetime safety or authorize native activation.
-- Clarify kit identity for development archives and the prepublication README wording retained in the immutable stable SDK 2.4.0 archive.
-- Preserve atomic shutdown-owner publication on C++20 standard libraries without atomic shared-pointer specialization, including Apple libc++.
-
-- Preserve Git executable modes in SDK archives across platforms and verify development ZIP modes against the source index.
-
-- Preserve canonical synthetic native-evidence output and fixtures across Windows and Unix checkouts; run invalid-JSON tests without reopening locked temporary files.
-
-- Reject any unresolved provenance rule that matches a distributed file, including rules hidden by earlier attribution matches.
-- Harden SDK packaging checks for Linux header links.
-- Preserve the C# build environment on Windows during SDK archive checks.
-- Clarify existing synthetic SDK test assertions and mock imports.
-- Add experimental Rust ABI bindings and a sample plugin with offline build and checker coverage.
-- Stop host startup before signature registration when inspection synchronously requests shutdown. Coverage is synthetic; this cancellation check does not establish native lifetime safety, and native activation remains refused.
-- **SDK archive verification:** consume the complete GNU checksum-tool version output so `pipefail` cannot mistake an early pipe close for an unavailable tool. A large-banner regression preserves the archive-only include rejection and real checksum verification.
-
-- Add a bounded, no-extraction plugin archive verifier and non-loading folder preflight. These checks do not establish plugin trust or runtime compatibility.
-- Support legacy initialized and modern metadata-based MCP stdio clients, preserving legacy request metadata and source-bound SDK workflow discovery.
-
-- Add a typed, fail-closed exact-build candidate selector and synthetic canonical fixture. The production catalog is empty; this neither changes game.build v1 nor authorizes native activation.
-
-- Refuse an invalid existing fleet slot count before staging a synthetic fleet transaction; native reconfiguration remains disabled.
-- Recognize the protected Linux x86 UAPI system-header symlink layout in SDK installed-header checks while retaining checkout and unshipped-header refusals.
-- Add a read-only C++ wrapper for the `game.input` action registry. It copies results and checks service availability; it does not dispatch input or establish in-game behavior.
-- Add an opt-in historical plugin startup snapshot for the qualified host path. It records the load pass, not live status, and the owned startup path continues to refuse it.
-- Add a host-source stop-request phase: `OwnedShutdown::request_stop` closes
-  cooperative admission without draining, and `game::host::RequestStopDetailed`
-  applies it through the adopted capsule root. Detailed reports expose the
-  cooperative drain state, and Stop reuses completed proof without retrying
-  the one-shot drain. Control-thread drainage and all retained cleanup
-  obligations remain separate; native/plugin activation stays refused. New
-  coverage is synthetic and does not establish native safety.
-
-- Document the direct engine-quit limitation: `BeforeQuit` can synchronously
-  drain on the quit hook but does not dispatch `game.exit` or withdraw dependent
-  services. A product-owned pre-quit signal and completion receipt remain
-  necessary before ASOP withdrawal can be coordinated with direct quit.
-
-### Added after the 2.4.1 candidate
-
-Everything below is on the release branch after the candidate source. All of it is checked by
-synthetic tests, builds and archive tests only, except the items listed as observed in game in
-the [release notes](docs/releases/sdk-v2.4.1.md#observed-in-game-by-the-maintainer).
-
-- Host ImGui widget adapter (source kit only; no ABI or plugin-visible change). A ROW, COLUMN or
-  TABLE with an empty label no longer draws an empty text line above its content, so an
-  unlabelled row of buttons sits directly under what precedes it and plugins need no made-up
-  headings. A NUMBER slider shows whole values without decimals and others with up to three
-  (`30` instead of `30.000`, `0.5`, `0.125`); dragged values are still rounded to three
-  decimals, typed values kept and clamping unchanged, so events are identical. Products pick
-  this up with the first SDK published after it. Docs: `docs/design/widgets.md` also proposes
-  versioned TABLE column headings, pending an owner decision.
-
-- MCP servers: every tool now has a `title`, a description that says what it returns, when to use it and
-  its limits, and a description for each argument, so agents can pick tools and fill arguments from
-  `tools/list` alone. Covers the 18 discovery tools (`tools/sco-core-mcp`) and the six runtime tools
-  (`tools/sco-core-mcp-runtime`), which previously shared one generic sentence. Tool names, argument
-  names, schemas and results are unchanged; the skills manifest's MCP schema pins are regenerated.
-  Tests require a title and described arguments for every tool. CI now also runs the documented-launcher
-  integration test (`test_integration.py`) and the runtime server tests. Docs: `docs/README.md` no longer
-  calls the six-tool minimal profile the default, and `AGENTS.md` points at `sdk/contracts/` instead of a
-  `catalogue/` folder that does not exist. `docs/agent-integration.md` points to the sc-offline and
-  scuba-engine MCP servers, and the `sco-debug-plugin` skill tells agents to read the host's own view
-  (plugin state, logs) through MCP where the host offers it.
-- MCP discovery server fixes found by an agent smoke test. `search_api` now matches any word of a
-  multi-word query instead of requiring all of them, ranks by how many and how well words match (whole
-  word above prefix, exact symbol or id first), and returns a `hint` when nothing matches. `get_example`
-  with a `language` the contract has no example in now returns `languages_with_examples` and a `hint`.
-  `list_workflows` and `get_workflow` are listed only when a valid workflow index is loaded (15 tools
-  with the kit's index, 13 without it), and a bad or mismatched `--workflows` file now prints a warning
-  on stderr and disables only those two tools instead of stopping the server. The
-  `validate_manifest_and_widgets` description now says it reports the first manifest error.
-
-- `game.relocation`: a request made when the player is already at the target now completes at once
-  and moves nothing (`applied` stays 0). Before, it waited for a move and, in the case reported
-  from the game, timed out after 30 s even though the saved spot was one second old. Position-only
-  requests do the same within 0.05 m.
-- `game.relocation`: the full-pose arrival test accepts an orientation within 1 degree of the target
-  (it was about 0.16 degrees). `q` and `-q` are still one orientation. The 0.05 m position limit
-  is unchanged.
-- `game.relocation`: the failure log line now says `timeout, applied but arrival not confirmed` when
-  the move ran, the target was streamed and the pose never settled, and adds `pose_read`,
-  `position_near` and `rotation_near` flags. Status, reason codes and the ABI are unchanged: such a
-  request still ends `FAILED` with `TIMEOUT` and `applied` 1, and plugins tell it from a move that
-  never ran by that `applied` value. The log also gives `off_by` in metres and degrees. A pose that
-  settles on the tick the deadline passes now counts as arrived. The move is still applied once per
-  request; it is not retried.
-- Not run in game. Covered by the synthetic relocation tests only.
-
-- `game.entities.prefabs` is now reported ON only when the `spawn.prefabs` rows resolved on the
-  running build. Before, the capability read ON without them, the first prefab placement failed
-  with `SCO_FAILED`, and the capability stayed OFF until restart. Now it starts OFF with the reason
-  "spawn.prefabs rows did not resolve on this build", and a placement that still reaches the spawner
-  without the rows returns `SCO_UNAVAILABLE` without latching (only a real engine fault latches). A stopped spawner is not blamed on the rows.
-  Synthetic policy tests only; not run in game.
-- Relocation failure log (source kit only; no ABI or plugin-visible change). The line printed when a
-  relocation request fails or times out now ends with the last observed offset from the target in
-  metres and, for a full pose, degrees; a position-only request shows metres only, and a pose that
-  could not be read shows "not measured". Numbers only, no coordinates. Result codes and struct
-  layouts are unchanged. Tested on synthetic values; not run in game.
-- Design note "zone lookup" (docs only): why `game.spatial` cannot reach another planet or moon by
-  name with the rows Core has today, and the one engine row that would unlock it. No contract,
-  capability or behaviour change.
-- **`game.loadout` 1.3: outfit slots 22-34, capability `game.loadout.outfit` OFF** ([docs](docs/game/loadout.md#outfit-slots-13)). `include/sc_loadout.h` adds `SC_LOADOUT_VERSION_1_3` and thirteen slot names after `SC_LOADOUT_SLOT_SIDEARM_TOOL_BATTERY`: `CLOTHING_TORSO_0/1/2`, `CLOTHING_LEGS`, `CLOTHING_FEET`, `CLOTHING_HANDS`, `HAT`, `HAIR`, `HAIR_COLOR`, `EYEBROW`, `HEAD_ACCESSORY`, `HEAD_HORN`, `JEWELLERY`. Vocabulary only: no struct or table change. Only the async `submit` route handles them; `apply` reports them UNSUPPORTED. `submit` refuses a request that holds one with UNAVAILABLE while `game.loadout.outfit` is off; the capability is on only with the opt-in async route and an adapter with a name mapping (`LoadoutAsyncBackend::outfit`, which does not mean the names are verified), and goes off on a fault or Stop. The Windows adapter maps each slot to its item-port name. Head, body, eyes and teeth ports are deliberately not offered (replacing them can break the character, and 1.x has no removal). Port names are not verified engine rows. Synthetic tests only; not run in game. Hair, hair colour and eyebrow (29-31) are permanent overlays with no removal, so they also need a separate capability `game.loadout.appearance`, OFF unless the adapter opts in (`LoadoutAsyncBackend::appearance`; Windows: `SCO_LOADOUT_APPEARANCE=1`); `Hair_Color` is an assumed port. Compatibility: in 1.2 `submit` accepted ids 22-34 and ended them UNSUPPORTED; in 1.3 it refuses the whole request with UNAVAILABLE while the capability is off, before the job-capacity check.
-- **`sco.widgets.view` 1.0, a host-side panel reader and event queue** ([docs](docs/widgets-view.md)). New host-source seam `include/sco/widgets_view.h` (`core-source` profile, no plugin kit, outside the SDK catalogue, never published by `query_service`; no capability). A menu thread that registers itself through the table lists panels, copies one panel as a flat relocatable blob (offsets, no pointers, password text never copied) and queues the player's clicks. Counters (`revision`, `epoch`, list and global revision) come from one monotonic source. A click carries the epoch of the copy and a node key (tag, or kind, id, parent and label), so it reaches the same control across a `set_panel` republish and is dropped, and counted, when that control is gone, disabled or relabelled without a tag. SLIDER and TEXT_INPUT events merge in the queue and `events_done` says which events are finished. `dispatch_events` runs on the game thread through the same validation as `RenderPanel`, whose event half is now one shared function with unchanged behaviour. The `sco.widgets` tables and `ImGuiRenderer` are unchanged. New files `src/widgets/view.cpp` and `src/widgets/view_internal.h` join `sco_widgets`. Host code gets the table through `HostWidgetsView` and `HostWidgetsViewReleaseMenuThread` in `sco/host_menu.h` (implemented in `src/app/sco_app.cpp`). One small change to existing code: `RenderPanel` now reads a panel's callback from the live panel, and its released-owner and tag-copy failure paths report Crashed or Failed steps instead of `TOO_MANY`; the existing widget tests are unchanged and pass. `tools/test.sh` builds the new tests and ABI pins, and `sdk/test_package.py` checks that the source kits ship the new files and the plugin kits do not. Synthetic tests (`abi_widgets_view`, `test_widgets_view`, `test_host_menu`) only; not run in game.
-- **SDK reference launcher** (`sdk/examples/launcher/`, `examples/launcher/` in the core kit; no ABI or plugin-visible change). A Rust workspace cut from a product launcher, with the product name, file names, environment prefix, default packs and update source in one `ProductConfig`. Crates: contract constants, settings and `plugin.ini` reading, the zip verifier and manifest parser (same rules as `tools/sco-plugin-verify.py`), install folder and plugin management, a signed-catalogue index client (format and policy only, no fetching), the log redactor and a read-only MCP server. CLI `sco-reference-launcher`: `status`, `plugins list|enable|disable|install-from-zip`, `capabilities` (and `env`, `enable`, `disable`), `mcp`. A zip is verified before anything is written and installed through a staging folder; the `disabled` marker is the only on/off switch. The capability switches `exp_loadout_async`, `exp_inventory_read`, `exp_actor_stats_write`, `exp_cvars_native` and `exp_audio_native` default on and `exp_entities_diag` defaults off. It starts no game, injects nothing, changes nothing on the PC, uses no network and does not update itself. It builds with `cargo build --release` and passes `cargo test` from a clean copy of the folder. Source and synthetic tests only; not run in game.
-- **Launcher docs and skill.** `docs/launcher-contract.md` (variables including the capability switches, folder layout and `disabled` marker, settings key format, stop and ready events, package and compatibility rules) and `docs/building-a-launcher.md` (download and verify the kit, what the SDK gives a launcher and a host, what a product must bring itself: injection, offline patches, admission, quiescence attestation, menu renderer; build and run the reference launcher; add a plugin from a zip; connect an agent through `mcp`). New skill `sco-build-launcher` in `sdk/skills`, registered in the skills manifest (seven workflows). Packaging: the example is in the `core` profile and the new skill and docs in `core` and `core-source`; four tiny test zips are allowlisted in `docs/legal/provenance.json`.
-
-- Docs and status: `docs/game/status.md` (generated from `sdk/status_registry.json`) now records, as
-  evidence text only, that `game.loadout.async` and `game.entities.prefabs` were each observed once
-  in game by the maintainer on build 4.10.200.58746. Evidence levels (`synthetic_only`) and
-  defaults are unchanged; no row is marked verified in game. The roadmap lists the zone lookup gap,
-  the catalogue signing key and the Rust host as later work. The launcher contract, the build-a-launcher
-  guide and the widgets view page are on the documentation site and in the docs indexes, and the
-  agent workflow page lists the new `sco-build-launcher` skill.
+Not run in game. See [game capability status](docs/game/status.md) and the
+[release notes](docs/releases/sdk-v2.4.1.md#evidence). Evidence for this release is source
+inspection, builds, synthetic and headless tests, and archive checks.
 
 ## sdk-v2.4.0
 
@@ -924,7 +861,7 @@ Windows, GPU and real-game acceptance are unproven. The new game capabilities
 Published 2026-10-13 at 22:42:09 UTC as tag `sdk-v2.1.0`. The tag peels to approval commit
 `8ef24243b4b8ee45fb49bde4192bdbdfa7473ace`, which adds only the signed approval record; the
 published archives were built from source commit `77c328fc088f85336f1241c0c054bc461fe8b64c`. See the [SDK 2.1.0 release notes](docs/releases/sdk-v2.1.0.md)
-and the published [release and assets](https://github.com/scubamount/sco-core/releases/tag/sdk-v2.1.0).
+and the published [release and assets](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.1.0).
 
 SDK 2.1.0 packages the engineering entries below without changing frozen plugin ABI 1.1.
 The additive game contracts raise the separate game-sc package coordinate from 0.3.0 to
@@ -1207,10 +1144,10 @@ Every change since sdk-v1.1.0, newest first:
 
 - **`game.creative` 1.0 in the game pack: god mode, fly and infinite ammo for the local player** (`sco_api.h` unchanged; [design](docs/design/game-services.md), sc-offline's pure-consumer PR 8; [API](docs/api-v1.md#gamecreative-10-game-pack), [rows](docs/game/creative.md)). **`include/sc_creative.h`**, `sc_creative_v1` (64 bytes, pinned by `tests/abi_game_creative.c`: `tools/test.sh` the five ways, CTest `abi_game_creative`, and the C# layout test): `set_god_mode(self, on)`, `set_fly_mode(self, on)`, `set_fly_speed(self, mps)` (above 0, at most `SC_CREATIVE_FLY_SPEED_MAX` 10000), `set_infinite_ammo(self, on)` (the weapons you carry), `set_infinite_ship_ammo(self, on)` (every weapon on the ship you're aboard), `state(self, &flags)` (`SC_CREATIVE_GOD_MODE` / `_FLY` / `_INFINITE_AMMO` / `_INFINITE_SHIP_AMMO`) and `last_error(self, out, &size)` with `sco.storage`'s size handshake; `sco_result` returns, game thread only. `src/game/services/creative.cpp` (library `sco_game_services`, Windows) publishes it from `services::Start` after `game.entities`, moved from sc-offline's `spawner.cpp` (`ProcessNoclip`, `ProcessGodMode`, the fly speed write) and `ammo.cpp` (the magazine setter hook, the carried-weapon and ship checks, the ship top-up) on the existing `spawn.*` and `ammo.set_ammo` rows: no new row. Capabilities `game.creative.god_mode`, `.fly`, `.ammo`, `.ship_ammo`, each from its rows (`set_fly_speed` also needs the `spawn.fly_speed` rows and answers `SCO_UNAVAILABLE` without them). The magazine hook is installed with `sco::hook` the first time an ammo toggle is switched on and its rows are OK, and removed at Stop. **Toggles are per owning plugin**: spawn.cpp's one release hook switches off whatever the unloading or crashing plugin turned on (god mode, fly, the fly speed back to the game's, both ammo toggles); a plugin can't switch anything on when the host has no release hook left. The ship ammo toggle follows the ship you're aboard only (sc-offline's Crew & seats target ship is not reachable from a plugin). Wrappers: `scosdk/game/creative.hpp`, C# `Sco.Sdk.Game.Creative` (layout pins, FakeHost) and Lua `sco.game.creative.state()` (read-only). Tests: `test_app` (published with `gameServices`, every function `SCO_UNAVAILABLE` without a game image, withdrawn at Stop), `test_sdk`, `test_lua`. `sc_creative.h` ships in the SDK zip. Not run in the game yet (the maintainer's in-game run follows the merge).
 - **Kernel: hot reload of one plugin (native from a copy, Lua re-run)** (`sco_api.h` unchanged; [plugins](docs/plugins.md#hot-reload), [API](docs/api.md#scoapph-the-host-kit), [API v1](docs/api-v1.md#host-commands), [architecture](docs/architecture.md#the-runtime)). **`sco::app::Reload(id, &why)`** and the host command **`sco.reload <plugin>`** (registered by `sco::app::Start`, no capability) unload one plugin through the normal path (`sco_plugin_unload` guarded, `Release(self)`: its commands, subscriptions and services are withdrawn and the game pack's release hooks despawn what it spawned) and load it again under a new handle. Natives load from a copy `<folder>/.reload-<n>-<entry>`, so the DLL can be rebuilt while loaded; a module whose service table was handed out stays mapped (M1), is not reused, and faults in it are still blamed on the plugin. Lua plugins run their script again. Built-ins and data packs are refused (`BAD_ARG`); an unknown id is `NOT_FOUND`; a reload while a callout of that plugin is running (a command asking for its own reload) is `FAILED`, "busy", and changes nothing. `Platform::loadFromCopies` (default off) maps every native from a copy from `Start`. Stale `.reload-*` copies are removed at `Start` and `Stop`. New `plugins::UnloadOne`, `CopyForReload`, `RemoveReloadCopies`; `Plugin` gains `reloadCopy`, `pinned`, `running`. A reloaded plugin gets its `[settings]` declared again through the same path as at `Start`; kept values persist (in `sco.storage`; in memory only without a data folder), and `plugin.ini` is not read again. **Limits:** handles are never reused and `host::kMaxPlugins` (256) counts reloads, so 256 loads plus reloads per session is the cap (not recycled in this change, nor are the 1,024 raw handler records); command slots are recycled (L5), so they are not the limit. `plugin.ini` is not read again. `tests/test_app.cpp`: Lua reloaded twice, native from a copy, pinned provider, refusals, busy, `loadFromCopies`.
-- **`game.entities` 1.1: `keep(self, id)`, so an entity can outlive its spawner** (`sco_api.h` unchanged; [API v1](docs/api-v1.md#gameentities-11-game-pack), [game services](docs/game-services.md)). `sc_entities_v1` grows from 88 to 96 bytes (`SC_ENTITIES_VERSION_1_1`, `0x00010001`; `tests/abi_game_entities.c` keeps every 1.0 offset and adds `keep` at 88): `keep` releases the caller's ownership of an entity it spawned through `game.entities`, so the host no longer despawns it when the plugin unloads or crashes (a build mode's props must survive a reload of the build built-in; everything else keeps decision 6's cleanup). A kept entity is nobody's: `set_transform` and `despawn` by the former owner are refused like any entity it doesn't own, and it stops counting against `SC_ENTITIES_MAX_OWNED`, so removing it is the product's business. `SCO_NOT_FOUND` (with a `last_error` reason) when the id isn't one the caller spawned and still owns; `SCO_UNAVAILABLE` without `game.entities.spawn`. 1.0 callers keep working (a 1.0 query still gets the table); callers check `size > offsetof(sc_entities_v1, keep)` first. C++ `Entities::Keep`, C# `Entities.Keep` (the `Sco.Sdk.Tests` layout and pin lists follow); Lua stays read-only.
+- **`game.entities` 1.1: `keep(self, id)`, so an entity can outlive its spawner** (`sco_api.h` unchanged; [API v1](docs/api-v1.md#gameentities-12-game-pack), [game services](docs/game-services.md)). `sc_entities_v1` grows from 88 to 96 bytes (`SC_ENTITIES_VERSION_1_1`, `0x00010001`; `tests/abi_game_entities.c` keeps every 1.0 offset and adds `keep` at 88): `keep` releases the caller's ownership of an entity it spawned through `game.entities`, so the host no longer despawns it when the plugin unloads or crashes (a build mode's props must survive a reload of the build built-in; everything else keeps decision 6's cleanup). A kept entity is nobody's: `set_transform` and `despawn` by the former owner are refused like any entity it doesn't own, and it stops counting against `SC_ENTITIES_MAX_OWNED`, so removing it is the product's business. `SCO_NOT_FOUND` (with a `last_error` reason) when the id isn't one the caller spawned and still owns; `SCO_UNAVAILABLE` without `game.entities.spawn`. 1.0 callers keep working (a 1.0 query still gets the table); callers check `size > offsetof(sc_entities_v1, keep)` first. C++ `Entities::Keep`, C# `Entities.Keep` (the `Sco.Sdk.Tests` layout and pin lists follow); Lua stays read-only.
 - **Game rows: mining (`game.mining`, `mining.cell`)** (`sco_api.h` unchanged; [rows](docs/game/mining.md)). One row, `mining.cell`: `CBiomeBuilder::BuildLargeScaleEcoSystem`, found from its profiler label and .pdata, with byte checks on the ABI, the flags argument, builder `+8` and `+0x29` and cell `+0x16A8`. No context bytes: the built-in must not force server, editor or online. 0x265FB10 on 4.10.196.36804.
 
-- **`game.entities` 1.0 in the game pack** (`sco_api.h` unchanged; [design](docs/design/game-services.md) PR 5, sco-core half; [game services](docs/game-services.md), [API v1](docs/api-v1.md#gameentities-11-game-pack)). **`include/sc_entities.h`**, pinned by `tests/abi_game_entities.c` (88 bytes; `tools/test.sh` five ways and the CMake `abi_game_entities` test): `alive`, `class_of`, `get_transform`, `set_transform(self, ...)` (entities you spawned, and the player's own vehicles once registered), `spawn(self, ...)` anywhere and `despawn(self, id)`, `watch` / `unwatch` (decision 8: a class name or `PREFIX*`; the host matches before calling the plugin; empty, a lone `*`, `A*B`, `**`, overlong and non-ASCII types are refused with a reason), `query_radius` and `last_error` with the size handshake. `src/game/services/entities.cpp` (library `sco_game_services`, Windows) is published by `services::Start` last, after `game.vehicles`, `game.world` and the `game.*` events (all-or-nothing, undone in reverse); `spawn.entities` 1.2 stays as the 1.x alias, unchanged. **Decision 6:** the entities a plugin spawned through `game.entities` are removed from the world, and its watches end, when it unloads or crashes: `spawn.cpp`'s one release hook now also calls `ReleaseEntitiesOwner`, and `despawn` reuses `game.actors`' removal (`actors.cpp`: `RemoveEntityLater`; `g_removals` reserves twice its size). **Six new rows**, `entities.dump`, `.index`, `.for_each`, `.class_site`, `.spawn_sinks` and `.delete_entity` (`src/game/entities_sigs.cpp`, `sco/game/entities.h`, [rows](docs/game/entities.md)): Appendix B's B3 and B9 locators with their byte checks, plus the class-name and id reads pinned in the dump's lambda; all OK on 4.10.196.36804 (307/307). **`game.entities.query_radius` and `.watch` stay off** until the maintainer's in-game run: the spike found the locators but not the walk's thread and flag, the spawn batch's vector layout or the hooks' thread, so `sco::game::entities::kQueryRadiusConfirmed` and `kWatchConfirmed` are `false` and both functions answer `SCO_UNAVAILABLE`. The hook plumbing and the type filter are in and tested: `SCO_ENTITIES_DIAG=1` installs the two hooks log-only and runs the walk once, logging the thread, the vector words, the entity ids and classes and the walk's counts ([game services](docs/game-services.md)). Capabilities `game.entities.transform`, `.spawn`, `.class_of`, `.query_radius`, `.watch`. Wrappers in the same change: C++ `scosdk/game/entities.hpp`, C# `Sco.Sdk.Game.Entities` (`Pins.cs`, `Layout.cs`, the fake-host test and the workflows' abi lists updated), Lua `sco.game.entities` (read-only: `alive`, `class_of`, `get_transform`); `sdk/package.py` ships `sc_entities.h`. Tests: the filter matcher's refusals and matches and the row table in `test_core`, the published, not-ready and withdrawn states in `test_app`, and the Lua and C# wrappers over stand-in tables.
+- **`game.entities` 1.0 in the game pack** (`sco_api.h` unchanged; [design](docs/design/game-services.md) PR 5, sco-core half; [game services](docs/game-services.md), [API v1](docs/api-v1.md#gameentities-12-game-pack)). **`include/sc_entities.h`**, pinned by `tests/abi_game_entities.c` (88 bytes; `tools/test.sh` five ways and the CMake `abi_game_entities` test): `alive`, `class_of`, `get_transform`, `set_transform(self, ...)` (entities you spawned, and the player's own vehicles once registered), `spawn(self, ...)` anywhere and `despawn(self, id)`, `watch` / `unwatch` (decision 8: a class name or `PREFIX*`; the host matches before calling the plugin; empty, a lone `*`, `A*B`, `**`, overlong and non-ASCII types are refused with a reason), `query_radius` and `last_error` with the size handshake. `src/game/services/entities.cpp` (library `sco_game_services`, Windows) is published by `services::Start` last, after `game.vehicles`, `game.world` and the `game.*` events (all-or-nothing, undone in reverse); `spawn.entities` 1.2 stays as the 1.x alias, unchanged. **Decision 6:** the entities a plugin spawned through `game.entities` are removed from the world, and its watches end, when it unloads or crashes: `spawn.cpp`'s one release hook now also calls `ReleaseEntitiesOwner`, and `despawn` reuses `game.actors`' removal (`actors.cpp`: `RemoveEntityLater`; `g_removals` reserves twice its size). **Six new rows**, `entities.dump`, `.index`, `.for_each`, `.class_site`, `.spawn_sinks` and `.delete_entity` (`src/game/entities_sigs.cpp`, `sco/game/entities.h`, [rows](docs/game/entities.md)): Appendix B's B3 and B9 locators with their byte checks, plus the class-name and id reads pinned in the dump's lambda; all OK on 4.10.196.36804 (307/307). **`game.entities.query_radius` and `.watch` stay off** until the maintainer's in-game run: the spike found the locators but not the walk's thread and flag, the spawn batch's vector layout or the hooks' thread, so `sco::game::entities::kQueryRadiusConfirmed` and `kWatchConfirmed` are `false` and both functions answer `SCO_UNAVAILABLE`. The hook plumbing and the type filter are in and tested: `SCO_ENTITIES_DIAG=1` installs the two hooks log-only and runs the walk once, logging the thread, the vector words, the entity ids and classes and the walk's counts ([game services](docs/game-services.md)). Capabilities `game.entities.transform`, `.spawn`, `.class_of`, `.query_radius`, `.watch`. Wrappers in the same change: C++ `scosdk/game/entities.hpp`, C# `Sco.Sdk.Game.Entities` (`Pins.cs`, `Layout.cs`, the fake-host test and the workflows' abi lists updated), Lua `sco.game.entities` (read-only: `alive`, `class_of`, `get_transform`); `sdk/package.py` ships `sc_entities.h`. Tests: the filter matcher's refusals and matches and the row table in `test_core`, the published, not-ready and withdrawn states in `test_app`, and the Lua and C# wrappers over stand-in tables.
 
 - **Kernel: typed `[settings]` in `plugin.ini`, the `sco.settings` service, rendered through `sco.ui`** (`sco_api.h` unchanged; [plugin.ini](docs/plugins.md#typed-settings-settings), [API v1](docs/api-v1.md#scosettings-10), [UI](docs/ui.md#settings), [modder page](sdk/docs/plugin-ini.md#settings)). A native or Lua plugin declares `name = bool|int|float|string|enum(a,b,c) [default V] [min N] [max N] [label "x"] [help "x"]` lines under `[settings]`; a bad declaration refuses the plugin with the line and the reason (`setting 'speed': default 11 is above max 10`), and `sco-plugin-check` reports the same. **`include/sco_settings.h`**, `sco_settings_v1` (48 bytes, pinned by `tests/abi_settings.c`: `tools/test.sh` the five ways, the CMake test `abi_settings`, the C# layout test, the CI and release workflow lists, `sdk/package.py`): `get_bool` / `get_int` / `get_float` / `get_string` / `last_error`, read-only, plus the event `settings.changed` (plugin id and setting name, once per change, after the value is stored). **Host side** `sco/settings.h` (library `sco_settings`, started by `sco::app::Start` after storage): `Declare`, `Pages()` / `Entries()` (the settings as data, with the plugin's first `sco.ui` tab, for the product to draw as widgets: there is still no renderer in sco-core) and `SetBool` / `SetInt` / `SetFloat` / `SetString` (checked against the declaration, kept in the plugin's own `sco.storage` namespace under `sco.settings.<name>`, in memory without storage). A kept value that no longer fits the declaration after a plugin update (another type, a narrower range, a dropped choice) is deleted, the default applies, and `mod.log` says so. **SDK:** `scosdk/settings.hpp`, C# `Sco.Sdk.Settings`, Lua `sco.settings.get(name)`. **Tests:** every type, default and refusal in `test_plugins`; `test_settings` (service, sets, event once per change, persistence across a restart of the services, stale values, readers on threads, under both sanitizer sets); a Lua script and a real `sco::app` restart in `test_lua` and `test_app`. A host older than this reads `[settings]` as a bad line and refuses the plugin.
 
@@ -1222,7 +1159,7 @@ Every change since sdk-v1.1.0, newest first:
 
 - **`game.vehicles` 1.0 in the game pack, the first `game.*` table** (`sco_api.h` unchanged; [design](docs/design/game-services.md) PR 3, sco-core half; [API](docs/api-v1.md#gamevehicles-10-game-pack)). **`include/sc_vehicles.h`**, `sc_vehicles_v1` (64 bytes, pinned by `tests/abi_game_vehicles.c`: `tools/test.sh` the five ways, CTest `abi_game_vehicles`, and the C# layout test): `player_ship(&id)`, `seats(ship, out, max, &count, &more)` into caller-provided `sc_vehicle_seat`s (96 bytes: index, seat item id, occupant id, priority, 64-byte name, flags `SC_SEAT_USABLE` / `_USABLE_KNOWN` / `_OCCUPIED` / `_PILOT`), `seat_occupant`, `seat(self, actor, ship, seat_index)`, `eject(self, actor)`, `power_on(self, ship)` (Flight Ready) and `last_error(self, out, &size)` (`sco.storage`'s handshake); `sco_result` returns, game thread only (`SCO_WRONG_THREAD` elsewhere, without touching the game). `src/game/services/vehicles.cpp` (library `sco_game_services`, Windows) publishes it with `teleport.spatial` and `spawn.entities`, moved from sc-offline's spawner seat code (`spawner.cpp`: seat enumeration, occupant decoding, linking, the pilot dashboard search and the Flight Ready event; same offsets and slots, addresses from the `spawn.*` rows, no scans). Capabilities per system: `game.vehicles.seats`, `game.vehicles.seat`, `game.vehicles.flight_ready` (`caps::SetFromSignatures` over the rows each reads). Ownership: `seat` / `eject` only for the player's own actor or NPCs the caller spawned through `spawn_as` or `game.actors`' `spawn_npc` (`services::NpcOwnedBy`, actors.cpp); `power_on` for the ship you're aboard, registered player vehicles and the caller's `spawn_as` ships; each mutator call is logged with the plugin id. **The Javelin bulk fill** (10 of 15 NPCs seated, "couldn't seat NPC ... links tried: 5"): the leading cause is that sc-offline's seat list kept every type-193 seat while the game's own seat picker first skips seats whose owner has no live `IInteractableComponent` (turret items and the like), so NPCs were linked into seats the game never fills. New row **`spawn.seat_interactable`** (capability `spawn.seat_gate`; the picker callback's test at +0x1A..+0x31 and the getter it calls, its component name checked to be `"IInteractableComponent"` and its components global `teleport.entity_system`+8; OK on 4.10.196.36804) marks each seat `SC_SEAT_USABLE` by the same lookup, and `seat` refuses the others instead of linking blind. Not yet proven in game: the game pack logs, once per ship, every seat's `interactable yes|no` and raw occupant field, and for each `seat` call the link result (`isLinked`, occupant field), so the first in-game run decides it. Wrappers: `include/scosdk/game/vehicles.hpp` (`sco::sdk::game::Vehicles`), C# `Sco.Sdk.Game` (`Vehicles`, `ScVehiclesV1`, `ScVehicleSeat`), Lua `sco.game.vehicles` (`player_ship`, `seats`, `seat_occupant`; read-only). The SDK zip ships `sc_vehicles.h` and the wrapper. New for products: nothing to call; `Platform::gameServices` publishes it. For sc-offline: make the crew built-in a consumer of `game.vehicles` (spawn crew with `spawn_as`, fill only `SC_SEAT_USABLE` seats) and drop its own seat code. Tests: `test_app` checks `game.vehicles` is published with `gameServices`, answers `SCO_UNAVAILABLE` with reasons and no capabilities without a game image, refuses other threads, and is withdrawn at `Stop` (Windows builds).
 - **`game.actors` 1.0 in the game pack** (`sco_api.h` unchanged; [design](docs/design/game-services.md) PR 4, sco-core half; [game services](docs/game-services.md), [API v1](docs/api-v1.md#gameactors-11-game-pack)). **`include/sc_actors.h`**, pinned by `tests/abi_game_actors.c` (40 bytes; `tools/test.sh` five ways and the CMake `abi_game_actors` test): `local_player(&actor_id, &entity_id)`, `spawn_npc(self, archetype_class, zone_id, pos[3], &id)`, `despawn(self, id)`, `last_error(self, out, &size)`; `sco_result` returns, game thread only (`SCO_WRONG_THREAD` elsewhere, without touching the game), `SC_ACTORS_MAX_NPCS` 1024. `src/game/services/actors.cpp` (library `sco_game_services`, Windows) publishes it with `ProvideGameService("game.actors", 0x00010000)` next to `spawn.entities` and withdraws it at `Stop`; NPC spawn and removal moved from sc-offline's `npc.cpp` (the handle lookup, RemoveEntity, the 1.5 s check, the direct-removal fallback, the move out of range), spawning through `spawn.entities`' spawner (`spawn.cpp` exports `SpawnEntityInZone`), your player through `reads::LocalPlayer` (which now also gives the actor id). Capabilities `game.actors.local_player`, `game.actors.spawn_npc`, `game.actors.despawn`, from the `teleport.*`, `spawn.helpers`, `spawn.handle_to_id` and `npc.clear` rows; `spawn_npc` needs the removal rows too. **Ownership (decision 6):** a plugin may despawn only the NPCs it spawned, and the host removes every NPC a plugin still owns when it unloads or crashes, through `spawn.cpp`'s existing release hook (`OnRelease` now also calls `ReleaseActorsOwner`: one `sco::AddReleaseHook` for both services); `spawn_npc` refuses when that hook is missing. Health and state are not in 1.0 (no rows yet). **Wrappers:** `include/scosdk/game/actors.hpp` (`sco::sdk::game::Actors`), C# `Sco.Sdk.Game.Actors` (`sdk/csharp/Sco.Sdk/Game/Actors.cs`; layout checked against `tests/abi_game_actors.c`, now in the workflows' list), Lua `sco.game.actors.local_player()` only (read-only, decision 5). The SDK zip ships `sc_actors.h` and `scosdk/game/`. Tests: `test_app` (published with `gameServices`, `SCO_UNAVAILABLE` and the reasons without a game image, `SCO_WRONG_THREAD` off the game thread, withdrawn at `Stop`), `test_lua`, `test_sdk` and the C# fake host over stand-in tables.
-- **`game.world` 1.0, `game.actors` 1.1 (health, state) and the `game.*` bus events in the game pack** (`sco_api.h` unchanged; [design](docs/design/game-services.md) PR 6 on the [spikes](docs/design/game-world-spikes.md), sco-core half; [game services](docs/game-services.md#events), [API v1](docs/api-v1.md#gameworld-10-game-pack)). **`include/sc_world.h`**, `sc_world_v1` (32 bytes) and `sc_world_hit` (72 bytes), pinned by `tests/abi_game_world.c` (`tools/test.sh` five ways, CTest, the C# layout test): `raycast(zone, from, dir, max_dist, &hit)` (sc-offline's build-mode ground ray moved onto its `build.*` rows: position and distance; the hit entity and normal aren't pinned, so they stay 0 and `flags` says so; `max_dist` clamps to 20,000 m), `camera(&pos, &rot_xyzw, &zone)` (world frame; **no field of view**: the game doesn't pin one, spike B2 blocked) and `last_error`; capabilities `game.world.raycast`, `game.world.camera`. **`game.actors` 1.1** (`SC_ACTORS_VERSION_1_1`) appends `health(id, &cur, &max)` (HealthPool; `max` is 0, not read yet; capability `game.actors.health`) and `state(id, &state)` (`SCO_UNAVAILABLE`: capability `game.actors.state` stays off until an in-game run says which of the game's two checks is dead; the game pack logs both, `[game] game.actors state probe ...`); the table grows from 40 to 56 bytes and 1.0 callers keep working. **`include/sc_game_events.h`**, pinned by `tests/abi_game_events.c`: size-prefixed payloads for `game.player.spawned`, `game.player.died` (hooks on the game's own event queues) and `game.zone.changed` (a poll of the `teleport.*` reads), dispatched on the game thread through the kernel event bus from the host's tick; the hooks only record into a fixed ring and never run plugin code, and install only when their rows are OK (capabilities `game.events.player_spawned`, `.player_died`, `.zone_changed`). `game.vehicle.boarded` / `exited` are reserved: their hooks install log-only (`[game] vehicle_seat probe: ...`) and `game.events.vehicle_seat` stays off until an in-game run confirms the payload. Nine new rows (`src/game/events_sigs.cpp`, [rows](docs/game/events.md)), all OK on 4.10.196.36804. Wrappers in the same change: C++ `scosdk/game/world.hpp` and `events.hpp` (and `Actors::Health` / `State`), C# `Sco.Sdk.Game.World`, `GameEvents` and `Actors.Health` / `State`, Lua `sco.game.world.camera` / `raycast`, `sco.game.actors.health` and the `game.*` events through `sco.subscribe` (read-only). The SDK zip ships `sc_world.h` and `sc_game_events.h`. Entity enumeration and entity streaming are the `game.entities` change.
+- **`game.world` 1.0, `game.actors` 1.1 (health, state) and the `game.*` bus events in the game pack** (`sco_api.h` unchanged; [design](docs/design/game-services.md) PR 6 on the [spikes](docs/design/game-world-spikes.md), sco-core half; [game services](docs/game-services.md#events), [API v1](docs/api-v1.md#gameworld-11-game-pack)). **`include/sc_world.h`**, `sc_world_v1` (32 bytes) and `sc_world_hit` (72 bytes), pinned by `tests/abi_game_world.c` (`tools/test.sh` five ways, CTest, the C# layout test): `raycast(zone, from, dir, max_dist, &hit)` (sc-offline's build-mode ground ray moved onto its `build.*` rows: position and distance; the hit entity and normal aren't pinned, so they stay 0 and `flags` says so; `max_dist` clamps to 20,000 m), `camera(&pos, &rot_xyzw, &zone)` (world frame; **no field of view**: the game doesn't pin one, spike B2 blocked) and `last_error`; capabilities `game.world.raycast`, `game.world.camera`. **`game.actors` 1.1** (`SC_ACTORS_VERSION_1_1`) appends `health(id, &cur, &max)` (HealthPool; `max` is 0, not read yet; capability `game.actors.health`) and `state(id, &state)` (`SCO_UNAVAILABLE`: capability `game.actors.state` stays off until an in-game run says which of the game's two checks is dead; the game pack logs both, `[game] game.actors state probe ...`); the table grows from 40 to 56 bytes and 1.0 callers keep working. **`include/sc_game_events.h`**, pinned by `tests/abi_game_events.c`: size-prefixed payloads for `game.player.spawned`, `game.player.died` (hooks on the game's own event queues) and `game.zone.changed` (a poll of the `teleport.*` reads), dispatched on the game thread through the kernel event bus from the host's tick; the hooks only record into a fixed ring and never run plugin code, and install only when their rows are OK (capabilities `game.events.player_spawned`, `.player_died`, `.zone_changed`). `game.vehicle.boarded` / `exited` are reserved: their hooks install log-only (`[game] vehicle_seat probe: ...`) and `game.events.vehicle_seat` stays off until an in-game run confirms the payload. Nine new rows (`src/game/events_sigs.cpp`, [rows](docs/game/events.md)), all OK on 4.10.196.36804. Wrappers in the same change: C++ `scosdk/game/world.hpp` and `events.hpp` (and `Actors::Health` / `State`), C# `Sco.Sdk.Game.World`, `GameEvents` and `Actors.Health` / `State`, Lua `sco.game.world.camera` / `raycast`, `sco.game.actors.health` and the `game.*` events through `sco.subscribe` (read-only). The SDK zip ships `sc_world.h` and `sc_game_events.h`. Entity enumeration and entity streaming are the `game.entities` change.
 - **Game pack: the mission script library lookup** (`sco_api.h` unchanged; for sc-offline #85, whose no-scans gate has no allow-list; [game services](docs/game-services.md#internal-game-pack-helpers)). **`sco/game/missions.h`** adds `sco::game::missions::ScriptLibrary(manager, &reason)` (`src/game/services/missions.cpp`, library `sco_game_services`, Windows): the derivation sc-offline's `missions.cpp` did with a raw `BytesMatch` on a function reached through the live mission manager, moved here byte for byte. It reads `vtable(manager)[0x48]`, checks `48 8B 4B` at `+0x32` of that function, and returns `*(manager + function[0x35])`, all under `__try` (a fault now answers 0, where it used to crash). Not a service and not an ABI: no table, nothing in the SDK zip. Failure gives one of two stable strings, `kReasonNotFound` ("the mission manager's script library wasn't found") and `kReasonNotYet` ("the script library isn't there yet"), so sc-offline logs the same lines as before. The constants (slot `0x48`, canary offset `0x32`, displacement byte `0x35`) are documented as checked at runtime, never trusted; the function is not the `missions.load_all` row (that one's bytes at `+0x32` are `39 63 08 48`), which is why it can't be a row. No new rows; the game pack's version line is unchanged. Tests: none new, the lookup needs a live mission manager (a running game); `sco-sigcheck` still resolves every row. For sc-offline: call it instead of the inline reads and drop `BytesMatch` from `missions.cpp`.
 
 - **`spawn.entities` 1.2 moves into the game pack** (`sco_api.h` unchanged; `sc_spawn.h`'s table and version unchanged, `tests/abi_spawn.c` unchanged; [design](docs/design/game-services.md) PR 2, part 2; [game services](docs/game-services.md)). `src/game/services/spawn.cpp` (library `sco_game_services`, Windows) publishes it under the owner `game` next to `teleport.spatial` when the product sets `Platform::gameServices`, and withdraws it at `Stop`. Moved from sc-offline's `spawn` built-in (`src/builtins/spawn_plugin.cpp`: the seven functions, their answers and refusals, who may move what, the once-per-id-and-reason log lines, now `[game] warning: ...`) and the spawner functions it called (`spawner.cpp`; `build.cpp`'s `MoveEntityLocal`, now `reads::SetEntityLocalPose`), same offsets and slots, addresses from the `spawn.*` and `teleport.*` rows already on main (no new rows, no scans). The mover converts through `teleport.spatial`'s zone tree (`services::ZoneOfEntity` / `PoseToZone`). New for products: `sco::game::services::RegisterPlayerVehicle` / `UnregisterPlayerVehicle` (`sco/game/services.h`). The `spawn.ship` command, the menu and the spawner's tick stay in sc-offline. For sc-offline: with `gameServices` on, delete the `spawn` built-in's `provide_service` and call the game pack's `RegisterPlayerVehicle` (the second provider of `spawn.entities` is refused). Tests: `test_app` checks `spawn.entities` is published with `gameServices`, says the spawner isn't available without a game image, and is withdrawn at `Stop` (Windows builds).

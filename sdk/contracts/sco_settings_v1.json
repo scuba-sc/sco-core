@@ -20,7 +20,7 @@
       "callback_context": "unspecified",
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND; stopped: UNAVAILABLE; invalid/released self: BAD_ARG; unknown setting: NOT_FOUND; wrong type: BAD_ARG; allocation exceptions: TOO_MANY. Additional failures/output state unspecified unless described in the buffer contract.",
-      "absent_capability": "Absent table: query_service NOT_FOUND",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND.",
       "cleanup": "No cancellation entrypoint; synchronous reads; unload withdraws settings. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls.",
       "language_mappings": {
         "c": {
@@ -84,10 +84,7 @@
         "tools/test.sh",
         "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
       ],
-      "limitations": [
-        "Recursive reentrancy unspecified.",
-        "Additional failures/output state unspecified unless described in the buffer contract."
-      ]
+      "limitations": []
     },
     {
       "id": "sco-settings-v1-get-int",
@@ -108,7 +105,7 @@
       "callback_context": "unspecified",
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND; stopped: UNAVAILABLE; invalid/released self: BAD_ARG; unknown setting: NOT_FOUND; wrong type: BAD_ARG; allocation exceptions: TOO_MANY. Additional failures/output state unspecified unless described in the buffer contract.",
-      "absent_capability": "Absent table: query_service NOT_FOUND",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND.",
       "cleanup": "No cancellation entrypoint; synchronous reads; unload withdraws settings. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls.",
       "language_mappings": {
         "c": {
@@ -172,10 +169,7 @@
         "tools/test.sh",
         "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
       ],
-      "limitations": [
-        "Recursive reentrancy unspecified.",
-        "Additional failures/output state unspecified unless described in the buffer contract."
-      ]
+      "limitations": []
     },
     {
       "id": "sco-settings-v1-get-float",
@@ -196,7 +190,7 @@
       "callback_context": "unspecified",
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND; stopped: UNAVAILABLE; invalid/released self: BAD_ARG; unknown setting: NOT_FOUND; wrong type: BAD_ARG; allocation exceptions: TOO_MANY. Additional failures/output state unspecified unless described in the buffer contract.",
-      "absent_capability": "Absent table: query_service NOT_FOUND",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND.",
       "cleanup": "No cancellation entrypoint; synchronous reads; unload withdraws settings. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls.",
       "language_mappings": {
         "c": {
@@ -260,10 +254,7 @@
         "tools/test.sh",
         "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
       ],
-      "limitations": [
-        "Recursive reentrancy unspecified.",
-        "Additional failures/output state unspecified unless described in the buffer contract."
-      ]
+      "limitations": []
     },
     {
       "id": "sco-settings-v1-get-string",
@@ -348,9 +339,7 @@
         "tools/test.sh",
         "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
       ],
-      "limitations": [
-        "Recursive reentrancy unspecified."
-      ]
+      "limitations": []
     },
     {
       "id": "sco-settings-v1-last-error",
@@ -440,8 +429,7 @@
         "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
       ],
       "limitations": [
-        "Recursive reentrancy unspecified.",
-        "diagnostic completeness unspecified."
+        "Diagnostic completeness unspecified."
       ]
     }
   ]

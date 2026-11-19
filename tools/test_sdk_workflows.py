@@ -371,13 +371,13 @@ class ArchiveAndMCP(unittest.TestCase):
                 self.assertIn(reference_path, files)
                 skill = files[skill_path]
                 reference = files[reference_path]
-                for required in ('tools/sco-plugin-verify.py', '--json >',
-                                 'archive-structure-and-manifest-verified',
-                                 'does not authenticate',
-                                 'guarantee host/runtime compatibility'):
+                for required in ('tools/sco-plugin-verify.py', '--json >'):
                     self.assertIn(required, skill)
                     self.assertIn(required, reference)
-                self.assertIn('installing or executing archive entries', skill)
+                for required in ('archive-structure-and-manifest-verified',
+                                 'does not authenticate',
+                                 'guarantee host/runtime compatibility'):
+                    self.assertIn(required, reference)
                 self.assertIn('does not install or execute archive entries', reference)
                 self.assertIn('pilot_probe/plugin.ini', reference)
                 self.assertIn('outer `data/plugins/` wrapper is not accepted', reference)
@@ -388,7 +388,8 @@ class ArchiveAndMCP(unittest.TestCase):
                 build_files = {item['path']: item['text'] for item in build_workflow['files']}
                 build_skill = build_files[prefix + 'skills/sco-build-check-package/SKILL.md']
                 build_reference = build_files[prefix + 'skills/sco-build-check-package/references/build.md']
-                for text in (build_skill, build_reference):
+                self.assertIn('--no-load', build_skill)
+                for text in (build_reference,):
                     self.assertIn('--no-load', text)
                     self.assertIn('provider availability', text)
                     self.assertIn('runtime compatibility', text)

@@ -1,40 +1,42 @@
 # The Star Citizen game pack
 
-The game pack is the part of sco-core that knows Star Citizen: the signature rows in `src/game`, the game services published under the owner `game` ([game services](game-services.md)), the CryPak adapter and DataCore. It builds with `SCO_GAME_SC` (on by default; [architecture](architecture.md#kernel-and-game-pack)).
+The game pack is the part of sco-core that knows Star Citizen: the signature rows in `src/game`, the game services published under the owner `game` ([game services](game-services.md)), the CryPak adapter and DataCore. It builds with `SCO_GAME_SC`, which is on by default ([architecture](architecture.md#kernel-and-game-pack)).
 
 ## Versions
 
-The game pack has its own version line ([design decision 2](design/game-services.md)):
+The game pack has its own version line, separate from the kernel's.
 
 | Line | Where | Tags |
 |---|---|---|
-| Kernel, `sco_api` 1.x | `sdk/VERSION`, `SCO_API_MAJOR`/`MINOR` in `sco_api.h` | `sdk-vX.Y.Z` |
+| Kernel, `sco_api` 1.x | `sdk/VERSION`, `SCO_API_MAJOR` and `SCO_API_MINOR` in `sco_api.h` | `sdk-vX.Y.Z` |
 | Game pack | `SCO_GAME_PACK_VERSION` in [`sc_game_pack.h`](../include/sc_game_pack.h) | `game-sc-vX.Y` |
-| Each game service table | its `*_VERSION` macro, passed to `query_service` | none: changes only with the table |
+| Each game service table | its `*_VERSION` macro, passed to `query_service` | none: it changes only with the table |
 
-A game patch that moves rows gets a game-pack patch release; a release that adds or grows a game service raises the minor (0.1.0 carried `teleport.spatial` alone, 0.2.0 carries every service in [game services](game-services.md)). The SDK zip states all three in its `VERSIONS.txt`, generated from `sdk/VERSION`, `sco_api.h` and `include/sc_game_pack.h`; this page's list of builds is the long form.
+A game patch that moves rows gets a game-pack patch release. A release that adds or grows a game service raises the minor version. The SDK zip states all three versions in its `VERSIONS.txt`, generated from `sdk/VERSION`, `sco_api.h` and `include/sc_game_pack.h`.
 
-Game pack 0.8.0, published in SDK 2.4.0 release candidate 1 (`sdk-v2.4.0-rc.1`), adds
-`game.inventory.contents` 1.0. Signature rows and verified-build identity are unchanged;
-the new service has no production native adapter and defaults OFF. This is not an
-in-game verification claim.
-
-The unpublished 2.4.1 development candidate uses game pack 0.8.1. Its five
-updated locators scan on both builds listed below. The hauling target's observed
-collection handling changed; its semantic compatibility and native activation
-remain unverified.
+SDK 2.4.1 ships game pack 0.8.1. Each SDK release and the game pack it carries are listed in [game builds](game/builds.md).
 
 ## Verified game builds
 
-Every row OK in `sco-sigcheck` on the build's `StarCitizen.exe`. The full reports are kept outside the repository (`sc-baseline/<build>/` on the maintainer's machine); nothing extracted from the game is committed.
+The current verified build is **4.10.200.58746** (PE timestamp `0x6af4861d`). All 347 rows are OK in a static `sco-sigcheck` run on that build's `StarCitizen.exe`, and the same 347 rows are OK on 4.10.197.2878. The check shows that each locator matches once and its byte checks pass. It does not show gameplay or semantic equivalence.
 
-| Game pack | Game build | Rows | Report |
-|---|---|---|---|
-| 0.1.0 | 4.10.196.36804 (PE timestamp `0x6ac64e6f`) | 70/70 OK | `sc-baseline/4.10.196.36804/sigcheck-game-pack-0.1.0.txt` |
-| 0.2.0 | 4.10.196.36804 (PE timestamp `0x6ac64e6f`) | 317 distinct rows, all OK, from two reports (316/316 and 311/311; none covers the release commit alone) | `sigcheck-entities-merged.txt`, `sigcheck-mining.txt` |
-| 0.3.0 | 4.10.196.36804 (PE timestamp `0x6ac64e6f`) | 316 rows, all OK (316/316; the redundant `contracts.actor_kill` row was removed with the actor-death change) | the actor-death change's post-removal run, in `sc-baseline/4.10.196.36804/` |
-| 0.6.0 (pin bump, no release re-cut) | 4.10.197.2878 (PE timestamp `0x6accbae3`) — LIVE hotfix over 4.10.196, P4 CL 12913470 | 317/317 OK: every row of the game pack at this branch's base scans the hotfixed client unchanged (no row moves; includes `teleport.relocation` from #163; a 316/316 run on the pre-#163 table was recorded the same day — both all-OK) | native `sco-sigcheck` run on the hotfixed exe, 2026-10-15, report kept outside the repository (`sc-baseline/4.10.197.2878/` on the maintainer's machine) |
-| 0.7.0 (candidate, unpublished) | 4.10.197.2878 (PE timestamp `0x6accbae3`) | 332/332 OK: a static `sco-sigcheck` run of the full table on 2026-10-17, built from source commit `965ae4d` (the release-draft merge of `main` at `c27aa8a`, with the inventory adapter's nine rows), against the 4.10.197.2878 executable on disk (SHA-256 `ddba788f...10c2a`, PE timestamp `0x6accbae3`); all 332 ids distinct and the set equals `sdk/native_index.json`. It covers the signature code of that commit; a later docs-only commit does not change it, and any change to signature code needs a new run. The earlier 323/323 capture (2026-10-16, `main` at `d0252cb`, before the adapter) is historical. The run reads the exe file; the game was not started. | native `sco-sigcheck` run, 2026-10-17, report kept outside the repository |
-| 0.8.1 (SDK 2.4.1) | 4.10.200.58746 (PE timestamp `0x6af4861d`) | 347/347 OK in a local static `sco-sigcheck` run; 4.10.197.2878 also scanned 347/347. This checks locators, not gameplay or semantic equivalence. | Local maintainer report, not a published release artifact |
+The reports stay on the maintainer's machine. Nothing extracted from the game is committed.
 
-**What "verified" means here: rows verified by sigcheck; in-game verification pending.** `sco-sigcheck` runs the signature tables against the exe file, so a green row says the locator matches once and the byte checks pass, not that the service built on it has been seen working. No game service has been run in a game session since it landed; [Status of every game.* table](game/status.md) lists, per table and capability, what is on, what is off and why. The same words are in the SDK zip's `VERSIONS.txt` (`SCO_GAME_PACK_VERIFICATION` in `sc_game_pack.h`).
+Rows OK in `sco-sigcheck` by game pack and build:
+
+| Game pack | Game build | Rows |
+|---|---|---|
+| 0.1.0 | 4.10.196.36804 (`0x6ac64e6f`) | 70/70 |
+| 0.2.0 | 4.10.196.36804 | 317 distinct rows, from two reports (316/316 and 311/311) |
+| 0.3.0 | 4.10.196.36804 | 316/316 |
+| 0.6.0 | 4.10.197.2878 (`0x6accbae3`) | 317/317 |
+| 0.7.0 (not released) | 4.10.197.2878 | 332/332 |
+| 0.8.1 | 4.10.200.58746 (`0x6af4861d`) | 347/347 |
+
+For each build's patch name, changelist and the rows that moved, see [game builds](game/builds.md).
+
+## What "verified" means
+
+"Verified" here means the rows resolve in `sco-sigcheck`. `sco-sigcheck` runs the signature tables against the exe file, so a green row says the locator matches once and the byte checks pass. It does not say that a service built on the row works. Not run in game. See [game capability status](game/status.md) for what is on, what is off and why, per table and capability.
+
+The SDK zip's `VERSIONS.txt` carries the string "rows verified by sigcheck; in-game verification pending" (`SCO_GAME_PACK_VERIFICATION` in `sc_game_pack.h`).

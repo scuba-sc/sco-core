@@ -2,8 +2,11 @@
 <!-- SPDX-FileCopyrightText: 2026 the sco-core contributors -->
 # Natural mining public service
 
-`game.mining` v1 (`sc_mining.h`) belongs to the game pack, not the neutral kernel.
-The table is size-prefixed; adapters require complete callback extents. All public
+`game.mining` lets a plugin ask for natural mining: a per-owner request that the game pack's native detour turns into a changed flag on the biome builder. `state` reports whether the request was accepted.
+
+Header: [`sc_mining.h`](../../include/sc_mining.h). Table version 1.0. Capability `game.mining` (OFF); see [status](status.md). Not run in game.
+
+The service belongs to the game pack, not the neutral kernel. The table is size-prefixed, and adapters require complete callback extents. All public
 calls are game-thread-only and require a live plugin owner. `enabled` is exactly
 0 or 1. At most 64 owners can request mining independently. Unload removes only
 that owner's request through spawn's existing release dispatcher.
@@ -18,9 +21,8 @@ RESTART=3 means a latched read/adapter fault. Counters are atomic observations,
 not a transactional native engine snapshot. Promoted counts forwarded bits, not
 spawned entities. No addresses or game object references cross the public ABI.
 
-Production remains **UNAVAILABLE**: the native adapter has not been verified on
-Windows/in game. No inference from row matches, teleport/spawner readiness or
-launcher flags activates it. G1 `FreshAdmissionAllowed()` is a host-only predicate
+Production remains **UNAVAILABLE**: the native adapter has not been run on Windows. No inference from row matches, teleport/spawner readiness or
+launcher flags activates it. `FreshAdmissionAllowed()` is a host-only predicate
 that re-inspects offline session, anti-cheat absence, positively blocked official
 network and correct target. Unknown/absent inspection and stopping hosts refuse.
 The inspector and backing state must be thread-safe and process-retained, never

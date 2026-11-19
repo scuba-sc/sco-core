@@ -2,7 +2,7 @@
 name: sco-plan-sdk-work
 description: "Plan and carry out SCO SDK development against the project's current roadmap. Use at the start of extension, product-adoption or SDK-platform work to choose a bounded goal, resolve public contracts, define acceptance and route implementation through the matching workflow."
 metadata:
-  version: "0.2.9"
+  version: "0.2.10"
 ---
 
 # Plan and carry out SDK work
@@ -48,6 +48,7 @@ Assign each acceptance check a status and an evidence path. Include archive-only
 | Stage or verify a distribution | [Package](../sco-package-plugin/SKILL.md) |
 | Change SDK/host compatibility | [Upgrade](../sco-upgrade-plugin/SKILL.md) |
 | Request a missing/broken public surface | [Report an SDK gap](../sco-report-sdk-gap/SKILL.md) |
+| Build or adapt a launcher | [Build a launcher](../sco-build-launcher/SKILL.md) |
 
 Use existing SDK generators, contracts, helpers and test tools instead of creating parallel API truth. Reconcile the plan if implementation evidence changes the scope. After the final edit, rerun affected checks on the actual final payload and update the acceptance record.
 

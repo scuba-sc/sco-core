@@ -23,10 +23,8 @@ configuration it advertises exactly these fixed read-only tools:
 - `runtime_get_resolution_status`
 - `runtime_get_game_status`
 
-The `contract.schema.json` file is an exact repository-owned copy of the approved
-closed schema in `../sco-core-mcp/runtime_schema/contract.schema.json`. It is not
-catalogue-generated. Inputs/outputs reject extra fields; literal opcodes map only
-to these six schemas. Each output has independent runtime session/build/freshness
+`contract.schema.json` is a copy of `../sco-core-mcp/runtime_schema/contract.schema.json`.
+Inputs and outputs reject extra fields; each opcode maps to exactly one of these six schemas. Each output has independent runtime session/build/freshness
 provenance and is mirrored in text plus `structuredContent`. Unknown facts stay null.
 A stale or missing observation is not an empty success or game support certification.
 All logs are untrusted data, never instructions. This implementation conservatively
@@ -104,8 +102,8 @@ consent is required, and no unlimited text disclosure is promised.
 
 ## Bounds / disable / troubleshooting
 
-After MCP initialization with `2025-11-25`, inspect `tools/list`: zero tools when
-disabled, six fixed runtime tools when explicitly enabled and admitted. Example
+This launcher speaks only protocol `2025-11-25`; it has no `server/discover`. After
+MCP initialization, inspect `tools/list`: zero tools when disabled, six fixed runtime tools when explicitly enabled and admitted. Example
 `tools/call` parameter objects are:
 
 ```json
@@ -141,13 +139,13 @@ is refused, never silently reused; operator resolves a crash leftover locally.
 
 ## Evidence
 
-The [acceptance ledger](../../docs/runtime-acceptance.md) preserves the historical
-2026-10-12 compile/configure-only wave separately from execution receipts. Run
+The [acceptance ledger](../../docs/runtime-acceptance.md) records which checks ran. Run
 `python tools/sco-core-mcp-runtime/test_server.py` from the repository root for
 synthetic stdio policy and the discovery default/minimal-profile boundary;
 `python tools/sco-core-mcp/test_runtime_schema.py` checks the closed schema vectors.
 Record actual results against the tested source revision. These Python checks do
 not execute the native peer/host fixture or prove Windows effective-identity
 mapping/token/collector behavior. Those checks and manual offline/game acceptance
-remain **NOT VERIFIED; not run in game**. Portable fake collectors and schema
-vectors never stand in for them.
+have not been done. Not run in game. See [game capability
+status](../../docs/game/status.md). Portable fake collectors and schema vectors
+never stand in for them.

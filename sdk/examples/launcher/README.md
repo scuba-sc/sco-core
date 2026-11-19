@@ -7,8 +7,8 @@ plugin from a local zip, the capability switches, and a read-only MCP server for
 
 It does **not** start the game, inject anything, change the PC (firewall, hosts file, registry,
 anti-cheat files), use the network or update itself. Those are product duties, listed in
-`docs/building-a-launcher.md`. **Not run in game**: every
-check here is a source-level or synthetic test, and no capability switch has been run in game.
+`docs/building-a-launcher.md`. Not run in game. Every check here is a source-level or synthetic
+test. See [game capability status](../../../docs/game/status.md).
 
 The contract between a launcher and the host kit is in
 `docs/launcher-contract.md`.
@@ -40,11 +40,8 @@ program.
 
 ## Make it your product
 
-Everything a product chooses is one `ProductConfig` in
-[`crates/scl-contract/src/lib.rs`](crates/scl-contract/src/lib.rs): name, slug, environment
-prefix, settings file name, data folder, default packs, update source, version. Change
-`REFERENCE_PRODUCT` or pass your own to `scl_cli::run`. The capability switch names, the plugin
-folder rules and the settings key format are fixed by the host kit and are not part of it.
+Everything a product chooses is one `ProductConfig`. See
+[building a launcher](../../../docs/building-a-launcher.md#make-it-yours).
 
 ## Crates
 

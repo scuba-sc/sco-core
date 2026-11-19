@@ -1,4 +1,4 @@
-# G5: filtered aim rays and reversible free-camera lease
+# Filtered aim rays and reversible free-camera lease
 
 ## Contract and boundary
 
@@ -85,5 +85,5 @@ Windows loader/SEH behavior. `tests/abi_world_control.c` independently pins layo
 These are policy/adapter fixtures, not a Windows engine/game or native fault
 containment certification.
 
-Decision pending owner: none required to ship the disabled contract. Engine
+Open decision: none is needed to ship the disabled contract. Engine
 adapter activation and Windows/game acceptance remain deliberately blocked.

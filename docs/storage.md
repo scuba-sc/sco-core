@@ -4,40 +4,17 @@ Read-only owner/table/row/quota observations are provided by the separate
 [`sco.storage.metadata` 2.0 service](storage-metadata.md). The original 1.x
 service below remains unchanged.
 
-Per-plugin persistent storage: a key-value store and SQL, over SQLite, in place of the loose text files plugins and features keep under `data/` today. Each plugin gets its own database file, which no other plugin can open; a crash at any moment leaves the last committed state.
+Per-plugin persistent storage: a key-value store and SQL, over SQLite, instead of loose files under `data/`. Each plugin gets its own database file, which no other plugin can open; a crash at any moment leaves the last committed state.
 
 It is a **host-owned service** (the reserved id `sco`, [API v1 § Host-owned services](api-v1.md#host-owned-services)) named `sco.storage`, version 1.1, found with the ordinary `query_service` of sco_api 1.1. The 128-byte 1.0 prefix is unchanged; the 144-byte table adds schema introspection at its tail. `sco_api.h` is unchanged; the table is declared in [`include/sco_storage.h`](../include/sco_storage.h) (plain C) and pinned by [`tests/abi_storage.c`](../tests/abi_storage.c).
 
-`next_table` enumerates this plugin's user tables and views in byte order, excluding
-`sco_kv` and SQLite bookkeeping objects. `next_column` copies column names, declared
-types and NOTNULL/primary-key flags in declaration order. Both use caller-owned
-buffers and size handshakes; neither exposes database paths, row values or another
-plugin's schema. Check the table extent and function pointer before calling either
-tail method. C# exposes `Storage.NextTable`/`NextColumn`; Lua exposes
-`sco.store.tables`/`columns`. C++ callers can use the public C table directly; typed
-C++ schema wrappers are not supplied.
-
-The `next_table` continuation (`after`, when non-null) and `next_column` table
-name must be NUL-terminated strings of at most 16,777,216 bytes, excluding the
-NUL. An empty string is a valid SQLite name: a null continuation starts before
-all names, while an empty continuation starts after the empty name. Longer inputs
-return `SCO_BAD_ARG`; this is separate from the 255-byte key-value key limit.
-Inputs within this bound remain subject to SQLite's
-execution and resource limits, including for its schema-introspection pragma.
-The output handshake does not truncate or skip names at that input limit. An
-existing identifier longer than the limit can be
-returned, but cannot be supplied as a continuation or table name; such a schema
-is not fully enumerable through these calls. If SQLite cannot bind a validated
-name, the call reports that failure instead of continuing with an unbound value.
-Column enumeration also reports a SQLite execution failure rather than treating
-it as the end of the column list. On `SCO_NOT_FOUND`, `next_column` leaves the
-index, both output buffers and their size values, and the flags unchanged.
+`next_table` and `next_column` list this plugin's own tables and columns. C# has `Storage.NextTable` / `NextColumn`, Lua has `sco.store.tables` / `columns`, and C++ uses the C table directly (no typed C++ wrapper).
 
 ## Contents
 
 - [Using it from C](#using-it-from-c)
 - [Using it from C++](#using-it-from-c-1)
-- [The table](#the-table)
+- [The table](#the-table), including [schema introspection](#schema-introspection)
 - [Threads](#threads)
 - [Transactions and crash safety](#transactions-and-crash-safety)
 - [SQL: what a plugin may run](#sql-what-a-plugin-may-run)
@@ -49,8 +26,7 @@ index, both output buffers and their size values, and the flags unchanged.
 The [Lua notebook](../sdk/examples/notebook/main.lua) demonstrates key-value
 operations and transactions. It does not demonstrate SQL cursors; for the Lua SQL
 route see the [Lua storage guide](../sdk/docs/lua.md#scostore) and for C/C++ SQL
-see the examples below. A missing catalogue example does not mean a method or
-language route is unsupported.
+see the examples below.
 
 ## Using it from C
 
@@ -148,6 +124,32 @@ The rules from `sco_api.h` hold, plus:
 - **Keys** are 1-255 bytes and sort by their bytes; **values** are 0 bytes to 1 MiB. Parameters (`sco_sql_value`) are copied during the call.
 - **The key-value store is a table** in the plugin's database, `sco_kv(key TEXT PRIMARY KEY, value BLOB)`. SQL may read and change its rows; its schema is the host's.
 
+### Schema introspection
+
+`next_table` enumerates this plugin's user tables and views in byte order, excluding `sco_kv` and SQLite bookkeeping objects. `next_column` copies column names, declared
+types and NOTNULL/primary-key flags in declaration order. Both use caller-owned
+buffers and size handshakes; neither exposes database paths, row values or another
+plugin's schema. Check the table extent and function pointer before calling either
+tail method. C# exposes `Storage.NextTable`/`NextColumn`; Lua exposes
+`sco.store.tables`/`columns`. C++ callers can use the public C table directly; typed
+C++ schema wrappers are not supplied.
+
+The `next_table` continuation (`after`, when non-null) and `next_column` table
+name must be NUL-terminated strings of at most 16,777,216 bytes, excluding the
+NUL. An empty string is a valid SQLite name: a null continuation starts before
+all names, while an empty continuation starts after the empty name. Longer inputs
+return `SCO_BAD_ARG`; this is separate from the 255-byte key-value key limit.
+Inputs within this bound remain subject to SQLite's
+execution and resource limits, including for its schema-introspection pragma.
+The output handshake does not truncate or skip names at that input limit. An
+existing identifier longer than the limit can be
+returned, but cannot be supplied as a continuation or table name; such a schema
+is not fully enumerable through these calls. If SQLite cannot bind a validated
+name, the call reports that failure instead of continuing with an unbound value.
+Column enumeration also reports a SQLite execution failure rather than treating
+it as the end of the column list. On `SCO_NOT_FOUND`, `next_column` leaves the
+index, both output buffers and their size values, and the flags unchanged.
+
 ## Threads
 
 Any thread. Calls are synchronous and serialised per plugin database: a call acquires an untimed mutex and may wait for another thread of the same plugin. The statement-execution budget (1 s by default, `Options::budgetMs`) starts only after that lock is acquired and the database is opened; SQLite's progress handler interrupts an over-budget statement with `SCO_FAILED`. It does not bound mutex wait, database opening or total call latency, so it is not a guarantee that the game thread returns within one second.
@@ -193,11 +195,13 @@ The connection is also built defensively: `SQLITE_DBCONFIG_DEFENSIVE` on, untrus
 
 ## Unload, crash and shutdown
 
-Ordinary unload, ordinary failed-load cleanup and non-retained `crashed` cleanup run the resource-release hook (through `sco::Release(self)` or the fault-resource path). It rolls back the plugin's open transaction and closes its cursors and database. Restart-required exposed-provider faults deliberately skip that hook: host scheduling/lookup is withdrawn, but storage resources and any open transaction remain retained until terminal storage shutdown. A failed load is a separate exception: if a nested consumer already obtained the provider's table, the loader records `refused` with `backing state retained` and returns without `Release(self)`, resource hooks, export clearing or module closure. Neither case promises immediate rollback or closure. After ordinary owner release, calls naming that `self` return `SCO_BAD_ARG` from any thread. A successful reload uses a new handle, opens the same file and sees committed data; old cursor ids are not valid for it.
+- Ordinary unload, failed-load cleanup and non-retained `crashed` cleanup roll back the plugin's open transaction and close its cursors and database.
+- A provider that faulted after handing out a service table is `faulted` and needs a game restart. Its transaction and database stay open until `sco::app::Stop`. A load that fails after another plugin got the table is `refused` with backing state retained, the same way.
+- After the owner is released, calls with that `self` return `SCO_BAD_ARG` from any thread. A reload uses a new handle, opens the same file and sees committed data. Old cursor ids are invalid.
 
 The host reads and writes plugin memory (keys, values, SQL, buffers) only while it holds no lock, so a bad pointer from a plugin faults in plugin-facing code with nothing held, and the crash guard can quarantine the owner without those locks held; whether resource hooks run still depends on the retention rules above.
 
-After a successful app startup, a successful `sco::app::Stop` closes runtime admission and unloads still-loaded plugins (retained faulted instances are not entered), then stops storage: `sco.storage` is withdrawn, any transaction still open is rolled back and every database is closed, including databases retained by the fault/failed-load exceptions above. A stop is refused while a managed service pin is live, and once it proceeds it closes managed acquisition, publication and loader entry until the next app start. A runtime started by the game host's process-retained composition ([game host](game/host.md)) stops by closure only: admission closes, but storage and plugins stay in place until process exit. A failed or refused stop does not establish that cleanup occurred: dependent backing can remain retained, and the caller must follow the stop result's retention rules. A startup that returned `RetainDependencies` remains process-retained even if a later stop returns success. The current owned-shutdown path closes admission and returns failure while retaining the app and storage; it does not promise rollback or closure. Calls through a held storage table after admission closes answer `SCO_UNAVAILABLE`; this does not authorise calls through a retained peer-provider table.
+`sco::app::Stop` withdraws `sco.storage`, rolls back open transactions and closes every database, retained ones included. It is refused while a managed service pin is live. A runtime started by the game host's process-retained composition ([game host](game/host.md)) closes admission but leaves storage and plugins in place until the process exits. A failed or refused stop does not show that cleanup happened: follow the stop result's retention rules. A startup that returned `RetainDependencies` stays process-retained even if a later stop returns success. Calls through a held table after admission closes answer `SCO_UNAVAILABLE`; that does not allow calls through a retained peer-provider table.
 
 ## Hosting it
 

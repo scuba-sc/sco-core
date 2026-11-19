@@ -20,7 +20,7 @@
       "callback_context": "No callbacks; bounded tick-driven work.",
       "reentrancy": "Non-reentrant.",
       "results": "SCO_OK success; SCO_BAD_ARG invalid input/self; SCO_UNAVAILABLE missing safety/player/transport or unknown/different systems; SCO_TOO_MANY pending global request or ticket exhaustion; SCO_NOT_FOUND foreign/unknown/evicted ticket. Outputs unchanged on failure.",
-      "absent_capability": "Missing service: query_service NOT_FOUND. Production table is present but game.relocation capability false; valid request returns SCO_UNAVAILABLE.",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND. Production table is present but game.relocation capability false; valid request returns SCO_UNAVAILABLE.",
       "cleanup": "Owner unload cancels/forgets tickets; stop forgets all; ticket sequence never recycled. Session/player/system change, safety/transport loss or fault fails pending. Stream loss waits up to timeout. Completion requires the move applied and a fresh pose within 0.5m of the target on a later tick; orientation is reported in the log but not required (the game normalises it). Cancellation is not undo.",
       "language_mappings": {
         "c": {
@@ -76,7 +76,7 @@
       ],
       "limitations": [
         "FullPose readiness depends on grounded host admission, known equal systems and verified transport; position-only readiness requires its separate backend.",
-        "Portable and actual Windows/MSVC synthetic provider/ABI fixtures; native engine behavior and gameplay not verified."
+        "Portable and Windows/MSVC synthetic provider and ABI fixtures only. Not run in game."
       ]
     },
     {
@@ -98,7 +98,7 @@
       "callback_context": "No callbacks; bounded tick-driven work.",
       "reentrancy": "Non-reentrant.",
       "results": "SCO_OK success; SCO_BAD_ARG invalid input/self; SCO_UNAVAILABLE missing safety/player/transport or unknown/different systems; SCO_TOO_MANY pending global request or ticket exhaustion; SCO_NOT_FOUND foreign/unknown/evicted ticket. Outputs unchanged on failure.",
-      "absent_capability": "Missing service: query_service NOT_FOUND. Production table is present but game.relocation capability false; valid request returns SCO_UNAVAILABLE.",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND. Production table is present but game.relocation capability false; valid request returns SCO_UNAVAILABLE.",
       "cleanup": "Owner unload cancels/forgets tickets; stop forgets all; ticket sequence never recycled. Session/player/system change, safety/transport loss or fault fails pending. Stream loss waits up to timeout. Completion requires the move applied and a fresh pose within 0.5m of the target on a later tick; orientation is reported in the log but not required (the game normalises it). Cancellation is not undo.",
       "language_mappings": {
         "c": {
@@ -154,7 +154,7 @@
       ],
       "limitations": [
         "FullPose readiness depends on grounded host admission, known equal systems and verified transport; position-only readiness requires its separate backend.",
-        "Portable and actual Windows/MSVC synthetic provider/ABI fixtures; native engine behavior and gameplay not verified."
+        "Portable and Windows/MSVC synthetic provider and ABI fixtures only. Not run in game."
       ]
     },
     {
@@ -176,7 +176,7 @@
       "callback_context": "No callbacks; bounded tick-driven work.",
       "reentrancy": "Non-reentrant.",
       "results": "SCO_OK success; SCO_BAD_ARG invalid input/self; SCO_UNAVAILABLE missing safety/player/transport or unknown/different systems; SCO_TOO_MANY pending global request or ticket exhaustion; SCO_NOT_FOUND foreign/unknown/evicted ticket. Outputs unchanged on failure.",
-      "absent_capability": "Missing service: query_service NOT_FOUND. Production table is present but game.relocation capability false; valid request returns SCO_UNAVAILABLE.",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND. Production table is present but game.relocation capability false; valid request returns SCO_UNAVAILABLE.",
       "cleanup": "Owner unload cancels/forgets tickets; stop forgets all; ticket sequence never recycled. Session/player/system change, safety/transport loss or fault fails pending. Stream loss waits up to timeout. Completion requires the move applied and a fresh pose within 0.5m of the target on a later tick; orientation is reported in the log but not required (the game normalises it). Cancellation is not undo.",
       "language_mappings": {
         "c": {
@@ -232,7 +232,7 @@
       ],
       "limitations": [
         "FullPose readiness depends on grounded host admission, known equal systems and verified transport; position-only readiness requires its separate backend.",
-        "Portable and actual Windows/MSVC synthetic provider/ABI fixtures; native engine behavior and gameplay not verified."
+        "Portable and Windows/MSVC synthetic provider and ABI fixtures only. Not run in game."
       ]
     },
     {
@@ -254,7 +254,7 @@
       "callback_context": "No callbacks; bounded tick-driven work.",
       "reentrancy": "Non-reentrant.",
       "results": "SCO_OK success; SCO_BAD_ARG invalid input/self; SCO_UNAVAILABLE missing safety/player/transport or unknown/different systems; SCO_TOO_MANY pending global request or ticket exhaustion; SCO_NOT_FOUND foreign/unknown/evicted ticket. Outputs unchanged on failure.",
-      "absent_capability": "Missing service: query_service NOT_FOUND. Production table is present but game.relocation capability false; valid request returns SCO_UNAVAILABLE.",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND. Production table is present but game.relocation capability false; valid request returns SCO_UNAVAILABLE.",
       "cleanup": "Owner unload cancels/forgets tickets; stop forgets all; ticket sequence never recycled. Session/player/system change, safety/transport loss or fault fails pending. Stream loss waits up to timeout. Completion requires the move applied and a fresh pose within 0.5m of the target on a later tick; orientation is reported in the log but not required (the game normalises it). Cancellation is not undo.",
       "language_mappings": {
         "c": {
@@ -311,7 +311,7 @@
       ],
       "limitations": [
         "FullPose readiness depends on grounded host admission, known equal systems and verified transport; position-only readiness requires its separate backend.",
-        "Portable and actual Windows/MSVC synthetic provider/ABI fixtures; native engine behavior and gameplay not verified."
+        "Portable and Windows/MSVC synthetic provider and ABI fixtures only. Not run in game."
       ]
     },
     {
@@ -333,7 +333,7 @@
       "callback_context": "No callbacks; bounded tick-driven work.",
       "reentrancy": "Non-reentrant.",
       "results": "SCO_OK success; SCO_BAD_ARG invalid input/self; SCO_UNAVAILABLE missing safety/player/transport or unknown/different systems; SCO_TOO_MANY pending global request or ticket exhaustion; SCO_NOT_FOUND foreign/unknown/evicted ticket. Outputs unchanged on failure.",
-      "absent_capability": "Missing service: query_service NOT_FOUND. Production table is present but game.relocation capability false; valid request returns SCO_UNAVAILABLE.",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND. Production table is present but game.relocation capability false; valid request returns SCO_UNAVAILABLE.",
       "cleanup": "Shared owner-scoped FullPose/position ticket pool. Completion follows the creating request method; cancel is not rollback. Owner release/stop forget tickets; status does not advance work.",
       "language_mappings": {
         "c": {
@@ -390,7 +390,7 @@
       ],
       "limitations": [
         "FullPose readiness depends on grounded host admission, known equal systems and verified transport; position-only readiness requires its separate backend.",
-        "Portable and actual Windows/MSVC synthetic provider/ABI fixtures; native engine behavior and gameplay not verified."
+        "Portable and Windows/MSVC synthetic provider and ABI fixtures only. Not run in game."
       ]
     },
     {
@@ -412,7 +412,7 @@
       "callback_context": "No callbacks; bounded tick-driven work.",
       "reentrancy": "Non-reentrant.",
       "results": "SCO_OK success; SCO_BAD_ARG invalid input/self; SCO_UNAVAILABLE missing safety/player/transport or unknown/different systems; SCO_TOO_MANY pending global request or ticket exhaustion; SCO_NOT_FOUND foreign/unknown/evicted ticket. Outputs unchanged on failure.",
-      "absent_capability": "Missing service: query_service NOT_FOUND. Production table is present but game.relocation capability false; valid request returns SCO_UNAVAILABLE.",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND. Production table is present but game.relocation capability false; valid request returns SCO_UNAVAILABLE.",
       "cleanup": "Shared owner-scoped FullPose/position ticket pool. Completion follows the creating request method; cancel is not rollback. Owner release/stop forget tickets; status does not advance work.",
       "language_mappings": {
         "c": {
@@ -469,7 +469,7 @@
       ],
       "limitations": [
         "FullPose readiness depends on grounded host admission, known equal systems and verified transport; position-only readiness requires its separate backend.",
-        "Portable and actual Windows/MSVC synthetic provider/ABI fixtures; native engine behavior and gameplay not verified."
+        "Portable and Windows/MSVC synthetic provider and ABI fixtures only. Not run in game."
       ]
     },
     {
@@ -548,8 +548,8 @@
         "tests/game_contracts/relocation/test_position_provider.cpp"
       ],
       "limitations": [
-        "No grounded native position transport, target-instance producer or readback adapter is installed. Synthetic source/provider evidence only; not run in game.",
-        "Native C and raw C++ only; C#/Lua mutation bindings are unsupported. Published RC1 does not contain this extension."
+        "No grounded native position transport, target-instance producer or readback adapter is installed. Synthetic source and provider tests only. Not run in game.",
+        "Native C and raw C++ only; C# and Lua mutation bindings are unsupported. Needs SDK 2.4.0 or later."
       ]
     }
   ]

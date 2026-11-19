@@ -1,17 +1,18 @@
 # Optional local audio triggers
 
-`game.audio`1.0 is a game-pack service in `sc_audio.h`, with a native C++ wrapper
-in `scosdk/game/audio.hpp`. It is not part of the neutral kernel. C# and Lua are
-unsupported. No native engine backend is installed; production capability
-`game.audio.triggers` is OFF. Not run in game.
+`game.audio` lets a plugin start local game audio by name. `resolve` turns a trigger name into an owner-bound token, `play` starts an isolated effect and returns a playback token, and `stop` ends one playback. Version 1.1 adds a fire-and-forget `play_once`.
+
+Header: [`sc_audio.h`](../../include/sc_audio.h). Table version 1.1. Capabilities `game.audio.triggers` and `game.audio.play_once`, both **OFF**; see [status](status.md). Not run in game.
+
+The service is a game-pack service, not part of the neutral kernel. The C++ wrapper is `scosdk/game/audio.hpp`. C# and Lua are unsupported. By default no native engine backend is installed.
 
 ## Ownership and lifetime
 
-Resolve an exact printable ASCII name of1..127bytes with your live plugin handle.
+Resolve an exact printable ASCII name of 1..127 bytes with your live plugin handle.
 The host issues an owner-bound trigger token; repeated resolution by that owner
 reuses it. Unknown names return NOT_FOUND with zero output and start no effect.
 Names are case-sensitive contract inputs; no native hash behavior is certified.
-There are at most64 trigger tokens and64 simultaneous playback tokens globally.
+There are at most 64 trigger tokens and 64 simultaneous playback tokens globally.
 
 Play takes your trigger token and returns a distinct playback token after the
 host backend accepts an isolated effect. This is acceptance, not evidence of
@@ -52,14 +53,13 @@ is retained and latches the service rather than losing cleanup tracking.
 
 ## Evidence
 
-`tests/test_audio.cpp` uses real host plugin handles, service publication/query,
+`tests/test_audio.cpp` uses real host plugin handles, service publication and query,
 the native C++ wrapper and runtime Release. It checks owner isolation, wrong-kind
 and stale tokens, exact names, wrong thread, playback quota, owner release during
-play, stop failure/retry, service restart and physical partial-pointer tables.
-The four-participant game cleanup dispatcher is exercised with distinct callback
-effects, including rejection of a fifth participant. `tests/abi_audio.c` pins
-the C11/C++ table and signatures. These are synthetic host tests, not native audio,
-Windows fault-containment, audible output or game verification.
+play, stop failure and retry, service restart and physically truncated tables.
+`tests/abi_audio.c` pins the C11/C++ table and signatures. These are synthetic host
+tests, not native audio, Windows fault-containment or audible-output checks.
+
 ## v1.1: play_once
 
 `game.audio` 1.1 appends one member, `play_once(self, trigger)`, after `stop`.
@@ -93,5 +93,4 @@ exports, logs the refusal, and the host still publishes the 1.1 table with both
 capabilities OFF. Nothing is posted. A moved or renamed export fails the install
 instead of guessing. `tests/test_audio_engine.cpp` drives the adapter over a fake
 export table: the pinned names, the refusal, the accepted/rejected/faulted
-submission mapping and the fault latch. Synthetic only; no native audio, no
-audible output, not run in game.
+submission mapping and the fault latch. No audio is played. Not run in game.

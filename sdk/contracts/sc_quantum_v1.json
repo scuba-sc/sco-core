@@ -28,7 +28,7 @@
         "tests/test_quantum.cpp"
       ],
       "limitations": [
-        "Engine bridge unavailable; not run in game.",
+        "Engine bridge unavailable. Not run in game.",
         "Lease expiry requires a game tick.",
         "Windows/MSVC and native detour forwarding not verified.",
         "No C# or Lua route."
@@ -107,7 +107,7 @@
         "tests/test_quantum.cpp"
       ],
       "limitations": [
-        "Engine bridge unavailable; not run in game.",
+        "Engine bridge unavailable. Not run in game.",
         "Lease expiry requires a game tick.",
         "Windows/MSVC and native detour forwarding not verified.",
         "No C# or Lua route."
@@ -186,7 +186,7 @@
         "tests/test_quantum.cpp"
       ],
       "limitations": [
-        "Engine bridge unavailable; not run in game.",
+        "Engine bridge unavailable. Not run in game.",
         "Lease expiry requires a game tick.",
         "Windows/MSVC and native detour forwarding not verified.",
         "No C# or Lua route."
@@ -265,7 +265,7 @@
         "tests/test_quantum.cpp"
       ],
       "limitations": [
-        "Engine bridge unavailable; not run in game.",
+        "Engine bridge unavailable. Not run in game.",
         "Lease expiry requires a game tick.",
         "Windows/MSVC and native detour forwarding not verified.",
         "No C# or Lua route."

@@ -20,7 +20,7 @@
       "callback_context": "unspecified",
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND; missing operation capability: UNAVAILABLE; BAD_ARG for invalid required outputs. Additional failures/output state unspecified unless described in the buffer contract.",
-      "absent_capability": "Absent table: query_service NOT_FOUND",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND.",
       "cleanup": "No cancellation entrypoint; synchronous query.",
       "language_mappings": {
         "c": {
@@ -86,12 +86,7 @@
         "tools/test.sh",
         "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
       ],
-      "limitations": [
-        "Internal allocation unspecified.",
-        "Recursive reentrancy unspecified.",
-        "Additional failures/output state unspecified unless described in the buffer contract.",
-        "Game-service behavior not verified in a game session."
-      ]
+      "limitations": []
     },
     {
       "id": "sc-world-v1-camera",
@@ -112,7 +107,7 @@
       "callback_context": "unspecified",
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND; missing operation capability: UNAVAILABLE; BAD_ARG for invalid required outputs. Additional failures/output state unspecified unless described in the buffer contract.",
-      "absent_capability": "Absent table: query_service NOT_FOUND",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND.",
       "cleanup": "No cancellation entrypoint; synchronous query.",
       "language_mappings": {
         "c": {
@@ -178,12 +173,7 @@
         "tools/test.sh",
         "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
       ],
-      "limitations": [
-        "Internal allocation unspecified.",
-        "Recursive reentrancy unspecified.",
-        "Additional failures/output state unspecified unless described in the buffer contract.",
-        "Game-service behavior not verified in a game session."
-      ]
+      "limitations": []
     },
     {
       "id": "sc-world-v1-last-error",
@@ -271,10 +261,7 @@
         "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
       ],
       "limitations": [
-        "Internal allocation unspecified.",
-        "recursive reentrancy unspecified.",
-        "stopped-service refusal unspecified (no started check).",
-        "Game-service behavior not verified in a game session."
+        "Stopped-service refusal unspecified (no started check)."
       ]
     },
     {
@@ -296,7 +283,7 @@
       "callback_context": "unspecified",
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND; a 1.0 table: query_service UNAVAILABLE for SC_WORLD_VERSION_1_1 (or check size); game.world.free_camera_flag OFF (the default): UNAVAILABLE without a game read; NULL out_set: BAD_ARG. Other failures as in the buffer contract.",
-      "absent_capability": "Absent table: query_service NOT_FOUND; game.world.free_camera_flag OFF: UNAVAILABLE",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND. While game.world.free_camera_flag is off: SCO_UNAVAILABLE.",
       "cleanup": "No cancellation entrypoint; synchronous read-only query, nothing to undo at unload.",
       "language_mappings": {
         "c": {
@@ -363,10 +350,7 @@
         "tests/test_lua.cpp"
       ],
       "limitations": [
-        "Internal allocation unspecified.",
-        "Recursive reentrancy unspecified.",
-        "Capability OFF by default pending an in-game run.",
-        "Game-service behavior not verified in a game session."
+        "Capability is off until it has been run in game."
       ]
     }
   ]

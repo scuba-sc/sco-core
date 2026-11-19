@@ -289,10 +289,9 @@ class DocumentedBlockTests(unittest.TestCase):
         self.assertEqual([entry for _, _, entry in launchers(read(KIT_PAGE))], [self.generic_entry()])
         self.assertEqual([name for _, name, _ in launchers(read(KIT_PAGE))], [SERVER_NAME])
 
-    def test_readme_repository_setting_is_the_guides_checkout_block(self):
-        checkout = [b for b in self.blocks if validate(*b)[0] == 'checkout']
-        self.assertEqual(launchers(read(README)), checkout,
-                         'the README repeats no client block except the repository setting')
+    def test_readme_repeats_no_client_block(self):
+        self.assertEqual(launchers(read(README)), [],
+                         'the README links to the guide instead of repeating a client block')
 
     def test_retired_contradictions_stay_out_of_the_setup_docs(self):
         for relative in SETUP_DOCS:

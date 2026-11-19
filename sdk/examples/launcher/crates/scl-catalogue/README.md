@@ -1,7 +1,7 @@
 # scl-catalogue
 
-The plugin catalogue client of the SDK reference launcher (No network code, no UI, no file writes, and it never loads plugin code.
-Not run in game; the tests are synthetic.
+The plugin catalogue client of the SDK reference launcher. It has no network code, no UI and no file writes, and it never loads plugin code.
+Not run in game. The tests are synthetic.
 
 ## Pipeline
 

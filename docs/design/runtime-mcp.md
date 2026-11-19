@@ -1,11 +1,11 @@
 # Design: opt-in local runtime MCP inspection
 
-Status: **steps 3–5 host policy/collector, separate launcher and no-game fixture implemented locally;
-touched targets configure/compile, tests NOT RUN by owner speed order**.
+Status: the host policy and collector, the separate launcher and the no-game fixture are implemented
+locally. The touched targets configure and compile. Their tests have not been run.
 See the [acceptance ledger](../runtime-acceptance.md) for separate portable/Windows/manual evidence.
-Current task explicitly selects separate `tools/sco-core-mcp-runtime` (placement B),
+This design selects the separate `tools/sco-core-mcp-runtime` (placement B),
 superseding the historical placement A sections below. Discovery stays unchanged.
-Windows effective-identity ACL proof and manual offline acceptance are **NOT VERIFIED**.
+Windows effective-identity ACL proof and manual offline acceptance have not been done.
 Step 3 adds default-off `Platform::runtimeInspection`, atomic product offline
 admission/revocation and a bounded protected OS collector; see [runtime-audit.md](../runtime-audit.md).
 

@@ -1,9 +1,10 @@
 # Private-session broker (`game.private_session` 1.0)
 
-G13 is approved **ON by default for R1**. This authorizes a host-owned broker, not
-startup networking or plugin sockets. `sco_api` and `sco_net_v1` are unchanged.
-External multiplayer plugins query [`sc_private_session.h`](../../include/sc_private_session.h)
-using `SC_PRIVATE_SESSION_NAME` and `SC_PRIVATE_SESSION_VERSION`.
+`game.private_session` lets an external multiplayer plugin ask the host to host or join a private session, or to leave one. The host owns the sockets and the plugin never gets one. The broker is a host-owned consent broker, not startup networking or plugin sockets. `sco_api` and `sco_net_v1` are unchanged.
+
+Header: [`sc_private_session.h`](../../include/sc_private_session.h). Table version 1.0. Capability `game.private_session`, **ON** by default (owner-approved); see [status](status.md). Not run in game.
+
+Plugins query it with `SC_PRIVATE_SESSION_NAME` and `SC_PRIVATE_SESSION_VERSION`.
 
 ## Public request contract
 
@@ -69,7 +70,7 @@ admission before cadence and stop the whole host on loss. Public requests and
 state reads also recheck admission. App stop closes/withdraws this consent broker
 before exit/unload callbacks and before net teardown; cached process-lifetime C
 tables then refuse operations. Ordinary owner release is dispatched through the
-existing net release hook, not a ninth runtime hook slot. A retained-provider
+existing net release hook. A retained-provider
 quarantine can skip ordinary release, but host/admission stop still closes net.
 Do not mix direct backend Host/Join calls with the broker.
 
@@ -101,16 +102,15 @@ independently verify official-network blocking and restoration.
 IPv4 datagrams and failing socket traps. With `SCO_GAME_SC=ON` it also exercises
 the published C service, partial extents, consent/bounds/thread refusal, collision
 readiness, owner release, admission loss and request-rate rejection. C ABI pins
-are compiled alongside it. Only this named test is needed for local G13 proof:
+are compiled alongside it. To check it locally:
 
 ```sh
-cmake -S . -B build-g13 -G Ninja -DSCO_GAME_SC=ON -DSCO_BUILD_TESTS=ON
-cmake --build build-g13 --target test_net_control sco_app sco_game_host
-ctest --test-dir build-g13 -R '^test_net_control$' --output-on-failure
+cmake -S . -B build -G Ninja -DSCO_GAME_SC=ON -DSCO_BUILD_TESTS=ON
+cmake --build build --target test_net_control sco_app sco_game_host
+ctest --test-dir build -R '^test_net_control$' --output-on-failure
 ```
 
 The public header ships in `game-sc`; provider source, host options and ABI
 fixture ship in `host-source-sc`. Neutral broker/socket machinery remains in
-`core-source`. No new MIT grant, plugin networking API or G2 mutation is added.
-**Windows/MSVC, private-LAN operation, EAC/OS inspection, official-network packet
-policy, rendering and gameplay are NOT VERIFIED.**
+`core-source`. No check covers Windows/MSVC, private-LAN operation, EAC or OS
+inspection, or official-network packet policy.

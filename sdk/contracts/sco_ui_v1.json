@@ -20,7 +20,7 @@
       "callback_context": "draw callbacks game thread.",
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND; stopped self-taking methods: UNAVAILABLE; invalid/released self: BAD_ARG; allocation exceptions: TOO_MANY. Additional failures/output state unspecified unless described in the buffer contract.",
-      "absent_capability": "Absent table: query_service NOT_FOUND",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND.",
       "cleanup": "unregister_tab/ordinary unload/non-retained crash cleanup ends draws; off-thread unregister does not join an already-running draw. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls. Guarded draws stop, but snapshots and chord reservations remain.",
       "language_mappings": {
         "c": {
@@ -83,10 +83,7 @@
         "tools/test.sh",
         "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
       ],
-      "limitations": [
-        "Other recursive reentrancy unspecified.",
-        "Additional failures/output state unspecified unless described in the buffer contract."
-      ]
+      "limitations": []
     },
     {
       "id": "sco-ui-v1-unregister-tab",
@@ -107,7 +104,7 @@
       "callback_context": "unspecified",
       "reentrancy": "allowed inside own draw.",
       "results": "Absent table: query_service NOT_FOUND; stopped self-taking methods: UNAVAILABLE; invalid/released self: BAD_ARG; allocation exceptions: TOO_MANY. Additional failures/output state unspecified unless described in the buffer contract.",
-      "absent_capability": "Absent table: query_service NOT_FOUND",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND.",
       "cleanup": "No in-flight cancellation API; unregister/unbind removes registration; ordinary unload/non-retained crash cleanup withdraws all UI. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls. Guarded draws stop, but snapshots and chord reservations remain.",
       "language_mappings": {
         "c": {
@@ -171,8 +168,7 @@
         "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
       ],
       "limitations": [
-        "Other reentrancy unspecified.",
-        "Additional failures/output state unspecified unless described in the buffer contract."
+        "Other reentrancy unspecified."
       ]
     },
     {
@@ -194,7 +190,7 @@
       "callback_context": "draw callbacks game thread.",
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND; stopped self-taking methods: UNAVAILABLE; invalid/released self: BAD_ARG; allocation exceptions: TOO_MANY. Additional failures/output state unspecified unless described in the buffer contract.",
-      "absent_capability": "Absent table: query_service NOT_FOUND",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND.",
       "cleanup": "No in-flight cancellation API; unregister/unbind removes registration; ordinary unload/non-retained crash cleanup withdraws all UI. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls. Guarded draws stop, but snapshots and chord reservations remain.",
       "language_mappings": {
         "c": {
@@ -257,10 +253,7 @@
         "tools/test.sh",
         "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
       ],
-      "limitations": [
-        "Other recursive reentrancy unspecified.",
-        "Additional failures/output state unspecified unless described in the buffer contract."
-      ]
+      "limitations": []
     },
     {
       "id": "sco-ui-v1-register-overlay",
@@ -281,7 +274,7 @@
       "callback_context": "draw callbacks game thread.",
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND; stopped self-taking methods: UNAVAILABLE; invalid/released self: BAD_ARG; allocation exceptions: TOO_MANY. Additional failures/output state unspecified unless described in the buffer contract.",
-      "absent_capability": "Absent table: query_service NOT_FOUND",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND.",
       "cleanup": "unregister_overlay/ordinary unload/non-retained crash cleanup ends draws; off-thread unregister does not join an already-running draw. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls. Guarded draws stop, but snapshots and chord reservations remain.",
       "language_mappings": {
         "c": {
@@ -344,10 +337,7 @@
         "tools/test.sh",
         "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
       ],
-      "limitations": [
-        "Other recursive reentrancy unspecified.",
-        "Additional failures/output state unspecified unless described in the buffer contract."
-      ]
+      "limitations": []
     },
     {
       "id": "sco-ui-v1-unregister-overlay",
@@ -368,7 +358,7 @@
       "callback_context": "unspecified",
       "reentrancy": "allowed inside own draw.",
       "results": "Absent table: query_service NOT_FOUND; stopped self-taking methods: UNAVAILABLE; invalid/released self: BAD_ARG; allocation exceptions: TOO_MANY. Additional failures/output state unspecified unless described in the buffer contract.",
-      "absent_capability": "Absent table: query_service NOT_FOUND",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND.",
       "cleanup": "No in-flight cancellation API; unregister/unbind removes registration; ordinary unload/non-retained crash cleanup withdraws all UI. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls. Guarded draws stop, but snapshots and chord reservations remain.",
       "language_mappings": {
         "c": {
@@ -432,8 +422,7 @@
         "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
       ],
       "limitations": [
-        "Other reentrancy unspecified.",
-        "Additional failures/output state unspecified unless described in the buffer contract."
+        "Other reentrancy unspecified."
       ]
     },
     {
@@ -455,7 +444,7 @@
       "callback_context": "draw callbacks game thread.",
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND; stopped self-taking methods: UNAVAILABLE; invalid/released self: BAD_ARG; allocation exceptions: TOO_MANY. Additional failures/output state unspecified unless described in the buffer contract.",
-      "absent_capability": "Absent table: query_service NOT_FOUND",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND.",
       "cleanup": "unbind_hotkey/ordinary unload/non-retained crash cleanup ends binding; cancellation of an already-issued command unspecified. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls. Guarded draws stop, but snapshots and chord reservations remain.",
       "language_mappings": {
         "c": {
@@ -522,9 +511,7 @@
         "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
       ],
       "limitations": [
-        "Other recursive reentrancy unspecified.",
-        "Additional failures/output state unspecified unless described in the buffer contract.",
-        "cancellation of an already-issued command unspecified."
+        "Cancellation of an already-issued command unspecified."
       ]
     },
     {
@@ -546,7 +533,7 @@
       "callback_context": "draw callbacks game thread.",
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND; stopped self-taking methods: UNAVAILABLE; invalid/released self: BAD_ARG; allocation exceptions: TOO_MANY. Additional failures/output state unspecified unless described in the buffer contract.",
-      "absent_capability": "Absent table: query_service NOT_FOUND",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND.",
       "cleanup": "No in-flight cancellation API; unregister/unbind removes registration; ordinary unload/non-retained crash cleanup withdraws all UI. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls. Guarded draws stop, but snapshots and chord reservations remain.",
       "language_mappings": {
         "c": {
@@ -612,10 +599,7 @@
         "tools/test.sh",
         "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
       ],
-      "limitations": [
-        "Other recursive reentrancy unspecified.",
-        "Additional failures/output state unspecified unless described in the buffer contract."
-      ]
+      "limitations": []
     },
     {
       "id": "sco-ui-v1-normalize-chord",
@@ -700,8 +684,7 @@
         "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
       ],
       "limitations": [
-        "Other recursive reentrancy unspecified.",
-        "stopped-service refusal unspecified (implementation does not test started)."
+        "Stopped-service refusal unspecified (implementation does not test started)."
       ]
     },
     {
@@ -723,7 +706,7 @@
       "callback_context": "draw callbacks game thread.",
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND; stopped self-taking methods: UNAVAILABLE; invalid/released self: BAD_ARG; allocation exceptions: TOO_MANY. Additional failures/output state unspecified unless described in the buffer contract.",
-      "absent_capability": "Absent table: query_service NOT_FOUND",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND.",
       "cleanup": "No in-flight cancellation API; unregister/unbind removes registration; ordinary unload/non-retained crash cleanup withdraws all UI. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls. Guarded draws stop, but snapshots and chord reservations remain.",
       "language_mappings": {
         "c": {
@@ -789,10 +772,7 @@
         "tools/test.sh",
         "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
       ],
-      "limitations": [
-        "Other recursive reentrancy unspecified.",
-        "Additional failures/output state unspecified unless described in the buffer contract."
-      ]
+      "limitations": []
     }
   ]
 }

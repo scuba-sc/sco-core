@@ -9,21 +9,22 @@ The local [`tools/sco-core-mcp`](../tools/sco-core-mcp/README.md) server exposes
 over stdio: 15 by default (API discovery, scaffolding, validation, guides and workflows), or the original
 six with `--minimal-tools`. It reads the same compiler-backed catalogue as the static reference site. It does
 not call SDK methods, run a game or provide an HTTP endpoint, and by default it compiles nothing. GitHub
-Pages cannot host it. It needs no credentials, network service or orchestration prompt.
+Pages cannot host it. It needs no credentials or network access.
 
 Runtime inspection uses the separate default-off
 [`sco-core-mcp-runtime`](../tools/sco-core-mcp-runtime/README.md) launcher: same-PC development tooling only,
 with six explicit tool names, a pinned native peer, a configured session-file path, an independent positive
 host offline verdict and a protected audit acknowledgement. It is never deployed on a hosted catalogue runner.
-Local read data may reach a remote model provider; explicit disclosure consent is required. Windows
-security/manual acceptance is NOT VERIFIED; **not run in game**.
+Local read data may reach a remote model provider; explicit disclosure consent is required. The
+Windows security acceptance of this launcher has not been done. Not run in game. See [game capability
+status](game/status.md).
 
 ## Set up the discovery server from the SDK kit
 
 This is the one setup path for an SDK developer; the [server README](../tools/sco-core-mcp/README.md) and the
 [SDK tutorial](sdk-mcp-tutorial.md) point here. Maintaining a source checkout? Go to [Maintainers: source
 checkout](#maintainers-source-checkout-and-your-own-catalogue). Holding an older kit? See [Earlier
-releases](#earlier-releases-240-rc2-rc1).
+releases](#older-kits).
 
 You need Python 3.9 or newer (check with `py -3 --version` on Windows or `python3 --version` on macOS and
 Linux) and an MCP client that supports stdio. The SDK <!--rv:sdk_version-->2.4.1<!--/rv--> kit speaks legacy
@@ -145,9 +146,6 @@ which targets Star Citizen build <!--rv:game_build-->4.10.200.58746<!--/rv-->; s
   development coordinates; neither is an extracted-kit value. Opt-in development packaging writes the
   development version to the kit's `VERSION` and metadata; `core-source` omits the game header.
 
-These checks bind identities; they do not establish native activation, provider availability or game
-acceptance.
-
 ### Option: a separately supplied source build
 
 For a combined `legacy` plugin kit built outside the published release, get the archive, its expected SHA-256
@@ -196,7 +194,7 @@ implementation workflow.
   `--repo-root`. The developer profile adds the scaffold tool, which runs the kit's `tools/sco-new-plugin.py`
   inside the server process on the first scaffold call. The guide tools only read the kit's `sdk-guides.json`,
   so a kit without it gets a tool error from them. Use the developer profile on a kit you downloaded and
-  verified. Neither profile compiles or builds anything.
+  verified.
 - Where your client has a tool allowlist, list the exact names of the profile you chose. Never use a wildcard.
   A name left out of an allowlist hides that tool from the agent.
 - `--repo-root` is optional. Without it `get_example` returns the listed example paths only (`paths_only:
@@ -239,8 +237,7 @@ server (Claude Code 2.1.306), `claude mcp list` showed it connected, and `claude
 `codex mcp add` and `codex mcp remove` (Codex CLI 0.118.0) wrote and removed the entry in Codex's
 `config.toml`, but Codex did not start the server or call a tool. No agent called a tool through any client,
 and none of the other client files below was run in its client: each follows that client's documented format.
-The `python3` forms, and Ctrl+D as the way to stop the server, were not run on macOS or Linux. Not run in
-game.
+The `python3` forms, and Ctrl+D as the way to stop the server, were not run on macOS or Linux.
 
 #### Claude Code
 
@@ -421,7 +418,7 @@ For the minimal profile, append `--minimal-tools` and retain only the original s
 Windows use `"command": "py"` and `"-3"` first in `args`.
 
 A session-specific file can be passed with `--additional-mcp-config @/absolute/path/to/mcp.json`. A repository
-`.github/mcp.json` is an **optional maintainer choice**, not installed here; Copilot CLI can discover
+`.github/mcp.json` is an optional maintainer choice; Copilot CLI can discover
 project-level `.mcp.json` and `.github/mcp.json` files, so review the linked guide's trust and precedence rules
 first. Repository settings are separate: see [the maintainer-owned repository
 setting](#copilot-code-review-maintainer-owned-repository-setting).
@@ -435,7 +432,7 @@ setting](#copilot-code-review-maintainer-owned-repository-setting).
 3. Check `tools/list`: fifteen tools for the default developer profile with the kit's workflow index (thirteen
    without it), six for explicit `--minimal-tools`,
    all with `readOnlyHint: true`. Ask the agent to list the server's tools if your client has no tools view.
-   Older kits list different counts; see [Earlier releases](#earlier-releases-240-rc2-rc1).
+   Older kits list different counts; see [Older kits](#older-kits).
 4. Ask the agent: "Call the `sco-core-sdk` tool `list_services` with no arguments and show me the raw
    `provenance` and `stability_context`." Most clients have no box for calling a tool by hand, and an agent
    tends to summarise away exactly these fields, so ask for the raw result. Compare `provenance` with the
@@ -466,11 +463,11 @@ Common failures:
 | `sco-core-mcp: catalogue refused: FileNotFoundError`, exit code 1, and the client shows the server as failed or disconnected | `server.py` started, but the `--catalogue` file does not exist: for example a checkout's `dist/sdk-catalogue.json` path in a kit, or the extract folder in place of `sco-sdk-<version>`. Run the same existence check. |
 | The server connects, but `get_example` returns `Example unavailable: requires a contained regular UTF-8 file without symlinks`; `list_engine_natives` or `generate_plugin_scaffold` return `unavailable` with a `reason` such as `sdk/native_index.json unavailable beneath --repo-root`; `list_services` shows `stability_context.game_state` `unavailable` | `--repo-root` is not the SDK folder: it is one level too high, another folder, or left out (left out, `get_example` instead returns paths only with `paths_only: true`). The server starts anyway. The messages use checkout paths (`sdk/...`); a kit has no `sdk/` folder, and those files sit at its root (`native_index.json`, `tools/sco-new-plugin.py`), so nothing is missing from the kit. Set `--repo-root` to the SDK folder and restart; step 5 above checks it. |
 | A usage block that ends with `server.py: error: unrecognized arguments: ...`, `server.py: error: --catalogue or SCO_CORE_CATALOGUE is required` or `server.py: error: argument --repo-root: expected one argument`, exit code 2 | An argument is malformed: a flag and its value were joined in one `args` element (`"--catalogue C:/..."`), `--catalogue` is missing, or a flag has no value. Make every flag and every value its own element, in the order under [Register the server in your client](#register-the-server-in-your-client). |
-| `Unknown tool` (JSON-RPC `-32602`), or only six tools | Check whether `--minimal-tools` or the client allowlist restricts discovery, and whether this is an older published kit. The SDK <!--rv:sdk_version-->2.4.1<!--/rv--> kit defaults to fifteen; for older kits see [Earlier releases](#earlier-releases-240-rc2-rc1). |
+| `Unknown tool` (JSON-RPC `-32602`), or only six tools | Check whether `--minimal-tools` or the client allowlist restricts discovery, and whether this is an older published kit. The SDK <!--rv:sdk_version-->2.4.1<!--/rv--> kit defaults to fifteen; for older kits see [Older kits](#older-kits). |
 | The server does not start on Windows, or the Microsoft Store opens | A standard Windows Python install provides `py` (and usually `python`) but not `python3`, and a `python3` alias that does exist can be the Microsoft Store stub. Use `py` with `-3`, or an absolute `python.exe` (`py -3 -c "import sys; print(sys.executable)"` prints its path). |
 | The client disconnects while initializing | The client may support neither protocol version the server speaks, `2025-11-25` and `2026-07-28`. Use a client that supports one of them. An archive from before 2.4.1 may speak only `2025-11-25`. |
-| `check_compatibility` says a `tag` does not match the advertised pattern | The current historical-record lookup accepts `sdk-vMAJOR.MINOR.PATCH` only, so RC1 and RC2 suffixes are refused. Compare `sdk_version`, `game_pack_version` and `source_sha`, and verify the archive digest separately; these checks do not prove publication. |
-| `search_guides` text says RC2 is the latest release or that a final release is pending | An older kit contains guide snapshots frozen before its release page existed (see [Earlier releases](#earlier-releases-240-rc2-rc1)). The release page of the kit you downloaded and its checksums establish release identity. |
+| `check_compatibility` says a `tag` does not match the advertised pattern | The current historical-record lookup accepts `sdk-vMAJOR.MINOR.PATCH` only, so pre-release suffixes are refused. Compare `sdk_version`, `game_pack_version` and `source_sha`, and verify the archive digest separately; these checks do not prove publication. |
+| `search_guides` text says a release candidate is the latest release or that a final release is pending | An older kit contains guide snapshots frozen before its release page existed (see [Older kits](#older-kits)). The release page of the kit you downloaded and its checksums establish release identity. |
 
 ### Workflow discovery and missing indexes
 
@@ -540,49 +537,44 @@ refused after resolving symlinks and `..`. A timeout kills the whole process tre
 These tools run code: CMake runs the project's build files, and the checker loads the plugin's native code
 into a stand-in host. They are not a sandbox, so grant only project roots whose code you would build yourself,
 and keep project-root configuration local. They advertise `readOnlyHint: false`, so Copilot code review
-excludes them; never add them to a shared repository configuration or a hosted runner. A passing check is not
-evidence that the plugin works in the game: **not run in game**. The
+excludes them; never add them to a shared repository configuration or a hosted runner. A passing check says
+nothing about the game. The
 [server README](../tools/sco-core-mcp/README.md#development-tools-opt-in) gives the exact command lines, result
 fields and security model.
 
-### Earlier releases (2.4.0, RC2, RC1)
+### Older kits
 
 <a id="published-stable-sdk-240-release"></a>
 
 Published archives keep their own tool sets and bytes. Download and verify an older kit as above, with its tag
-and archive name from the historical asset tables in
-[getting-started.md](getting-started.md#previous-release-sdk-240) (2.4.0) and
-[getting-started.md](getting-started.md#historical-sdk-240-release-candidate-1-assets) (RC1). The 2.4.0
-[release notes](releases/sdk-v2.4.0.md#stable-sdk-240-archive-identities) record every profile identity.
+and archive name. The 2.4.0 [release notes](releases/sdk-v2.4.0.md#stable-sdk-240-archive-identities) record
+every 2.4.0 profile identity.
 
-- **SDK 2.4.0** (the previous stable release) uses game pack 0.8.0. It has the fifteen-tool default and a
-  schema-2 catalogue, including `get_service_status`.
-- **RC2** has fourteen tools: no `get_service_status` and no catalogue schema 2.
-- **RC1** has a six-tool default and twelve tools with `--extended-tools`, and no workflow index or workflow
-  tools.
+- **SDK 2.4.0** uses game pack 0.8.0. It has the fifteen-tool default and a schema-2 catalogue, including
+  `get_service_status`. Its server speaks protocol `2025-11-25` only.
 
-The 2.4.0 and RC2 kits ship bundled guides (`sdk-guides.json`, served by `search_guides` and
-`get_guide_section`) and READMEs frozen before their release pages existed, so they can say "RC2 is the latest
+The 2.4.0 kit ships bundled guides (`sdk-guides.json`, served by `search_guides` and
+`get_guide_section`) and READMEs frozen before their release pages existed, so they can say "a release candidate is the latest
 release" or "the final 2.4.0 release is pending". That describes the source snapshot, not release status; use
 the release page and its `SHA256SUMS`. Their guide links are out of date too: the `url` in a `search_guides`
 result for a `docs/` page names the previous docs-site address (`scubamount.github.io`), which now returns
 404. Replace that host with `scuba-sc.github.io` and keep the path. The docs site publishes release notes for
-2.4.0 only, so a result for the 2.1.0, 2.2.0 or 2.3.0 notes still gives a 404: read those under
+2.4.0 and 2.4.1 only, so a result for the 2.1.0, 2.2.0 or 2.3.0 notes still gives a 404: read those under
 `docs/releases/` in the repository. For a guide under `sdk/docs` the `url` is a repository path, not a link;
-in the kit that guide is under `docs/` (see [Find the SDK folder](#find-the-sdk-folder)). See the [release
-notes](releases/sdk-v2.4.0.md#known-issues-in-release-candidate-1).
+in the kit that guide is under `docs/` (see [Find the SDK folder](#find-the-sdk-folder)).
 
 ## Other MCP servers for the same work
 
-This server answers questions about the SDK. Two other projects ship MCP servers for the steps around it; each
-is set up from its own repository.
+This server answers questions about the SDK. These MCP servers cover the steps around it; each is set up from
+its own page.
 
 | Server | Use it to | Setup |
 | --- | --- | --- |
 | sc-offline | Look at an sc-offline install: status, installed plugins, log tails, settings. Read-only; it runs no command | [sc-offline AI agents guide](https://github.com/scuba-sc/sc-offline/blob/main/docs/ai-agents.md) (`sc-offline.exe mcp`, from the sc-offline release that adds it) |
 | scuba-engine | Load a plugin in the sandbox host with a synthetic game, invoke its commands and widgets, and set up mock state, without Star Citizen | [scuba-engine-mcp](https://github.com/scuba-sc/scuba-engine/tree/main/tools/scuba-engine-mcp) |
+| reference launcher | Read a launcher folder: status, plugin list, settings, redacted log. Read-only | [Build a launcher](building-a-launcher.md#5-connect-an-ai-agent-through-mcp) |
 
-Results from either are observations of that host or sandbox, not in-game evidence.
+Results from any of them are observations of that host or sandbox, not in-game evidence.
 
 ## Maintainers: source checkout and your own catalogue
 
@@ -657,9 +649,8 @@ differ.
 
 ## Copilot code review: maintainer-owned repository setting
 
-A repository administrator may prepare the checkout JSON above in **Settings > Copilot > MCP servers > MCP
-configuration**, shared by Copilot cloud agent and code review. This document is a configuration snippet,
-**not an applied repository setting**; no settings or setup workflows are changed here. See
+A repository administrator may paste the checkout JSON above into **Settings > Copilot > MCP servers > MCP
+configuration**, shared by Copilot cloud agent and code review. See
 [GitHub's repository MCP guide](https://docs.github.com/en/copilot/how-tos/copilot-on-github/customize-copilot/configure-mcp-servers).
 Use the minimal profile there: a hosted runner should run nothing from the checkout beyond the server itself
 (no scaffolder, no builds), so pass `--minimal-tools` and leave out project roots and development tools.
@@ -719,7 +710,6 @@ not a running host. Language values are `c`, `cpp`, `csharp`, `lua`; status is `
 `restricted` or `unsupported`, never an inferred universal works flag. `--repo-root` permits bounded reads of
 record-listed example files beneath that root; what removing it disables is listed under
 [Choose a profile](#choose-a-profile). Returned prose is data, not instructions; read-only file access can
-still disclose it to the client or model provider. Grant only a reviewed public checkout or a verified kit. No
-annotation limits other tools in the agent or provides native-plugin crash recovery/hot reload.
+still disclose it to the client or model provider. Grant only a reviewed public checkout or a verified kit.
 
 For frozen package inputs, see [reference snapshots](reference-snapshots.md).

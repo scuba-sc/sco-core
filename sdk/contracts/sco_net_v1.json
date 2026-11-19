@@ -20,7 +20,7 @@
       "callback_context": "callbacks game thread.",
       "reentrancy": "Callbacks may call any method in this table.",
       "results": "Absent table: query_service NOT_FOUND. Stopped result methods: UNAVAILABLE; self-taking methods reject invalid/released self with BAD_ARG; allocation exceptions: TOO_MANY. Additional failures/output state unspecified unless described in the buffer contract.",
-      "absent_capability": "Absent table: query_service NOT_FOUND.",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND.",
       "cleanup": "No delivery cancellation API; ordinary unload/non-retained crash cleanup drops channels and queued messages. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls.",
       "language_mappings": {
         "c": {
@@ -64,7 +64,7 @@
           "evidence": [
             {
               "path": "docs/net.md",
-              "token": "The C# (`Sco.Sdk`) and Lua layers come in a follow-up"
+              "token": "There are no C# or Lua wrappers for `sco.net` yet"
             }
           ],
           "tests": []
@@ -76,9 +76,7 @@
         "tests/test_net_service.cpp",
         "tools/test.sh"
       ],
-      "limitations": [
-        "Additional failures/output state unspecified unless described in the buffer contract."
-      ]
+      "limitations": []
     },
     {
       "id": "sco-net-v1-get-peers",
@@ -99,7 +97,7 @@
       "callback_context": "callbacks game thread.",
       "reentrancy": "Callbacks may call any method in this table.",
       "results": "Absent table: query_service NOT_FOUND. Stopped result methods: UNAVAILABLE; self-taking methods reject invalid/released self with BAD_ARG; allocation exceptions: TOO_MANY. Additional failures/output state unspecified unless described in the buffer contract.",
-      "absent_capability": "Absent table: query_service NOT_FOUND.",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND.",
       "cleanup": "No delivery cancellation API; ordinary unload/non-retained crash cleanup drops channels and queued messages. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls.",
       "language_mappings": {
         "c": {
@@ -143,7 +141,7 @@
           "evidence": [
             {
               "path": "docs/net.md",
-              "token": "The C# (`Sco.Sdk`) and Lua layers come in a follow-up"
+              "token": "There are no C# or Lua wrappers for `sco.net` yet"
             }
           ],
           "tests": []
@@ -155,9 +153,7 @@
         "tests/test_net_service.cpp",
         "tools/test.sh"
       ],
-      "limitations": [
-        "Additional failures/output state unspecified unless described in the buffer contract."
-      ]
+      "limitations": []
     },
     {
       "id": "sco-net-v1-get-peer-name",
@@ -178,7 +174,7 @@
       "callback_context": "callbacks game thread.",
       "reentrancy": "Callbacks may call any method in this table.",
       "results": "Absent table: query_service NOT_FOUND. Stopped result methods: UNAVAILABLE; self-taking methods reject invalid/released self with BAD_ARG; allocation exceptions: TOO_MANY. Additional failures/output state unspecified unless described in the buffer contract.",
-      "absent_capability": "Absent table: query_service NOT_FOUND.",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND.",
       "cleanup": "No delivery cancellation API; ordinary unload/non-retained crash cleanup drops channels and queued messages. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls.",
       "language_mappings": {
         "c": {
@@ -222,7 +218,7 @@
           "evidence": [
             {
               "path": "docs/net.md",
-              "token": "The C# (`Sco.Sdk`) and Lua layers come in a follow-up"
+              "token": "There are no C# or Lua wrappers for `sco.net` yet"
             }
           ],
           "tests": []
@@ -234,9 +230,7 @@
         "tests/test_net_service.cpp",
         "tools/test.sh"
       ],
-      "limitations": [
-        "Additional failures/output state unspecified unless described in the buffer contract."
-      ]
+      "limitations": []
     },
     {
       "id": "sco-net-v1-send-channel",
@@ -257,7 +251,7 @@
       "callback_context": "callbacks game thread.",
       "reentrancy": "Callbacks may call any method in this table.",
       "results": "Absent table: query_service NOT_FOUND. Stopped result methods: UNAVAILABLE; self-taking methods reject invalid/released self with BAD_ARG; allocation exceptions: TOO_MANY. Additional failures/output state unspecified unless described in the buffer contract.",
-      "absent_capability": "Absent table: query_service NOT_FOUND.",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND.",
       "cleanup": "OK means queued, not delivery acknowledgement. Quota/queue failure drops send; no matching peer channel drops silently; unload drops queued messages. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls.",
       "language_mappings": {
         "c": {
@@ -301,7 +295,7 @@
           "evidence": [
             {
               "path": "docs/net.md",
-              "token": "The C# (`Sco.Sdk`) and Lua layers come in a follow-up"
+              "token": "There are no C# or Lua wrappers for `sco.net` yet"
             }
           ],
           "tests": []
@@ -313,9 +307,7 @@
         "tests/test_net_service.cpp",
         "tools/test.sh"
       ],
-      "limitations": [
-        "Additional failures/output state unspecified unless described in the buffer contract."
-      ]
+      "limitations": []
     },
     {
       "id": "sco-net-v1-register-channel",
@@ -336,7 +328,7 @@
       "callback_context": "callbacks game thread.",
       "reentrancy": "Callbacks may call any method in this table.",
       "results": "Absent table: query_service NOT_FOUND. Stopped result methods: UNAVAILABLE; self-taking methods reject invalid/released self with BAD_ARG; allocation exceptions: TOO_MANY. Additional failures/output state unspecified unless described in the buffer contract.",
-      "absent_capability": "Absent table: query_service NOT_FOUND.",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND.",
       "cleanup": "Ordinary unregister/unload/non-retained crash cleanup removes the channel; incoming oversized payload dropped before reassembly; no callback cancel token. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls.",
       "language_mappings": {
         "c": {
@@ -380,7 +372,7 @@
           "evidence": [
             {
               "path": "docs/net.md",
-              "token": "The C# (`Sco.Sdk`) and Lua layers come in a follow-up"
+              "token": "There are no C# or Lua wrappers for `sco.net` yet"
             }
           ],
           "tests": []
@@ -392,9 +384,7 @@
         "tests/test_net_service.cpp",
         "tools/test.sh"
       ],
-      "limitations": [
-        "Additional failures/output state unspecified unless described in the buffer contract."
-      ]
+      "limitations": []
     },
     {
       "id": "sco-net-v1-unregister-channel",
@@ -415,7 +405,7 @@
       "callback_context": "callbacks game thread.",
       "reentrancy": "Callbacks may call any method in this table.",
       "results": "Absent table: query_service NOT_FOUND. Stopped result methods: UNAVAILABLE; self-taking methods reject invalid/released self with BAD_ARG; allocation exceptions: TOO_MANY. Additional failures/output state unspecified unless described in the buffer contract.",
-      "absent_capability": "Absent table: query_service NOT_FOUND.",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND.",
       "cleanup": "On game thread no later callback; off-thread callback already running may finish. Further transport timing unspecified.",
       "language_mappings": {
         "c": {
@@ -459,7 +449,7 @@
           "evidence": [
             {
               "path": "docs/net.md",
-              "token": "The C# (`Sco.Sdk`) and Lua layers come in a follow-up"
+              "token": "There are no C# or Lua wrappers for `sco.net` yet"
             }
           ],
           "tests": []
@@ -472,7 +462,6 @@
         "tools/test.sh"
       ],
       "limitations": [
-        "Additional failures/output state unspecified unless described in the buffer contract.",
         "Further transport timing unspecified."
       ]
     },
@@ -495,7 +484,7 @@
       "callback_context": "callbacks game thread.",
       "reentrancy": "Callbacks may call any method in this table.",
       "results": "Absent table: query_service NOT_FOUND. Stopped result methods: UNAVAILABLE; self-taking methods reject invalid/released self with BAD_ARG; allocation exceptions: TOO_MANY. Additional failures/output state unspecified unless described in the buffer contract.",
-      "absent_capability": "Absent table: query_service NOT_FOUND.",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND.",
       "cleanup": "No delivery cancellation API; ordinary unload/non-retained crash cleanup drops channels and queued messages. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls.",
       "language_mappings": {
         "c": {
@@ -539,7 +528,7 @@
           "evidence": [
             {
               "path": "docs/net.md",
-              "token": "The C# (`Sco.Sdk`) and Lua layers come in a follow-up"
+              "token": "There are no C# or Lua wrappers for `sco.net` yet"
             }
           ],
           "tests": []
@@ -551,9 +540,7 @@
         "tests/test_net_service.cpp",
         "tools/test.sh"
       ],
-      "limitations": [
-        "Additional failures/output state unspecified unless described in the buffer contract."
-      ]
+      "limitations": []
     }
   ]
 }

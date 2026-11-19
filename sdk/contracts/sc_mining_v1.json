@@ -55,7 +55,7 @@
         }
       },
       "limitations": [
-        "Production native adapter unavailable; not run in game.",
+        "Production native adapter unavailable. Not run in game.",
         "Portable provider/release fixture is synthetic, not Windows SEH or native detour execution.",
         "Process counters are independent atomic observations, not a transactional snapshot.",
         "No C# or Lua route."
@@ -134,7 +134,7 @@
         }
       },
       "limitations": [
-        "Production native adapter unavailable; not run in game.",
+        "Production native adapter unavailable. Not run in game.",
         "Portable provider/release fixture is synthetic, not Windows SEH or native detour execution.",
         "Process counters are independent atomic observations, not a transactional snapshot.",
         "No C# or Lua route."

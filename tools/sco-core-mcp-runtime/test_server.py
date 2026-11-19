@@ -96,7 +96,7 @@ class RuntimeTests(unittest.TestCase):
                            'get_capability_status', 'check_compatibility']
         discovery_tools = catalogue_tools + ['get_service_status', 'list_engine_natives', 'get_engine_native',
             'validate_manifest_and_widgets', 'generate_plugin_scaffold', 'search_guides',
-            'get_guide_section', 'list_workflows', 'get_workflow']
+            'get_guide_section']  # the fixture has no sdk-workflows.json beside it, so no workflow tools
         for options, expected in (([], discovery_tools), (['--minimal-tools'], catalogue_tools)):
             with self.subTest(options=options):
                 proc = subprocess.run([sys.executable, str(launcher), '--catalogue', str(fixture)] + options,

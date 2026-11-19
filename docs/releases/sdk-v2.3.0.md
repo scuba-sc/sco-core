@@ -1,6 +1,8 @@
 # sco-core SDK 2.3.0 (release notes)
 
-Tag `sdk-v2.3.0`, combined zip `sco-sdk-2.3.0.zip`. **Published on 2026-10-15 at 07:11:58 UTC:** [SDK 2.3.0 release and assets](https://github.com/scubamount/sco-core/releases/tag/sdk-v2.3.0). The tag peels to approval commit `1de4a97877f8af3742d0f1a645857db8c98bc76a`, which adds only the signed approval record (`docs/legal/release-decisions/sdk-v2.3.0.json` and `.sig`); the published archives were built from source commit `b039700dcd867da472095510bd68c74845f025f4` by candidate run `38696462512` (attempt 1, artifact `11954255975`). The two identities are distinct. The release publishes all five profiles (combined/legacy, core, core-source, the Star Citizen game-sc 0.6.0 overlay and the Star Citizen host-source kit), their SBOMs, `SHA256SUMS` and the signed `release.json`. The scope is the maintainer's [SDK 2.3.0 scope record](../legal/release-decisions/2026-10-15-sdk-v2.3.0-scope.md). The release workflow publishes the CHANGELOG section [`## sdk-v2.3.0`](../../CHANGELOG.md) as the release's notes; this page is the longer reference behind it.
+Tag `sdk-v2.3.0`, combined zip `sco-sdk-2.3.0.zip`. **Published on 2026-10-15 at 07:11:58 UTC:** [SDK 2.3.0 release and assets](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.3.0). The release publishes all five profiles (combined/legacy, core, core-source, the Star Citizen game-sc 0.6.0 overlay and the Star Citizen host-source kit), their SBOMs, `SHA256SUMS` and the signed `release.json`. The scope is the maintainer's [SDK 2.3.0 scope record](../legal/release-decisions/2026-10-15-sdk-v2.3.0-scope.md). The release workflow publishes the CHANGELOG section [`## sdk-v2.3.0`](../../CHANGELOG.md) as the release's notes; this page is the longer reference behind it.
+
+The release downloads for this version were withdrawn; the tag remains in git. Use SDK 2.4.1 or 2.4.0.
 
 <!-- release-scope:start -->
 ```json
@@ -79,14 +81,3 @@ fixtures: the host test suite, `test_surfaces`, `test_pak_files` over a fake `IC
 adapters for the new game tables, GPU rendering of surfaces, and real-game, anti-cheat,
 official-network and private-LAN acceptance remain unproven. New game capabilities stay
 default-off: no production adapter turns on the five this release adds.
-
-## Checking the zip
-
-The same checks as every release apply:
-
-```sh
-sha256sum -c SHA256SUMS
-unzip -p sco-sdk-2.3.0.zip sco-sdk-2.3.0/VERSIONS.txt
-```
-
-Publication followed the [maintainer release procedure](../legal/release-checklist.md#releasing).

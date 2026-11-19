@@ -20,7 +20,7 @@
       "callback_context": "unspecified",
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND; requires spawner rows (product gate spawn.ship). Wrong thread or missing readiness: 0 or borrowed reason string. Additional failures/output state unspecified unless described in the buffer contract.",
-      "absent_capability": "Absent table: query_service NOT_FOUND Wrong thread or missing readiness: 0 or borrowed reason string.",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND. Wrong thread or missing readiness: 0 or a borrowed reason string.",
       "cleanup": "No cancellation entrypoint; asynchronous streaming is not cancelled by this table.",
       "language_mappings": {
         "c": {
@@ -86,10 +86,7 @@
         "tests/test_app.cpp"
       ],
       "limitations": [
-        "returned string lifetime unspecified;",
-        "recursive reentrancy unspecified.",
-        "Additional failures/output state unspecified unless described in the buffer contract.",
-        "Game-service behavior not verified in a game session."
+        "Returned string lifetime unspecified."
       ]
     },
     {
@@ -111,7 +108,7 @@
       "callback_context": "unspecified",
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND; requires spawner rows (product gate spawn.ship). Wrong thread or missing readiness: 0 or borrowed reason string. Additional failures/output state unspecified unless described in the buffer contract.",
-      "absent_capability": "Absent table: query_service NOT_FOUND Wrong thread or missing readiness: 0 or borrowed reason string.",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND. Wrong thread or missing readiness: 0 or a borrowed reason string.",
       "cleanup": "No cancellation entrypoint; asynchronous streaming is not cancelled by this table.",
       "language_mappings": {
         "c": {
@@ -176,12 +173,7 @@
         "tests/abi_spawn.c",
         "tests/test_app.cpp"
       ],
-      "limitations": [
-        "internal allocation unspecified.",
-        "recursive reentrancy unspecified.",
-        "Additional failures/output state unspecified unless described in the buffer contract.",
-        "Game-service behavior not verified in a game session."
-      ]
+      "limitations": []
     },
     {
       "id": "sc-spawn-service-v1-local-player-id",
@@ -202,7 +194,7 @@
       "callback_context": "unspecified",
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND; requires spawner rows (product gate spawn.ship). Wrong thread or missing readiness: 0 or borrowed reason string. Additional failures/output state unspecified unless described in the buffer contract.",
-      "absent_capability": "Absent table: query_service NOT_FOUND Wrong thread or missing readiness: 0 or borrowed reason string.",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND. Wrong thread or missing readiness: 0 or a borrowed reason string.",
       "cleanup": "No cancellation entrypoint; asynchronous streaming is not cancelled by this table.",
       "language_mappings": {
         "c": {
@@ -267,12 +259,7 @@
         "tests/abi_spawn.c",
         "tests/test_app.cpp"
       ],
-      "limitations": [
-        "internal allocation unspecified.",
-        "recursive reentrancy unspecified.",
-        "Additional failures/output state unspecified unless described in the buffer contract.",
-        "Game-service behavior not verified in a game session."
-      ]
+      "limitations": []
     },
     {
       "id": "sc-spawn-service-v1-player-ship-id",
@@ -293,7 +280,7 @@
       "callback_context": "unspecified",
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND; requires spawner rows (product gate spawn.ship). Wrong thread or missing readiness: 0 or borrowed reason string. Additional failures/output state unspecified unless described in the buffer contract.",
-      "absent_capability": "Absent table: query_service NOT_FOUND Wrong thread or missing readiness: 0 or borrowed reason string.",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND. Wrong thread or missing readiness: 0 or a borrowed reason string.",
       "cleanup": "No cancellation entrypoint; asynchronous streaming is not cancelled by this table.",
       "language_mappings": {
         "c": {
@@ -358,12 +345,7 @@
         "tests/abi_spawn.c",
         "tests/test_app.cpp"
       ],
-      "limitations": [
-        "internal allocation unspecified.",
-        "recursive reentrancy unspecified.",
-        "Additional failures/output state unspecified unless described in the buffer contract.",
-        "Game-service behavior not verified in a game session."
-      ]
+      "limitations": []
     },
     {
       "id": "sc-spawn-service-v1-entity-alive",
@@ -384,7 +366,7 @@
       "callback_context": "unspecified",
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND; requires spawner rows (product gate spawn.ship). Wrong thread or missing readiness: 0 or borrowed reason string. Additional failures/output state unspecified unless described in the buffer contract.",
-      "absent_capability": "Absent table: query_service NOT_FOUND Wrong thread or missing readiness: 0 or borrowed reason string.",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND. Wrong thread or missing readiness: 0 or a borrowed reason string.",
       "cleanup": "No cancellation entrypoint; asynchronous streaming is not cancelled by this table.",
       "language_mappings": {
         "c": {
@@ -449,12 +431,7 @@
         "tests/abi_spawn.c",
         "tests/test_app.cpp"
       ],
-      "limitations": [
-        "internal allocation unspecified.",
-        "recursive reentrancy unspecified.",
-        "Additional failures/output state unspecified unless described in the buffer contract.",
-        "Game-service behavior not verified in a game session."
-      ]
+      "limitations": []
     },
     {
       "id": "sc-spawn-service-v1-set-entity-transform",
@@ -475,7 +452,7 @@
       "callback_context": "unspecified",
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND; requires spawner rows (product gate spawn.ship). Wrong thread or missing readiness: 0 or borrowed reason string. Additional failures/output state unspecified unless described in the buffer contract.",
-      "absent_capability": "Absent table: query_service NOT_FOUND Wrong thread or missing readiness: 0 or borrowed reason string.",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND. Wrong thread or missing readiness: 0 or a borrowed reason string.",
       "cleanup": "No cancellation entrypoint; asynchronous streaming is not cancelled by this table.",
       "language_mappings": {
         "c": {
@@ -540,11 +517,7 @@
         "tests/abi_spawn.c",
         "tests/test_app.cpp"
       ],
-      "limitations": [
-        "recursive reentrancy unspecified.",
-        "Additional failures/output state unspecified unless described in the buffer contract.",
-        "Game-service behavior not verified in a game session."
-      ]
+      "limitations": []
     },
     {
       "id": "sc-spawn-service-v1-spawn-as",
@@ -631,9 +604,7 @@
         "tests/test_app.cpp"
       ],
       "limitations": [
-        "lifetime unspecified;",
-        "recursive reentrancy unspecified.",
-        "Game-service behavior not verified in a game session."
+        "Lifetime unspecified."
       ]
     }
   ]

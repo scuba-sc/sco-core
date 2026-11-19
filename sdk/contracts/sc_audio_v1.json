@@ -20,11 +20,11 @@
       "callback_context": "No plugin callbacks. Host backend synchronous, bounded and nonthrowing.",
       "reentrancy": "Recursive operations fail with FAILED; owner release during backend call drains cleanup on return.",
       "results": "OK accepted; BAD_ARG invalid owner/input; WRONG_THREAD; NOT_FOUND unknown/stale/wrong-kind; FAILED foreign owner or backend failure; TOO_MANY quota; UNAVAILABLE unbound, revoked, stopped or restart-required. Output tokens zero on failure.",
-      "absent_capability": "game.audio.triggers OFF without a bound host provider; no native backend, not run in game.",
+      "absent_capability": "game.audio.triggers is off without a bound host provider; no native backend. Not run in game.",
       "cleanup": "Owner unload stops only owned effects. Failed stop retains effect/context and cleanup hook; new effects remain unavailable even after recovery.",
       "limitations": [
-        "Synthetic host evidence only; no native or audible playback verification.",
-        "C# and Lua unsupported."
+        "Synthetic host tests only; no native or audible playback check. Not run in game.",
+        "No C# or Lua route."
       ],
       "tests": [
         "tests/abi_audio.c",
@@ -97,11 +97,11 @@
       "callback_context": "No plugin callbacks. Host backend synchronous, bounded and nonthrowing.",
       "reentrancy": "Recursive operations fail with FAILED; owner release during backend call drains cleanup on return.",
       "results": "OK accepted; BAD_ARG invalid owner/input; WRONG_THREAD; NOT_FOUND unknown/stale/wrong-kind; FAILED foreign owner or backend failure; TOO_MANY quota; UNAVAILABLE unbound, revoked, stopped or restart-required. Output tokens zero on failure.",
-      "absent_capability": "game.audio.triggers OFF without a bound host provider; no native backend, not run in game.",
+      "absent_capability": "game.audio.triggers is off without a bound host provider; no native backend. Not run in game.",
       "cleanup": "Owner unload stops only owned effects. Failed stop retains effect/context and cleanup hook; new effects remain unavailable even after recovery.",
       "limitations": [
-        "Synthetic host evidence only; no native or audible playback verification.",
-        "C# and Lua unsupported."
+        "Synthetic host tests only; no native or audible playback check. Not run in game.",
+        "No C# or Lua route."
       ],
       "tests": [
         "tests/abi_audio.c",
@@ -174,11 +174,11 @@
       "callback_context": "No plugin callbacks. Host backend synchronous, bounded and nonthrowing.",
       "reentrancy": "Recursive operations fail with FAILED; owner release during backend call drains cleanup on return.",
       "results": "OK accepted; BAD_ARG invalid owner/input; WRONG_THREAD; NOT_FOUND unknown/stale/wrong-kind; FAILED foreign owner or backend failure; TOO_MANY quota; UNAVAILABLE unbound, revoked, stopped or restart-required. Output tokens zero on failure.",
-      "absent_capability": "game.audio.triggers OFF without a bound host provider; no native backend, not run in game.",
+      "absent_capability": "game.audio.triggers is off without a bound host provider; no native backend. Not run in game.",
       "cleanup": "Owner unload stops only owned effects. Failed stop retains effect/context and cleanup hook; new effects remain unavailable even after recovery.",
       "limitations": [
-        "Synthetic host evidence only; no native or audible playback verification.",
-        "C# and Lua unsupported."
+        "Synthetic host tests only; no native or audible playback check. Not run in game.",
+        "No C# or Lua route."
       ],
       "tests": [
         "tests/abi_audio.c",
@@ -251,11 +251,11 @@
       "callback_context": "No plugin callbacks. Host backend synchronous, bounded and nonthrowing.",
       "reentrancy": "Recursive operations fail with FAILED; owner release during backend call drains cleanup on return.",
       "results": "OK accepted submission only; BAD_ARG invalid owner/input; WRONG_THREAD; NOT_FOUND unknown/stale/wrong-kind trigger; FAILED foreign owner, backend refusal or recursion; CRASHED backend fault (play_once then OFF until restart); UNAVAILABLE unbound, revoked, stopped, restart-required, a 1.0-sized table, or owner released during an accepted call (no rollback, do not retry).",
-      "absent_capability": "game.audio.play_once OFF without a bound host provider; independent of game.audio.triggers; no native backend, not run in game.",
+      "absent_capability": "game.audio.play_once is off without a bound host provider; independent of game.audio.triggers; no native backend. Not run in game.",
       "cleanup": "Nothing to clean up per call: no playback is tracked. Owner unload needs no stop; an accepted submission cannot be cancelled.",
       "limitations": [
-        "Synthetic host evidence only; no native backend and no audible playback verification.",
-        "C# and Lua unsupported."
+        "Synthetic host tests only; no native backend. Not run in game.",
+        "No C# or Lua route."
       ],
       "tests": [
         "tests/abi_audio.c",

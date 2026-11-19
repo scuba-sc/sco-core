@@ -20,7 +20,7 @@
       "callback_context": "No plugin callbacks. Host-only provider callbacks synchronous, bounded, nonthrowing.",
       "reentrancy": "Recursive calls refused with FAILED; no waits or async work.",
       "results": "BAD_ARG invalid owner/input; WRONG_THREAD; UNAVAILABLE absent verified adapter or restart-required; FAILED foreign owner/provider refusal; NOT_FOUND stale lease/no hit. See method-specific output contract.",
-      "absent_capability": "Absent service: query_service NOT_FOUND; present disabled operation: UNAVAILABLE.",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND. A present but disabled operation returns SCO_UNAVAILABLE.",
       "cleanup": "No persisted ray filter. Ordinary owner unload/service stop restores camera before dropping lease; failure retains backing state and requires restart. Fault-retained native provider cleanup not promised.",
       "language_mappings": {
         "c": {
@@ -74,7 +74,7 @@
         "tests/test_world_control.cpp"
       ],
       "limitations": [
-        "Synthetic provider verification only; Windows engine integration/gameplay not verified.",
+        "Synthetic provider tests only; Windows engine integration not verified. Not run in game.",
         "Production adapter deliberately absent; mutation/read-filter capabilities OFF.",
         "Per-call bounds are not a native-plugin security sandbox."
       ]
@@ -98,7 +98,7 @@
       "callback_context": "No plugin callbacks. Host-only provider callbacks synchronous, bounded, nonthrowing.",
       "reentrancy": "Recursive calls refused with FAILED; no waits or async work.",
       "results": "BAD_ARG invalid owner/input; WRONG_THREAD; UNAVAILABLE absent verified adapter or restart-required; FAILED foreign owner/provider refusal; NOT_FOUND stale lease/no hit. See method-specific output contract.",
-      "absent_capability": "Absent service: query_service NOT_FOUND; present disabled operation: UNAVAILABLE.",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND. A present but disabled operation returns SCO_UNAVAILABLE.",
       "cleanup": "No persisted ray filter. Ordinary owner unload/service stop restores camera before dropping lease; failure retains backing state and requires restart. Fault-retained native provider cleanup not promised.",
       "language_mappings": {
         "c": {
@@ -152,7 +152,7 @@
         "tests/test_world_control.cpp"
       ],
       "limitations": [
-        "Synthetic provider verification only; Windows engine integration/gameplay not verified.",
+        "Synthetic provider tests only; Windows engine integration not verified. Not run in game.",
         "Production adapter deliberately absent; mutation/read-filter capabilities OFF.",
         "Per-call bounds are not a native-plugin security sandbox."
       ]
@@ -176,7 +176,7 @@
       "callback_context": "No plugin callbacks. Host-only provider callbacks synchronous, bounded, nonthrowing.",
       "reentrancy": "Recursive calls refused with FAILED; no waits or async work.",
       "results": "BAD_ARG invalid owner/input; WRONG_THREAD; UNAVAILABLE absent verified adapter or restart-required; FAILED foreign owner/provider refusal; NOT_FOUND stale lease/no hit. See method-specific output contract.",
-      "absent_capability": "Absent service: query_service NOT_FOUND; present disabled operation: UNAVAILABLE.",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND. A present but disabled operation returns SCO_UNAVAILABLE.",
       "cleanup": "No persisted ray filter. Ordinary owner unload/service stop restores camera before dropping lease; failure retains backing state and requires restart. Fault-retained native provider cleanup not promised.",
       "language_mappings": {
         "c": {
@@ -230,7 +230,7 @@
         "tests/test_world_control.cpp"
       ],
       "limitations": [
-        "Synthetic provider verification only; Windows engine integration/gameplay not verified.",
+        "Synthetic provider tests only; Windows engine integration not verified. Not run in game.",
         "Production adapter deliberately absent; mutation/read-filter capabilities OFF.",
         "Per-call bounds are not a native-plugin security sandbox."
       ]
@@ -254,7 +254,7 @@
       "callback_context": "No plugin callbacks. Host-only provider callbacks synchronous, bounded, nonthrowing.",
       "reentrancy": "Recursive calls refused with FAILED; no waits or async work.",
       "results": "BAD_ARG invalid owner/input; WRONG_THREAD; UNAVAILABLE absent verified adapter or restart-required; FAILED foreign owner/provider refusal; NOT_FOUND stale lease/no hit. See method-specific output contract.",
-      "absent_capability": "Absent service: query_service NOT_FOUND; present disabled operation: UNAVAILABLE.",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND. A present but disabled operation returns SCO_UNAVAILABLE.",
       "cleanup": "No persisted ray filter. Ordinary owner unload/service stop restores camera before dropping lease; failure retains backing state and requires restart. Fault-retained native provider cleanup not promised.",
       "language_mappings": {
         "c": {
@@ -308,7 +308,7 @@
         "tests/test_world_control.cpp"
       ],
       "limitations": [
-        "Synthetic provider verification only; Windows engine integration/gameplay not verified.",
+        "Synthetic provider tests only; Windows engine integration not verified. Not run in game.",
         "Production adapter deliberately absent; mutation/read-filter capabilities OFF.",
         "Per-call bounds are not a native-plugin security sandbox."
       ]
@@ -332,7 +332,7 @@
       "callback_context": "No plugin callbacks. Host-only provider callbacks synchronous, bounded, nonthrowing.",
       "reentrancy": "Recursive calls refused with FAILED; no waits or async work.",
       "results": "BAD_ARG invalid owner/input; WRONG_THREAD; UNAVAILABLE absent verified adapter or restart-required; FAILED foreign owner/provider refusal; NOT_FOUND stale lease/no hit. See method-specific output contract.",
-      "absent_capability": "Absent service: query_service NOT_FOUND; present disabled operation: UNAVAILABLE.",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND. A present but disabled operation returns SCO_UNAVAILABLE.",
       "cleanup": "Provider acquire/query/release scope lasts one call. Successful acquire is paired exactly once with release before output publication; release failure latches unavailable. No retained caller buffers or filters.",
       "language_mappings": {
         "c": {
@@ -386,7 +386,7 @@
         "tests/test_world_control.cpp"
       ],
       "limitations": [
-        "Synthetic provider verification only; Windows engine integration/gameplay not verified.",
+        "Synthetic provider tests only; Windows engine integration not verified. Not run in game.",
         "Production adapter deliberately absent; mutation/read-filter capabilities OFF.",
         "Per-call bounds are not a native-plugin security sandbox."
       ]

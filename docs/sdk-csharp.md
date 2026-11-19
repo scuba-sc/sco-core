@@ -12,7 +12,7 @@ The C# layer of the sco plugin SDK: a .NET 8 library over [`sco_api.h`](api-v1.m
 - [Commands](#commands)
 - [Services](#services)
 - [Raw handlers](#raw-handlers)
-- [Storage, DataCore and UI](#storage-datacore-and-ui)
+- [Host services and game classes](#host-services-and-game-classes)
 - [Panel builder](#panel-builder)
 - [Lifetimes](#lifetimes)
 - [The exception boundary](#the-exception-boundary)
@@ -116,7 +116,7 @@ The handler is `ScoResult (Args args, Reply reply)`. `Args` reads by index: `Int
 
 ## Services
 
-A service table is a blittable struct that starts with `uint size`, allocated once in native memory (`NativeMemory.AllocZeroed`); its functions are `delegate* unmanaged<...>` pointers to `[UnmanagedCallersOnly]` methods. Keep its native allocation and backing state valid until provider-coordinated quiescence: stop new lookup, prevent consumers from starting more calls, and wait for all in-flight calls and custom workers to finish before destruction. Without that coordination, retain them for the admitted host session. `Release` alone is not a disposal barrier.
+A service table is a blittable struct that starts with `uint size`, allocated once in native memory (`NativeMemory.AllocZeroed`); its functions are `delegate* unmanaged<...>` pointers to `[UnmanagedCallersOnly]` methods. Keep its native allocation and backing state valid until provider-coordinated quiescence: stop new lookup, prevent consumers from starting more calls, and wait for all in-flight calls and custom workers to finish before destruction. Without that coordination, retain them for the admitted host session. `Release` alone is not a disposal barrier. Once a native table has been handed out, administrative unload and reload are refused for the session; after a fault, stop using cached tables and restart. Do not use peer tables during shutdown or across sessions.
 
 ```csharp
 [StructLayout(LayoutKind.Sequential)]
@@ -132,7 +132,7 @@ if (Query("my_plugin.greeter", ServiceVersion(1, 0), out ServiceRef<GreeterV1> g
 - `ServiceRef.Covers(offset, fieldSize = 8)` checks the provider's `size` covers the field; also check the function pointer for null before calling it.
 - `Provide`, `Release`, `Query`, `RegisterRawBytes` and `InvokeRawBytes` return `Unavailable` if the host table does not fully cover their slot or the slot is null. When available, they forward host results; `Query` also validates a successful returned table.
 - `Release(name)` stops new lookup of that service; the host withdraws the rest at unload. It does not revoke cached pointers or wait for calls through them.
-- `ServiceRef` is a borrowed pointer holder, not a lease. Once a native table has been handed out, administrative unload/reload is refused for the admitted session. Retained code/state after a fault is not permission to call it: stop using cached tables and restart after a native fault. Do not use peer tables during shutdown or across sessions. Host services under `sco.` may be kept for the plugin lifetime, subject to their individual shutdown rules. See [native trust and service lifetime rules](../sdk/docs/plugin-rules.md#native-trust-and-supported-usage).
+- `ServiceRef` is a borrowed pointer, not a lease. Host services under `sco.` may be kept for the plugin lifetime, subject to their individual shutdown rules. See [native trust and service lifetime rules](../sdk/docs/plugin-rules.md#native-trust-and-supported-usage).
 - Ids, never pointers: a service that deals with game objects takes and returns entity ids and resolves them on every call ([the API rule](api-v1.md#services-11)).
 - A function in your table is called from native code: wrap its body in `try`/`catch` (see [The exception boundary](#the-exception-boundary)).
 
@@ -146,7 +146,7 @@ if (Query("my_plugin.greeter", ServiceVersion(1, 0), out ServiceRef<GreeterV1> g
 
 For variable-size data use `RegisterRawBytes` (`ScoResult (ReadOnlySpan<byte> input, Span<byte> output, out uint written)`) and `InvokeRawBytes`. Raw calls run on the game thread only (`WrongThread` elsewhere).
 
-## Storage, DataCore and UI
+## Host services and game classes
 
 In the SDK zips: `Storage`, `Settings` and `Ui` are in the core SDK. `DataCore` and every `Sco.Sdk.Game` type come with the Star Citizen extension (`sco-sdk-game-sc`, `Sco.Sdk/DataCore*.cs` and `Sco.Sdk/Game/`); unpacked over the core SDK, `Sco.Sdk.csproj` compiles them with the rest. In this repository both are always there.
 
@@ -164,18 +164,17 @@ The host-owned services each have a class. `Open(plugin)` queries the service on
 | `Settings` | [`sco.settings`](api-v1.md#scosettings-10) ([`sco_settings.h`](../include/sco_settings.h)) | The typed `[settings]` of your `plugin.ini`, read-only: `GetBool` / `GetInt` / `GetFloat` / `GetString(name, out v)` (`NotFound`: not declared; `BadArg`: another type), `Bool` / `Int` / `Float` / `String(name, fallback)`, `LastError()`, and `Settings.TryReadChanged(data, out plugin, out name)` for the event `settings.changed` |
 | `Ui` | [`sco.ui`](ui.md) ([`sco_ui.h`](../include/sco_ui.h)) | `AddTab(id, title, order, draw)`, `RemoveTab`, `SetBadge`, `AddOverlay(id, draw)`, `RemoveOverlay`, `BindHotkey(chord, command, args...)`, `UnbindHotkey`, `NormalizeChord`, `LastError()`. `draw(frame)` gets the product's frame context, on the game thread |
 | `Sco.Sdk.Game.Actors` | the game pack's [`game.actors`](game-services.md) ([`sc_actors.h`](../include/sc_actors.h)) | `LocalPlayer(out actorId, out entityId)`, `SpawnNpc(archetypeClass, zoneId, pos, out id)`, `Despawn(id)`, `Health(id, out cur, out max)` (game.actors 1.1; `max` is 0; `Unavailable` on a 1.0 table), `State(id, out state)` (`Unavailable` until `game.actors.state` is ready), `LastError()`, `LastReadError()`. Game thread only; the NPCs you spawn are removed when your plugin unloads. `Open` answers `NotFound` without the game pack |
-| `Sco.Sdk.Game.World` | the game pack's [`game.world`](api-v1.md#gameworld-10-game-pack) ([`sc_world.h`](../include/sc_world.h)) | `Open`, `Raycast(zoneId, from, dir, maxDist, out WorldHit)`, `Camera(out WorldCamera)` (world frame; no field of view), `TryGetFreeCameraFlag(out bool enabled)` (game.world 1.1; `Unavailable` on a 1.0 table or while `game.world.free_camera_flag` is off, its default), `LastError()`. Read-only; game thread only. `Open` asks for 1.0, so a 1.0 game pack still opens. `Open` answers `NotFound` without the game pack |
+| `Sco.Sdk.Game.World` | the game pack's [`game.world`](api-v1.md#gameworld-11-game-pack) ([`sc_world.h`](../include/sc_world.h)) | `Open`, `Raycast(zoneId, from, dir, maxDist, out WorldHit)`, `Camera(out WorldCamera)` (world frame; no field of view), `TryGetFreeCameraFlag(out bool enabled)` (game.world 1.1; `Unavailable` on a 1.0 table or while `game.world.free_camera_flag` is off, its default), `LastError()`. Read-only; game thread only. `Open` asks for 1.0, so a 1.0 game pack still opens. `Open` answers `NotFound` without the game pack |
 | `Sco.Sdk.Game.Hangar` | the game pack's [`game.hangar`](game/hangar.md) ([`sc_hangar.h`](../include/sc_hangar.h)) | `Open`, `LiftOfLandingArea(landingAreaId, out liftId)`, `LiftRequest(liftId, ScHangarLiftOp)` (`Ok`: handed to the game, not moved yet), `AtcCancelRequest(atcId)`, `LastError()`. Game thread only; nothing is undone at unload. Capabilities `game.hangar.lift` and `game.hangar.atc_cancel` are OFF by default: the calls then answer `Unavailable` |
-| `Sco.Sdk.Game.GameRules` | the game pack's [`game.gamerules`](game/gamerules.md) ([`sc_gamerules.h`](../include/sc_gamerules.h)) | `Open`, `Read(out ScGamerulesState)` (`valid`, `generation`, the three server gates, six thresholds; zeroed with `size` set before the call). Current source/development kits also provide `ListParams(offset, capacity, out GameRulesParameter[], out total)` for copied static definitions with a guarded 1.1 query; capacity 0 counts, maximum 64. Read-only; game thread only; no `LastError`. `game.gamerules.read` stays OFF by default: `Read` answers `Unavailable` without a backend, while enumeration needs none. Published RC1 retains its earlier bindings. |
+| `Sco.Sdk.Game.GameRules` | the game pack's [`game.gamerules`](game/gamerules.md) ([`sc_gamerules.h`](../include/sc_gamerules.h)) | `Open`, `Read(out ScGamerulesState)` (`valid`, `generation`, the three server gates, six thresholds; zeroed with `size` set before the call). Since SDK 2.4.0, `ListParams(offset, capacity, out GameRulesParameter[], out total)` is also available for copied static definitions with a guarded 1.1 query; capacity 0 counts, maximum 64. Read-only; game thread only; no `LastError`. `game.gamerules.read` stays OFF by default: `Read` answers `Unavailable` without a backend, while enumeration needs none. |
 | `Sco.Sdk.Game.Inventory` | the game pack's [`game.inventory`](game/inventory.md) ([`sc_inventory.h`](../include/sc_inventory.h)) | `Open`, `Snapshot(out ScInventorySnapshot)`, `Port(i)`; copied raw `ulong` ids plus mapped `ScItemType` and canonical `ItemTypeName`. Queries 1.1, with guarded 1.0 prefix fallback (`HasDetails == false`). Read-only; game thread only; `game.inventory.read` defaults OFF |
 | `Sco.Sdk.Game.Reputation` | the game pack's [`game.reputation`](game/reputation.md) ([`sc_reputation.h`](../include/sc_reputation.h)) | `Open`, `Checks(out ScReputationChecks)` (`sites`, `intact`, `services`; zeroed with `size` set before the call), `LastError()`. Read-only; game thread only. Capability `game.reputation.checks` is OFF by default: `Checks` then answers `Unavailable` |
 | `Sco.Sdk.Game.GameEvents` | the game pack's bus events ([`sc_game_events.h`](../include/sc_game_events.h); [game services](game-services.md#events)) | Extension methods on `Plugin`: `OnPlayerSpawned`, `OnPlayerDied`, `OnActorDied`, `OnZoneChanged` (handler gets a copy of `ScGamePlayerSpawned` / `ScGamePlayerDied` / `ScGameActorDied` / `ScGameZoneChanged`; a payload shorter than the struct is dropped). They run on the game thread from the host's tick |
-| `Sco.Sdk.Game.Entities` | [`game.entities`](api-v1.md#gameentities-11-game-pack) ([`sc_entities.h`](../include/sc_entities.h)) | `Open`, `Alive(id)`, `ClassOf(id, out cls)`, `GetTransform(id, Span<double> pos, Span<double> rot, out zone)`, `SetTransform`, `Spawn(cls, zone, pos, rot, out id)`, `Despawn`, `Keep` (1.1), `Watch(what, type, fn, ctx, out id)` (an unmanaged function pointer), `Unwatch`, `QueryRadius`, `LastError()`, `LastReadError()`. Game thread only |
+| `Sco.Sdk.Game.Entities` | [`game.entities`](api-v1.md#gameentities-12-game-pack) ([`sc_entities.h`](../include/sc_entities.h)) | `Open`, `Alive(id)`, `ClassOf(id, out cls)`, `GetTransform(id, Span<double> pos, Span<double> rot, out zone)`, `SetTransform`, `Spawn(cls, zone, pos, rot, out id)`, `Despawn`, `Keep` (1.1), `Watch(what, type, fn, ctx, out id)` (an unmanaged function pointer), `Unwatch`, `QueryRadius`, `LastError()`, `LastReadError()`. Game thread only |
 
 ### Storage metadata (since SDK 2.4.1)
 
-`Sco.Sdk.StorageMetadata` is absent from SDK 2.4.0. It discovers a
-separate read-only service and never opens a database:
+`Sco.Sdk.StorageMetadata` discovers a separate read-only service and never opens a database:
 
 ```csharp
 var metadata = new StorageMetadata();
@@ -205,7 +204,7 @@ without an admitted producer; the current provider tests are synthetic.
 backend readiness. For a snapshot port, retain `item_class_id` as `ulong` alongside `ItemType`:
 invalid or unmapped values become `ScItemType.Unknown` (`0xFFFFFFFF`) and `"UNDEFINED"` without
 losing the original integer. A 1.0 snapshot has zero detail fields and `HasDetails == false`;
-zero then means absent information. This source addition is absent from published RC1.
+zero then means absent information.
 
 There are no C# wrappers for `sco.ipc` and `sco.net` yet (the C++ layer has `scosdk/ipc.hpp` and `scosdk/net.hpp`), and the layout test pins the tables the C# layer wraps, not those two.
 
@@ -277,16 +276,13 @@ Panel ID/title and service-wide limits remain `Widgets.SetPanel`/host checks.
 There is no reflection, runtime code generation, renderer dependency or new
 service-table version; this remains compatible with NativeAOT and frozen `sco_api`.
 
-The existing managed stand-in tests include builder preorder/parents, typed
-dispatch, disabled descendants, invalid inputs, snapshots, replacement/removal
-and layout rollback:
+Headless tests cover the builder:
 
 ```sh
 dotnet run -c Release --project sdk/csharp/Sco.Sdk.Tests -- --widgets
 ```
 
-These are headless development fixtures, not Windows NativeAOT loading, GPU or
-in-game verification.
+These tests are not Windows NativeAOT loading, GPU or in-game verification.
 
 Since SDK 2.4.1, `Widgets` negotiates `sco.widgets` 1.4 (falling back to
 1.3, 1.2, 1.1 and 1.0) and `WidgetNode.Tag` takes a stable node tag. A nonempty tag
@@ -294,7 +290,7 @@ needs a 1.4 provider with the stable-tag and event-tag features and a usable max
 tag length; otherwise `SetPanel` and `UpdateNodes` return `Unavailable` before
 submitting. A callback then receives `WidgetEvent.Tag`, the copied tag of the target
 node (null for an untagged node); an event whose tag does not match the retained node
-is dropped. These routes are absent from SDK 2.4.0. See the
+is dropped. See the
 [SDK widget guide](../sdk/docs/widgets.md#canonical-callback-tags-14).
 
 ## Lifetimes
@@ -308,7 +304,7 @@ The SDK owns every callable you hand it (command and raw handlers, event handler
 | A `done` callback (`InvokeAsync`) | It runs. A call still queued at unload is dropped and `done` is not called |
 | An event handler | Its `Subscription` is disposed, or the plugin unloads |
 | A tab or overlay draw function | `RemoveTab` / `RemoveOverlay`, or the plugin unloads |
-| A service table | Yours: keep its native allocation and backing state valid until provider-coordinated quiescence; absent that, retain them for the admitted host session. `Release` only stops new lookup (see [Services](#services)) |
+| A service table | Yours: see [Services](#services). `Release` only stops new lookup |
 
 The SDK keeps one host subscription per event and multiplexes your handlers over it (the host keys a subscription by plugin, event and function). Disposing the `Subscription` removes the handler; when the last handler for an event goes, the host subscription goes too.
 

@@ -74,9 +74,9 @@
         "tests/test_surfaces.cpp"
       ],
       "limitations": [
-        "Headless host tests only: no renderer projects or draws surfaces in sco-core, and nothing has run in a game.",
+        "Headless host tests only: no renderer projects or draws surfaces in sco-core. Not run in game.",
         "The panel shown is a sco.widgets panel id; the host checks its form and ownership, not that the panel exists.",
-        "C# and Lua bindings are unsupported in 1.0."
+        "No C# or Lua route."
       ]
     },
     {
@@ -152,9 +152,9 @@
         "tests/test_surfaces.cpp"
       ],
       "limitations": [
-        "Headless host tests only: no renderer projects or draws surfaces in sco-core, and nothing has run in a game.",
+        "Headless host tests only: no renderer projects or draws surfaces in sco-core. Not run in game.",
         "The panel shown is a sco.widgets panel id; the host checks its form and ownership, not that the panel exists.",
-        "C# and Lua bindings are unsupported in 1.0."
+        "No C# or Lua route."
       ]
     },
     {
@@ -230,9 +230,9 @@
         "tests/test_surfaces.cpp"
       ],
       "limitations": [
-        "Headless host tests only: no renderer projects or draws surfaces in sco-core, and nothing has run in a game.",
+        "Headless host tests only: no renderer projects or draws surfaces in sco-core. Not run in game.",
         "The panel shown is a sco.widgets panel id; the host checks its form and ownership, not that the panel exists.",
-        "C# and Lua bindings are unsupported in 1.0."
+        "No C# or Lua route."
       ]
     },
     {
@@ -308,9 +308,9 @@
         "tests/test_surfaces.cpp"
       ],
       "limitations": [
-        "Headless host tests only: no renderer projects or draws surfaces in sco-core, and nothing has run in a game.",
+        "Headless host tests only: no renderer projects or draws surfaces in sco-core. Not run in game.",
         "The panel shown is a sco.widgets panel id; the host checks its form and ownership, not that the panel exists.",
-        "C# and Lua bindings are unsupported in 1.0."
+        "No C# or Lua route."
       ]
     }
   ]

@@ -14,7 +14,7 @@ reads an `mcpServers` object, the entry is the following. The SDK folder is the 
 directly contains `sdk-catalogue.json`, `sco-sdk-<version>` for the combined kit; use absolute
 paths, and on Windows `py` with `-3` as the first argument. Discovery offers 15 tools by
 default, including service status and workflow retrieval; `--minimal-tools` offers the six
-catalogue tools. Published RC2 archives keep their 14-tool profile.
+catalogue tools.
 
 ```json
 {
@@ -39,7 +39,7 @@ Discover a service with `list_services` and `get_service_status`, then read
 `get_symbol` and `get_capability_status` for each operation before using it.
 `get_service_status` is a static registry snapshot and only binds to a schema-2
 catalogue when the registry's byte digest matches; it never probes a running
-provider. Published RC2 predates this tool and keeps its schema-1 catalogue.
+provider.
 `get_example` reads record-listed code.
 `list_engine_natives` exposes symbolic names and evidence tiers, not addresses.
 `validate_manifest_and_widgets` checks configuration/tree invariants.

@@ -1,9 +1,8 @@
 # Position-only local-player relocation
 
-`game.relocation` 1.1 adds an explicit `request_position`
-method. The frozen 1.0 FullPose request, 32-byte table type, 72-byte request and
-strict quaternion completion stay unchanged. Saved poses/bookmarks keep that
-route. Published SDK 2.4.0 RC1 does not contain this extension; the stable 2.4.0 header does.
+`game.relocation` 1.1 adds `request_position`, which moves the local player to a position in a loaded zone without setting a rotation. The frozen 1.0 FullPose request, 32-byte table type, 72-byte request and quaternion completion stay unchanged, and saved poses and bookmarks keep that route.
+
+Header: [`sc_relocation.h`](../../include/sc_relocation.h). Table version 1.1. Capabilities `game.relocation` (ON, FullPose) and `game.relocation.position` (OFF, this method); see [status](status.md). Not run in game.
 
 The new 48-byte `sc_relocation_position_request` contains size, timeout, target
 zone ID, three position components and the target's current observation epoch.
@@ -15,7 +14,7 @@ supported; no C#/Lua mutation route is added.
 ## Admission and completion
 
 Capability `game.relocation.position` is separate from FullPose readiness. The
-default native adapter supplies no position callbacks, so the new capability
+default native adapter supplies no position callbacks, so the capability
 stays OFF and valid requests return `SCO_UNAVAILABLE`.
 
 On the game thread, refresh `game.spatial.zone_record` for a known target ID and
@@ -32,16 +31,19 @@ owner, offline admission, player/session/system, fault and thread guards apply.
 
 This is position mutation as well as position completion. Only an explicit
 position apply callback is used. The provider never creates a quaternion or
-falls back to FullPose or owned-entity movement. If the player is already within 0.5 m when the request is made, it completes
-at once with `applied` 0 and no apply call. Otherwise a later tick after
-initiation must freshly observe finite player coordinates in the admitted target
-frame within 0.5 m (the game settles a character on the ground, so centimetre equality is not observable). It does not read or compare rotation. This requests no
-reorientation; it does not certify unrelated engine/physics orientation effects.
+falls back to FullPose or owned-entity movement.
+
+Arrival: if the player is already within 0.5 m of the target when the request is made, the request completes
+at once with `applied` 0 and no apply call. Otherwise the player has arrived when, on any tick after the position
+is applied, a fresh observation of finite player coordinates in the admitted target frame is within 0.5 m.
+The distance is the only test. The game settles a character on the ground, so centimetre equality is not observable. A position-only request does not read or compare rotation, and it requests no
+reorientation. (FullPose requests measure and log rotation but do not require it either.)
+
 Dispatch failure is terminal, without retry. A request that fails while pending, for
 either method, logs one `[game] relocation: request failed (<reason>) after <n> ms`
 line of yes/no flags (applied, streamed, arrived, offline, player, transport, fault
 and which identities still match) and the distance trail (`first=`, `closest=` and `last=` metres), with no
-coordinates or ids; a backend apply that
+coordinates or ids. A backend apply that
 returns failure or faults logs its own line.
 
 The epoch checks admission only. Spatial tick refresh expires it, so it is not
@@ -57,7 +59,7 @@ Tickets are owner-scoped and never reused. Existing status/cancel handle either
 kind; completion follows the creating method. Status does not advance work.
 Cancellation after initiation is not rollback. Owner release forgets pending
 work before dispatch; stop clears tickets. Reentrant calls refuse and callback
-faults latch until process restart.
+faults latch until process restart. A released owner is refused on every call and its pending request is forgotten before dispatch. Requests are copied before the output ticket is published, so the ticket may alias a request field.
 
 ## Host-source socket and native prerequisites
 
@@ -79,25 +81,7 @@ The internal `SetEntityLocalPose(entity, pos, nullptr)` helper skips rotation
 for local-frame entity movement and is used for NPC cleanup. This is not proof
 of local-player authority or cross-zone transport. A native position adapter
 still needs grounded transport, target lifetime and readback producers, then
-exact-build acceptance. G3 named loaded-zone discovery and loading unloaded
+exact-build acceptance. Named loaded-zone discovery and loading unloaded
 containers remain separate work.
 
-## Released-owner enforcement
-
-The original provider recognized permanent host handles without checking
-runtime Release. It could admit a retired caller or publish a ticket after an
-admission callback released the caller, and could dispatch retired pending work.
-The shared entry path now checks retirement, admission rechecks after backend
-callbacks, and Tick forgets released owners before dispatch. This enforces the
-existing contract for both methods; valid FullPose mutation/thresholds stay.
-Each callback is followed by an owner and pending ticket/mode/lifetime check.
-Tick uses copied requests, so a release hook clearing a slot cannot trigger a
-later observation in a reset frame or fault the provider for a fresh owner.
-Requests are copied before publishing an output ticket, including when the
-ticket aliases a request field.
-
-Portable model and actual host/provider tests use synthetic evidence for ABI,
-shared quotas, epoch/instance changes, streaming, cancellation, owner release,
-fault and refusal behavior. No native signature/default, product SDK pin or
-data staging changes. **Not run in game.** Source/SDK checks do not grant native
-or release approval.
+The tests are synthetic: portable model tests and actual host and provider tests for the ABI, shared quotas, epoch and instance changes, streaming, cancellation, owner release, fault and refusal behavior.

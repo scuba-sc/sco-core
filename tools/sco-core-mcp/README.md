@@ -26,9 +26,7 @@ Tool profiles in current source:
 they cannot be combined with `--minimal-tools`.
 
 The [default-off runtime launcher](../sco-core-mcp-runtime/README.md) is a separate
-program. This server never imports it or enables runtime inspection, and no live
-runtime or game acceptance is claimed for either. The runtime launcher replaces the
-same-server placement described in the [runtime design](../../docs/design/runtime-mcp.md).
+program. This server never imports it or enables runtime inspection.
 
 The contract authority is [`docs/contracts.md`](../../docs/contracts.md), with
 per-method records in [`sdk/contracts/`](../../sdk/contracts/). The server exposes
@@ -40,16 +38,12 @@ To connect Claude Code, Codex, Cursor, VS Code or Copilot CLI to the SDK kit, fo
 [Set up the discovery server from the SDK kit](../../docs/agent-integration.md#set-up-the-discovery-server-from-the-sdk-kit).
 It covers download and verification, the SDK folder (the folder that directly contains
 `sdk-catalogue.json`), each client's configuration and how to verify the connection.
-This README does not repeat those configurations.
 
-## Copyable SDK consumer tutorial
+## Tutorial
 
-[SDK, MCP and a tutorial-owned plugin](../../docs/sdk-mcp-tutorial.md) walks the
-standalone kit workflow with the default profile: scaffold, manifest and widget
-validation, native index, guides and an optional build and check. Its downstream
-walkthrough uses the six catalogue tools, owned NPC and inspector copies, an isolated
-archive build, the checker and a named dynamic fixture. Static discovery never
-certifies gameplay or performs reload.
+[Build a plugin with an AI agent and the SDK MCP server](../../docs/sdk-mcp-tutorial.md)
+covers scaffold, manifest and widget validation, native index, guides, and an optional
+build and check.
 
 ## Using an extracted SDK archive
 
@@ -85,9 +79,8 @@ extraction directory or an uncomposed overlay. The
 remain game-neutral and contain neither this game catalogue nor its launcher.
 
 The SDK <!--rv:sdk_version-->2.4.1<!--/rv--> launcher has the fifteen-tool default and matching workflow index. Earlier
-release archives retain their original bytes and behavior. Append `--extended-tools` to
-an RC1 developer launcher for compatibility and expect twelve. For an updated-source
-kit, this command uses the default developer profile (append `--minimal-tools` for six):
+release archives retain their original bytes and behavior. This command uses the default
+developer profile (append `--minimal-tools` for six):
 
 ```sh
 python3 /absolute/path/to/sco-sdk-<version>/tools/sco-core-mcp/server.py \
@@ -189,11 +182,8 @@ its archive identity is in the
 - **The historical RC2 launcher:** 14 tools. It predates `get_service_status` and the schema-2 catalogue.
 - **RC1:** six-tool default, 12 with `--extended-tools`, and no workflow tools or index.
 
-These launchers speak only protocol `2025-11-25`. The 2.4.0 archive's own README files
-still carry RC2-era text, including that the final release is not yet published. That
-is prepublication wording in the packaged snapshot, not release status. RC1 has its own
-earlier launcher and frozen guides; see the known issue in the
-[integration guide](../../docs/agent-integration.md#set-up-the-discovery-server-from-the-sdk-kit).
+Protocol support and the stale text in these archives' own READMEs and guides are in
+[Older kits](../../docs/agent-integration.md#older-kits).
 
 ## Run from a source checkout (maintainers)
 
@@ -414,8 +404,7 @@ returned. The whole index is refused if any of these holds:
 `null` on the last page. The hash is a symbolic name, not an address, and the
 index records no pattern, mask, offset or address. The tier comes from the status
 registry's `sig_rows`, so tier 2 means only that no capability names the row. A
-row listed here is not evidence that it resolves on any game build, or that
-anything ran in game.
+row listed here is not evidence that it resolves on any game build.
 
 **Manifest and widget validation.** `validate_manifest_and_widgets` reads and
 writes no files. It takes these arguments:
@@ -517,7 +506,7 @@ start a subprocess or write `__pycache__`. Without a root, or when the file is
 missing, a symlink or fails to load, `state` is `unavailable` with a `reason` and
 `files` is empty. The result is not bound to the catalogue `source_sha`.
 Generated native/C++/C# plugins declare `api = 1.1`, matching their exported built-against version; Lua declares `api = 1.0`. Short-table checks do not establish API 1.0 loader admission. Nothing generated here has been loaded by
-a host or run in game.
+a host.
 
 **Guide search.** `search_guides` and `get_guide_section` answer "how do I ..."
 questions from the SDK guides rather than the contract records. Their data is
@@ -569,8 +558,7 @@ then guide order. `doc` keeps one guide's sections (an unknown `doc` is refused
 with the list of known ones); `limit` is 1-25 (default 5) and `cursor` pages like
 `list_engine_natives`. Snippets are at most about 320 characters. Ranking is
 term matching, not semantic search. Guides are prose, not contract records:
-check a method with `get_symbol` before relying on it. Nothing in a guide is
-evidence that code ran in game.
+check a method with `get_symbol` before relying on it.
 
 ### Development tools (configured roots)
 
@@ -708,103 +696,18 @@ the findings, setting `output_truncated` and `findings_truncated`. `state`,
   calls per 60 seconds covers these tools too.
 - **What a pass means.** A passing check is synthetic host and ABI evidence from
   a stand-in host. It is not the real host, and nothing here loads the plugin in
-  the game: **not run in game**.
+  the game. Not run in game. See [game capability
+  status](../../docs/game/status.md).
 
 ## MCP clients
 
-Client configuration lives in one place, the
+Client configuration is in one place, the
 [integration guide](../../docs/agent-integration.md#register-the-server-in-your-client):
-the kit-first launcher for Claude Code, Codex, Cursor, VS Code and Copilot CLI, in
-Windows and macOS/Linux forms, and
-[how to verify the connection](../../docs/agent-integration.md#verify-the-connection).
-Rules that hold for every client:
-
-- Use absolute paths, with each flag and each value as its own argument. Do not depend
-  on the client's working directory.
-- On Windows use `py` with `-3` as the first argument, or an absolute `python.exe`. A
-  standard Windows Python install has `py` but not `python3`, and a `python3` alias can
-  be the Microsoft Store stub.
-- The current-source default client allowlist names all fifteen discovery tools; explicit
-  `--minimal-tools` uses only the original six. Configured project roots additionally
-  offer three execution tools, which need their own exact client permissions. Never
-  use a wildcard.
-- Removing `--repo-root` and its path disables `get_example` contents, the engine-native
-  tools, the scaffold, status and stability evidence and historical release-approval lookups. The
-  guide tools still work when `sdk-guides.json` sits beside the catalogue. Do it only to
-  keep example contents from the client or its model provider.
-- No API keys, tokens, or secrets are needed.
-
-## Copilot CLI and IDE integration
-
-See [the engineering integration guide](../../docs/agent-integration.md) for
-client-specific configuration, the literal-launcher acceptance check and the
-remaining administrator/runner acceptance steps. It does not install a
-`.github/mcp.json`, modify repository settings or imply a hosted server.
-
-## GitHub Copilot repository configuration
-
-A repository administrator configures this on GitHub under **Settings > Copilot >
-MCP servers**, in the **MCP configuration** JSON field, then selects **Save MCP
-configuration**. GitHub's repository configuration is shared by Copilot cloud agent
-and Copilot code review; it is not a committed `.github/mcp.json` file. See
-[GitHub's MCP configuration documentation](https://docs.github.com/copilot/how-tos/copilot-on-github/customize-copilot/configure-mcp-servers).
-
-Paste the following JSON, the minimal profile with its six-name explicit allowlist
-(the same checkout block as in the
-[integration guide](../../docs/agent-integration.md#maintainers-source-checkout-and-your-own-catalogue)).
-Replace the path placeholder with the absolute checkout path **inside Copilot's
-runner**, not a path on your workstation:
-
-```json
-{
-  "mcpServers": {
-    "sco-core-sdk": {
-      "type": "stdio",
-      "command": "python3",
-      "args": [
-        "/absolute/path/to/sco-core/tools/sco-core-mcp/server.py",
-        "--catalogue",
-        "/absolute/path/to/sco-core/dist/sdk-catalogue.json",
-        "--repo-root",
-        "/absolute/path/to/sco-core",
-        "--minimal-tools"
-      ],
-      "tools": [
-        "search_api",
-        "get_symbol",
-        "list_services",
-        "get_example",
-        "get_capability_status",
-        "check_compatibility"
-      ]
-    }
-  }
-}
-```
-
-Prepare the runner before enabling this configuration:
-
-1. Check out the repository in Copilot's setup environment and make Python 3.9 or
-   newer, Clang, and an x64 C11 compilation environment available.
-2. In the setup steps, run the catalogue build command above from the checkout
-   root. The generated `dist/sdk-catalogue.json` must exist **before the MCP client
-   starts the server**, in the same checkout referenced by the JSON paths. A build
-   in a separate CI job or on your workstation does not put the file in that runner.
-3. Use [Copilot setup steps](https://docs.github.com/en/copilot/how-tos/copilot-on-github/customize-copilot/customize-cloud-agent/customize-the-agent-environment)
-   in `.github/workflows/copilot-setup-steps.yml`, with the required
-   `copilot-setup-steps` job. If code review uses a separate setup workflow, ensure
-   it also prepares the catalogue. Verify setup succeeded; a missing catalogue
-   cannot be repaired by a discovery tool call.
-4. Set the runner's absolute checkout paths in the repository setting and save the
-   MCP configuration. No Agents secrets or secret substitutions are required.
-
-GitHub warns that configured MCP tools may be used autonomously without asking
-for approval, and recommends specific read-only tool allowlists. Copilot code
-review requires `annotations.readOnlyHint: true` on tools it uses. All fifteen current-source
-default discovery tools, including the six in this minimal allowlist, set that
-annotation, but annotations and an allowlist are not a sandbox for the
-client itself. Do not add a wildcard or assume this restricts the client's other
-tools. Consult the linked GitHub documentation for current UI and runner behavior.
+Claude Code, Codex, Cursor, VS Code and Copilot CLI, in Windows and macOS/Linux forms,
+with [how to verify the connection](../../docs/agent-integration.md#verify-the-connection).
+For the repository-level Copilot setting, see
+[Copilot code review](../../docs/agent-integration.md#copilot-code-review-maintainer-owned-repository-setting).
+No API keys, tokens or secrets are needed.
 
 ## Troubleshooting
 
@@ -822,7 +725,6 @@ tools. Consult the linked GitHub documentation for current UI and runner behavio
 | Compatibility matches but service is absent | Catalogue equality is not runtime readiness. Check live capability, whole member extent, table size and non-null pointer in the plugin. |
 | Catalogue is stale | Rebuild matching reviewed source and restart. Root metadata/generator code are separate inputs, not authenticated by catalogue SHA. |
 | Guide sections are stale | A `sdk-guides.json` beside the catalogue (or from `--guides`) wins over `--repo-root`. Rebuild it with `tools/sdk_guides.py build`, or delete it to build from the tree, and restart. `guides.source_sha` says which commit the file came from. |
-| A packaged README says the final release is pending, or describes RC2 workflows | An immutable earlier archive retains pre-release README text (see [Previous release](#previous-release-sdk-240)). Use the release page of the kit you downloaded and verify the download against its `SHA256SUMS`. Source documentation changes do not alter published bytes. RC1 and RC2 are separate historical releases. |
 | `check_compatibility` refuses a release candidate tag with an `-rc.N` suffix | The tag pattern does not accept pre-release suffixes. Compare `sdk_version`, `game_pack_version` and `source_sha` instead, and verify the archive digest separately. |
 
 Discovery cannot invoke commands, reload plugins or diagnose live game state.

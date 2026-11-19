@@ -2,17 +2,17 @@
 
 For **SDK consumers** building extensions, start with [the packaged workflow suite](sdk/skills/sco-plan-sdk-work/SKILL.md) and [discovery guide](docs/agent-workflows.md). The contributor/clean-room process below applies to core contributions and interoperability-derived facts; ordinary consumer debugging and packaging use public SDK inputs.
 
-Welcome to `sco-core`. This file guides AI coding agents (Claude Code, Cursor, Codex, OmO)
-working in this repository or in downstream forks.
+Guidance for AI coding agents working in this repository or a fork.
+Build and test: see [docs/building.md](docs/building.md).
 
-## North Star & Architectural Context
+## Overview
 - **`sco-core`** is the plain-C ABI (`include/sco_api.h`), C++20 SDK wrapper layer
-  (`include/sco/`, `sdk/`), signature registry (`sco-sigcheck`), and host service provider
+  (`include/scosdk/`, `sdk/`), host kit (`include/sco/`), signature registry (`sco-sigcheck`), and host service provider
   (`sco.storage`, `sco.ui`, `sco.datacore`, `sco.ipc`, `sco.net`, and Star Citizen `game.*` services).
 - **Offline only:** Strictly local/offline game interoperability (no live server, account,
   telemetry, or anti-cheat circumvention). Full policy in `IP_POLICY.md` and `CONTRIBUTING.md`.
 - **The plugin ABI only grows:** `include/sco_api.h` is frozen and backwards-compatible.
-- **Clean-room hygiene (Rules 6 & 12):** No raw game binaries, dumps, encryption keys,
+- **Clean-room hygiene ([IP policy](IP_POLICY.md)):** No raw game binaries, dumps, encryption keys,
   player DNA, or bulk GUID dumps in git or PR text.
 
 ---

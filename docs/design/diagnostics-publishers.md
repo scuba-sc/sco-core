@@ -1,7 +1,7 @@
 # Runtime diagnostics sources (#141)
 
 Implemented source publishers, not a transport or authorization layer. Builds and
-fixtures are synthetic; **not run in game**. The frozen `sco_api` 1.1 is unchanged.
+fixtures are synthetic. Not run in game. The frozen `sco_api` 1.1 is unchanged.
 
 ## Boundaries
 
@@ -82,7 +82,7 @@ Core packaging includes public declarations, wrapper and disabled example;
 core-source includes neutral implementation/fixtures. Game publisher implementation
 stays out of the kernel source kit. Nothing is a fifth MIT wire header.
 
-## Decision pending owner
+## Open decisions
 
 The narrow safe extra-field v1 source contract is fixed advisory health, one
 selected plugin and one observation/second. Wider fields/owners or output schemas

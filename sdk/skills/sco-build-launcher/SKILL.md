@@ -2,7 +2,7 @@
 name: sco-build-launcher
 description: "Build, run and adapt the SDK reference launcher, or write a product launcher against the same contract: verify the kit, set the product config, build the Rust workspace, install a plugin from a zip, switch capabilities and connect an agent through the read-only mcp command. Use when a task needs a launcher, plugin folder manager or launcher-side MCP server for the sco-core host kit."
 metadata:
-  version: "0.2.9"
+  version: "0.2.10"
 ---
 
 # Build a launcher for the SCO host kit
@@ -15,7 +15,7 @@ Apply the version and availability resolution in [input/evidence rules](../sco-b
 
 The reference launcher lists and edits a launcher folder: status, plugin list, enable and disable by the `disabled` marker, verified install from a local zip, the capability switches, and a read-only MCP server. It **does not** start the game, inject, patch, admit, render a menu, change the PC (firewall, hosts file, registry, anti-cheat files), use the network or update itself. Those are product duties. If the task asks for one of them, stop and get the owner's decision first, write down exactly what it would change, and keep it out of the reference example.
 
-Never claim in-game behaviour. A built launcher, a passing test, a verified zip and a printed environment block are source and synthetic evidence. Say "not run in game" in the report, in user text and in any new documentation.
+Never claim in-game behaviour. A built launcher, a passing test, a verified zip and a printed environment block are source and synthetic evidence. Write "Not run in game." in the report, in user text and in any new documentation.
 
 ## Steps
 
@@ -34,7 +34,7 @@ Never claim in-game behaviour. A built launcher, a passing test, a verified zip 
 - Public SDK files carry no private paths, personal names or e-mail addresses; use synthetic names and `@example.com`.
 - Do not copy a product's branding, update host or default pack list into the reference example; those belong in the product config of the product.
 - Do not start `StarCitizen.exe`, write into an existing install, or change firewall, hosts, registry or anti-cheat files to test a launcher. Use scratch folders and the in-process tests.
-- Do not add network access to the reference launcher. The catalogue crate holds format, signature and policy code only; it has no fetch implementation and no production key.
+- Do not add network access to the reference launcher. The catalogue crate has format, signature and policy code and a `Fetcher` trait, but no network code and no production key.
 - A passing install is not a compatibility claim: the host decides at start whether a plugin loads, and native plugins are code that runs in the game process.
 
 Deliver the built binary path, the commands run with their results, the scratch-folder transcript, the contract points checked, and the gates still open (injection, admission, quiescence attestation, menu renderer and every in-game observation).

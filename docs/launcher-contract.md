@@ -2,7 +2,7 @@
 
 What a launcher and the sco-core host kit must agree on. This page is the written form of the constants in the reference launcher (`sdk/examples/launcher/crates/scl-contract`, `examples/launcher/` in the SDK kit) and of the plugin rules in `docs/plugins.md` in the repository. Where the host kit fixes a rule, the rule is marked **fixed by the host kit**. Where a product chooses, the page says **product choice** and gives what the reference launcher does.
 
-Status: source level and synthetic tests only. **Not run in game.** No capability switch below has been run in game, and the reference launcher starts no game.
+Status: source level and synthetic tests. The reference launcher starts no game and has not been used with one. Not run in game. See [game capability status](game/status.md).
 
 ## Who owns what
 
@@ -14,7 +14,7 @@ Status: source level and synthetic tests only. **Not run in game.** No capabilit
 | Zip package rules and the plugin API version | Host kit and SDK verifier (fixed) |
 | Name of the launcher's own variables, ini file, data folder, event names | Product choice |
 | How the game process receives the launcher's variables | Product choice (the product's own `dinput8.dll` reads them) |
-| Injection, offline patches, admission, menu renderer | Product (see [building a launcher](building-a-launcher.md#what-a-product-brings-itself)) |
+| Injection, offline patches, admission, menu renderer | Product (see [building a launcher](building-a-launcher.md#7-what-a-product-brings-itself)) |
 
 ## Product config
 
@@ -37,7 +37,7 @@ A product decides these once and passes them to every function that builds a nam
 
 The host kit reads these from its own process environment. A switch is **on only when the value is exactly `1`**. Any other value, including `true`, `on` and an empty string, is off.
 
-| Variable | Settings key | What it turns on | Evidence | Default |
+| Variable | Settings key | What it turns on | Evidence | Launcher default |
 |---|---|---|---|---|
 | `SCO_LOADOUT_ASYNC` | `exp_loadout_async` | `game.loadout.async` production adapter | synthetic only | on |
 | `SCO_INVENTORY_READ` | `exp_inventory_read` | `game.inventory.read` | synthetic only | on |
@@ -46,11 +46,15 @@ The host kit reads these from its own process environment. A switch is **on only
 | `SCO_AUDIO_NATIVE` | `exp_audio_native` | native audio adapter attempt | synthetic only | on |
 | `SCO_ENTITIES_DIAG` | `exp_entities_diag` | Diagnostic hooks that patch game functions to write log lines. Not a capability | not a capability | off |
 
+These are the reference launcher's defaults. In the host, each of the five capabilities is OFF until its switch is set (`sdk/status_registry.json`). A product chooses its own defaults. `game.actor_stats.write` has evidence level `off_pending_probe`.
+
+The host reads one more switch, `SCO_LOADOUT_OUTFIT=1`. It enables `game.loadout.outfit` (outfit slots 22-31 of `game.loadout.async`) and has an effect only together with `SCO_LOADOUT_ASYNC=1`. The reference launcher has no setting for it. A product that wants it sets it in the game's environment.
+
 Rules:
 
 - The settings key is `exp_` plus the variable name without `SCO_`, in lower case.
 - The launcher builds the child environment from its settings. For a switch that is on it sets `NAME=1`. For a switch that is off it **removes** the variable from the child environment, so a value set in the player's own shell cannot switch it on.
-- Defaults: the five capability switches are on and the diagnostic switch is off. Each is a visible setting the player can turn off, and each is shown with the sentence "Not run in game."
+- Launcher defaults: the five capability switches are on and the diagnostic switch is off. Each is a setting the player can turn off.
 - A capability that is on can still be refused at run time by the host's own checks (admission, resolved rows, bounds). Turning a switch on does not prove the behaviour.
 
 The reference launcher prints the table with `capabilities` and the resulting block with `capabilities env`.
@@ -78,6 +82,8 @@ All paths are under the launcher folder. Nothing in the host kit requires the la
   <ini_file>                   settings file (product choice)
   data/                        data root (Platform::dataRoot)
     mod.log                    host log (product choice of name)
+    launcher.log               launcher log (reference launcher)
+    launcher.log.1             previous launcher log
     plugins/<id>/              one folder per plugin
       plugin.ini
       disabled                 optional marker (fixed)

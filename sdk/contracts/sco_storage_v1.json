@@ -20,7 +20,7 @@
       "callback_context": "unspecified",
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND. Stopped: UNAVAILABLE; invalid/released self: BAD_ARG. Allocation exceptions: TOO_MANY; database errors may be FAILED. Additional failures/output state unspecified unless described in the buffer contract.",
-      "absent_capability": "Absent table: query_service NOT_FOUND.",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND.",
       "cleanup": "No cancellation entrypoint; ordinary unload/non-retained crash cleanup rolls back transaction and closes cursors/database. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls.",
       "language_mappings": {
         "c": {
@@ -88,10 +88,7 @@
         "tools/test.sh",
         "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
       ],
-      "limitations": [
-        "Same-call recursive reentrancy unspecified.",
-        "Additional failures/output state unspecified unless described in the buffer contract."
-      ]
+      "limitations": []
     },
     {
       "id": "sco-storage-v1-get",
@@ -112,7 +109,7 @@
       "callback_context": "unspecified",
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND. Stopped: UNAVAILABLE; invalid/released self: BAD_ARG. Allocation exceptions: TOO_MANY; database errors may be FAILED. Additional failures/output state unspecified unless described in the buffer contract.",
-      "absent_capability": "Absent table: query_service NOT_FOUND.",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND.",
       "cleanup": "No cancellation entrypoint; ordinary unload/non-retained crash cleanup rolls back transaction and closes cursors/database. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls.",
       "language_mappings": {
         "c": {
@@ -180,10 +177,7 @@
         "tools/test.sh",
         "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
       ],
-      "limitations": [
-        "Same-call recursive reentrancy unspecified.",
-        "Additional failures/output state unspecified unless described in the buffer contract."
-      ]
+      "limitations": []
     },
     {
       "id": "sco-storage-v1-del",
@@ -204,7 +198,7 @@
       "callback_context": "unspecified",
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND. Stopped: UNAVAILABLE; invalid/released self: BAD_ARG. Allocation exceptions: TOO_MANY; database errors may be FAILED. Additional failures/output state unspecified unless described in the buffer contract.",
-      "absent_capability": "Absent table: query_service NOT_FOUND.",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND.",
       "cleanup": "No cancellation entrypoint; ordinary unload/non-retained crash cleanup rolls back transaction and closes cursors/database. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls.",
       "language_mappings": {
         "c": {
@@ -272,10 +266,7 @@
         "tools/test.sh",
         "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
       ],
-      "limitations": [
-        "Same-call recursive reentrancy unspecified.",
-        "Additional failures/output state unspecified unless described in the buffer contract."
-      ]
+      "limitations": []
     },
     {
       "id": "sco-storage-v1-next-key",
@@ -296,7 +287,7 @@
       "callback_context": "unspecified",
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND. Stopped: UNAVAILABLE; invalid/released self: BAD_ARG. Allocation exceptions: TOO_MANY; database errors may be FAILED. Additional failures/output state unspecified unless described in the buffer contract.",
-      "absent_capability": "Absent table: query_service NOT_FOUND.",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND.",
       "cleanup": "No cancellation entrypoint; ordinary unload/non-retained crash cleanup rolls back transaction and closes cursors/database. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls.",
       "language_mappings": {
         "c": {
@@ -364,10 +355,7 @@
         "tools/test.sh",
         "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
       ],
-      "limitations": [
-        "Same-call recursive reentrancy unspecified.",
-        "Additional failures/output state unspecified unless described in the buffer contract."
-      ]
+      "limitations": []
     },
     {
       "id": "sco-storage-v1-begin",
@@ -388,7 +376,7 @@
       "callback_context": "unspecified",
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND. Stopped: UNAVAILABLE; invalid/released self: BAD_ARG. Allocation exceptions: TOO_MANY; database errors may be FAILED. Additional failures/output state unspecified unless described in the buffer contract.",
-      "absent_capability": "Absent table: query_service NOT_FOUND.",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND.",
       "cleanup": "rollback or ordinary unload/non-retained crash cleanup undoes uncommitted writes; no per-call interrupt API. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls.",
       "language_mappings": {
         "c": {
@@ -456,10 +444,7 @@
         "tools/test.sh",
         "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
       ],
-      "limitations": [
-        "Same-call recursive reentrancy unspecified.",
-        "Additional failures/output state unspecified unless described in the buffer contract."
-      ]
+      "limitations": []
     },
     {
       "id": "sco-storage-v1-commit",
@@ -480,7 +465,7 @@
       "callback_context": "unspecified",
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND. Stopped: UNAVAILABLE; invalid/released self: BAD_ARG. Allocation exceptions: TOO_MANY; database errors may be FAILED. Additional failures/output state unspecified unless described in the buffer contract.",
-      "absent_capability": "Absent table: query_service NOT_FOUND.",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND.",
       "cleanup": "Synchronous; no cancellation API; successful commit durable and not undone by unload. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls.",
       "language_mappings": {
         "c": {
@@ -548,10 +533,7 @@
         "tools/test.sh",
         "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
       ],
-      "limitations": [
-        "Same-call recursive reentrancy unspecified.",
-        "Additional failures/output state unspecified unless described in the buffer contract."
-      ]
+      "limitations": []
     },
     {
       "id": "sco-storage-v1-rollback",
@@ -572,7 +554,7 @@
       "callback_context": "unspecified",
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND. Stopped: UNAVAILABLE; invalid/released self: BAD_ARG. Allocation exceptions: TOO_MANY; database errors may be FAILED. Additional failures/output state unspecified unless described in the buffer contract.",
-      "absent_capability": "Absent table: query_service NOT_FOUND.",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND.",
       "cleanup": "Synchronous rollback, not a request to interrupt another thread's running statement.",
       "language_mappings": {
         "c": {
@@ -640,10 +622,7 @@
         "tools/test.sh",
         "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
       ],
-      "limitations": [
-        "Same-call recursive reentrancy unspecified.",
-        "Additional failures/output state unspecified unless described in the buffer contract."
-      ]
+      "limitations": []
     },
     {
       "id": "sco-storage-v1-exec",
@@ -664,7 +643,7 @@
       "callback_context": "unspecified",
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND. Stopped: UNAVAILABLE; invalid/released self: BAD_ARG. Allocation exceptions: TOO_MANY; database errors may be FAILED. Additional failures/output state unspecified unless described in the buffer contract.",
-      "absent_capability": "Absent table: query_service NOT_FOUND.",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND.",
       "cleanup": "No cancellation entrypoint; ordinary unload/non-retained crash cleanup rolls back transaction and closes cursors/database. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls.",
       "language_mappings": {
         "c": {
@@ -730,10 +709,7 @@
         "tools/test.sh",
         "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
       ],
-      "limitations": [
-        "Same-call recursive reentrancy unspecified.",
-        "Additional failures/output state unspecified unless described in the buffer contract."
-      ]
+      "limitations": []
     },
     {
       "id": "sco-storage-v1-query",
@@ -754,7 +730,7 @@
       "callback_context": "unspecified",
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND. Stopped: UNAVAILABLE; invalid/released self: BAD_ARG. Allocation exceptions: TOO_MANY; database errors may be FAILED. Additional failures/output state unspecified unless described in the buffer contract.",
-      "absent_capability": "Absent table: query_service NOT_FOUND.",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND.",
       "cleanup": "No cancellation entrypoint; ordinary unload/non-retained crash cleanup rolls back transaction and closes cursors/database. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls.",
       "language_mappings": {
         "c": {
@@ -824,10 +800,7 @@
         "tools/test.sh",
         "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
       ],
-      "limitations": [
-        "Same-call recursive reentrancy unspecified.",
-        "Additional failures/output state unspecified unless described in the buffer contract."
-      ]
+      "limitations": []
     },
     {
       "id": "sco-storage-v1-step",
@@ -848,7 +821,7 @@
       "callback_context": "unspecified",
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND. Stopped: UNAVAILABLE; invalid/released self: BAD_ARG. Allocation exceptions: TOO_MANY; database errors may be FAILED. Additional failures/output state unspecified unless described in the buffer contract.",
-      "absent_capability": "Absent table: query_service NOT_FOUND.",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND.",
       "cleanup": "No cancellation entrypoint; ordinary unload/non-retained crash cleanup rolls back transaction and closes cursors/database. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls.",
       "language_mappings": {
         "c": {
@@ -918,10 +891,7 @@
         "tools/test.sh",
         "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
       ],
-      "limitations": [
-        "Same-call recursive reentrancy unspecified.",
-        "Additional failures/output state unspecified unless described in the buffer contract."
-      ]
+      "limitations": []
     },
     {
       "id": "sco-storage-v1-column-count",
@@ -1012,9 +982,7 @@
         "tools/test.sh",
         "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
       ],
-      "limitations": [
-        "Same-call recursive reentrancy unspecified."
-      ]
+      "limitations": []
     },
     {
       "id": "sco-storage-v1-column",
@@ -1035,7 +1003,7 @@
       "callback_context": "unspecified",
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND. Stopped: UNAVAILABLE; invalid/released self: BAD_ARG. Allocation exceptions: TOO_MANY; database errors may be FAILED. Additional failures/output state unspecified unless described in the buffer contract.",
-      "absent_capability": "Absent table: query_service NOT_FOUND.",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND.",
       "cleanup": "No cancellation entrypoint; ordinary unload/non-retained crash cleanup rolls back transaction and closes cursors/database. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls.",
       "language_mappings": {
         "c": {
@@ -1105,10 +1073,7 @@
         "tools/test.sh",
         "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
       ],
-      "limitations": [
-        "Same-call recursive reentrancy unspecified.",
-        "Additional failures/output state unspecified unless described in the buffer contract."
-      ]
+      "limitations": []
     },
     {
       "id": "sco-storage-v1-column-name",
@@ -1195,9 +1160,7 @@
         "sdk/csharp/Sco.Sdk.Tests/FakeHost.cs",
         "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
       ],
-      "limitations": [
-        "Same-call recursive reentrancy unspecified."
-      ]
+      "limitations": []
     },
     {
       "id": "sco-storage-v1-close",
@@ -1218,7 +1181,7 @@
       "callback_context": "unspecified",
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND. Stopped: UNAVAILABLE; invalid/released self: BAD_ARG. Allocation exceptions: TOO_MANY; database errors may be FAILED. Additional failures/output state unspecified unless described in the buffer contract.",
-      "absent_capability": "Absent table: query_service NOT_FOUND.",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND.",
       "cleanup": "No cancellation entrypoint; ordinary unload/non-retained crash cleanup rolls back transaction and closes cursors/database. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls.",
       "language_mappings": {
         "c": {
@@ -1288,10 +1251,7 @@
         "tools/test.sh",
         "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
       ],
-      "limitations": [
-        "Same-call recursive reentrancy unspecified.",
-        "Additional failures/output state unspecified unless described in the buffer contract."
-      ]
+      "limitations": []
     },
     {
       "id": "sco-storage-v1-last-error",
@@ -1312,7 +1272,7 @@
       "callback_context": "unspecified",
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND. Stopped: UNAVAILABLE; invalid/released self: BAD_ARG. Allocation exceptions: TOO_MANY; database errors may be FAILED. Additional failures/output state unspecified unless described in the buffer contract.",
-      "absent_capability": "Absent table: query_service NOT_FOUND.",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND.",
       "cleanup": "No cancellation entrypoint; ordinary unload/non-retained crash cleanup rolls back transaction and closes cursors/database. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls.",
       "language_mappings": {
         "c": {
@@ -1378,10 +1338,7 @@
         "tools/test.sh",
         "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
       ],
-      "limitations": [
-        "Same-call recursive reentrancy unspecified.",
-        "Additional failures/output state unspecified unless described in the buffer contract."
-      ]
+      "limitations": []
     },
     {
       "id": "sco-storage-v1-next-table",
@@ -1402,7 +1359,7 @@
       "callback_context": "unspecified",
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND. Stopped: UNAVAILABLE; invalid/released self: BAD_ARG. Allocation exceptions: TOO_MANY; database errors may be FAILED. Additional failures/output state unspecified unless described in the buffer contract.",
-      "absent_capability": "Absent table: query_service NOT_FOUND.",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND.",
       "cleanup": "No cancellation entrypoint; ordinary unload/non-retained crash cleanup rolls back transaction and closes cursors/database. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls.",
       "language_mappings": {
         "c": {
@@ -1463,10 +1420,7 @@
         "tests/test_lua.cpp",
         "sdk/csharp/Sco.Sdk.Tests/StorageSchemaTests.cs"
       ],
-      "limitations": [
-        "Same-call recursive reentrancy unspecified.",
-        "Additional failures/output state unspecified unless described in the buffer contract."
-      ]
+      "limitations": []
     },
     {
       "id": "sco-storage-v1-next-column",
@@ -1487,7 +1441,7 @@
       "callback_context": "unspecified",
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND. Stopped: UNAVAILABLE; invalid/released self: BAD_ARG. Allocation exceptions: TOO_MANY; database errors may be FAILED. Additional failures/output state unspecified unless described in the buffer contract.",
-      "absent_capability": "Absent table: query_service NOT_FOUND.",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND.",
       "cleanup": "No cancellation entrypoint; ordinary unload/non-retained crash cleanup rolls back transaction and closes cursors/database. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls.",
       "language_mappings": {
         "c": {
@@ -1548,10 +1502,7 @@
         "tests/test_lua.cpp",
         "sdk/csharp/Sco.Sdk.Tests/StorageSchemaTests.cs"
       ],
-      "limitations": [
-        "Same-call recursive reentrancy unspecified.",
-        "Additional failures/output state unspecified unless described in the buffer contract."
-      ]
+      "limitations": []
     }
   ]
 }

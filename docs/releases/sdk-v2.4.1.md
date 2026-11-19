@@ -1,11 +1,7 @@
 # sco-core SDK 2.4.1 release notes
 
 Planned tag [`sdk-v2.4.1`](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.1), combined archive `sco-sdk-2.4.1.zip`.
-**Release candidate source.** These notes describe the source that the release-candidate
-workflow builds from the release branch. The five profile archives, their SBOMs, `SHA256SUMS` and
-`release.json` are produced once by that workflow and promoted without rebuilding; their
-digests are recorded on the release page, not here. Nothing in this file approves tagging
-or publication.
+Archive digests are on the release page, not here.
 
 <!-- release-scope:start -->
 ```json
@@ -70,7 +66,7 @@ or publication.
 - Archive checks preserve Git file modes, Linux UAPI header links and the C# build environment
   on Windows.
 
-**Added after the candidate**
+**Also in 2.4.1**
 
 - Widget renderer: an unlabelled ROW, COLUMN or TABLE draws no blank line, and a NUMBER slider
   shows whole values without decimals. Source kit only; events are identical.
@@ -80,8 +76,9 @@ or publication.
   example. The two workflow tools are listed only when a valid workflow index is loaded. Tool
   names, argument names and results are unchanged.
 - `game.relocation`: a request made when the player is already at the target completes at once and
-  moves nothing. The full-pose arrival test accepts an orientation within 1 degree. The failure
-  log says when the move ran but arrival was not confirmed, and gives the offset. Status, reason
+  moves nothing. Arrival is confirmed when the player is within 0.5 m of the target position;
+  rotation is logged but no longer required. The failure log says when the move ran but arrival was
+  not confirmed, and gives the first, closest and last pose seen after the move. Status, reason
   codes and the ABI are unchanged.
 - `game.entities.prefabs` reports ready only when the `spawn.prefabs` rows resolved on the running
   build. Without them it starts OFF with a stated reason, and a placement returns
@@ -89,8 +86,9 @@ or publication.
 - `sco.widgets.view` 1.0: a host-side reader for panels and a click queue for a host menu thread
   ([widgets view](../widgets-view.md)). Host-source seam in the `core-source` kit; not a plugin
   contract and not in the SDK catalogue.
-- `game.loadout` 1.3: outfit slots 22-34 and the capabilities `game.loadout.outfit` and
-  `game.loadout.appearance`, both OFF by default ([loadout](../game/loadout.md#outfit-slots-13)).
+- `game.loadout` 1.3: outfit slots 22-31 (clothing, hat, head accessory, head horn and jewellery)
+  behind their own capability `game.loadout.outfit`, OFF by default. It turns on only with the async
+  route and `SCO_LOADOUT_OUTFIT=1` in the product host ([loadout](../game/loadout.md#outfit-slots-13)).
 - SDK reference launcher: a Rust workspace in `examples/launcher/` of the `core` kit, with the
   [launcher contract](../launcher-contract.md) and the guide
   [building a launcher](../building-a-launcher.md), and the new skill `sco-build-launcher`. It
@@ -109,7 +107,7 @@ archive and checker tests, and the reference launcher's own test suite on synthe
 zips. They do not by themselves show in-game behaviour.
 
 Separately, the sc-offline product ran a development build of this source
-(`2.4.1-dev.6`, process-retained composition) in Star Citizen 4.10.3 (4.10.200.58746) during owner
+(process-retained composition) in Star Citizen 4.10.3 (4.10.200.58746) during maintainer
 test sessions: the host started, creative switches, vehicle spawn and seating, and exit work
 on stop were observed in its logs. That is product evidence for one build and one setup, not
 an SDK guarantee.
@@ -120,7 +118,7 @@ On build 4.10.200.58746, one or two sessions each. These are observations, not v
 no registry row changes its evidence level or default because of them.
 
 - Gear equip through `game.loadout.async` attached items (Game.log `AttachmentReceived`).
-- Prefab placement through `game.prefabs` placed an Outposts item.
+- Prefab placement through `game.entities.prefabs` placed an Outposts item.
 - Ship spawn, boarding and Flight Ready worked.
 - Character spawn worked.
 - A saved-spot move really moved the player, while Core failed to confirm arrival. The arrival
@@ -129,12 +127,12 @@ no registry row changes its evidence level or default because of them.
 
 ### Not run in game
 
-Everything else in this release is synthetic only. In particular:
+Everything else in this release has synthetic evidence only ([game capability status](../game/status.md)). In particular:
 
-- The relocation arrival change, the wider orientation test and the new failure log line.
+- The relocation arrival rule (0.5 m, no rotation test) and the new failure log line.
 - Prefab readiness from the resolved rows.
-- `game.loadout` 1.3 outfit slots, the item-port names behind them, and the two new capabilities
-  (both OFF).
+- `game.loadout` 1.3 outfit slots, the item-port names behind them, and the capability
+  `game.loadout.outfit` (OFF).
 - `sco.widgets.view` and any host menu built on it. No menu reader has run in a game.
 - The reference launcher: it was built and tested on a PC without starting the game, and its
   capability switches, plugin installs and MCP server have not been used with a running game.
@@ -151,11 +149,11 @@ Everything else in this release is synthetic only. In particular:
 - Zone lookup beyond the player's own zone chain (travel to another planet or moon by name) is
   not in 2.4.1. Core has no engine row to find a zone by name; see the
   [design note](../design/zone-lookup.md).
-- The plugin catalogue has no signing key. Until the owner adds one at release time, the
+- The plugin catalogue has no signing key. Until the maintainer adds one at release time, the
   reference launcher's catalogue works from a local folder, and every entry it installs lands
   disabled.
-- `game.loadout` outfit slots stay OFF unless a product opts in; their port names are not
-  verified engine rows.
+- `game.loadout` outfit slots stay OFF unless a product sets `SCO_LOADOUT_OUTFIT=1`; their port
+  names are not verified engine rows.
 
 ## Previous release
 

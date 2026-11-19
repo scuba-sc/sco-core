@@ -113,7 +113,7 @@ mission completion nor a signal automatically pays, imports or saves. Existing
 wallet.txt/storage timestamp precedence remains consumer policy. This is not the
 legacy asynchronous shop hook adapter, which still needs independent Windows proof.
 
-## Decision pending owner
+## Open decisions
 
 Approve mission-kind coverage and the concrete Windows adapter only after independent
 offline/EAC/session, broker/phase and payment acceptance. Until then the default

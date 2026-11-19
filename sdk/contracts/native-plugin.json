@@ -90,8 +90,7 @@
         "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
       ],
       "limitations": [
-        "Query-thread identity unspecified;",
-        "recursive reentrancy unspecified"
+        "Query-thread identity unspecified."
       ]
     },
     {
@@ -183,8 +182,7 @@
         "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
       ],
       "limitations": [
-        "internal allocation unspecified",
-        "recursive load reentrancy unspecified"
+        "Recursive load reentrancy unspecified."
       ]
     },
     {
@@ -276,8 +274,8 @@
         "sdk/csharp/Sco.Sdk.Tests/Layout.cs"
       ],
       "limitations": [
-        "an independent export thread guarantee and recursive reentrancy are unspecified",
-        "Capability availability during teardown unspecified"
+        "Independent export-thread guarantee unspecified.",
+        "Capability availability during teardown unspecified."
       ]
     }
   ]
