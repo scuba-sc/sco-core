@@ -21,7 +21,7 @@
       "reentrancy": "Non-reentrant.",
       "results": "SCO_OK success; SCO_BAD_ARG invalid input/self; SCO_UNAVAILABLE missing safety/player/transport or unknown/different systems; SCO_TOO_MANY pending global request or ticket exhaustion; SCO_NOT_FOUND foreign/unknown/evicted ticket. Outputs unchanged on failure.",
       "absent_capability": "Missing service: query_service NOT_FOUND. Production table is present but game.relocation capability false; valid request returns SCO_UNAVAILABLE.",
-      "cleanup": "Owner unload cancels/forgets tickets; stop forgets all; ticket sequence never recycled. Session/player/system change, safety/transport loss or fault fails pending. Stream loss waits up to timeout. Completion requires a fresh pose within 0.05m and within 1 degree of the requested orientation (q and -q are equal). Cancellation is not undo.",
+      "cleanup": "Owner unload cancels/forgets tickets; stop forgets all; ticket sequence never recycled. Session/player/system change, safety/transport loss or fault fails pending. Stream loss waits up to timeout. Completion requires the move applied and a fresh pose within 0.5m of the target on a later tick; orientation is reported in the log but not required (the game normalises it). Cancellation is not undo.",
       "language_mappings": {
         "c": {
           "status": "direct",
@@ -99,7 +99,7 @@
       "reentrancy": "Non-reentrant.",
       "results": "SCO_OK success; SCO_BAD_ARG invalid input/self; SCO_UNAVAILABLE missing safety/player/transport or unknown/different systems; SCO_TOO_MANY pending global request or ticket exhaustion; SCO_NOT_FOUND foreign/unknown/evicted ticket. Outputs unchanged on failure.",
       "absent_capability": "Missing service: query_service NOT_FOUND. Production table is present but game.relocation capability false; valid request returns SCO_UNAVAILABLE.",
-      "cleanup": "Owner unload cancels/forgets tickets; stop forgets all; ticket sequence never recycled. Session/player/system change, safety/transport loss or fault fails pending. Stream loss waits up to timeout. Completion requires a fresh pose within 0.05m and within 1 degree of the requested orientation (q and -q are equal). Cancellation is not undo.",
+      "cleanup": "Owner unload cancels/forgets tickets; stop forgets all; ticket sequence never recycled. Session/player/system change, safety/transport loss or fault fails pending. Stream loss waits up to timeout. Completion requires the move applied and a fresh pose within 0.5m of the target on a later tick; orientation is reported in the log but not required (the game normalises it). Cancellation is not undo.",
       "language_mappings": {
         "c": {
           "status": "direct",
@@ -177,7 +177,7 @@
       "reentrancy": "Non-reentrant.",
       "results": "SCO_OK success; SCO_BAD_ARG invalid input/self; SCO_UNAVAILABLE missing safety/player/transport or unknown/different systems; SCO_TOO_MANY pending global request or ticket exhaustion; SCO_NOT_FOUND foreign/unknown/evicted ticket. Outputs unchanged on failure.",
       "absent_capability": "Missing service: query_service NOT_FOUND. Production table is present but game.relocation capability false; valid request returns SCO_UNAVAILABLE.",
-      "cleanup": "Owner unload cancels/forgets tickets; stop forgets all; ticket sequence never recycled. Session/player/system change, safety/transport loss or fault fails pending. Stream loss waits up to timeout. Completion requires a fresh pose within 0.05m and within 1 degree of the requested orientation (q and -q are equal). Cancellation is not undo.",
+      "cleanup": "Owner unload cancels/forgets tickets; stop forgets all; ticket sequence never recycled. Session/player/system change, safety/transport loss or fault fails pending. Stream loss waits up to timeout. Completion requires the move applied and a fresh pose within 0.5m of the target on a later tick; orientation is reported in the log but not required (the game normalises it). Cancellation is not undo.",
       "language_mappings": {
         "c": {
           "status": "direct",
@@ -255,7 +255,7 @@
       "reentrancy": "Non-reentrant.",
       "results": "SCO_OK success; SCO_BAD_ARG invalid input/self; SCO_UNAVAILABLE missing safety/player/transport or unknown/different systems; SCO_TOO_MANY pending global request or ticket exhaustion; SCO_NOT_FOUND foreign/unknown/evicted ticket. Outputs unchanged on failure.",
       "absent_capability": "Missing service: query_service NOT_FOUND. Production table is present but game.relocation capability false; valid request returns SCO_UNAVAILABLE.",
-      "cleanup": "Owner unload cancels/forgets tickets; stop forgets all; ticket sequence never recycled. Session/player/system change, safety/transport loss or fault fails pending. Stream loss waits up to timeout. Completion requires a fresh pose within 0.05m and within 1 degree of the requested orientation (q and -q are equal). Cancellation is not undo.",
+      "cleanup": "Owner unload cancels/forgets tickets; stop forgets all; ticket sequence never recycled. Session/player/system change, safety/transport loss or fault fails pending. Stream loss waits up to timeout. Completion requires the move applied and a fresh pose within 0.5m of the target on a later tick; orientation is reported in the log but not required (the game normalises it). Cancellation is not undo.",
       "language_mappings": {
         "c": {
           "status": "direct",
@@ -490,9 +490,9 @@
       "thread_affinity": "Game thread only; wrong thread returns SCO_WRONG_THREAD without touching state.",
       "callback_context": "No callbacks; bounded tick-driven work.",
       "reentrancy": "Non-reentrant.",
-      "results": "SCO_OK admitted (a request already within 0.05m of its target completes at admission with applied 0, otherwise not arrived); SCO_BAD_ARG invalid request/live owner; SCO_UNAVAILABLE stale epoch, absent position backend or unknown/unsafe authority; SCO_TOO_MANY one global pending request or ticket exhaustion; wrong thread returns SCO_WRONG_THREAD. Outputs unchanged on refusal.",
+      "results": "SCO_OK admitted (a request already within 0.5m of its target completes at admission with applied 0, otherwise not arrived); SCO_BAD_ARG invalid request/live owner; SCO_UNAVAILABLE stale epoch, absent position backend or unknown/unsafe authority; SCO_TOO_MANY one global pending request or ticket exhaustion; wrong thread returns SCO_WRONG_THREAD. Outputs unchanged on refusal.",
       "absent_capability": "game.relocation.position is OFF with the existing native/legacy backend. A valid request returns SCO_UNAVAILABLE; old hosts lack service 1.1.",
-      "cleanup": "Shares one pending and 32 terminal owner-scoped tickets with FullPose. Completion is at admission with applied 0 when already within 0.05m, otherwise a later fresh finite position in the admitted target frame within 0.05m, without rotation reads. Independent target-instance change fails TARGET; spatial epoch is checked only at admission. Owner/session/system/safety/fault guards, no retry/rollback and cancel/status lifetimes remain.",
+      "cleanup": "Shares one pending and 32 terminal owner-scoped tickets with FullPose. Completion is at admission with applied 0 when already within 0.5m, otherwise a later fresh finite position in the admitted target frame within 0.5m, without rotation reads. Independent target-instance change fails TARGET; spatial epoch is checked only at admission. Owner/session/system/safety/fault guards, no retry/rollback and cancel/status lifetimes remain.",
       "language_mappings": {
         "c": {
           "status": "direct",

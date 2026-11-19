@@ -292,11 +292,13 @@ const char* ReasonName(uint32_t reason) {
     }
 }
 // One line for a request that failed while pending: which completion and admission conditions held
-// at that moment. Completion needs applied plus streamed and arrived; the rest must keep holding.
+// at that moment. Completion needs the move applied and the player seen within kArrivalMetres of the
+// target on a later tick (rotation is not required); the rest must keep holding. The trail gives the
+// first, closest and last pose offsets after the apply.
 void LogFailure(const relocation::Diagnosis& d) {
     const auto yn = [](bool v) { return v ? "yes" : "no"; };
-    char offBy[64];
-    relocation::FormatOffBy(d, offBy, sizeof(offBy));
+    char trail[192];
+    relocation::FormatTrail(d, trail, sizeof(trail));
     // A timeout after the move was applied is not the same as a move that never happened.
     sco::Log("[game] relocation: request failed (%s%s) after %llu ms: applied=%s streamed=%s arrived=%s "
              "offline=%s player=%s transport=%s fault=%s session_same=%s player_same=%s system_same=%s "
@@ -305,7 +307,7 @@ void LogFailure(const relocation::Diagnosis& d) {
              yn(d.arrived), yn(d.offline), yn(d.player), yn(d.transport), yn(d.fault), yn(d.sessionMatches),
              yn(d.playerMatches), yn(d.systemMatches), yn(d.targetSystemMatches),
              d.positionOnly ? " target_instance_same=" : "", d.positionOnly ? yn(d.targetInstanceMatches) : "",
-             yn(d.poseRead), yn(d.positionNear), yn(d.rotationNear), offBy);
+             yn(d.poseRead), yn(d.positionNear), yn(d.rotationNear), trail);
 }
 void TickRelocation() {
     if (!g_started || g_inBackend) return;

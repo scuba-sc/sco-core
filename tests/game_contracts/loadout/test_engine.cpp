@@ -123,13 +123,24 @@ int main() {
     CHECK(sco::InstallHostSignatureRegistry(registry, nullptr));
     SetEnvironmentVariableA("SCO_LOADOUT_ASYNC", nullptr);
     CHECK(ProductionLoadoutBackend() == nullptr);
+    SetEnvironmentVariableA("SCO_LOADOUT_OUTFIT", nullptr);
     SetEnvironmentVariableA("SCO_LOADOUT_ASYNC", "1");
-    const LoadoutAsyncBackend* backend = ProductionLoadoutBackend(); CHECK(backend);
-    CHECK(backend->outfit && !backend->appearance); // appearance needs its own opt-in
-    SetEnvironmentVariableA("SCO_LOADOUT_APPEARANCE", "1");
-    backend = ProductionLoadoutBackend(); CHECK(backend && backend->appearance);
+    // Async route on, outfit switch off: outfit stays off.
+    const LoadoutAsyncBackend* backend = ProductionLoadoutBackend(); CHECK(backend && !backend->outfit);
     CHECK(StartLoadout(nullptr, backend) == sco::Result::Ok);
-    CHECK(api->has("game.loadout.async") && api->has("game.loadout.outfit") && api->has("game.loadout.appearance"));
+    CHECK(api->has("game.loadout.async") && !api->has("game.loadout.outfit"));
+    CHECK(StopLoadout() == sco::Result::Ok);
+    // Any value other than 1 is off. The outfit switch alone, without the async route, gives no backend.
+    SetEnvironmentVariableA("SCO_LOADOUT_OUTFIT", "0");
+    backend = ProductionLoadoutBackend(); CHECK(backend && !backend->outfit);
+    SetEnvironmentVariableA("SCO_LOADOUT_ASYNC", nullptr);
+    SetEnvironmentVariableA("SCO_LOADOUT_OUTFIT", "1");
+    CHECK(ProductionLoadoutBackend() == nullptr);
+    // Both switches: outfit on.
+    SetEnvironmentVariableA("SCO_LOADOUT_ASYNC", "1");
+    backend = ProductionLoadoutBackend(); CHECK(backend && backend->outfit);
+    CHECK(StartLoadout(nullptr, backend) == sco::Result::Ok);
+    CHECK(api->has("game.loadout.async") && api->has("game.loadout.outfit") && !api->has("game.loadout.appearance"));
     const void* table = nullptr;
     CHECK(api->query_service(SC_LOADOUT_SERVICE_NAME, SC_LOADOUT_VERSION_1_2, &table) == SCO_OK);
     const auto* service = static_cast<const sc_loadout_v1_2*>(table);
@@ -175,15 +186,14 @@ int main() {
     CHECK(attached == beforeAttach + 1 && report.report.applied == 0);
     CHECK(service->cancel(owner, job) == SCO_OK);
     // 1.3 outfit slots: each assigned slot looks up its own item-port name; unassigned values
-    // (and the body, head, eyes and teeth ports, which have no slot) never reach the port search.
+    // (and the hair, hair colour, eyebrow, body, head, eyes and teeth ports, which have no slot) never reach the port search.
     attachAllowed = true; streamed = false; portEntity = 0;
     struct OutfitCase { uint32_t slot; const char* port; };
     const OutfitCase outfitCases[] = {
         {SC_LOADOUT_SLOT_CLOTHING_TORSO_0, "Clothing_Torso_0"}, {SC_LOADOUT_SLOT_CLOTHING_TORSO_1, "Clothing_Torso_1"},
         {SC_LOADOUT_SLOT_CLOTHING_TORSO_2, "Clothing_Torso2"}, {SC_LOADOUT_SLOT_CLOTHING_LEGS, "Clothing_Legs"},
         {SC_LOADOUT_SLOT_CLOTHING_FEET, "Clothing_Feet"}, {SC_LOADOUT_SLOT_CLOTHING_HANDS, "Clothing_Hands"},
-        {SC_LOADOUT_SLOT_HAT, "Hat_ItemPort"}, {SC_LOADOUT_SLOT_HAIR, "Hair_ItemPort"},
-        {SC_LOADOUT_SLOT_HAIR_COLOR, "Hair_Color"}, {SC_LOADOUT_SLOT_EYEBROW, "Eyebrow_ItemPort"},
+        {SC_LOADOUT_SLOT_HAT, "Hat_ItemPort"},
         {SC_LOADOUT_SLOT_HEAD_ACCESSORY, "Head_Accessory_ItemPort"}, {SC_LOADOUT_SLOT_HEAD_HORN, "Head_Horn_ItemPort"},
         {SC_LOADOUT_SLOT_JEWELLERY, "Jewellery_ItemPort"}};
     uint32_t tick = 20;
@@ -223,7 +233,7 @@ int main() {
     TickLoadout(tick++);
     CHECK(service->status(owner, job, &report) == SCO_OK && report.state == SC_LOADOUT_JOB_FAILED);
     CHECK(attached == attachedBeforeHat + 1 && !api->has("game.loadout.async") && !api->has("game.loadout.outfit"));
-    StopLoadout(); SetEnvironmentVariableA("SCO_LOADOUT_ASYNC", nullptr);
+    StopLoadout(); SetEnvironmentVariableA("SCO_LOADOUT_ASYNC", nullptr); SetEnvironmentVariableA("SCO_LOADOUT_OUTFIT", nullptr);
     CHECK(sco::ClearHostSignatureRegistry(registry, nullptr));
     std::puts("loadout engine: real adapter spawn, pending, attach, readback, cancel and admission checks passed");
 }

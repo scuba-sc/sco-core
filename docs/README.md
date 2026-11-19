@@ -22,6 +22,9 @@ For the current release, consumer integration state, next horizon and contributi
 5. [Community plugin directory](plugin-directory.md): plugins in their authors' own
    repositories with reported SDK compatibility, the listing rules and how to request a
    listing. Not an endorsement; nothing there is verified in game.
+6. [Building a launcher](building-a-launcher.md) and the
+   [launcher contract](launcher-contract.md): what a launcher and a host agree on, the
+   reference launcher in the `core` kit, and what a product must bring itself.
 
 ## Plugin API consumer — Use the API safely
 
@@ -59,6 +62,10 @@ For the current release, consumer integration state, next horizon and contributi
    and [game-pack opt-in](game-services.md).
 6. [Host simulator](building.md#sco-host-sim) and focused tests in
    [building/testing](building.md); [host lessons](framework.md#lessons).
+7. Host menu: [`sco.widgets.view`](widgets-view.md), the host-side panel reader and
+   click queue for a menu thread. Host-source seam, not a plugin contract.
+8. Launchers: [launcher contract](launcher-contract.md) and
+   [building a launcher](building-a-launcher.md).
 
 ## Game-pack contributor — Check or update a game build
 

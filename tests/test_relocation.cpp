@@ -135,7 +135,8 @@ int main() {
     uint64_t old=ticket;assert(table.request(owner,&r,&ticket)==SCO_OK && ticket>old);m.Stop();
     assert(table.status(owner,ticket,&s)==SCO_NOT_FOUND);
     double p[3]={},q[4]={0,0,0,-1};assert(Arrived(r,p,q));
-    p[0]=0.051;assert(!Arrived(r,p,q));p[0]=0;q[0]=1;q[3]=0;assert(!Arrived(r,p,q));
+    // Position decides arrival (0.5 m); a different orientation at the target is still arrival.
+    p[0]=0.051;assert(Arrived(r,p,q));p[0]=0.51;assert(!Arrived(r,p,q));p[0]=0;q[0]=1;q[3]=0;assert(Arrived(r,p,q));
     for(unsigned method=0;method<3;++method) assert(sco_relocation_route(&nulls,method,owner)==SCO_UNAVAILABLE);
     assert(sco_relocation_route(&table,0,owner)==SCO_OK);
     assert(sco_relocation_route(&table,1,owner)==SCO_NOT_FOUND);
@@ -179,21 +180,23 @@ int main() {
     assert(!WorldRotation(axes,zero,w) && !WorldRotation(mirrored,identity,w));
     }
     {
-    // Orientation tolerance is 1 degree; qq and -qq are one orientation.
+    // Orientation is measured and reported (1 degree threshold) but never required; qq and -qq are one orientation.
     const double deg=3.14159265358979323846/180.0;
     const auto about=[&](double degrees,double out[4]) { out[0]=0;out[1]=0;out[2]=std::sin(degrees*deg/2);out[3]=std::cos(degrees*deg/2); };
     sc_relocation_request tr{sizeof(tr),1000,5,{1,2,3},{0,0,0,1}};
     const double here[3]={1,2,3};double qq[4];
-    about(0.9,qq);assert(Arrived(tr,here,qq));
-    about(-0.9,qq);assert(Arrived(tr,here,qq));
-    about(0.9,qq);for(double& x:qq)x=-x;assert(Arrived(tr,here,qq));
-    about(1.1,qq);assert(!Arrived(tr,here,qq));
-    about(-1.1,qq);assert(!Arrived(tr,here,qq));
-    about(180,qq);assert(!Arrived(tr,here,qq));
-    const double scaled[4]={0,0,0,-5};assert(Arrived(tr,here,scaled));
-    const double far[3]={1.06,2,3};about(0,qq);
+    about(0.9,qq);assert(CheckArrival(tr,here,qq).rotationNear && Arrived(tr,here,qq));
+    about(-0.9,qq);assert(CheckArrival(tr,here,qq).rotationNear && Arrived(tr,here,qq));
+    about(0.9,qq);for(double& x:qq)x=-x;assert(CheckArrival(tr,here,qq).rotationNear && Arrived(tr,here,qq));
+    about(1.1,qq);assert(!CheckArrival(tr,here,qq).rotationNear && Arrived(tr,here,qq));
+    about(-1.1,qq);assert(!CheckArrival(tr,here,qq).rotationNear && Arrived(tr,here,qq));
+    about(180,qq);assert(!CheckArrival(tr,here,qq).rotationNear && Arrived(tr,here,qq));
+    const double scaled[4]={0,0,0,-5};assert(CheckArrival(tr,here,scaled).rotationNear && Arrived(tr,here,scaled));
+    // Position: 0.5 m is in, 0.6 m is out.
+    const double edge[3]={1.5,2,3},far[3]={1.6,2,3};about(0,qq);
+    assert(Arrived(tr,edge,qq));
     const auto check=CheckArrival(tr,far,qq);assert(check.read && !check.positionNear && check.rotationNear && !check.Near());
-    about(2,qq);const auto turned=CheckArrival(tr,here,qq);assert(turned.read && turned.positionNear && !turned.rotationNear);
+    about(2,qq);const auto turned=CheckArrival(tr,here,qq);assert(turned.read && turned.positionNear && !turned.rotationNear && turned.Near());
     const double bad[3]={std::numeric_limits<double>::quiet_NaN(),2,3};
     const auto unread=CheckArrival(tr,bad,qq);assert(!unread.read && !unread.Near());
     }
@@ -210,12 +213,13 @@ int main() {
     assert(local.Request(&ownerA,tr,ev,12,&t2)==SCO_OK && t2>t);
     assert(local.Status(&ownerA,t2,&st)==SCO_OK && st.state==SC_RELOCATION_PENDING);
     assert(local.Tick(13,ev) && local.Pending());
-    // Moved but the pose never settles: fails by timeout, applied stays 1, and the diagnosis says so.
-    local.Applied(true);ev.poseRead=true;ev.positionNear=true;ev.rotationNear=false;
+    // Moved but the player is never within 0.5 m: fails by timeout, applied stays 1, and the diagnosis says so.
+    local.Applied(true);ev.poseRead=true;ev.positionNear=false;ev.rotationNear=false;ev.metres=0.8;ev.degrees=40;
     Diagnosis why;assert(!local.Tick(12+1000,ev,&why));
     assert(local.Status(&ownerA,t2,&st)==SCO_OK && st.state==SC_RELOCATION_FAILED &&
            st.reason==SC_RELOCATION_REASON_TIMEOUT && st.applied==1);
-    assert(why.arrivalUnconfirmed && why.applied && why.streamed && !why.arrived && why.poseRead && why.positionNear && !why.rotationNear);
+    assert(why.arrivalUnconfirmed && why.applied && why.streamed && !why.arrived && why.poseRead && !why.positionNear && !why.rotationNear);
+    assert(why.firstMetres==0.8 && why.firstDegrees==40 && why.closestMetres==0.8 && why.closestDegrees==40);
     // A timeout where the move never ran is not "arrival not confirmed".
     uint64_t t3=0;assert(local.Request(&ownerA,tr,ev,2000,&t3)==SCO_OK);
     Diagnosis never;assert(!local.Tick(2000+1000,ev,&never));
@@ -238,14 +242,60 @@ int main() {
     // The deadline still fails a request that has not arrived.
     uint64_t t7=0;assert(local.Request(&ownerA,tr,ev,8000,&t7)==SCO_OK);
     assert(local.Tick(8001,ev));local.Applied(true);
-    ev.metres=0.2;ev.degrees=3.5;Diagnosis late;assert(!local.Tick(8000+1000,ev,&late));
-    assert(late.reason==SC_RELOCATION_REASON_TIMEOUT && late.arrivalUnconfirmed && late.metres==0.2 && late.degrees==3.5);
-    ev.metres=-1;ev.degrees=-1;
-    // CheckArrival measures the offset: 0.1 m and 2 degrees about z.
+    ev.metres=0.8;ev.degrees=3.5;Diagnosis late;assert(!local.Tick(8000+1000,ev,&late));
+    assert(late.reason==SC_RELOCATION_REASON_TIMEOUT && late.arrivalUnconfirmed && late.metres==0.8 && late.degrees==3.5);
+    // The closest approach is kept: first 2.0 m, then 0.7 m (never within 0.5 m), then the player walks away.
+    {uint64_t t8=0;ev.metres=-1;ev.degrees=-1;ev.poseRead=false;
+     assert(local.Request(&ownerA,tr,ev,9000,&t8)==SCO_OK);
+     assert(local.Tick(9001,ev));local.Applied(true);
+     ev.poseRead=true;ev.metres=2.0;ev.degrees=90;assert(!local.Tick(9100,ev));
+     ev.metres=0.7;ev.degrees=5;assert(!local.Tick(9200,ev));
+     ev.metres=3.0;ev.degrees=20;assert(!local.Tick(9300,ev));
+     ev.metres=12.351;ev.degrees=95.263;Diagnosis walked;assert(!local.Tick(9000+1000,ev,&walked));
+     assert(walked.reason==SC_RELOCATION_REASON_TIMEOUT && walked.arrivalUnconfirmed);
+     assert(walked.firstMetres==2.0 && walked.firstDegrees==90 && walked.closestMetres==0.7 && walked.closestDegrees==5);
+     assert(walked.metres==12.351 && walked.degrees==95.263);
+     char trail[192];FormatTrail(walked,trail,sizeof(trail));
+     assert(std::strcmp(trail,"first=2.000 m 90.000 deg closest=0.700 m 5.000 deg last=12.351 m 95.263 deg")==0);
+     // Position-only requests print metres only.
+     walked.positionOnly=true;FormatTrail(walked,trail,sizeof(trail));
+     assert(std::strcmp(trail,"first=2.000 m closest=0.700 m last=12.351 m")==0);
+     // Nothing observed after the apply.
+     Diagnosis none;FormatTrail(none,trail,sizeof(trail));
+     assert(std::strcmp(trail,"first=none closest=none last=not measured")==0);
+     char tiny[10];assert(FormatTrail(walked,tiny,sizeof(tiny))>0 && std::strlen(tiny)==9);}
+    // Arrives within 0.5 m with a different rotation: complete, the position alone decides.
+    {uint64_t t9=0;ev.poseRead=false;ev.metres=-1;ev.degrees=-1;ev.arrived=false;
+     assert(local.Request(&ownerA,tr,ev,10000,&t9)==SCO_OK);
+     assert(local.Tick(10001,ev));local.Applied(true);
+     ev.poseRead=true;ev.metres=0.9;ev.degrees=3;assert(!local.Tick(10100,ev));
+     assert(local.Status(&ownerA,t9,&st)==SCO_OK && st.state==SC_RELOCATION_PENDING);
+     ev.metres=0.3;ev.degrees=40;assert(!local.Tick(10200,ev));
+     assert(local.Status(&ownerA,t9,&st)==SCO_OK && st.state==SC_RELOCATION_COMPLETE && st.applied==1);
+     // The player walks away afterwards: the confirmed arrival stays.
+     ev.metres=12.351;ev.degrees=95.263;assert(!local.Tick(10300,ev));assert(!local.Tick(10000+1000,ev));
+     assert(local.Status(&ownerA,t9,&st)==SCO_OK && st.state==SC_RELOCATION_COMPLETE && st.reason==0);}
+    // Arrival is seen on a tick of its own, then the player is gone by the deadline tick: still complete.
+    {uint64_t t10=0;ev.metres=-1;ev.degrees=-1;ev.poseRead=false;
+     assert(local.Request(&ownerA,tr,ev,11000,&t10)==SCO_OK);
+     assert(local.Tick(11001,ev));local.Applied(true);
+     ev.poseRead=true;ev.metres=0.5;ev.degrees=10;assert(!local.Tick(11999,ev));
+     assert(local.Status(&ownerA,t10,&st)==SCO_OK && st.state==SC_RELOCATION_COMPLETE);
+     ev.metres=30;assert(!local.Tick(12000,ev));
+     assert(local.Status(&ownerA,t10,&st)==SCO_OK && st.state==SC_RELOCATION_COMPLETE);}
+    // A pose read before the move was applied does not count as arrival after it.
+    {uint64_t t11=0;ev.poseRead=true;ev.metres=0.1;ev.degrees=0;ev.arrived=false;
+     assert(local.Request(&ownerA,tr,ev,13000,&t11)==SCO_OK);
+     assert(local.Tick(13001,ev));
+     assert(local.Status(&ownerA,t11,&st)==SCO_OK && st.state==SC_RELOCATION_PENDING && !st.applied);
+     local.Applied(true);ev.metres=5;ev.degrees=5;Diagnosis pre;assert(!local.Tick(13000+1000,ev,&pre));
+     assert(pre.reason==SC_RELOCATION_REASON_TIMEOUT && pre.firstMetres==5 && pre.closestMetres==5);
+     ev.poseRead=false;ev.metres=-1;ev.degrees=-1;}
+    // CheckArrival measures the offset: 0.6 m and 2 degrees about z.
     {sc_relocation_request mr{sizeof(mr),1000,5,{1,2,3},{0,0,0,1}};
-     const double at[3]={1.1,2,3};const double h=std::sin(1.0*3.14159265358979323846/180.0),w=std::cos(1.0*3.14159265358979323846/180.0);
+     const double at[3]={1.6,2,3};const double h=std::sin(1.0*3.14159265358979323846/180.0),w=std::cos(1.0*3.14159265358979323846/180.0);
      const double rq[4]={0,0,h,w};const auto o=CheckArrival(mr,at,rq);
-     assert(o.read && std::abs(o.metres-0.1)<1e-9 && std::abs(o.degrees-2.0)<1e-6 && !o.positionNear && !o.rotationNear);
+     assert(o.read && std::abs(o.metres-0.6)<1e-9 && std::abs(o.degrees-2.0)<1e-6 && !o.positionNear && !o.rotationNear);
      const double none[3]={std::numeric_limits<double>::quiet_NaN(),0,0};
      assert(CheckArrival(mr,none,rq).metres==-1);}
     // PositionDistance and the failure-log formatting of the offset.
@@ -253,19 +303,19 @@ int main() {
      const double a[3]={4,6,3};assert(std::abs(PositionDistance(dr,a)-5.0)<1e-12);
      const double bad[3]={0,std::numeric_limits<double>::infinity(),0};assert(PositionDistance(dr,bad)==-1);
      assert(PositionDistance(dr,nullptr)==-1);
-     char buf[64];Diagnosis d;
-     FormatOffBy(d,buf,sizeof(buf));assert(std::strcmp(buf,"off_by=not measured")==0);
+     char buf[192];Diagnosis d;
+     FormatTrail(d,buf,sizeof(buf));assert(std::strcmp(buf,"first=none closest=none last=not measured")==0);
      d.poseRead=true;d.metres=0.2;d.degrees=3.5;
-     FormatOffBy(d,buf,sizeof(buf));assert(std::strcmp(buf,"off_by=0.200 m 3.500 deg")==0);
+     FormatTrail(d,buf,sizeof(buf));assert(std::strcmp(buf,"first=none closest=none last=0.200 m 3.500 deg")==0);
      d.positionOnly=true;
-     FormatOffBy(d,buf,sizeof(buf));assert(std::strcmp(buf,"off_by=0.200 m")==0);
+     FormatTrail(d,buf,sizeof(buf));assert(std::strcmp(buf,"first=none closest=none last=0.200 m")==0);
      d.positionOnly=false;d.degrees=-1;
-     FormatOffBy(d,buf,sizeof(buf));assert(std::strcmp(buf,"off_by=0.200 m")==0);
+     FormatTrail(d,buf,sizeof(buf));assert(std::strcmp(buf,"first=none closest=none last=0.200 m")==0);
      d.metres=-1;
-     FormatOffBy(d,buf,sizeof(buf));assert(std::strcmp(buf,"off_by=not measured")==0);
+     FormatTrail(d,buf,sizeof(buf));assert(std::strcmp(buf,"first=none closest=none last=not measured")==0);
      d.poseRead=true;d.metres=1234.5678;d.degrees=0.0004;
-     char tiny[10];assert(FormatOffBy(d,tiny,sizeof(tiny))>0 && std::strlen(tiny)==9);}
-    // Position-only: already within 0.05 m completes at once.
+     char tiny[10];assert(FormatTrail(d,tiny,sizeof(tiny))>0 && std::strlen(tiny)==9);}
+    // Position-only: already within 0.5 m completes at once.
     sc_relocation_position_request pr{sizeof(pr),1000,5,{1,2,3},44};
     Evidence pe{true,true,true,9,11,7,7,true,true,false,false,44,77};
     uint64_t pt=0;Machine other;

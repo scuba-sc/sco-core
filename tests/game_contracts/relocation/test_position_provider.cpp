@@ -94,11 +94,12 @@ int main(int argc,char** argv){
     w.targetInstance=0;Check(table->request_position(self,&r,&unchanged)==SCO_UNAVAILABLE&&unchanged==77);w.targetInstance=90;
     uint64_t ticket=Admit();r.pos[0]=999;w.epoch=41;Tick();Check(w.positions==1&&w.captured.pos[0]==1&&w.fullMoves==0&&Status(ticket).state==SC_RELOCATION_PENDING);
     const auto observations=w.observations;Check(Status(ticket).state==SC_RELOCATION_PENDING&&w.observations==observations);
-    w.observe=true;w.pos[0]=1.051;Tick();Check(Status(ticket).state==SC_RELOCATION_PENDING);
+    w.observe=true;w.pos[0]=1.51;Tick();Check(Status(ticket).state==SC_RELOCATION_PENDING);
     w.pos[0]=1;w.zone=6;Tick();Check(Status(ticket).state==SC_RELOCATION_PENDING);w.zone=5;
     w.rot[0]=std::numeric_limits<double>::quiet_NaN();w.epoch=UINT64_MAX;Tick();Check(Status(ticket).state==SC_RELOCATION_COMPLETE&&w.positions==1&&w.fullMoves==0&&w.fullPoses==0);
-    Begin();const auto full=FullRequest();Check(table->request(self,&full,&ticket)==SCO_OK);Tick();w.observe=true;Tick();Check(Status(ticket).state==SC_RELOCATION_PENDING&&w.fullMoves==1&&w.positions==0);
-    w.rot[0]=0;w.rot[3]=1;Tick();Check(Status(ticket).state==SC_RELOCATION_COMPLETE);
+    Begin();const auto full=FullRequest();Check(table->request(self,&full,&ticket)==SCO_OK);Tick();w.observe=true;Tick();Check(Status(ticket).state==SC_RELOCATION_COMPLETE&&w.fullMoves==1&&w.positions==0); // wrong rotation (180 degrees) at the target: arrived, rotation is not required
+    Begin();Check(table->request(self,&full,&ticket)==SCO_OK);Tick();w.pos[0]=1.6;w.observe=true;Tick();Check(Status(ticket).state==SC_RELOCATION_PENDING&&w.fullMoves==1);
+    w.pos[0]=1.3;Tick();Check(Status(ticket).state==SC_RELOCATION_COMPLETE);
     for(unsigned variant=0;variant<9;++variant){Begin();ticket=Admit();
         uint32_t reason=SC_RELOCATION_REASON_SESSION;
         if(variant==0){w.targetInstance=91;reason=SC_RELOCATION_REASON_TARGET;}
@@ -144,11 +145,13 @@ int main(int argc,char** argv){
     admission={gh::Session::Offline,gh::Check::Clear,gh::Check::Clear,gh::Check::Clear};Tick();Check(api->has(SC_RELOCATION_POSITION_CAPABILITY)&&!api->has(SC_RELOCATION_NAME));
     ticket=Admit();Check(table->request(self,&full,&unchanged)==SCO_UNAVAILABLE);Tick();Check(w.positions==1&&Status(ticket).state==SC_RELOCATION_PENDING);w.observe=true;Tick();Check(Status(ticket).state==SC_RELOCATION_COMPLETE);
     Check(sco_game_set_relocation_backend_v2(&socket)==SCO_UNAVAILABLE&&Status(ticket).state==SC_RELOCATION_COMPLETE);
-    // Already within 0.05 m when asked: complete at once, no apply. Moved 0.06 m: it applies once.
+    // Already within 0.5 m when asked: complete at once, no apply. 0.6 m away: it applies once.
     const auto appliedBefore=w.positions;ticket=Admit();Check(Status(ticket).state==SC_RELOCATION_COMPLETE&&Status(ticket).applied==0&&w.positions==appliedBefore);
     Tick();Check(w.positions==appliedBefore);
-    w.pos[0]=1.06;ticket=Admit();Check(Status(ticket).state==SC_RELOCATION_PENDING);Tick();Check(w.positions==appliedBefore+1&&Status(ticket).applied==1);
-    w.pos[0]=1;Tick();Check(Status(ticket).state==SC_RELOCATION_COMPLETE);
+    w.pos[0]=1.3;ticket=Admit();Check(Status(ticket).state==SC_RELOCATION_COMPLETE&&Status(ticket).applied==0&&w.positions==appliedBefore);
+    w.pos[0]=1.6;ticket=Admit();Check(Status(ticket).state==SC_RELOCATION_PENDING);Tick();Check(w.positions==appliedBefore+1&&Status(ticket).applied==1);
+    w.pos[0]=1.2;Tick();Check(Status(ticket).state==SC_RELOCATION_COMPLETE);w.pos[0]=9;Tick();Check(Status(ticket).state==SC_RELOCATION_COMPLETE&&Status(ticket).applied==1); // walking away afterwards changes nothing
+    w.pos[0]=1;
     w.observe=false;
     ticket=Admit();admission.session=gh::Session::Online;Tick();Check(Status(ticket).reason==SC_RELOCATION_REASON_SAFETY&&w.positions==appliedBefore+1);
     S::StopRelocation();gh::detail::SetFreshAdmissionEnabled(false);

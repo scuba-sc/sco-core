@@ -4,70 +4,19 @@ What each change means for plugin authors and for products built on sco-core (sc
 
 ## Unreleased
 
-- Host ImGui widget adapter (source kit only; no ABI or plugin-visible change). A ROW, COLUMN or
-  TABLE with an empty label no longer draws an empty text line above its content, so an
-  unlabelled row of buttons sits directly under what precedes it and plugins need no made-up
-  headings. A NUMBER slider shows whole values without decimals and others with up to three
-  (`30` instead of `30.000`, `0.5`, `0.125`); dragged values are still rounded to three
-  decimals, typed values kept and clamping unchanged, so events are identical. Products pick
-  this up with the first SDK published after it. Docs: `docs/design/widgets.md` also proposes
-  versioned TABLE column headings, pending an owner decision.
-
-- MCP servers: every tool now has a `title`, a description that says what it returns, when to use it and
-  its limits, and a description for each argument, so agents can pick tools and fill arguments from
-  `tools/list` alone. Covers the 18 discovery tools (`tools/sco-core-mcp`) and the six runtime tools
-  (`tools/sco-core-mcp-runtime`), which previously shared one generic sentence. Tool names, argument
-  names, schemas and results are unchanged; the skills manifest's MCP schema pins are regenerated.
-  Tests require a title and described arguments for every tool. CI now also runs the documented-launcher
-  integration test (`test_integration.py`) and the runtime server tests. Docs: `docs/README.md` no longer
-  calls the six-tool minimal profile the default, and `AGENTS.md` points at `sdk/contracts/` instead of a
-  `catalogue/` folder that does not exist. `docs/agent-integration.md` points to the sc-offline and
-  scuba-engine MCP servers, and the `sco-debug-plugin` skill tells agents to read the host's own view
-  (plugin state, logs) through MCP where the host offers it.
-- MCP discovery server fixes found by an agent smoke test. `search_api` now matches any word of a
-  multi-word query instead of requiring all of them, ranks by how many and how well words match (whole
-  word above prefix, exact symbol or id first), and returns a `hint` when nothing matches. `get_example`
-  with a `language` the contract has no example in now returns `languages_with_examples` and a `hint`.
-  `list_workflows` and `get_workflow` are listed only when a valid workflow index is loaded (15 tools
-  with the kit's index, 13 without it), and a bad or mismatched `--workflows` file now prints a warning
-  on stderr and disables only those two tools instead of stopping the server. The
-  `validate_manifest_and_widgets` description now says it reports the first manifest error.
-
-- `game.relocation`: a request made when the player is already at the target now completes at once
-  and moves nothing (`applied` stays 0). Before, it waited for a move and, in the case reported
-  from the game, timed out after 30 s even though the saved spot was one second old. Position-only
-  requests do the same within 0.05 m.
-- `game.relocation`: the full-pose arrival test accepts an orientation within 1 degree of the target
-  (it was about 0.16 degrees). `q` and `-q` are still one orientation. The 0.05 m position limit
-  is unchanged.
-- `game.relocation`: the failure log line now says `timeout, applied but arrival not confirmed` when
-  the move ran, the target was streamed and the pose never settled, and adds `pose_read`,
-  `position_near` and `rotation_near` flags. Status, reason codes and the ABI are unchanged: such a
-  request still ends `FAILED` with `TIMEOUT` and `applied` 1, and plugins tell it from a move that
-  never ran by that `applied` value. The log also gives `off_by` in metres and degrees. A pose that
-  settles on the tick the deadline passes now counts as arrived. The move is still applied once per
-  request; it is not retried.
-- Not run in game. Covered by the synthetic relocation tests only.
-
-- `game.entities.prefabs` is now reported ON only when the `spawn.prefabs` rows resolved on the
-  running build. Before, the capability read ON without them, the first prefab placement failed
-  with `SCO_FAILED`, and the capability stayed OFF until restart. Now it starts OFF with the reason
-  "spawn.prefabs rows did not resolve on this build", and a placement that still reaches the spawner
-  without the rows returns `SCO_UNAVAILABLE` without latching (only a real engine fault latches). A stopped spawner is not blamed on the rows.
-  Synthetic policy tests only; not run in game.
-- Relocation failure log (source kit only; no ABI or plugin-visible change). The line printed when a
-  relocation request fails or times out now ends with the last observed offset from the target in
-  metres and, for a full pose, degrees; a position-only request shows metres only, and a pose that
-  could not be read shows "not measured". Numbers only, no coordinates. Result codes and struct
-  layouts are unchanged. Tested on synthetic values; not run in game.
-- Design note "zone lookup" (docs only): why `game.spatial` cannot reach another planet or moon by
-  name with the rows Core has today, and the one engine row that would unlock it. No contract,
-  capability or behaviour change.
-- **`game.loadout` 1.3: outfit slots 22-34, capability `game.loadout.outfit` OFF** ([docs](docs/game/loadout.md#outfit-slots-13)). `include/sc_loadout.h` adds `SC_LOADOUT_VERSION_1_3` and thirteen slot names after `SC_LOADOUT_SLOT_SIDEARM_TOOL_BATTERY`: `CLOTHING_TORSO_0/1/2`, `CLOTHING_LEGS`, `CLOTHING_FEET`, `CLOTHING_HANDS`, `HAT`, `HAIR`, `HAIR_COLOR`, `EYEBROW`, `HEAD_ACCESSORY`, `HEAD_HORN`, `JEWELLERY`. Vocabulary only: no struct or table change. Only the async `submit` route handles them; `apply` reports them UNSUPPORTED. `submit` refuses a request that holds one with UNAVAILABLE while `game.loadout.outfit` is off; the capability is on only with the opt-in async route and an adapter with a name mapping (`LoadoutAsyncBackend::outfit`, which does not mean the names are verified), and goes off on a fault or Stop. The Windows adapter maps each slot to its item-port name. Head, body, eyes and teeth ports are deliberately not offered (replacing them can break the character, and 1.x has no removal). Port names are not verified engine rows. Synthetic tests only; not run in game. Hair, hair colour and eyebrow (29-31) are permanent overlays with no removal, so they also need a separate capability `game.loadout.appearance`, OFF unless the adapter opts in (`LoadoutAsyncBackend::appearance`; Windows: `SCO_LOADOUT_APPEARANCE=1`); `Hair_Color` is an assumed port. Compatibility: in 1.2 `submit` accepted ids 22-34 and ended them UNSUPPORTED; in 1.3 it refuses the whole request with UNAVAILABLE while the capability is off, before the job-capacity check.
-- **`sco.widgets.view` 1.0, a host-side panel reader and event queue** ([docs](docs/widgets-view.md)). New host-source seam `include/sco/widgets_view.h` (`core-source` profile, no plugin kit, outside the SDK catalogue, never published by `query_service`; no capability). A menu thread that registers itself through the table lists panels, copies one panel as a flat relocatable blob (offsets, no pointers, password text never copied) and queues the player's clicks. Counters (`revision`, `epoch`, list and global revision) come from one monotonic source. A click carries the epoch of the copy and a node key (tag, or kind, id, parent and label), so it reaches the same control across a `set_panel` republish and is dropped, and counted, when that control is gone, disabled or relabelled without a tag. SLIDER and TEXT_INPUT events merge in the queue and `events_done` says which events are finished. `dispatch_events` runs on the game thread through the same validation as `RenderPanel`, whose event half is now one shared function with unchanged behaviour. The `sco.widgets` tables and `ImGuiRenderer` are unchanged. New files `src/widgets/view.cpp` and `src/widgets/view_internal.h` join `sco_widgets`. Host code gets the table through `HostWidgetsView` and `HostWidgetsViewReleaseMenuThread` in `sco/host_menu.h` (implemented in `src/app/sco_app.cpp`). One small change to existing code: `RenderPanel` now reads a panel's callback from the live panel, and its released-owner and tag-copy failure paths report Crashed or Failed steps instead of `TOO_MANY`; the existing widget tests are unchanged and pass. `tools/test.sh` builds the new tests and ABI pins, and `sdk/test_package.py` checks that the source kits ship the new files and the plugin kits do not. Synthetic tests (`abi_widgets_view`, `test_widgets_view`, `test_host_menu`) only; not run in game.
-- **SDK reference launcher** (`sdk/examples/launcher/`, `examples/launcher/` in the core kit; no ABI or plugin-visible change). A Rust workspace cut from a product launcher, with the product name, file names, environment prefix, default packs and update source in one `ProductConfig`. Crates: contract constants, settings and `plugin.ini` reading, the zip verifier and manifest parser (same rules as `tools/sco-plugin-verify.py`), install folder and plugin management, a signed-catalogue index client (format and policy only, no fetching), the log redactor and a read-only MCP server. CLI `sco-reference-launcher`: `status`, `plugins list|enable|disable|install-from-zip`, `capabilities` (and `env`, `enable`, `disable`), `mcp`. A zip is verified before anything is written and installed through a staging folder; the `disabled` marker is the only on/off switch. The capability switches `exp_loadout_async`, `exp_inventory_read`, `exp_actor_stats_write`, `exp_cvars_native` and `exp_audio_native` default on and `exp_entities_diag` defaults off. It starts no game, injects nothing, changes nothing on the PC, uses no network and does not update itself. It builds with `cargo build --release` and passes `cargo test` from a clean copy of the folder. Source and synthetic tests only; not run in game.
-- **Launcher docs and skill.** `docs/launcher-contract.md` (variables including the capability switches, folder layout and `disabled` marker, settings key format, stop and ready events, package and compatibility rules) and `docs/building-a-launcher.md` (download and verify the kit, what the SDK gives a launcher and a host, what a product must bring itself: injection, offline patches, admission, quiescence attestation, menu renderer; build and run the reference launcher; add a plugin from a zip; connect an agent through `mcp`). New skill `sco-build-launcher` in `sdk/skills`, registered in the skills manifest (seven workflows). Packaging: the example is in the `core` profile and the new skill and docs in `core` and `core-source`; four tiny test zips are allowlisted in `docs/legal/provenance.json`.
-
+- `game.relocation`: arrival is now confirmed for a move that really happened. An in-game run moved the
+  player to the saved spot every time and still logged `arrived=no ... position_near=no` after 30 s,
+  because the test asked for 0.05 m and 1 degree and the game settles a character on the ground and
+  normalises its orientation. After the move is applied, a request now completes as soon as any later
+  tick sees the player within 0.5 m of the target position (full-pose and position-only requests alike);
+  rotation is still measured and logged but is no longer required. A request already within 0.5 m at
+  admission completes at once without moving. Arrival is kept once seen, so a player who walks away
+  afterwards does not turn it into a timeout. A request never seen within 0.5 m still times out with
+  `applied` 1. The failure log line replaces `off_by` with the pose trail, for example
+  `first=0.412 m 3.100 deg closest=0.212 m 2.900 deg last=12.351 m 95.263 deg`: the first observation
+  after the apply, the closest approach and the last observation, so the next run shows what the game
+  does. Struct layouts, result codes and table sizes are unchanged; the contract rows, header comments
+  and docs state the 0.5 m rule. Not run in game. Covered by the synthetic relocation tests only.
 ## sdk-v2.4.1
 
 SDK 2.4.1 with game pack 0.8.1 for Star Citizen build 4.10.200.58746. Plugin ABI stays 1.1;
@@ -228,6 +177,84 @@ plugins built against 2.4.0 load unchanged. Release notes: `docs/releases/sdk-v2
   drain on the quit hook but does not dispatch `game.exit` or withdraw dependent
   services. A product-owned pre-quit signal and completion receipt remain
   necessary before ASOP withdrawal can be coordinated with direct quit.
+
+### Added after the 2.4.1 candidate
+
+Everything below is on the release branch after the candidate source. All of it is checked by
+synthetic tests, builds and archive tests only, except the items listed as observed in game in
+the [release notes](docs/releases/sdk-v2.4.1.md#observed-in-game-by-the-maintainer).
+
+- Host ImGui widget adapter (source kit only; no ABI or plugin-visible change). A ROW, COLUMN or
+  TABLE with an empty label no longer draws an empty text line above its content, so an
+  unlabelled row of buttons sits directly under what precedes it and plugins need no made-up
+  headings. A NUMBER slider shows whole values without decimals and others with up to three
+  (`30` instead of `30.000`, `0.5`, `0.125`); dragged values are still rounded to three
+  decimals, typed values kept and clamping unchanged, so events are identical. Products pick
+  this up with the first SDK published after it. Docs: `docs/design/widgets.md` also proposes
+  versioned TABLE column headings, pending an owner decision.
+
+- MCP servers: every tool now has a `title`, a description that says what it returns, when to use it and
+  its limits, and a description for each argument, so agents can pick tools and fill arguments from
+  `tools/list` alone. Covers the 18 discovery tools (`tools/sco-core-mcp`) and the six runtime tools
+  (`tools/sco-core-mcp-runtime`), which previously shared one generic sentence. Tool names, argument
+  names, schemas and results are unchanged; the skills manifest's MCP schema pins are regenerated.
+  Tests require a title and described arguments for every tool. CI now also runs the documented-launcher
+  integration test (`test_integration.py`) and the runtime server tests. Docs: `docs/README.md` no longer
+  calls the six-tool minimal profile the default, and `AGENTS.md` points at `sdk/contracts/` instead of a
+  `catalogue/` folder that does not exist. `docs/agent-integration.md` points to the sc-offline and
+  scuba-engine MCP servers, and the `sco-debug-plugin` skill tells agents to read the host's own view
+  (plugin state, logs) through MCP where the host offers it.
+- MCP discovery server fixes found by an agent smoke test. `search_api` now matches any word of a
+  multi-word query instead of requiring all of them, ranks by how many and how well words match (whole
+  word above prefix, exact symbol or id first), and returns a `hint` when nothing matches. `get_example`
+  with a `language` the contract has no example in now returns `languages_with_examples` and a `hint`.
+  `list_workflows` and `get_workflow` are listed only when a valid workflow index is loaded (15 tools
+  with the kit's index, 13 without it), and a bad or mismatched `--workflows` file now prints a warning
+  on stderr and disables only those two tools instead of stopping the server. The
+  `validate_manifest_and_widgets` description now says it reports the first manifest error.
+
+- `game.relocation`: a request made when the player is already at the target now completes at once
+  and moves nothing (`applied` stays 0). Before, it waited for a move and, in the case reported
+  from the game, timed out after 30 s even though the saved spot was one second old. Position-only
+  requests do the same within 0.05 m.
+- `game.relocation`: the full-pose arrival test accepts an orientation within 1 degree of the target
+  (it was about 0.16 degrees). `q` and `-q` are still one orientation. The 0.05 m position limit
+  is unchanged.
+- `game.relocation`: the failure log line now says `timeout, applied but arrival not confirmed` when
+  the move ran, the target was streamed and the pose never settled, and adds `pose_read`,
+  `position_near` and `rotation_near` flags. Status, reason codes and the ABI are unchanged: such a
+  request still ends `FAILED` with `TIMEOUT` and `applied` 1, and plugins tell it from a move that
+  never ran by that `applied` value. The log also gives `off_by` in metres and degrees. A pose that
+  settles on the tick the deadline passes now counts as arrived. The move is still applied once per
+  request; it is not retried.
+- Not run in game. Covered by the synthetic relocation tests only.
+
+- `game.entities.prefabs` is now reported ON only when the `spawn.prefabs` rows resolved on the
+  running build. Before, the capability read ON without them, the first prefab placement failed
+  with `SCO_FAILED`, and the capability stayed OFF until restart. Now it starts OFF with the reason
+  "spawn.prefabs rows did not resolve on this build", and a placement that still reaches the spawner
+  without the rows returns `SCO_UNAVAILABLE` without latching (only a real engine fault latches). A stopped spawner is not blamed on the rows.
+  Synthetic policy tests only; not run in game.
+- Relocation failure log (source kit only; no ABI or plugin-visible change). The line printed when a
+  relocation request fails or times out now ends with the last observed offset from the target in
+  metres and, for a full pose, degrees; a position-only request shows metres only, and a pose that
+  could not be read shows "not measured". Numbers only, no coordinates. Result codes and struct
+  layouts are unchanged. Tested on synthetic values; not run in game.
+- Design note "zone lookup" (docs only): why `game.spatial` cannot reach another planet or moon by
+  name with the rows Core has today, and the one engine row that would unlock it. No contract,
+  capability or behaviour change.
+- **`game.loadout` 1.3: outfit slots 22-34, capability `game.loadout.outfit` OFF** ([docs](docs/game/loadout.md#outfit-slots-13)). `include/sc_loadout.h` adds `SC_LOADOUT_VERSION_1_3` and thirteen slot names after `SC_LOADOUT_SLOT_SIDEARM_TOOL_BATTERY`: `CLOTHING_TORSO_0/1/2`, `CLOTHING_LEGS`, `CLOTHING_FEET`, `CLOTHING_HANDS`, `HAT`, `HAIR`, `HAIR_COLOR`, `EYEBROW`, `HEAD_ACCESSORY`, `HEAD_HORN`, `JEWELLERY`. Vocabulary only: no struct or table change. Only the async `submit` route handles them; `apply` reports them UNSUPPORTED. `submit` refuses a request that holds one with UNAVAILABLE while `game.loadout.outfit` is off; the capability is on only with the opt-in async route and an adapter with a name mapping (`LoadoutAsyncBackend::outfit`, which does not mean the names are verified), and goes off on a fault or Stop. The Windows adapter maps each slot to its item-port name. Head, body, eyes and teeth ports are deliberately not offered (replacing them can break the character, and 1.x has no removal). Port names are not verified engine rows. Synthetic tests only; not run in game. Hair, hair colour and eyebrow (29-31) are permanent overlays with no removal, so they also need a separate capability `game.loadout.appearance`, OFF unless the adapter opts in (`LoadoutAsyncBackend::appearance`; Windows: `SCO_LOADOUT_APPEARANCE=1`); `Hair_Color` is an assumed port. Compatibility: in 1.2 `submit` accepted ids 22-34 and ended them UNSUPPORTED; in 1.3 it refuses the whole request with UNAVAILABLE while the capability is off, before the job-capacity check.
+- **`sco.widgets.view` 1.0, a host-side panel reader and event queue** ([docs](docs/widgets-view.md)). New host-source seam `include/sco/widgets_view.h` (`core-source` profile, no plugin kit, outside the SDK catalogue, never published by `query_service`; no capability). A menu thread that registers itself through the table lists panels, copies one panel as a flat relocatable blob (offsets, no pointers, password text never copied) and queues the player's clicks. Counters (`revision`, `epoch`, list and global revision) come from one monotonic source. A click carries the epoch of the copy and a node key (tag, or kind, id, parent and label), so it reaches the same control across a `set_panel` republish and is dropped, and counted, when that control is gone, disabled or relabelled without a tag. SLIDER and TEXT_INPUT events merge in the queue and `events_done` says which events are finished. `dispatch_events` runs on the game thread through the same validation as `RenderPanel`, whose event half is now one shared function with unchanged behaviour. The `sco.widgets` tables and `ImGuiRenderer` are unchanged. New files `src/widgets/view.cpp` and `src/widgets/view_internal.h` join `sco_widgets`. Host code gets the table through `HostWidgetsView` and `HostWidgetsViewReleaseMenuThread` in `sco/host_menu.h` (implemented in `src/app/sco_app.cpp`). One small change to existing code: `RenderPanel` now reads a panel's callback from the live panel, and its released-owner and tag-copy failure paths report Crashed or Failed steps instead of `TOO_MANY`; the existing widget tests are unchanged and pass. `tools/test.sh` builds the new tests and ABI pins, and `sdk/test_package.py` checks that the source kits ship the new files and the plugin kits do not. Synthetic tests (`abi_widgets_view`, `test_widgets_view`, `test_host_menu`) only; not run in game.
+- **SDK reference launcher** (`sdk/examples/launcher/`, `examples/launcher/` in the core kit; no ABI or plugin-visible change). A Rust workspace cut from a product launcher, with the product name, file names, environment prefix, default packs and update source in one `ProductConfig`. Crates: contract constants, settings and `plugin.ini` reading, the zip verifier and manifest parser (same rules as `tools/sco-plugin-verify.py`), install folder and plugin management, a signed-catalogue index client (format and policy only, no fetching), the log redactor and a read-only MCP server. CLI `sco-reference-launcher`: `status`, `plugins list|enable|disable|install-from-zip`, `capabilities` (and `env`, `enable`, `disable`), `mcp`. A zip is verified before anything is written and installed through a staging folder; the `disabled` marker is the only on/off switch. The capability switches `exp_loadout_async`, `exp_inventory_read`, `exp_actor_stats_write`, `exp_cvars_native` and `exp_audio_native` default on and `exp_entities_diag` defaults off. It starts no game, injects nothing, changes nothing on the PC, uses no network and does not update itself. It builds with `cargo build --release` and passes `cargo test` from a clean copy of the folder. Source and synthetic tests only; not run in game.
+- **Launcher docs and skill.** `docs/launcher-contract.md` (variables including the capability switches, folder layout and `disabled` marker, settings key format, stop and ready events, package and compatibility rules) and `docs/building-a-launcher.md` (download and verify the kit, what the SDK gives a launcher and a host, what a product must bring itself: injection, offline patches, admission, quiescence attestation, menu renderer; build and run the reference launcher; add a plugin from a zip; connect an agent through `mcp`). New skill `sco-build-launcher` in `sdk/skills`, registered in the skills manifest (seven workflows). Packaging: the example is in the `core` profile and the new skill and docs in `core` and `core-source`; four tiny test zips are allowlisted in `docs/legal/provenance.json`.
+
+- Docs and status: `docs/game/status.md` (generated from `sdk/status_registry.json`) now records, as
+  evidence text only, that `game.loadout.async` and `game.entities.prefabs` were each observed once
+  in game by the maintainer on build 4.10.200.58746. Evidence levels (`synthetic_only`) and
+  defaults are unchanged; no row is marked verified in game. The roadmap lists the zone lookup gap,
+  the catalogue signing key and the Rust host as later work. The launcher contract, the build-a-launcher
+  guide and the widgets view page are on the documentation site and in the docs indexes, and the
+  agent workflow page lists the new `sco-build-launcher` skill.
 
 ## sdk-v2.4.0
 

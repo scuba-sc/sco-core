@@ -1,6 +1,6 @@
 # Consumer workflows for agents
 
-Current source contains six focused skills for developers building extensions. The current release:
+Current source contains seven focused skills for developers building extensions. The current release:
 
 <!-- release-block:current-release -->
 SDK **2.4.1** uses Star Citizen game pack **0.8.1** (checked against Star Citizen
@@ -20,10 +20,11 @@ Verify archives against the release's `SHA256SUMS`. SDK 2.4.0 was published on 2
 | Stage, statically verify, inventory and round-trip a distribution | [sco-package-plugin](../sdk/skills/sco-package-plugin/SKILL.md) |
 | Move between SDK/host versions | [sco-upgrade-plugin](../sdk/skills/sco-upgrade-plugin/SKILL.md) |
 | Prepare a minimal public gap report | [sco-report-sdk-gap](../sdk/skills/sco-report-sdk-gap/SKILL.md) |
+| Build a launcher for a product on the SDK (contract, reference launcher, what a product brings itself) | [sco-build-launcher](../sdk/skills/sco-build-launcher/SKILL.md) |
 
 Read an entrypoint only when its task applies, then the references it links. The skills are portable Markdown: open the files directly, or follow your agent client's own skill-installation steps. The SDK never writes agent configuration or installs a skill.
 
-To use them directly, give the agent `<SDK>/skills/sco-plan-sdk-work/SKILL.md` (in a source checkout, `sdk/skills/sco-plan-sdk-work/SKILL.md`) and ask it to read that file and the references it links. The other five entrypoints are siblings. Keep the whole `skills/` directory, including `manifest.json` and the reference files, so cross-workflow links resolve.
+To use them directly, give the agent `<SDK>/skills/sco-plan-sdk-work/SKILL.md` (in a source checkout, `sdk/skills/sco-plan-sdk-work/SKILL.md`) and ask it to read that file and the references it links. The other six entrypoints are siblings. Keep the whole `skills/` directory, including `manifest.json` and the reference files, so cross-workflow links resolve.
 
 ## Archive and source discovery
 
@@ -176,7 +177,7 @@ For a historical RC2 consumer evaluation:
    bypass a missing SDK backend; the mining service owns its detour.
 2. Select the published RC2 archive and verify its release `SHA256SUMS` and
    inventory before extracting it into an empty directory. Compose `game-sc` only over its exact matching core
-   archive; keep host-source kits separate. Read the six skills directly or use
+   archive; keep host-source kits separate. Read the seven skills directly or use
    the matching catalogue/workflow index. Confirm the published RC2 kit's fourteen discovery tools by
    default and six with `--minimal-tools`; runtime tools require their independent
    admission path.

@@ -1266,6 +1266,38 @@ static void TestStopQueue() {
     RemoveAll();
 }
 
+// Core stops while a drain runs: the slots taken but not handled are counted as drops and
+// events_done moves past them. Nothing is lost without a trace, and nothing is delivered.
+static void TestStopMidDrain() {
+    MenuThread menu;
+    sco_result r = SCO_OK;
+    menu.Run([&] { r = view->menu_thread_enter(client); });
+    Rec rec;
+    CHECK(SetTree(alpha, "alpha.md", {Mk(SCO_WIDGET_BUTTON, 1, 0, "A", "md.a"), Mk(SCO_WIDGET_BUTTON, 2, 0, "B", "md.b"),
+                                      Mk(SCO_WIDGET_BUTTON, 3, 0, "C", "md.c")}, OnEvent, &rec) == SCO_OK);
+    Blob b; CHECK(CopyOn(menu, "alpha.md", b) == SCO_OK);
+    uint64_t s1 = 0, s2 = 0, s3 = 0;
+    CHECK(SubmitOn(menu, "alpha.md", EventFor(b, 1, SCO_WIDGET_BUTTON), &s1) == SCO_OK);
+    CHECK(SubmitOn(menu, "alpha.md", EventFor(b, 2, SCO_WIDGET_BUTTON), &s2) == SCO_OK);
+    CHECK(SubmitOn(menu, "alpha.md", EventFor(b, 3, SCO_WIDGET_BUTTON), &s3) == SCO_OK);
+    rec.action = [&](const Got&) { sco::detail::SetRuntimeStopping(true); };
+    const Stamps before = Read();
+    const Drain d = DoDrain();
+    sco::detail::SetRuntimeStopping(false);
+    CHECK(d.result == SCO_UNAVAILABLE);
+    CHECK(rec.got.size() == 1); // only the first callback ran
+    CHECK(d.dispatched == 1 && d.dropped == 2);
+    const Stamps after = Read();
+    CHECK(after.drops == before.drops + 2);
+    CHECK(after.done == s3); // moved past the two lost slots
+    // The queue is empty: a later drain finds nothing to deliver.
+    rec.action = nullptr;
+    const Drain again = DoDrain();
+    CHECK(again.result == SCO_OK && again.dispatched == 0 && again.dropped == 0 && rec.got.size() == 1);
+    menu.Run([&] { r = view->menu_thread_leave(client); });
+    RemoveAll();
+}
+
 // ---- concurrency ----
 // One consistent revision: every label of the panel carries the same iteration number.
 static std::vector<Spec> NumberedTree(uint64_t n, bool grow) {
@@ -1526,6 +1558,7 @@ int main() {
     TestFaultAndRelease(api);
     TestStop();
     TestStopQueue();
+    TestStopMidDrain();
     TestRace();
     RunRepublishStress(true, false, 10000);   // tagged, identical republish: every event delivered
     RunRepublishStress(false, false, 10000);  // untagged, identical republish: the same

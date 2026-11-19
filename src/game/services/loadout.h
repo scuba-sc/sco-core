@@ -31,11 +31,9 @@ struct LoadoutAsyncBackend {
                   sc_loadout_status* terminal) = nullptr;
     bool (*poll)(uint64_t token, bool* complete, sc_loadout_status* result) = nullptr;
     void (*discard)(uint64_t token) = nullptr;
-    // Says begin/poll have a name mapping for the 1.3 outfit slots 22-34 (not that the names are verified). Only then, and only
+    // Says begin/poll have a name mapping for the 1.3 outfit slots 22-31 (not that the names are verified). Only then, and only
     // with the async route installed, is capability game.loadout.outfit on (default off).
     bool outfit = false;
-    // Explicit opt-in for slots 29-31 (hair, hair colour, eyebrow); needs outfit. Capability game.loadout.appearance, default off.
-    bool appearance = false;
 };
 Result StartLoadout(const LoadoutBackend* backend = nullptr, const LoadoutAsyncBackend* async = nullptr);
 void TickLoadout(uint32_t now);

@@ -1903,6 +1903,26 @@
         "why": "Tiny plugin zip for the reference launcher tests; its pilot.dll member (when present) is 36 bytes of ASCII text, never loaded. Verified and installed only by scl-plugins and scl-install tests."
       },
       {
+        "path": "examples/launcher/tests/zip-corpus/cases/bad-collision-case.zip",
+        "sha256": "2b025e9dba28ec2d1356c9a4e478db900d5aa19b9486e366312e63e7963f1bb4",
+        "why": "Tiny plugin zip for the reference launcher tests; members are short ASCII text. A hostile-name case or a lua or data pack; verified by scl-plugins tests, never run. Same file under its kit path (examples/launcher/ in the core and legacy kits), as the archive audit sees it."
+      },
+      {
+        "path": "examples/launcher/tests/zip-corpus/cases/good-data-pack.zip",
+        "sha256": "e5e487978f2f6169d6d288bd2cc030825f8d53875f1cce790ccee4d21c9f0d1e",
+        "why": "Tiny plugin zip for the reference launcher tests; members are short ASCII text. A hostile-name case or a lua or data pack; verified by scl-plugins tests, never run. Same file under its kit path (examples/launcher/ in the core and legacy kits), as the archive audit sees it."
+      },
+      {
+        "path": "examples/launcher/tests/zip-corpus/cases/good-lua-plugin.zip",
+        "sha256": "973d1f42c2da5939aa610e31183925c630ce12f02f29441bcc1d1eb43fa37baf",
+        "why": "Tiny plugin zip for the reference launcher tests; members are short ASCII text. A hostile-name case or a lua or data pack; verified by scl-plugins tests, never run. Same file under its kit path (examples/launcher/ in the core and legacy kits), as the archive audit sees it."
+      },
+      {
+        "path": "examples/launcher/tests/zip-corpus/cases/good-minimal.zip",
+        "sha256": "ae14c848e04beca9824a1c93cb015ccca74f3dcefbcb59f58fdf1544bac3baf9",
+        "why": "Tiny plugin zip for the reference launcher tests; its pilot.dll member (when present) is 36 bytes of ASCII text, never loaded. Verified and installed only by scl-plugins and scl-install tests. Same file under its kit path (examples/launcher/ in the core and legacy kits), as the archive audit sees it."
+      },
+      {
         "path": "tests/fixtures/plugins/tree/hello/hello.dll",
         "sha256": "56f6ae0ab755f7b3ffa2ba686dcb5c30fb821cf0639f597101183343916668df",
         "why": "47 bytes of ASCII text named like a DLL: plugin discovery reads plugin.ini and never opens the entry (tests/test_plugins.cpp)"

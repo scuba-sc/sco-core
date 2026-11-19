@@ -158,6 +158,14 @@ repository.
 - **Experimental Rust bindings** and a sample plugin ([Rust support](../sdk/rust/README.md)); they do
   not gate the release.
 - **Game pack 0.8.1** for build 4.10.200.58746; its locators are static-checked only.
+- **After the candidate:** a renderer fix for unlabelled rows and NUMBER sliders, MCP tool titles and
+  descriptions and a multi-word `search_api`, relocation that completes at once when the player is
+  already at the target, prefab readiness that follows the resolved rows, the host-side
+  `sco.widgets.view` reader ([widgets view](widgets-view.md)), `game.loadout` 1.3 outfit slots, and
+  the Rust reference launcher with the [launcher contract](launcher-contract.md) and
+  [building a launcher](building-a-launcher.md) guides. Synthetic tests only; see the
+  "Observed in game by the maintainer" section of the [release notes](releases/sdk-v2.4.1.md) for
+  the few things seen once in game.
 
 The [interactive one-page roadmap](https://scuba-sc.github.io/sco-core/roadmap/) is a companion
 status view. This document is the maintained contributor roadmap; follow the release page and
@@ -202,7 +210,14 @@ Planned work is to close the remaining acceptance gaps in evidence order:
 5. SDK gap, zone lookup beyond the player's chain: resolving a zone by name from anywhere needs one
    new engine row (child enumeration or a zone-by-name lookup) that Core does not have. Design note:
    [zone lookup](design/zone-lookup.md). Blocked on private evidence; not implemented.
-6. Independent first-time-contributor dry run: follow the delivered archive-to-plugin
+6. Plugin catalogue signing key. The reference launcher's catalogue client checks a signed index
+   against a trust root. The shipped trust root is empty because no production signing key exists
+   yet, so a catalogue works from a local folder only and every entry lands disabled. Adding a key
+   is a release-time act of the project owner, not a code change.
+7. Rust host. The reference launcher is a Rust launcher; the in-game host and menu stay C++. A Rust
+   host and a Rust in-game menu on top of `sco.widgets.view` come later, after the menu has run in
+   a game. Nothing in 2.4.1 depends on it.
+8. Independent first-time-contributor dry run: follow the delivered archive-to-plugin
    documentation without help, then use observed friction to improve it.
 
 Each capability still moves through contract, implementation, availability and evidence. Static

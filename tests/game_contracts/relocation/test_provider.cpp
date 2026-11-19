@@ -8,7 +8,10 @@
 #include "game/admission.h"
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
+#include <string>
 #include <thread>
+#include "sco/log.h"
 #define CHECK(x) do { if (!(x)) { std::printf("FAIL %d: %s\n", __LINE__, #x); std::exit(1); } } while (0)
 namespace S = sco::game::services;
 
@@ -22,6 +25,10 @@ struct World {
     sco_plugin* self = nullptr;
     sco_result reenterResult = SCO_OK;
 } w;
+
+std::string g_lastLog;
+void CaptureLog(const char* line) { g_lastLog = line ? line : ""; }
+bool Has(const char* text) { return g_lastLog.find(text) != std::string::npos; }
 
 bool Offline() {
     ++w.offlineCalls;
@@ -109,6 +116,7 @@ void Failed(uint64_t ticket, uint32_t reason, uint32_t applied) {
 
 int main() {
     sco::SetGameThread();
+    sco::SetLogSink(CaptureLog);
     api = sco::host::BuildApi({"synthetic relocation host"});
     self = sco::host::NewPlugin("relocation_test");
 
@@ -296,17 +304,20 @@ int main() {
     S::TickRelocation();
     CHECK(w.moves == 1 && State(ticket).state == SC_RELOCATION_PENDING);
     w.poseValid = true;
-    w.pos[0] = 1.06;
+    w.pos[0] = 1.6;
     S::TickRelocation();
     CHECK(State(ticket).state == SC_RELOCATION_PENDING);
-    w.pos[0] = 1.0;
+    // Within 0.5 m with a very different orientation (a quaternion that is not even the target's): arrived.
+    w.pos[0] = 1.2;
     w.rot[2] = 1;
-    S::TickRelocation();
-    CHECK(State(ticket).state == SC_RELOCATION_PENDING);
-    w.rot[2] = 0;
     S::TickRelocation();
     CHECK(State(ticket).state == SC_RELOCATION_COMPLETE && State(ticket).applied == 1 && w.moves == 1);
     CHECK(table->cancel(self, ticket) == SCO_OK && State(ticket).state == SC_RELOCATION_COMPLETE);
+    // The player walks away afterwards: the confirmed arrival stays.
+    w.pos[0] = 50;
+    w.now = 5000;
+    S::TickRelocation();
+    CHECK(State(ticket).state == SC_RELOCATION_COMPLETE && State(ticket).applied == 1 && w.moves == 1);
     CHECK(Cap());
 
     // Already at the target when asked (saved a moment ago): complete at once, no move.
@@ -317,35 +328,49 @@ int main() {
     w.now = 1100;
     S::TickRelocation();
     CHECK(w.moves == 0 && State(ticket).state == SC_RELOCATION_COMPLETE);
-    // Same spot, orientation turned 2 degrees: not there yet, so it moves once.
+    // Same spot, orientation turned 2 degrees, and 0.3 m off: still there (orientation is not required).
     Begin(&good);
     w.poseValid = true;
+    w.pos[0] = 1.3;
     w.rot[2] = 0.017453292519943295;  // sin(1 degree): a 2 degree turn about z
     w.rot[3] = 0.9998476951563913;
+    ticket = Admit();
+    CHECK(State(ticket).state == SC_RELOCATION_COMPLETE && State(ticket).applied == 0 && w.moves == 0);
+    // 0.6 m off at request time: not there yet, so it moves once.
+    Begin(&good);
+    w.poseValid = true;
+    w.pos[0] = 1.6;
     ticket = Admit();
     CHECK(State(ticket).state == SC_RELOCATION_PENDING);
     w.now = 1100;
     S::TickRelocation();
     CHECK(w.moves == 1 && State(ticket).applied == 1);
-    // The game ends up 0.5 degree off, with the quaternion sign flipped: that is arrival.
-    w.rot[0] = 0; w.rot[1] = 0; w.rot[2] = -0.004363309284746; w.rot[3] = -0.99999048;
+    // The game settles the player 0.2 m from the target, 90 degrees turned and with the sign flipped: arrival.
+    w.pos[0] = 1.2; w.rot[0] = 0; w.rot[1] = 0; w.rot[2] = 0.7071067811865476; w.rot[3] = -0.7071067811865476;
     w.now = 1200;
     S::TickRelocation();
     CHECK(State(ticket).state == SC_RELOCATION_COMPLETE && w.moves == 1);
-    // Applied and streamed but the pose never settles: timeout with applied=1, and no second move.
+    // Applied and streamed but never closer than 0.5 m: timeout with applied=1, no second move, and the log
+    // gives the first, closest and last offsets.
     Begin(&good);
     ticket = Admit();
     w.poseValid = true;
-    w.pos[0] = 1.5;
+    w.pos[0] = 2.0;
     w.now = 1100;
     S::TickRelocation();
     CHECK(w.moves == 1);
-    for (int i = 0; i < 5; ++i) { w.now += 100; S::TickRelocation(); }
+    w.now = 1200; S::TickRelocation();            // first observation after the move: 1.0 m
+    w.pos[0] = 1.6; w.now = 1300; S::TickRelocation();   // closest approach: 0.6 m
+    w.pos[0] = 13.351; w.now = 1400; S::TickRelocation(); // walks away: 12.351 m
+    for (int i = 0; i < 4; ++i) { w.now += 100; S::TickRelocation(); }
     CHECK(w.moves == 1 && State(ticket).state == SC_RELOCATION_PENDING);
+    g_lastLog.clear();
     w.now = 2000;
     S::TickRelocation();
     Failed(ticket, SC_RELOCATION_REASON_TIMEOUT, 1);
     CHECK(w.moves == 1);
+    CHECK(Has("applied but arrival not confirmed") && Has("first=1.000 m 0.000 deg closest=0.600 m 0.000 deg last=12.351 m 0.000 deg"));
+    CHECK(!Has("off_by"));
 
     Begin(&good);
     ticket = Admit();

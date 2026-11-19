@@ -315,7 +315,8 @@ sco_result DispatchEvents(sco_view_client* client, uint32_t* dispatched, uint32_
         }
         uint32_t ok = 0, bad = 0;
         bool crashed = false, stopped = false;
-        for (auto& slot : taken) {
+        for (size_t at = 0; at < taken.size(); ++at) {
+            auto& slot = taken[at];
             if (slot.session != Session()) {
                 // Queued before a Stop or Start of sco.widgets: never delivered to a new panel.
                 ++bad;
@@ -327,7 +328,18 @@ sco_result DispatchEvents(sco_view_client* client, uint32_t* dispatched, uint32_
             event.node_id = slot.nodeId; event.kind = slot.kind; event.index = slot.index;
             event.value = slot.value; event.text = slot.text; event.row = slot.row;
             const Step step = DispatchEvent(slot.panel, event, slot.epoch, slot.key);
-            if (step == Step::Unavailable) { stopped = true; break; }
+            if (step == Step::Unavailable) {
+                // Core stopped under the drain. The slot and the rest of the taken slots were
+                // already removed from the queue and no callback ran for them. Count each as a
+                // drop and move events_done past them, so a menu waiting on events_done does
+                // not wait for ever and no event is lost without a trace.
+                stopped = true;
+                const size_t lost = taken.size() - at;
+                bad += static_cast<uint32_t>(lost);
+                client->eventDrops.fetch_add(lost, std::memory_order_acq_rel);
+                client->eventsDone.store(taken.back().last, std::memory_order_release);
+                break;
+            }
             if (step == Step::Delivered) ++ok;
             else {
                 ++bad;

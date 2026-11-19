@@ -31,18 +31,13 @@ uint64_t nextJob = 0;
 uint32_t tickNow = 0;
 bool haveTick = false;
 constexpr const char* kCapOutfit = "game.loadout.outfit";
-constexpr const char* kCapAppearance = "game.loadout.appearance";
-// Hair, hair colour and eyebrow overwrite the character permanently (1.x has no removal), so they need
-// their own capability on top of the outfit one.
-bool AppearanceSlot(uint32_t slot) {
-    return slot >= SC_LOADOUT_SLOT_HAIR && slot <= SC_LOADOUT_SLOT_EYEBROW;
-}
+// Hair, hair colour, eyebrow, teeth, eyes, head and body have no slot: this version cannot undo them.
 bool OutfitSlot(uint32_t slot) {
     return slot >= SC_LOADOUT_SLOT_CLOTHING_TORSO_0 && slot <= SC_LOADOUT_SLOT_JEWELLERY;
 }
 bool SlotAllowed(uint32_t slot) {
     if (!OutfitSlot(slot)) return true;
-    return caps::Has(kCapOutfit) && (!AppearanceSlot(slot) || caps::Has(kCapAppearance));
+    return caps::Has(kCapOutfit);
 }
 constexpr const char* kCapRespawn = "game.events.loadout_respawn_completed";
 // One state word makes recording atomic with Stop/restart. Low bits: enabled/pending;
@@ -84,7 +79,6 @@ void Fault() {
     caps::Set("game.loadout.apply", false, "loadout provider fault; process restart required");
     caps::Set("game.loadout.weapons", false, "loadout provider fault; process restart required");
     caps::Set(kCapOutfit, false, "loadout provider fault; process restart required");
-    caps::Set(kCapAppearance, false, "loadout provider fault; process restart required");
     SetRespawn(false, "loadout provider fault; process restart required");
 }
 using AsyncThunk = void(*)(void*);
@@ -288,10 +282,7 @@ Result StartLoadout(const LoadoutBackend* backend, const LoadoutAsyncBackend* as
               "verified async spawn, attachment and readback provider required");
     caps::Set(kCapOutfit, asyncOn && asyncEngine.outfit,
               faulted ? "loadout provider fault; process restart required" :
-                        "outfit item-port names not verified in game; needs the async route and an adapter with a name mapping; default off");
-    caps::Set(kCapAppearance, asyncOn && asyncEngine.outfit && asyncEngine.appearance,
-              faulted ? "loadout provider fault; process restart required" :
-                        "permanent hair, hair colour and eyebrow overlays; needs the outfit capability plus an explicit adapter opt-in; default off");
+                        "outfit item-port names not verified in game; needs the async route and the explicit outfit switch (SCO_LOADOUT_OUTFIT=1 in the product host); default off");
     respawnSubscribed = respawnWanted && Subscribe(sco::host::GameOwner(), "tick", OnRespawnTick, nullptr) == Result::Ok;
     SetRespawn(respawnSubscribed,
                faulted ? "loadout provider fault; process restart required" :
@@ -375,7 +366,6 @@ Result StopLoadout() {
     caps::Set("game.loadout.weapons", false, "game loadout stopped");
     caps::Set("game.loadout.async", false, "game loadout stopped");
     caps::Set(kCapOutfit, false, "game loadout stopped");
-    caps::Set(kCapAppearance, false, "game loadout stopped");
     const Result tick = Unsubscribe(sco::host::GameOwner(), "tick", OnTick);
     for (auto& job : jobs) if (job.owner && Discard(job)) job = {};
     Result respawn = Result::Ok;
