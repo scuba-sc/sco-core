@@ -183,7 +183,7 @@ its archive identity is in the
 - **RC1:** six-tool default, 12 with `--extended-tools`, and no workflow tools or index.
 
 Protocol support and the stale text in these archives' own READMEs and guides are in
-[Older kits](../../docs/agent-integration.md#older-kits).
+[Previous release kits](../../docs/agent-integration.md#previous-release-kits).
 
 ## Run from a source checkout (maintainers)
 

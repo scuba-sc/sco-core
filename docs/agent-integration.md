@@ -24,7 +24,7 @@ status](game/status.md).
 This is the one setup path for an SDK developer; the [server README](../tools/sco-core-mcp/README.md) and the
 [SDK tutorial](sdk-mcp-tutorial.md) point here. Maintaining a source checkout? Go to [Maintainers: source
 checkout](#maintainers-source-checkout-and-your-own-catalogue). Holding an older kit? See [Earlier
-releases](#older-kits).
+releases](#previous-release-kits).
 
 You need Python 3.9 or newer (check with `py -3 --version` on Windows or `python3 --version` on macOS and
 Linux) and an MCP client that supports stdio. The SDK <!--rv:sdk_version-->2.4.1<!--/rv--> kit speaks legacy
@@ -432,7 +432,7 @@ setting](#copilot-code-review-maintainer-owned-repository-setting).
 3. Check `tools/list`: fifteen tools for the default developer profile with the kit's workflow index (thirteen
    without it), six for explicit `--minimal-tools`,
    all with `readOnlyHint: true`. Ask the agent to list the server's tools if your client has no tools view.
-   Older kits list different counts; see [Older kits](#older-kits).
+   Older kits list different counts; see [Previous release kits](#previous-release-kits).
 4. Ask the agent: "Call the `sco-core-sdk` tool `list_services` with no arguments and show me the raw
    `provenance` and `stability_context`." Most clients have no box for calling a tool by hand, and an agent
    tends to summarise away exactly these fields, so ask for the raw result. Compare `provenance` with the
@@ -463,11 +463,11 @@ Common failures:
 | `sco-core-mcp: catalogue refused: FileNotFoundError`, exit code 1, and the client shows the server as failed or disconnected | `server.py` started, but the `--catalogue` file does not exist: for example a checkout's `dist/sdk-catalogue.json` path in a kit, or the extract folder in place of `sco-sdk-<version>`. Run the same existence check. |
 | The server connects, but `get_example` returns `Example unavailable: requires a contained regular UTF-8 file without symlinks`; `list_engine_natives` or `generate_plugin_scaffold` return `unavailable` with a `reason` such as `sdk/native_index.json unavailable beneath --repo-root`; `list_services` shows `stability_context.game_state` `unavailable` | `--repo-root` is not the SDK folder: it is one level too high, another folder, or left out (left out, `get_example` instead returns paths only with `paths_only: true`). The server starts anyway. The messages use checkout paths (`sdk/...`); a kit has no `sdk/` folder, and those files sit at its root (`native_index.json`, `tools/sco-new-plugin.py`), so nothing is missing from the kit. Set `--repo-root` to the SDK folder and restart; step 5 above checks it. |
 | A usage block that ends with `server.py: error: unrecognized arguments: ...`, `server.py: error: --catalogue or SCO_CORE_CATALOGUE is required` or `server.py: error: argument --repo-root: expected one argument`, exit code 2 | An argument is malformed: a flag and its value were joined in one `args` element (`"--catalogue C:/..."`), `--catalogue` is missing, or a flag has no value. Make every flag and every value its own element, in the order under [Register the server in your client](#register-the-server-in-your-client). |
-| `Unknown tool` (JSON-RPC `-32602`), or only six tools | Check whether `--minimal-tools` or the client allowlist restricts discovery, and whether this is an older published kit. The SDK <!--rv:sdk_version-->2.4.1<!--/rv--> kit defaults to fifteen; for older kits see [Older kits](#older-kits). |
+| `Unknown tool` (JSON-RPC `-32602`), or only six tools | Check whether `--minimal-tools` or the client allowlist restricts discovery, and whether this is an older published kit. The SDK <!--rv:sdk_version-->2.4.1<!--/rv--> kit defaults to fifteen; for older kits see [Previous release kits](#previous-release-kits). |
 | The server does not start on Windows, or the Microsoft Store opens | A standard Windows Python install provides `py` (and usually `python`) but not `python3`, and a `python3` alias that does exist can be the Microsoft Store stub. Use `py` with `-3`, or an absolute `python.exe` (`py -3 -c "import sys; print(sys.executable)"` prints its path). |
 | The client disconnects while initializing | The client may support neither protocol version the server speaks, `2025-11-25` and `2026-07-28`. Use a client that supports one of them. An archive from before 2.4.1 may speak only `2025-11-25`. |
 | `check_compatibility` says a `tag` does not match the advertised pattern | The current historical-record lookup accepts `sdk-vMAJOR.MINOR.PATCH` only, so pre-release suffixes are refused. Compare `sdk_version`, `game_pack_version` and `source_sha`, and verify the archive digest separately; these checks do not prove publication. |
-| `search_guides` text says a release candidate is the latest release or that a final release is pending | An older kit contains guide snapshots frozen before its release page existed (see [Older kits](#older-kits)). The release page of the kit you downloaded and its checksums establish release identity. |
+| `search_guides` text says a release candidate is the latest release or that a final release is pending | An older kit contains guide snapshots frozen before its release page existed (see [Previous release kits](#previous-release-kits)). The release page of the kit you downloaded and its checksums establish release identity. |
 
 ### Workflow discovery and missing indexes
 
@@ -542,7 +542,7 @@ nothing about the game. The
 [server README](../tools/sco-core-mcp/README.md#development-tools-opt-in) gives the exact command lines, result
 fields and security model.
 
-### Older kits
+### Previous release kits
 
 <a id="published-stable-sdk-240-release"></a>
 

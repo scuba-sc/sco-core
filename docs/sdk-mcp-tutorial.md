@@ -198,4 +198,4 @@ Installing a plugin is an explicit action you take with the product's documented
 
 Reload is not universal. It can cascade to loaded dependents, and it refuses built-in or data members and service providers that have been handed out. It is unavailable for a provider that faulted and needs a restart. Manifest changes to `requires`, `entry` and settings declarations need a restart, because reload does not read the manifest again. DataCore changes can also need one. See [plugin lifecycle and hot reload](plugins.md#hot-reload). Native plugins are not sandboxed, and a fault has no promised safe in-process recovery.
 
-If you hold an older kit, see [Older kits](agent-integration.md#older-kits).
+If you hold an older kit, see [Older kits](agent-integration.md#previous-release-kits).
