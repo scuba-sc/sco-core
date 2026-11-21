@@ -19,9 +19,9 @@
     "callback_context": "No plugin callback.",
     "reentrancy": "Recursive provider reads fail with FAILED.",
     "results": "OK snapshot; BAD_ARG invalid handle, id, output size or capacity; WRONG_THREAD off game thread; NOT_FOUND unknown container; UNAVAILABLE unbound or stopping; FAILED malformed provider or exception. Known output prefix is cleared on failure, future caller tail untouched.",
-    "absent_capability": "game.inventory.contents.read defaults OFF; no native engine adapter. Synthetic evidence only, not run in game.",
+    "absent_capability": "game.inventory.contents.read defaults OFF; no native engine adapter. Synthetic tests only. Not run in game.",
     "cleanup": "Service stop withdraws table and drops host-owned backend references. Read-only, no engine state to restore.",
-    "limitations": ["No native game adapter or in-game evidence.", "No mutation, paging, persistent identifiers or C#/Lua route."],
+    "limitations": ["No native game adapter. Not run in game.", "No mutation, paging, persistent identifiers or C#/Lua route."],
     "tests": ["tests/abi_container_contents.c", "tests/test_container_contents.cpp"],
     "examples": ["sdk/examples/container_reader/container_reader.c"],
     "language_mappings": {

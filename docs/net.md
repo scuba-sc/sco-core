@@ -94,7 +94,7 @@ On ordinary owner release (including unload or non-retained `crashed` cleanup), 
 
 ## Who can connect (the product's side)
 
-### Default-on private-session broker (G13)
+### Private-session broker (default)
 
 New host integrations use `sco::net::SessionControlV1` from
 `include/sco/net/control.h` (`core-source`). The broker defaults ON with exact
@@ -121,10 +121,7 @@ packaging and limitations: [private-session broker](game/private-session.md).
 `test_net_control` exercises the actual authenticated backend over synthetic
 numeric IPv4 datagrams and traps all socket calls. With `SCO_GAME_SC=ON`, the
 same named fixture exercises public C publication/requests, owner release,
-admission/rate/bounds refusal and C layout pins. This is synthetic proof only:
-**Windows/MSVC, private LAN, EAC/OS admission, firewall policy and game execution
-are NOT VERIFIED**. G2 remains disabled; broader/public address policy and
-persisted credentials/consent are not approved.
+admission/rate/bounds refusal and C layout pins. This is synthetic proof only: Windows/MSVC, private LAN, EAC/OS admission and firewall policy are not tested. Not run in game. See [game capability status](game/status.md). Public addresses and persisted credentials or consent are not supported.
 
 ### Legacy backend policy (not the broker defaults)
 
@@ -145,4 +142,4 @@ Allow the narrowest range the VPN really uses: every address in it can reach the
 
 ## Not in 1.0
 
-The C# (`Sco.Sdk`) and Lua layers come in a follow-up (the Lua one gives a sandboxed plugin `is_active`, `peers`, `register` and `send` when its manifest `requires = sco.net`). IPv6 sockets, and a test with two `sco-host-sim` processes, follow too.
+There are no C# or Lua wrappers for `sco.net` yet, no IPv6 sockets, and no two-process `sco-host-sim` test.

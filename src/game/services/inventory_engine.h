@@ -1,7 +1,7 @@
 #pragma once
 // game.inventory 1.1: the engine side of the item-port adapter (F-4.10.197.2878-011..-016):
 // game memory read under SEH, every vtable entry checked against its signature row before it is
-// called, fail closed on anything unexpected. Windows only. Static analysis only: not run in game.
+// called, fail closed on anything unexpected. Windows only. Static analysis only. Not run in game.
 #include "inventory_walk.h"
 #include <sc_inventory.h>
 #include <cstdint>

@@ -38,7 +38,10 @@ TOOLS = {
 ORIGINAL_ORDER = ["search_api", "get_symbol", "list_services", "get_example", "get_capability_status", "check_compatibility"]
 EXTENDED_ORDER = ORIGINAL_ORDER + ["get_service_status", "list_engine_natives", "get_engine_native",
                                    "validate_manifest_and_widgets", "generate_plugin_scaffold", "search_guides",
-                                   "get_guide_section", "list_workflows", "get_workflow"]
+                                   "get_guide_section"]
+# The two workflow tools are listed only when a valid workflow index is loaded.
+WORKFLOW_ORDER = ["list_workflows", "get_workflow"]
+ALL_ORDER = EXTENDED_ORDER + WORKFLOW_ORDER
 DEV_ORDER = ["run_plugin_check", "build_plugin_project", "test_plugin_project"]
 SCAFFOLDER = ROOT / "sdk" / "tools" / "sco-new-plugin.py"
 PROVENANCE_KEYS = {"schema_version", "sdk_version", "game_pack_version", "source_sha"}
@@ -273,6 +276,24 @@ class FixtureTests(unittest.TestCase):
                     self.assertEqual(set(evidence), {"path", "token"})
 
 
+WORKFLOW_ID = "sco-sample-flow"
+
+
+def workflow_index(catalogue, **changes):
+    """A valid workflow index for a catalogue; `changes` overrides top-level fields (the content hash is recomputed)."""
+    text = "# Sample workflow\n\nSynthetic guidance.\n"
+    entry = "skills/" + WORKFLOW_ID + "/SKILL.md"
+    workflows = [{"id": WORKFLOW_ID, "description": "A synthetic workflow.", "entry": entry,
+                  "files": [{"path": entry, "text": text, "sha256": hashlib.sha256(text.encode("utf-8")).hexdigest()}]}]
+    canonical = (json.dumps(workflows, sort_keys=True, indent=2, ensure_ascii=True) + "\n").encode("ascii")
+    index = {"schema_version": 1, "bundle_version": "1.0.0", "baseline_sdk": "2.4.0",
+             "sdk_version": catalogue["sdk_version"], "source_sha": catalogue["source_sha"],
+             "manifest_path": "skills/manifest.json", "manifest_sha256": "c" * 64, "workflows": workflows,
+             "content_sha256": hashlib.sha256(canonical).hexdigest()}
+    index.update(changes)
+    return index
+
+
 class ServerCase(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -310,6 +331,15 @@ class ServerCase(unittest.TestCase):
 
     def argument_error(self, name, arguments):
         return self.result(self.start().call(name, arguments), is_error=True)
+
+    def indexed_catalogue(self, index_changes=None, workflow_text=None):
+        """A catalogue copy with a valid sdk-workflows.json beside it, so the default profile lists all fifteen tools."""
+        data = fixture()
+        root, path = self.temporary_catalogue(data)
+        index = workflow_index(data, **(index_changes or {}))
+        (root / "sdk-workflows.json").write_text(workflow_text if workflow_text is not None else json.dumps(index),
+                                                 encoding="utf-8")
+        return root, path
 
     def temporary_catalogue(self, data):
         temporary = tempfile.TemporaryDirectory(prefix="sco_mcp_test_")
@@ -529,6 +559,24 @@ class ProtocolTests(ServerCase):
 
     def test_environment_catalogue_source(self):
         self.result(self.start(use_env=True).call("list_services"))
+
+
+class ToolDescriptionTests(unittest.TestCase):
+    """Agents choose tools and fill arguments from tools/list alone, so every tool and every
+    argument must say what it is for."""
+
+    def test_every_tool_and_argument_is_described(self):
+        spec = importlib.util.spec_from_file_location("sco_core_mcp_server_described", SERVER)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        self.assertEqual(len(module.TOOL_INDEX), 18)
+        for name, definition in module.TOOL_INDEX.items():
+            with self.subTest(tool=name):
+                self.assertTrue(definition.get("title"))
+                self.assertGreaterEqual(len(definition["description"]), 80)
+                for key, schema in definition["inputSchema"]["properties"].items():
+                    with self.subTest(argument=key):
+                        self.assertGreaterEqual(len(schema.get("description", "")), 15)
 
 
 class ToolTests(ServerCase):
@@ -1465,13 +1513,14 @@ class EngineNativeTests(ServerCase):
             client = self.start(extended=True, extra=[flag])
             self.assertEqual([tool["name"] for tool in client.request("tools/list")["result"]["tools"]], EXTENDED_ORDER)
 
-    def test_default_workflow_tools_report_missing_index(self):
+    def test_workflow_tools_are_absent_without_an_index(self):
         client = self.start(extended=True)
+        names = [tool["name"] for tool in client.request("tools/list")["result"]["tools"]]
+        self.assertEqual(names, EXTENDED_ORDER)
+        self.assertEqual(len(names), 13)
         for name, args in (("list_workflows", {}), ("get_workflow", {"id": "sco-build-check-package"})):
             with self.subTest(name=name):
-                result = self.result(client.call(name, args), is_error=True)
-                self.assertIn("workflow", result["error"].casefold())
-                self.assertNotIn("workflows", result)
+                self.rpc_error(client.call(name, args), -32602)
 
     def test_without_repo_root_is_unavailable(self):
         client = self.start(extended=True)
@@ -2776,13 +2825,189 @@ def documentation_refusals(text, listed):
     return refusals
 
 
+class SearchRankingTests(ServerCase):
+    def search(self, query, data=None, **extra):
+        data = data or fixture()
+        _, path = self.temporary_catalogue(data)
+        return self.result(self.start(catalogue=path).call("search_api", {"query": query, **extra}), data=data)
+
+    def test_multi_word_query_matches_any_term(self):
+        found = self.search("read write persist")
+        self.assertEqual({record["id"] for record in found["records"]}, {"sample-read", "sample-write"})
+        self.assertNotIn("hint", found)
+
+    def test_more_matching_terms_rank_higher(self):
+        found = self.search("write buffer persist")
+        self.assertEqual(found["records"][0]["id"], "sample-write")
+        scores = [record["score"] for record in found["records"]]
+        self.assertEqual(scores, sorted(scores, reverse=True))
+        self.assertGreater(scores[0], scores[1])
+
+    def test_whole_word_ranks_above_prefix(self):
+        data = fixture()
+        for record in data["records"]:
+            if record["id"] == "sample-read":
+                record["purpose"] = "Persist a value."
+            if record["id"] == "api-query-service":
+                record["purpose"] = "Persistent tables."
+        found = self.search("persist", data)
+        self.assertEqual([record["id"] for record in found["records"]], ["sample-read", "api-query-service"])
+        self.assertGreater(found["records"][0]["score"], found["records"][1]["score"])
+
+    def test_exact_symbol_and_id_stay_on_top(self):
+        data = fixture()
+        for record in data["records"]:
+            if record["id"] == "sample-write":
+                record["purpose"] = "sco_sample_v1.read sample-read sco_sample_v1.read sample-read"
+        for query in ("sco_sample_v1.read", "sample-read"):
+            with self.subTest(query=query):
+                self.assertEqual(self.search(query, data)["records"][0]["id"], "sample-read")
+
+    def test_filler_words_do_not_decide_the_match(self):
+        found = self.search("how do I read a sample")
+        self.assertEqual(found["records"][0]["id"], "sample-read")
+
+    def test_filters_still_apply_to_any_term_matches(self):
+        found = self.search("read write persist", language="lua")
+        self.assertEqual([record["id"] for record in found["records"]], ["sample-read"])
+        found = self.search("read write persist", service="sco.sample", limit=1)
+        self.assertEqual((len(found["records"]), found["total_matches"]), (1, 2))
+
+    def test_no_match_returns_a_hint(self):
+        found = self.search("zzyzx qwertyuiop")
+        self.assertEqual((found["records"], found["total_matches"]), ([], 0))
+        self.assertIn("fewer", found["hint"])
+        self.assertIn("list_services", found["hint"])
+
+    def test_filler_only_query_returns_the_hint_not_arbitrary_records(self):
+        for query in ("the", "a to of", "how do I"):
+            with self.subTest(query=query):
+                found = self.search(query)
+                self.assertEqual((found["records"], found["total_matches"]), ([], 0))
+                self.assertIn("fewer", found["hint"])
+
+    def test_rare_noun_outranks_common_verbs(self):
+        server = importlib.import_module("server")
+        def row(symbol, service, purpose):
+            record = {"symbol": symbol, "id": symbol.replace("_", "-"), "service": service, "purpose": purpose}
+            return record, [(symbol, 100), (record["id"], 90), (service, 50), ("", 40), (purpose, 10)]
+        rows = [row("sc_a_write_v1.set", "sc.a", "write a thing"), row("sc_b_write_v1.set", "sc.b", "write b"),
+                row("sc_c_read_v1.read", "sc.c", "read c"), row("sc_d_read_v1.read", "sc.d", "read d"),
+                row("sco_settings_v1.get_int", "sco.settings", "read a stored value")]
+        query = "save setting persist read write"
+        terms = server.search_terms(query)
+        rarity = server.term_rarity(terms, [(record, fields) for record, fields in rows])
+        scores = {record["symbol"]: server.search_score(query, terms, fields, record, rarity) for record, fields in rows}
+        self.assertEqual(max(scores, key=scores.get), "sco_settings_v1.get_int")
+
+
+class ExampleHintTests(ServerCase):
+    def example(self, symbol, **extra):
+        return self.result(self.start().call("get_example", {"symbol_or_id": symbol, **extra}))
+
+    def test_language_without_examples_names_the_languages_that_have_them(self):
+        found = self.example("sample-read", language="lua")
+        self.assertEqual(found["examples"], [])
+        self.assertEqual(found["languages_with_examples"], ["c", "cpp"])
+        self.assertIn("no lua example", found["hint"])
+        self.assertIn("c, cpp", found["hint"])
+
+    def test_matching_language_has_no_hint_fields(self):
+        found = self.example("sample-read", language="cpp")
+        self.assertEqual([item["path"] for item in found["examples"]], ["examples/read.cpp"])
+        self.assertNotIn("hint", found)
+        self.assertNotIn("languages_with_examples", found)
+
+    def test_contract_without_examples_says_so(self):
+        found = self.example("api-query-service", language="c")
+        self.assertEqual((found["examples"], found["languages_with_examples"]), ([], []))
+        self.assertIn("no examples", found["hint"])
+
+    def test_unfiltered_call_is_unchanged(self):
+        found = self.example("sample-read")
+        self.assertEqual(set(found) - {"provenance"}, {"examples", "paths_only"})
+
+
+class WorkflowIndexTests(ServerCase):
+    def names(self, client):
+        return [tool["name"] for tool in client.request("tools/list")["result"]["tools"]]
+
+    def test_valid_index_lists_fifteen_tools_and_serves_them(self):
+        _, path = self.indexed_catalogue()
+        client = self.start(catalogue=path, extended=True)
+        names = self.names(client)
+        self.assertEqual((names, len(names)), (ALL_ORDER, 15))
+        listed = self.result(client.call("list_workflows"))
+        self.assertEqual([item["id"] for item in listed["workflows"]], [WORKFLOW_ID])
+        read = self.result(client.call("get_workflow", {"id": WORKFLOW_ID}))
+        self.assertIn("Synthetic guidance", read["file"]["text"])
+
+    def test_minimal_profile_never_lists_workflow_tools(self):
+        _, path = self.indexed_catalogue()
+        self.assertEqual(self.names(self.start(catalogue=path)), ORIGINAL_ORDER)
+
+    def test_explicit_index_path_is_used(self):
+        root, path = self.temporary_catalogue(fixture())
+        elsewhere = root / "elsewhere.json"
+        elsewhere.write_text(json.dumps(workflow_index(fixture())), encoding="utf-8")
+        client = self.start(catalogue=path, extended=True, extra=["--workflows", elsewhere])
+        self.assertEqual(self.names(client), ALL_ORDER)
+
+    def assert_warned_and_degraded(self, client):
+        self.assertEqual(self.names(client), EXTENDED_ORDER)
+        for name, args in (("list_workflows", {}), ("get_workflow", {"id": WORKFLOW_ID})):
+            self.rpc_error(client.call(name, args), -32602)
+        # Everything else still works.
+        self.assertTrue(self.result(client.call("list_services"))["services"])
+        self.assertTrue(self.result(client.call("search_api", {"query": "sample"}))["records"])
+        warning = client.diagnostics()
+        self.assertIn("warning", warning)
+        self.assertIn("list_workflows and get_workflow are disabled", warning)
+
+    def test_mismatched_index_beside_catalogue_disables_only_workflow_tools(self):
+        _, path = self.indexed_catalogue({"source_sha": OTHER_SHA})
+        self.assert_warned_and_degraded(self.start(catalogue=path, extended=True))
+
+    def test_mismatched_explicit_index_does_not_stop_the_server(self):
+        root, path = self.temporary_catalogue(fixture())
+        bad = root / "wrong.json"
+        bad.write_text(json.dumps(workflow_index(fixture(), sdk_version="9.9.9")), encoding="utf-8")
+        self.assert_warned_and_degraded(self.start(catalogue=path, extended=True, extra=["--workflows", bad]))
+
+    def test_unreadable_or_invalid_index_disables_only_workflow_tools(self):
+        _, path = self.indexed_catalogue(workflow_text="{not json")
+        self.assert_warned_and_degraded(self.start(catalogue=path, extended=True))
+        root, path = self.temporary_catalogue(fixture())
+        self.assert_warned_and_degraded(self.start(catalogue=path, extended=True,
+                                                   extra=["--workflows", root / "missing.json"]))
+
+    def test_tampered_index_content_is_refused_with_a_warning(self):
+        data = fixture()
+        index = workflow_index(data)
+        index["workflows"][0]["description"] = "Changed after hashing."
+        _, path = self.indexed_catalogue(workflow_text=json.dumps(index))
+        self.assert_warned_and_degraded(self.start(catalogue=path, extended=True))
+
+
+class ManifestFirstErrorTests(ServerCase):
+    def test_description_says_it_reports_the_first_manifest_error(self):
+        tools = self.start(extended=True).request("tools/list")["result"]["tools"]
+        tool = next(tool for tool in tools if tool["name"] == "validate_manifest_and_widgets")
+        self.assertIn("reports the first manifest error", tool["description"])
+        found = self.result(self.start(extended=True).call("validate_manifest_and_widgets", {
+            "plugin_ini": "id = BAD\nname = x\nversion = 1\napi = 1.0\nkind = bogus\n"}))
+        self.assertEqual(len(found["manifest"]["findings"]), 1)
+
+
 class DocumentationTests(ServerCase):
     """The README's tool tables and argument names are the server's actual tools/list."""
 
     def listed(self):
         root = tempfile.TemporaryDirectory(prefix="sco_mcp_test_")
         self.addCleanup(root.cleanup)
-        return self.start(extended=True, extra=["--enable-dev-tools", "--project-root", root.name]).request(
+        _, catalogue = self.indexed_catalogue()
+        return self.start(catalogue=catalogue, extended=True,
+                          extra=["--enable-dev-tools", "--project-root", root.name]).request(
             "tools/list")["result"]["tools"]
 
     def test_readme_tool_tables_match_tools_list(self):
@@ -2790,7 +3015,7 @@ class DocumentationTests(ServerCase):
 
     def test_agent_guide_names_every_tool(self):
         guide = AGENT_GUIDE.read_text(encoding="utf-8")
-        for name in EXTENDED_ORDER + DEV_ORDER:
+        for name in ALL_ORDER + DEV_ORDER:
             with self.subTest(name=name):
                 self.assertIn(f"`{name}`" if name not in ORIGINAL_ORDER else f'"{name}"', guide)
 

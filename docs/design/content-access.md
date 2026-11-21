@@ -1,9 +1,10 @@
-# Content access: G14 audit and closure
+# Content access: audit and closure
+
+Design record: the audit and decisions behind `sco.content` 1.0. The service contract is in [API v1](../api-v1.md).
 
 ## Audit first
 
-Audited baseline `ae454a3` (issue #135). Graph discovery was unavailable and the
-available codebase graph had no indexed projects; source inspection was used.
+Audited baseline `ae454a3` (issue #135), by source inspection.
 
 | Existing surface | Evidence | Consumer route |
 |---|---|---|
@@ -14,7 +15,7 @@ available codebase graph had no indexed projects; source inspection was used.
 | Existing DataCore | `include/sco_datacore.h`, `src/datacore/service.cpp` | Existing game-pack patch pipeline; **not a missing API** and not replaced here. |
 
 **Verdict:** enumeration/read of feature lists and XML scripts is absent from the
-public SDK. The conditional G14 gate is real. A game-neutral, read-only service
+public SDK. The gap is real. A game-neutral, read-only service
 is sufficient; no game provider, transport, command broker or base ABI change.
 
 ## Decisions
@@ -62,12 +63,11 @@ wrong-thread/invalid-owner calls, size/null guards, stale IDs and stop/restart.
 Layout pins and catalogue/source packaging describe the new route. No extracted
 game data, real game IDs, allowlist changes or network/game runtime tests.
 
-Step 2C's product quantum-pack move, legacy-list migration and CryPak/DataCore
-activation are downstream integration work, not performed by this sco-core G14
-issue. Existing DataCore atomic/conflict behavior is not reimplemented. Windows
-MSVC/native file handling and owner-local game acceptance remain unverified.
+The product's quantum-pack move, legacy-list migration and CryPak/DataCore
+activation are downstream integration work, not part of issue #135. Existing DataCore atomic/conflict behavior is not reimplemented. Windows
+MSVC and native file handling and an in-game run have not been done.
 
-## Decision pending owner
+## Open decision
 
 The narrow limits and list/script-only exposure are reversible policy defaults
 for 1.0. Wider content kinds or language adapters require separately justified

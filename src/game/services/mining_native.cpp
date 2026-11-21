@@ -12,7 +12,7 @@
 namespace sco::game::services {
 namespace {
 // The row/ABI has not been exercised in this host. Signature matches are NOT
-// native execution or G1 shell acceptance. Keep production unavailable.
+// native execution or offline-admission acceptance. Keep production unavailable.
 constexpr bool kNativeVerified = false;
 using CellFn = void(__fastcall*)(uintptr_t, uintptr_t, uintptr_t, uint32_t, uint32_t, uint64_t, uint8_t);
 CellFn original = nullptr;

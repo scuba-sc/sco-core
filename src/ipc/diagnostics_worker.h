@@ -39,7 +39,7 @@ public:
         stopping_.store(true,std::memory_order_release);
         if(options_.admission)options_.admission->store(OfflineAdmission::Denied,std::memory_order_release);
         capture_.Stop();
-        if(thread_.joinable())thread_.join(); // <=collector deadline; stop latency NOT VERIFIED
+        if(thread_.joinable())thread_.join(); // <=collector deadline; stop latency is not verified
     }
 };
 }

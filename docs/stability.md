@@ -12,7 +12,6 @@ apart on purpose:
   game session)? See the evidence levels in [game status](game/status.md#how-to-read-it).
 
 A Stable table is not a promise that its capability is on or that it works in the game.
-Nothing on this page has been run in game.
 
 ## The plugin ABI
 
@@ -81,11 +80,6 @@ name stays published and is marked deprecated in the [changelog](../CHANGELOG.md
 its documentation for at least one further SDK minor release. If SDK 2.N ships the
 replacement, 2.N and 2.(N+1) both still publish the old name; 2.(N+2) is the earliest
 release that may drop it.
-
-Either way, stability is independent of availability and of evidence. A Stable table's
-capability can be OFF by default, can answer `SCO_UNAVAILABLE` when the game is not
-ready or a row did not resolve, and can have no in-game run at all. Evidence levels are
-recorded separately, per capability, in [game status](game/status.md).
 
 ## How a game table gets its label
 
@@ -162,8 +156,6 @@ current list; check the selected kit's registry for its own snapshot.
 - Game behavior. A game patch can stop a Stable table's rows from resolving. Its
   capability then answers unavailable until the game pack is updated. The table's name
   and layout stay as promised, and so does its label once a released SDK has carried it.
-- In-game verification. A label is a compatibility promise, never a claim that anything
-  was run in game.
 
 ## Reading labels from tools
 

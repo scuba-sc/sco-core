@@ -20,7 +20,7 @@
       "callback_context": "Backend callbacks synchronous on game thread; pointers valid only during call.",
       "reentrancy": "Recursive calls and Stop/replacement during callbacks refused (FAILED).",
       "results": "OK on success; BAD_ARG invalid/short input or released handle; UNAVAILABLE absent backend/unsafe admission; NOT_FOUND unknown IDs; TOO_MANY bounded quota; FAILED refused progression/provider failure; CRASHED latches restart required. Outputs untouched on failure.",
-      "absent_capability": "Missing table: query_service NOT_FOUND; absent method/backend or unsafe admission: UNAVAILABLE.",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND. Absent method or backend, or unsafe admission: SCO_UNAVAILABLE.",
       "cleanup": "Consumers unload before Stop. Released owners lose mutation authority. No automatic persistence or replay of uncertain effects. Native faults permanently close admission until process restart.",
       "examples": [],
       "tests": [
@@ -28,7 +28,7 @@
         "tests/test_offline_missions.cpp"
       ],
       "limitations": [
-        "No validated Windows engine adapter; synthetic/compile checked, not run in game.",
+        "No validated Windows engine adapter. Synthetic tests only. Not run in game.",
         "Uniform phase widths only; other mission kinds unavailable.",
         "No persistent receipt/store/import policy in game pack."
       ],
@@ -98,7 +98,7 @@
       "callback_context": "Backend callbacks synchronous on game thread; pointers valid only during call.",
       "reentrancy": "Recursive calls and Stop/replacement during callbacks refused (FAILED).",
       "results": "OK on success; BAD_ARG invalid/short input or released handle; UNAVAILABLE absent backend/unsafe admission; NOT_FOUND unknown IDs; TOO_MANY bounded quota; FAILED refused progression/provider failure; CRASHED latches restart required. Outputs untouched on failure.",
-      "absent_capability": "Missing table: query_service NOT_FOUND; absent method/backend or unsafe admission: UNAVAILABLE.",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND. Absent method or backend, or unsafe admission: SCO_UNAVAILABLE.",
       "cleanup": "Consumers unload before Stop. Released owners lose mutation authority. No automatic persistence or replay of uncertain effects. Native faults permanently close admission until process restart.",
       "examples": [],
       "tests": [
@@ -106,7 +106,7 @@
         "tests/test_offline_missions.cpp"
       ],
       "limitations": [
-        "No validated Windows engine adapter; synthetic/compile checked, not run in game.",
+        "No validated Windows engine adapter. Synthetic tests only. Not run in game.",
         "Uniform phase widths only; other mission kinds unavailable.",
         "No persistent receipt/store/import policy in game pack."
       ],
@@ -176,7 +176,7 @@
       "callback_context": "Backend callbacks synchronous on game thread; pointers valid only during call.",
       "reentrancy": "Recursive calls and Stop/replacement during callbacks refused (FAILED).",
       "results": "OK on success; BAD_ARG invalid/short input or released handle; UNAVAILABLE absent backend/unsafe admission; NOT_FOUND unknown IDs; TOO_MANY bounded quota; FAILED refused progression/provider failure; CRASHED latches restart required. Outputs untouched on failure.",
-      "absent_capability": "Missing table: query_service NOT_FOUND; absent method/backend or unsafe admission: UNAVAILABLE.",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND. Absent method or backend, or unsafe admission: SCO_UNAVAILABLE.",
       "cleanup": "Consumers unload before Stop. Released owners lose mutation authority. No automatic persistence or replay of uncertain effects. Native faults permanently close admission until process restart.",
       "examples": [],
       "tests": [
@@ -184,7 +184,7 @@
         "tests/test_offline_missions.cpp"
       ],
       "limitations": [
-        "No validated Windows engine adapter; synthetic/compile checked, not run in game.",
+        "No validated Windows engine adapter. Synthetic tests only. Not run in game.",
         "Uniform phase widths only; other mission kinds unavailable.",
         "No persistent receipt/store/import policy in game pack."
       ],

@@ -1,7 +1,7 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
-# Runtime diagnostics protected audit (step 3)
+# Runtime diagnostics protected audit
 
-**Windows OS security: NOT VERIFIED locally. Not run in game.** This adapter is
+Windows OS security has not been checked locally. Not run in game. This adapter is
 project-authored GPL-3.0-only host-private code, not an SDK service or a new MIT
 header. It does not provision a collector or enable runtime inspection. Product
 admission/integration, package membership and the administrator's acceptance
@@ -44,7 +44,7 @@ if (!audit::Acknowledged(receipt, deadline, now)) {
 Both proof flags must be true, completion must be nonzero and no later than
 `observedNow`, and `observedNow` must be strictly before the deadline. A fake
 receipt is a fixture capability, not a production ACL attestation. Production
-must use the OS adapter, not the step-2 `FixtureAudit` boolean. Host ownership
+must use the OS adapter, not the `FixtureAudit` boolean. Host ownership
 should retain a `shared_ptr<Collector>` for the call; no raw lifetime promise.
 
 `Coordinates` adds session ID, trusted safe build alias, schema (exactly 1),
@@ -182,7 +182,7 @@ on macOS. No game, network, injection, process discovery or third-party assets.
 - Native non-Windows collector: unavailable; no file fallback.
 - Windows cross-build: syntax/link check only, not Windows execution or ACL proof.
 - Windows no-game child, privilege denial, clear/retention/rewrite/service denial,
-  capacity overflow/collector outage and timing: **NOT VERIFIED locally**.
+  capacity overflow/collector outage and timing: not checked locally.
 - Product/default-off integration, real native-peer identity enforcement and
   manual authorized offline acceptance: owned by their separate integration
-  steps; **not run in game**.
+  steps. Not run in game.

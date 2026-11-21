@@ -78,7 +78,7 @@
       ],
       "limitations": [
         "Fixed advisory health only; no gameplay or runtime JSON v1 extra fields.",
-        "No C#/Lua binding. Windows/MSVC and gameplay unverified."
+        "No C# or Lua binding. Not verified on Windows/MSVC. Not run in game."
       ]
     }
   ]

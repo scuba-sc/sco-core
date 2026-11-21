@@ -7,7 +7,7 @@
       "symbol": "sc_loadout_v1.apply",
       "table": "sc_loadout_v1",
       "service": "game.loadout",
-      "version_macro": "SC_LOADOUT_VERSION_1_2",
+      "version_macro": "SC_LOADOUT_VERSION_1_3",
       "source_header": "include/sc_loadout.h",
       "signature": "sco_result (*)(sco_plugin *, const sc_loadout_request *, sc_loadout_report *)",
       "member_extent": 16,
@@ -33,7 +33,7 @@
       ],
       "limitations": [
         "Production typed engine equip/slot mapping is unverified and disabled. No XML loader fallback, account inventory or entitlements.",
-        "MSVC calling conventions/SEH and game acceptance not verified locally.",
+        "MSVC calling conventions and SEH not verified. Not run in game.",
         "No claim of native corruption recovery; portable test catches C++ exceptions only."
       ],
       "language_mappings": {
@@ -91,7 +91,7 @@
       "symbol": "sc_loadout_v1_2.apply",
       "table": "sc_loadout_v1_2",
       "service": "game.loadout",
-      "version_macro": "SC_LOADOUT_VERSION_1_2",
+      "version_macro": "SC_LOADOUT_VERSION_1_3",
       "source_header": "include/sc_loadout.h",
       "signature": "sco_result (*)(sco_plugin *, const sc_loadout_request *, sc_loadout_report *)",
       "member_extent": 16,
@@ -104,7 +104,7 @@
       "callback_context": "Tick-driven native work; no retained caller pointers or plugin callbacks.",
       "reentrancy": "Recursive mutation and backend Start/Stop refused while a callback owns the provider.",
       "results": "OK on accepted submit, observed status or cancellation; BAD_ARG for malformed extent/input/self, TOO_MANY for retained-job capacity, NOT_FOUND for foreign or unknown id, UNAVAILABLE for missing verified provider or admission, FAILED for terminal backend fault.",
-      "absent_capability": "Query absent returns NOT_FOUND. Missing game.loadout.async refuses submit; table publication is not permission to mutate.",
+      "absent_capability": "Query absent returns NOT_FOUND. Missing game.loadout.async refuses submit; game.loadout.outfit (1.3, default OFF, on only with the async route and the explicit product switch SCO_LOADOUT_OUTFIT=1) additionally gates slots 22..31; table publication is not permission to mutate.",
       "cleanup": "Owner unload and stop cancel jobs. Session/admission loss or 120000ms timeout fails pending work. No retry or rollback. Fault disables mutation until process restart and retains uncertain native resources.",
       "examples": [],
       "tests": [
@@ -116,7 +116,8 @@
         "tests/game_contracts/loadout/test_metadata.py"
       ],
       "limitations": [
-        "Opt-in native adapter is static/synthetic checked, not run in game. Visor unsupported.",
+        "Opt-in native adapter; its evidence is recorded in the status registry (game.loadout.async). Visor unsupported.",
+        "Outfit item-port names (1.3) are consumer-side data names, not verified engine rows. Not run in game. Hair, hair colour, eyebrow, head, body, eyes and teeth are not offered: this version cannot undo them and a wrong one can break the character.",
         "Existing synchronous 1.0/1.1 methods retain their contract and remain unavailable without a synchronous backend."
       ],
       "language_mappings": {
@@ -174,19 +175,19 @@
       "symbol": "sc_loadout_v1_2.submit",
       "table": "sc_loadout_v1_2",
       "service": "game.loadout",
-      "version_macro": "SC_LOADOUT_VERSION_1_2",
+      "version_macro": "SC_LOADOUT_VERSION_1_3",
       "source_header": "include/sc_loadout.h",
       "signature": "sco_result (*)(sco_plugin *, const sc_loadout_request *, uint64_t *)",
       "member_extent": 24,
       "table_size": 40,
       "since": "`size >= 24`; 1.2",
-      "purpose": "Validate and copy 1..16 unique logical slots and bounded class names into one owner-scoped asynchronous job. Eight jobs total, one per plugin. Admission is not equip completion.",
-      "buffer_contract": "`sco_result (*submit)(sco_plugin* self, const sc_loadout_request* request, uint64_t* out_job);`<br>Validate and copy 1..16 unique logical slots and bounded class names into one owner-scoped asynchronous job. Eight jobs total, one per plugin. Admission is not equip completion.",
+      "purpose": "Validate and copy 1..16 unique logical slots and bounded class names into one owner-scoped asynchronous job. Eight jobs total, one per plugin. Admission is not equip completion. 1.3 adds outfit slots 22..31 (clothing, hat, head accessory, head horn, jewellery); a request holding one is refused UNAVAILABLE as a whole while capability game.loadout.outfit is off. Hair, hair colour, eyebrow, body, head, eyes and teeth ports have no slot.",
+      "buffer_contract": "`sco_result (*submit)(sco_plugin* self, const sc_loadout_request* request, uint64_t* out_job);`<br>Validate and copy 1..16 unique logical slots and bounded class names into one owner-scoped asynchronous job. Eight jobs total, one per plugin. Admission is not equip completion. 1.3 adds outfit slots 22..31 (clothing, hat, head accessory, head horn, jewellery); a request holding one is refused UNAVAILABLE as a whole while capability game.loadout.outfit is off. Hair, hair colour, eyebrow, body, head, eyes and teeth ports have no slot.",
       "ownership": "Caller-owned full records; copied typed requests, owner-scoped process-unique job ids. One retained job per plugin, eight total. Local player only; no account inventory or XML.",
       "thread_affinity": "Game thread only; non-reentrant. No plugin callbacks.",
       "callback_context": "Tick-driven native work; no retained caller pointers or plugin callbacks.",
       "reentrancy": "Recursive mutation and backend Start/Stop refused while a callback owns the provider.",
-      "results": "OK on accepted submit, observed status or cancellation; BAD_ARG for malformed extent/input/self, TOO_MANY for retained-job capacity, NOT_FOUND for foreign or unknown id, UNAVAILABLE for missing verified provider or admission, FAILED for terminal backend fault.",
+      "results": "OK on accepted submit, observed status or cancellation; BAD_ARG for malformed extent/input/self, TOO_MANY for retained-job capacity, NOT_FOUND for foreign or unknown id, UNAVAILABLE for missing verified provider or admission, or for an outfit slot (22..31) while game.loadout.outfit is off, FAILED for terminal backend fault.",
       "absent_capability": "Query absent returns NOT_FOUND. Missing game.loadout.async refuses submit; table publication is not permission to mutate.",
       "cleanup": "Owner unload and stop cancel jobs. Session/admission loss or 120000ms timeout fails pending work. No retry or rollback. Fault disables mutation until process restart and retains uncertain native resources.",
       "examples": [],
@@ -199,7 +200,7 @@
         "tests/game_contracts/loadout/test_metadata.py"
       ],
       "limitations": [
-        "Opt-in native adapter is static/synthetic checked, not run in game. Visor unsupported.",
+        "Opt-in native adapter; its evidence is recorded in the status registry (game.loadout.async). Visor unsupported.",
         "Existing synchronous 1.0/1.1 methods retain their contract and remain unavailable without a synchronous backend."
       ],
       "language_mappings": {
@@ -257,7 +258,7 @@
       "symbol": "sc_loadout_v1_2.status",
       "table": "sc_loadout_v1_2",
       "service": "game.loadout",
-      "version_macro": "SC_LOADOUT_VERSION_1_2",
+      "version_macro": "SC_LOADOUT_VERSION_1_3",
       "source_header": "include/sc_loadout.h",
       "signature": "sco_result (*)(sco_plugin *, uint64_t, sc_loadout_job_report *)",
       "member_extent": 32,
@@ -282,7 +283,7 @@
         "tests/game_contracts/loadout/test_metadata.py"
       ],
       "limitations": [
-        "Opt-in native adapter is static/synthetic checked, not run in game. Visor unsupported.",
+        "Opt-in native adapter; its evidence is recorded in the status registry (game.loadout.async). Visor unsupported.",
         "Existing synchronous 1.0/1.1 methods retain their contract and remain unavailable without a synchronous backend."
       ],
       "language_mappings": {
@@ -340,7 +341,7 @@
       "symbol": "sc_loadout_v1_2.cancel",
       "table": "sc_loadout_v1_2",
       "service": "game.loadout",
-      "version_macro": "SC_LOADOUT_VERSION_1_2",
+      "version_macro": "SC_LOADOUT_VERSION_1_3",
       "source_header": "include/sc_loadout.h",
       "signature": "sco_result (*)(sco_plugin *, uint64_t)",
       "member_extent": 40,
@@ -365,7 +366,7 @@
         "tests/game_contracts/loadout/test_metadata.py"
       ],
       "limitations": [
-        "Opt-in native adapter is static/synthetic checked, not run in game. Visor unsupported.",
+        "Opt-in native adapter; its evidence is recorded in the status registry (game.loadout.async). Visor unsupported.",
         "Existing synchronous 1.0/1.1 methods retain their contract and remain unavailable without a synchronous backend."
       ],
       "language_mappings": {

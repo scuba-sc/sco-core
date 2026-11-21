@@ -23,6 +23,19 @@ class FakePeer:
         return server.encode(self.output if self.output is not None else VECTORS[name][0])
 
 class RuntimeTests(unittest.TestCase):
+    def test_every_tool_and_argument_is_described(self):
+        descriptions = set()
+        for name in server.NAMES:
+            definition = server.definition(name)
+            self.assertTrue(definition['title'])
+            self.assertGreaterEqual(len(definition['description']), 120)
+            descriptions.add(definition['description'])
+            for key, schema in definition['inputSchema']['properties'].items():
+                self.assertGreaterEqual(len(schema.get('description', '')), 15, name + '.' + key)
+            # Descriptions are added to a copy; the wire contract keeps its exact bytes.
+            self.assertNotIn('description', json.dumps(server.SCHEMA['$defs'][name + '_input']))
+        self.assertEqual(len(descriptions), len(server.NAMES))
+
     def test_six_schemas_and_inputs(self):
         peer = FakePeer(); app = server.Server(True, peer)
         app.dispatch({'jsonrpc': '2.0', 'id': 1, 'method': 'initialize', 'params': {'protocolVersion': server.VERSION}})
@@ -83,7 +96,7 @@ class RuntimeTests(unittest.TestCase):
                            'get_capability_status', 'check_compatibility']
         discovery_tools = catalogue_tools + ['get_service_status', 'list_engine_natives', 'get_engine_native',
             'validate_manifest_and_widgets', 'generate_plugin_scaffold', 'search_guides',
-            'get_guide_section', 'list_workflows', 'get_workflow']
+            'get_guide_section']  # the fixture has no sdk-workflows.json beside it, so no workflow tools
         for options, expected in (([], discovery_tools), (['--minimal-tools'], catalogue_tools)):
             with self.subTest(options=options):
                 proc = subprocess.run([sys.executable, str(launcher), '--catalogue', str(fixture)] + options,

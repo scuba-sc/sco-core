@@ -195,8 +195,8 @@ Result BeforeQuit();
 // Immutable scalar observation; no provider/table callbacks. May read on any thread.
 Snapshot Status();
 // Host-only worker-safe fresh predicate, NOT exposed through plugin discovery.
-// True only during Start/Running and fresh inspect() positively clears every G1
-// condition. Inspector/backing state must remain process-retained; no plugin code.
+// True only during Start/Running and fresh inspect() positively clears every
+// offline-admission condition. Inspector/backing state must remain process-retained; no plugin code.
 // A fresh observation only; every owned cached/native use must additionally hold
 // its owner's Read lease for the full operation. This bool is not a barrier.
 bool FreshAdmissionAllowed() noexcept;

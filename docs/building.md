@@ -56,19 +56,9 @@ cmake --build build --config RelWithDebInfo
 ctest --test-dir build -C RelWithDebInfo --output-on-failure
 ```
 
-With `SCO_BUILD_TESTS=ON`, configuration requires Python 3 and creates a fresh,
-uniquely named `<build>/sco-fixtures-*` directory for plugin discovery fixtures.
-The generated CTest commands and library output paths point to that directory;
-reconfiguring creates another one and leaves previous directories intact. This
-avoids consuming stale plugins and preserves existing data, at the cost of disk
-space and rebuilding the fixture libraries after regeneration. Generated test inputs and CTest output paths use that namespace. The
-configuration log prints the fixture path.
+With `SCO_BUILD_TESTS=ON`, configuration requires Python 3 and creates a fresh `<build>/sco-fixtures-*` directory for the plugin discovery fixtures. The generated CTest commands and library output paths point to it, and the configuration log prints its path. Reconfiguring creates another directory and leaves the old ones, so tests never pick up stale plugins. The cost is disk space and a rebuild of the fixture libraries.
 
-Multi-config generators currently share a fixture namespace across build
-configurations. Use a separate build tree for each configuration: switching or
-running configurations concurrently in one tree can reuse or overwrite the
-other configuration’s fixture libraries.
-
+Multi-config generators share one fixture namespace across configurations. Use a separate build tree for each configuration: switching or running configurations concurrently in one tree can reuse or overwrite the other configuration's fixture libraries.
 
 ### Options
 
@@ -96,7 +86,7 @@ links follow from them. **Game-pack** targets exist only with `SCO_GAME_SC=ON`;
 | `sco_hook` | `src/hook/sco_hook.cpp`: detours and near-code memory, `sco/hook.h` (x86-64) | `Threads::Threads` |
 | `sco_engine` | `src/engine/zone.cpp`: the zone tree, `sco/engine/zone.h` (spatial math `sco/engine/types.h` is header-only) | `Threads::Threads` |
 | `sco_vfs` | `src/vfs/compose.cpp`, `table.cpp`: neutral virtual-file composition and mounts | `Threads::Threads` |
-| `sco_host` | `src/api/sco_caps.cpp`, `src/host/sco_host.cpp` | `sco_runtime`, `sco_core` |
+| `sco_host` | `src/api/sco_caps.cpp`, `src/host/sco_host.cpp`, `sco_diagnostics.cpp`, `sco_diagnostics_publisher.cpp` | `sco_runtime`, `sco_core` |
 | `sco_plugins` | `src/plugins/manifest.cpp`, `settings_ini.cpp`, `discover.cpp`, `loader.cpp`, `content.cpp`; `guard_win.cpp` on Windows only | `sco_runtime`, `sco_core`, `${CMAKE_DL_LIBS}` |
 | `sco_lua_vendor` | `plugins/lua/third_party/lua/src/*.c` without `lua.c`/`luac.c` | `m` on Unix |
 | `sco_lua` | `plugins/lua/sco_lua.c` | `sco_lua_vendor` |
@@ -104,19 +94,22 @@ links follow from them. **Game-pack** targets exist only with `SCO_GAME_SC=ON`;
 | `sco_sqlite` | `third_party/sqlite/sqlite3.c` ([options](../third_party/sqlite/README.md)), `-std=gnu11`, warnings off | `Threads::Threads`, `m` on Unix |
 | `sco_storage` | `src/storage/storage.cpp`: the `sco.storage` host service ([docs](storage.md)) | `sco_host`, `sco_sqlite` |
 | `sco_ui` | `src/ui/ui.cpp`: the legacy `sco.ui` host service ([docs](ui.md)); `src/ui/surfaces.cpp`: the `sco.ui.surfaces` host service ([docs](ui.md#surfaces)) | `sco_host` |
-| `sco_widgets` | `src/widgets/widgets.cpp`: renderer-neutral retained panels ([design](design/widgets.md)) | `sco_host` |
+| `sco_widgets` | `src/widgets/widgets.cpp`: renderer-neutral retained panels ([design](design/widgets.md)); `src/widgets/view.cpp`: the host-side `sco.widgets.view` reader ([page](widgets-view.md)) | `sco_host` |
 | `sco_widgets_imgui` (optional) | `src/widgets/imgui_adapter.cpp`: host-only adapter (`SCO_WIDGETS_IMGUI=ON`, product links ImGui) | `sco_widgets` |
 | `sco_settings` | `src/settings/settings.cpp`: typed plugin settings | `sco_host`, `sco_plugins`, `sco_storage`, `sco_ui` |
 | `sco_ipc` | `src/ipc/ipc.cpp` and `shm_win.cpp` or `shm_posix.cpp` | `sco_host`; privately `advapi32` on Windows or `rt` on non-Apple POSIX |
 | `sco_net` | `src/net/sha2.c`, `wire.cpp`, `reliable.cpp`, `core.cpp` | None |
-| `sco_net_service` | `src/net/service.cpp`, `scope.cpp` and `udp_win.cpp` or `udp_posix.cpp` | `sco_net`, `sco_host`, `Threads::Threads`; privately `ws2_32` on Windows |
+| `sco_net_service` | `src/net/service.cpp`, `scope.cpp`, `control.cpp` and `udp_win.cpp` or `udp_posix.cpp` | `sco_net`, `sco_host`, `Threads::Threads`; privately `ws2_32` on Windows |
 | `sco_datacore` (game-pack) | `src/datacore/datacore.cpp`, `patch.cpp`, `pack.cpp`: parser, patcher and packs | `sco_vfs` |
+| `sco_content` | `src/content/content.cpp`: the read-only `sco.content` host service | `sco_host`, `sco_plugins` |
 | `sco_datacore_service` (game-pack) | `src/datacore/service.cpp`: queued DataCore overrides | `sco_datacore`, `sco_host`, `sco_plugins` |
-| `sco_game_services` (game-pack, Windows) | `src/game/services/reads.cpp`, `spatial.cpp`, `spawn.cpp`, `missions.cpp`, `actors.cpp`, `vehicles.cpp`, `world.cpp`, `events.cpp`, `entities.cpp`, `creative.cpp` | `sco_game_sc`, `sco_host`, `sco_engine`, `sco_hook` |
-| `sco_app` | `src/app/sco_app.cpp`: the host kit, `sco/app.h` | `sco_host`, `sco_plugins`, `sco_core`, `sco_storage`, `sco_ui`, `sco_settings`, `sco_ipc`, `sco_net_service`; with the game pack also `sco_datacore_service`, `sco_game_sc`, and on Windows `sco_game_services` |
+| `sco_game_services` (game-pack, Windows) | The native game services under `src/game/services/` (spatial, spawn, missions, actors, vehicles, world, entities, inventory, audio and the rest listed in `CMakeLists.txt`) | `sco_game_sc`, `sco_host`, `sco_engine`, `sco_hook`, `sco_quantum`, `sco_offline_missions`, `sco_mining`, `sco_game_admission`, `sco_pak` |
+| `sco_app` | `src/app/sco_app.cpp`, `plugin_startup_snapshot.cpp`: the host kit, `sco/app.h` | `sco_host`, `sco_plugins`, `sco_core`, `sco_storage`, `sco_ui`, `sco_widgets`, `sco_settings`, `sco_content`, `sco_ipc`, `sco_net_service`, `sco_diagnostics_ipc`; with the game pack also `sco_datacore_service`, `sco_game_sc`, `sco_game_diagnostics`, `sco_private_session`, and on Windows `sco_game_services` |
 | `sco-sigcheck` (game-pack) | `tools/sco-sigcheck.cpp` | `sco_game_sc` |
 | `sco-host-sim` | `tools/sco-host-sim.cpp` | `sco_app`, `sco_lua`; with the game pack also `sco_datacore`, `sco_lua_game` |
 | `sco-dcb` (game-pack) | `tools/sco-dcb.cpp` ([docs](datacore.md)) | `sco_datacore` |
+
+Smaller game-pack libraries (`sco_game_admission`, `sco_game_diagnostics`, `sco_game_host`, `sco_private_session`, `sco_quantum`, `sco_mining`, `sco_loadout`, `sco_offline_missions`, `sco_relocation_provider`, `sco_asop_host`, `sco_asop_selection`) and the diagnostics libraries (`sco_diagnostics_ipc`, `sco_authority`) are declared next to their consumers in `CMakeLists.txt`.
 
 Project libraries expose `include/` directly or through their public links;
 vendored SQLite and Lua expose their own header directories.
@@ -145,16 +138,22 @@ add_subdirectory(external/sco-core EXCLUDE_FROM_ALL)
 
 ### Tests
 
+The table lists the main tests. `ctest --test-dir build -N` lists all of them.
+
 | CTest name | What |
 |---|---|
 | `abi_v1` | Rebuilds the ABI pin objects (C11, C++20 and, off MSVC, `-fshort-enums`); fails if any static assert breaks |
 | `abi_storage` | The same for the `sco.storage` table pin, `tests/abi_storage.c` |
 | `abi_ui` | The same for the `sco.ui` table pin, `tests/abi_ui.c` |
 | `abi_widgets` | The `sco.widgets` table, node and event layout pins, `tests/abi_widgets.c` |
+| `abi_widgets_view` | Layout pins of `sco/widgets_view.h` |
 | `abi_ui_surfaces` | The `sco.ui.surfaces` table, desc and pose layout pins, `tests/abi_ui_surfaces.c` |
 | `test_widgets` | Every neutral widget kind, events, bounds, malformed inputs, atomic replacement and owner cleanup through a headless renderer |
 | `test_widgets_sdk` | C++ table extent/null/reopen guards and optional ImGui adapter API shim (no GPU) |
 | `test_widgets_app` | Automatic widget publication and teardown through the real host kit across two sessions |
+| `test_widgets_view` | The panel list, copy and click queue of `sco.widgets.view` with synthetic panels and threads |
+| `test_host_menu`, `test_host_menu_owner` | `sco/host_menu.h` over the real host |
+| `test_sig_index_equivalence` | The per-pass signature scan index against verbatim copies of the loops it replaced |
 | `abi_settings` | The same for the `sco.settings` table pin, `tests/abi_settings.c` |
 | `test_settings` | `sco.settings` over the real host table and storage: defaults, typed sets, `settings.changed`, persistence across a restart, stale kept values |
 | `test_surfaces` | `sco.ui.surfaces`: every kind, every refused field, ownership of ids and panels, per-plugin and host limits, release through sco.ui's hook, threads registering beside snapshots, `scosdk/ui_surfaces.hpp` |
@@ -211,6 +210,34 @@ python3 sdk/package.py --profile game-sc --out dist-profiles
 sdk/test-zip.sh dist-profiles/sco-sdk-core-*.zip dist-profiles/sco-sdk-game-sc-*.zip
 ```
 
+### Packaging checks
+
+`sdk/components.json` lists every SDK file with its profile, origin and licence. `sdk/package.py` builds a zip from it and nothing else (`--check` validates it, `--list-headers core` prints the public headers of a profile).
+
+- Reproducibility: `python3 sdk/test_package.py` builds every profile in separate fresh working and output directories under different `TZ`, `LC_ALL`, Python hash seeds and umasks, then compares SHA-256 digests. It checks fixed ZIP timestamps and modes and the absence of checkout and output paths. This proves byte identity within one Python/zlib environment, not across compression-library versions. Repository document links in packaged docs are pinned to the source commit, not a moving branch.
+- A locally built normal package can share the published archive's version and filename without identical bytes. Release identity is the digest in the published `SHA256SUMS`.
+- Secret shapes: packaging refuses recognized PEM/OpenSSH private-key and GitHub token shapes before writing ZIP bytes. The check is bounded and does not recognize every possible secret.
+- SPDX: `ip_audit.py zip` and the packaging tests use an offline stdlib structural check of the required SPDX 2.3 fields, IDs, relationships, inventories and checksums. It is not a full SPDX validator. The optional `ip_audit.py zip --sbom` sidecar also binds the complete archive hash; the embedded SBOM describes the extracted payload.
+- Source-kit extraction: `package.py --profile core-source` produces the kernel source kit. `test-zip.sh <source.zip>` verifies checksums, configures and builds from the extracted files alone, then runs the focused synthetic host tests. `python3 sdk/test_package.py` also verifies the manifest-classified game exclusions and exact public-header membership (including nested includes), then configures, builds and runs every neutral CTest from a freshly extracted archive. This runs locally and in the SDK CI job. Game-only cases of shared test drivers live in separate include fragments that `SCO_GAME_SC=OFF` never includes. The `game-contract` group in `sdk/components.json` defines the exclusion inventory. The released 1.1 header in `tests/abi/released/sco_api.h` is checked against its golden SHA-256, so the frozen-plugin test needs neither Git nor a network.
+- Header dependencies: external C and C++ example sources are copied outside the extraction and compiled against its installed headers. Compiler dependency output must name each SDK header as an exact approved public destination in `components.json`; directory prefixes do not approve nested files. Macro, transitive and system-marked includes are checked, and hidden checkout dependencies are refused. `test-zip.sh` runs the same check, or run `package.py --profile core --check-installed-headers <extracted-root>`.
+- CI also inspects the full checkout's kernel-only target graph, compiler depfiles, compiled objects and link inputs. Symbol scans are supplementary.
+- Development packages: `sdk/package.py --development --profile host-source-sc --out <directory>` (or another profile) from a clean Git checkout uses the committed `sdk/DEVELOPMENT_VERSION` as the coordinate in archive names and generated metadata, writes it to the kit `VERSION`, excludes the input file and records the exact source commit. It implies no tag or release. The game-sc overlay keeps its game-pack version and adds the development SDK identifier to its archive name.
+- The `core-source` and `host-source-sc` kits exclude the runtime MCP peer. Keep `SCO_BUILD_RUNTIME_MCP=OFF` there; building that peer needs a full source checkout.
+
+### ImGui pins for the legacy `sco.ui` route
+
+The shipped public headers target sc-offline's ImGui snapshot at `1ee0727cc63866a95e709ae61dd5dd355b511253`: 1.92.8 WIP, `IMGUI_VERSION_NUM` 19277.
+
+| File in `third_party/imgui/` | SHA-256 |
+| --- | --- |
+| `imgui.h` | `cd65b1905d5cbdaeab82f6ff180ae8767bd72c7bc99ee258c74665eb2d3ee1fa` |
+| `imconfig.h` | `1353bfa59da16eec481723fd4e5d910356f0406b79e3c4142e0c9867bafffab5` |
+| `LICENSE.txt` | `173506a2d6f7fb67990d257fb2507f188690eca39060c39469ae7bef43aae2a3` |
+
+### Platform notes for the kernel source kit
+
+Hook execution tests run on x64 Windows and Linux. Byte decoding and unsupported-host checks run on every development platform. ARM64 detour installation returns `Error::Unsupported` without changing memory.
+
 ## CI
 
 | Workflow | Runs on | Does |
@@ -220,6 +247,9 @@ sdk/test-zip.sh dist-profiles/sco-sdk-core-*.zip dist-profiles/sco-sdk-game-sc-*
 | [`sdk`](../.github/workflows/sdk.yml) | ubuntu-24.04, then windows-2025 (MSVC x64) | Packages the SDK zip, builds and checks every example from it, keeps the zip as an artifact |
 | [`release`](../.github/workflows/release.yml) | ubuntu-24.04, manual dispatch | Promotes an exact candidate run and artifact after checking its source, hashes and attestations; re-downloads and verifies the draft assets before publication. Never rebuilds ([release procedure](legal/release-checklist.md#releasing)) |
 | [`docs-site`](../.github/workflows/docs-site.yml) | ubuntu-24.04 | PRs build read-only site artifacts; trusted `main` pushes and manual dispatches deploy the validated site to GitHub Pages |
+| [`release-candidate`](../.github/workflows/release-candidate.yml) | ubuntu-24.04, after the required checks pass on `main`, or manual dispatch | Builds the five archives once on a checked `main` commit and keeps them as one artifact |
+| [`ip-compliance`](../.github/workflows/ip-compliance.yml) | ubuntu-24.04 | Provenance, licence and package checks; keeps the reports |
+| [`experimental-rust-qualification`](../.github/workflows/experimental-rust-qualification.yml) | pull requests and manual runs | Rust bindings qualification. Not a release gate |
 | [`discord`](../.github/workflows/discord.yml) | ubuntu | Posts repository activity to the sc-offline Discord channel |
 
 Workflow actions are pinned to commit SHAs. The release workflow defaults to `contents: read`; its verification job also has `actions: read`, and only its publication job has `contents: write`. The docs-site build remains read-only; its trusted-main deployment job has `pages: write` and `id-token: write`. PR site builds cannot deploy. A pull request needs `test`, `cmake` and `sdk` green; release candidates additionally require the exact-commit checks listed in the [release procedure](legal/release-checklist.md#releasing).
@@ -229,20 +259,34 @@ Workflow actions are pinned to commit SHAs. The release workflow defaults to `co
 The SDK is released as profile archives under a tag `sdk-v<version>`; a release candidate uses `sdk-v<version>-rc.<n>`. The current release:
 
 <!-- release-block:current-release -->
-SDK **2.4.1** uses Star Citizen game pack **0.8.1** (checked against Star Citizen
+SDK **2.4.1** (release candidate 1, a pre-release for testing; the final release follows) uses Star Citizen game pack **0.8.1** (checked against Star Citizen
 Alpha 4.10.3, build 4.10.200.58746; see [game builds](../docs/game/builds.md)) and plugin ABI **1.1**. Download it from the
-[`sdk-v2.4.1` release page](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.1) and verify each archive against that release's
-`SHA256SUMS`; the [release notes](https://github.com/scuba-sc/sco-core/blob/sdk-v2.4.1/docs/releases/sdk-v2.4.1.md) list what changed. The previous release is
+[`sdk-v2.4.1-rc.1` release page](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.1-rc.1) and verify each archive against that release's
+`SHA256SUMS`; the [release notes](https://github.com/scuba-sc/sco-core/blob/sdk-v2.4.1-rc.1/docs/releases/sdk-v2.4.1.md) list what changed. The previous release is
 [SDK 2.4.0](https://github.com/scuba-sc/sco-core/blob/sdk-v2.4.0/docs/releases/sdk-v2.4.0.md).
 <!-- /release-block:current-release -->
 
-Its five archives and their checksums are listed in its `SHA256SUMS` on the release page. SDK 2.4.0 (`sdk-v2.4.0`) was published on 2026-11-01 from source commit `6106fa3639cbcc28f78a1ded8de2707de019f4d3`. Its five archive identities and checksums are in the [2.4.0 release notes](releases/sdk-v2.4.0.md#stable-archive-identity); later `main` commits do not change those published bytes. RC2, published on 2026-10-28 from `844e136ccb280ad8cb43f73bc43c9447e8f6799d`, and RC1 are historical releases with their own immutable archives. The [`sdk-v2.4.0-rc.2` release notes](releases/sdk-v2.4.0.md#published-rc2-archive-identity) preserve that artifact identity and the prepublication history. The `sdk-v2.0.0` to `sdk-v2.3.0` tags remain in git, but their release downloads were withdrawn. The version lives in `sdk/VERSION`; the plugin ABI's own version is `SCO_API_MAJOR` / `SCO_API_MINOR` in `sco_api.h`, and version 1 only grows ([Compatibility](api-v1.md#compatibility)).
+Each release's archives and digests are in its release notes and on its release page. SDK 2.4.0 was published on 2026-11-01. The tags `sdk-v2.0.0` to `sdk-v2.3.0` remain in git, but their downloads were withdrawn. `sdk-v2.4.0-rc.1` and `-rc.2` are historical. The version is in `sdk/VERSION`. The plugin ABI has its own version, `SCO_API_MAJOR` / `SCO_API_MINOR` in `sco_api.h`; version 1 only grows ([Compatibility](api-v1.md#compatibility)).
 
-Follow the [maintainer release procedure](legal/release-checklist.md#releasing): prepare the version and notes, build a candidate on checked main, tag its exact source, and dispatch the [`release`](../.github/workflows/release.yml) workflow with its run and artifact IDs. The workflow checks the candidate, hashes and attestations and verifies the draft assets before publication without rebuilding.
+To release, follow these steps in order. The [release checklist](legal/release-checklist.md#releasing) has the same procedure from the maintainer's side.
+
+1. **Merge so that `main` points at the candidate commit.** Prepare the version, the changelog section and the release notes on a branch, run `python3 tools/doc_release_gate.py --tag sdk-vX.Y.Z`, and merge. Archive bytes embed the source commit. The published hashes are therefore those of the candidate that CI builds from `main`, never those of a local build. Do not push anything else to `main` until the release is published: `release.yml` accepts a tag only when it points at the commit of `main` it runs on.
+2. **Wait for the five workflows that run on a push to `main`** (`cmake`, `sdk`, `test`, `ip-compliance` and `docs-site`) to finish green on that exact commit.
+3. **Run `release-candidate.yml`.** When all five succeed on a push to `main`, its `readiness` job validates them and starts the candidate for the tag named in `sdk/CANDIDATE_TAG`. You can also dispatch it by hand from `main` with `tag` (and optionally `expected_source_sha`). The run checks the documentation gate and the five workflows again on the exact commit, runs the repository audit, packages the five profiles, audits each archive with its SBOM, exercises the archives, writes `SHA256SUMS`, attests every file and uploads one immutable `release-candidate` artifact, plus a separate review bundle. Note the run ID and the artifact ID, and check the source commit, the file inventory and the hashes. A candidate publishes nothing and creates no tag.
+4. **Tag that exact commit** (`sdk-vX.Y.Z`) and push the tag.
+5. **Dispatch `release.yml` from `main`** with its three inputs: `tag`, `run_id` (the candidate run) and `artifact_id` (the candidate artifact).
+6. **Approve the `release` environment.** Both the `verify` and the `publish` job wait for approval. `verify` checks that the tag points at the commit it runs on, downloads the candidate, and checks its inventory, checksums and attestations. `publish` creates a draft, downloads the draft's assets, verifies them again and then publishes. Nothing is rebuilt. A failed round trip leaves a draft; do not publish or change it by hand to get around the checks.
+7. **After publication,** in this order:
+   1. Copy the archive digests from the published release into the release notes.
+   2. Change the notes' "Planned tag" wording to the published wording, with the date and source commit, as the notes of the previous release do. Make steps 1 and 2 one pull request.
+   3. Let `docs-site` deploy. It also runs after a successful `release` run, and it publishes the site from the published release's metadata.
+   4. The announcement is posted by the `notify` job of `release.yml`, for a final tag only (not for an `-rc.` tag). It runs right after publication. It checks that the release is complete, including that the deployed site reports this SDK and game pack version from a commit that contains the release source. If the site is not current yet, it refuses and posts nothing. Then dispatch the `discord` workflow from `main` with `release_tag` once the site is deployed; it replays the same announcement with the same receipts. It posts once per tag. A GitHub release made with the workflow's own token raises no `release` event, so the `discord` workflow's release trigger does not fire for it.
 
 **Bumping the version.** Run `python3 tools/release_docs.py --bump X.Y.Z [--game-pack A.B.C] [--game-build B]`. It writes `sdk/VERSION`, the next development coordinate, the candidate tag, the changelog heading, a release-notes skeleton, the site allowlist and hub entry, and re-renders every release region in the docs. Then fill in the release notes and the changelog section and run `python3 tools/doc_release_gate.py --tag sdk-vX.Y.Z`. Digests are added to the release notes only after the release workflow publishes them. Never hand-type the current version, tag, game pack, game build, plugin ABI or archive names outside a generated region (a `release-block` or `rv` marker, described in the `tools/release_docs.py` docstring); `python3 tools/release_docs.py --check` fails on stale regions.
 
-A release the workflow creates doesn't trigger other workflows (GitHub doesn't run workflows on events made with a workflow's own token), so the `discord` post for it doesn't happen automatically; post the announcement by hand after verified publication. Do not manually publish a failed draft to bypass the promotion checks.
+Do not manually publish a failed draft to bypass the promotion checks.
+
+**A release candidate before the final release.** `sdk/CANDIDATE_TAG` may name `sdk-v<version>-rc.<n>` instead of the final tag. The generated release regions then say that the SDK is a release candidate and send readers to that candidate's release page, because the final page does not exist yet. The steps above are the same with the candidate tag. `release.yml` publishes an `-rc.` tag as a pre-release and posts no announcement, and its notes are the CHANGELOG section `## sdk-v<version>` with one line in front. Candidate archives have the file names of the final release, because the name comes from `sdk/VERSION`; only the tag and the digest tell them apart. To go on to the final release, set `sdk/CANDIDATE_TAG` back to `sdk-v<version>`, run `python3 tools/release_docs.py --write`, and follow the steps above again from a new `main` commit.
 
 ## Adding a source file
 

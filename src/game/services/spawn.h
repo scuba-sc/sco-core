@@ -74,6 +74,8 @@ MoveResult MoveEntity(uint64_t id, uint64_t zoneId, const double pos[3], const d
 bool SpawnReleaseHooked();
 // Internal only, validated canonical path/pose, same batch/mover/removal as entities.
 // A nonzero id on error must remain tracked until cleanup (release-batch fault).
+// True when the spawn.prefabs rows resolved, so SpawnPrefabEntityInZone can place a prefab at all.
+bool SpawnPrefabRowsResolved();
 const char* SpawnPrefabEntityInZone(const char*, uint64_t, const double*, const double*, uint64_t&);
 
 // For game.vehicles' ownership rules. Game thread. SpawnedBy: owner spawned id through spawn_as

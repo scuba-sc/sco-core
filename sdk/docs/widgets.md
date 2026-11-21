@@ -1,8 +1,8 @@
 # Widgets without renderer dependencies
 
 For new native plugin UI, use the host-owned `sco.widgets` service (1.0 with additive 1.1,
-1.2, 1.3 and 1.4 extensions). The 1.4 callback-tag behavior and its typed binding
-support are in unpublished 2.4.1 source and absent from stable SDK 2.4.0. Include
+1.2, 1.3 and 1.4 extensions). Version 1.4 (callback event tags) and its typed C# and
+Lua support are new in SDK 2.4.1; SDK 2.4.0 stops at 1.3. Include
 `include/sco_widgets.h` (C) or `include/scosdk/widgets.hpp` (C++20); no renderer
 header, renderer library, GPU or game data is needed to build the example.
 Frozen `sco_api` 1.1 discovers the optional service with `query_service`.
@@ -92,6 +92,11 @@ row without invoking the list's selection callback.
 See [the full builder cookbook](../../docs/ui.md#cookbook-declarative-c-panels-scosdkmenu_builderhpp)
 for validation and lifetime rules.
 
+Labels on ROW, COLUMN and TABLE nodes are optional. The host's ImGui menu shows a nonempty one
+as a section heading and draws nothing for an empty one, so leave a row of buttons unlabelled
+rather than giving it a heading just to avoid a gap. That menu shows a NUMBER slider's value
+without trailing zeros (`30`, `0.5`, `0.125`, at most three decimals); event values are unchanged.
+
 ## Contract essentials
 
 - `set_panel` submits the **whole** flat preorder tree; failure preserves the old
@@ -155,8 +160,7 @@ silently fall back to a double slider.
 
 ## Canonical callback tags (1.4)
 
-In unpublished 2.4.1 source, a successful set/update containing a nonempty tag
-enters tagged-event mode. It persists through subtree updates/removals even when
+A successful set/update containing a nonempty tag enters tagged-event mode. It persists through subtree updates/removals even when
 the last tag disappears; a full replacement resets the mode based on its new
 tree. Every callback in that mode carries a 48-byte `sco_widget_event_1_4`;
 its tag is the canonical target node's copied tag, or NULL for an untagged target.
@@ -175,10 +179,8 @@ may accept unknown tails while producing numeric-only events.
 
 ## Language coverage and legacy UI
 
-The typed C#/Lua 1.4 routes below describe unpublished 2.4.1 source and are
-absent from stable SDK 2.4.0; use the documentation and wrappers from the same
-selected kit. Frozen plugin ABI 1.1
-is unchanged.
+The typed C# and Lua 1.4 routes are new in SDK 2.4.1. Use the wrappers from the
+same SDK archive as this page. The plugin ABI stays 1.1.
 
 C, C++20, C# and Lua support set/remove and the 1.1 update/remove subtree and
 capability routes. C/C++ submit extended records with the matching stride; the
@@ -303,7 +305,7 @@ ctest --test-dir build -R '^test_lua_widgets$' --output-on-failure
 
 The generic `lua-check.lua` command stub is not renderer/service evidence; use the
 real-host fixture above. See [the Lua field/event reference](lua.md#renderer-neutral-widgets-scowidgets-10).
-Headless archive evidence is not GPU, Windows production scheduling or game validation.
+Not run in game. See [game capability status](../../docs/game/status.md).
 
 ## Legacy UI
 

@@ -1,6 +1,8 @@
 # Mining row: the biome builder's cell function
 
-One row behind sc-offline's natural-mining built-in, in [`src/game/mining_sigs.cpp`](../../src/game/mining_sigs.cpp). Accessor: [`sco/game/mining.h`](../../include/sco/game/mining.h). The row is not a move of an old scan: the first mining module hooked a fixed RVA of an earlier build, so the function was found again in 4.10.196.36804 (`StarCitizen.exe`, PE timestamp 0x6AC64E6F) and pinned by what the hook relies on.
+One signature row sits behind sc-offline's natural-mining built-in and the `game.mining` service ([public service](mining-service.md); capability `game.mining`, OFF; see [status](status.md)). This is a row reference with no table version. Not run in game.
+
+The row is in [`src/game/mining_sigs.cpp`](../../src/game/mining_sigs.cpp). Accessor: [`sco/game/mining.h`](../../include/sco/game/mining.h). The row is not a move of an old scan: the first mining module hooked a fixed RVA of an earlier build, so the function was found again in 4.10.196.36804 (`StarCitizen.exe`, PE timestamp 0x6AC64E6F) and pinned by what the hook relies on.
 
 | Capability | Rows |
 |---|---|
@@ -38,4 +40,4 @@ does not activate it. See the [public service](mining-service.md).
 
 ## Uniqueness in 4.10.196.36804
 
-The label string occurs once in the image and is loaded by one `lea` in .text; the function is `mining.cell` = 0x265FB10. The row reports `AMBIG` if a patch adds a second load. Checked with `sco-sigcheck -v` on the mining branch (all 311 rows OK in `sigcheck-mining.txt`; the merged tree then had 316 rows on 4.10.196.36804; current counts are in [verified game builds](../game-pack.md#verified-game-builds)) and with one checked byte changed in a copy of the exe (`mining.cell` fails with the reason of the `+0x441` check).
+The label string occurs once in the image and is loaded by one `lea` in .text; the function is `mining.cell` = 0x265FB10. The row reports `AMBIG` if a patch adds a second load. Checked with `sco-sigcheck -v` (current counts are in [verified game builds](../game-pack.md#verified-game-builds)) and with one checked byte changed in a copy of the exe (`mining.cell` fails with the reason of the `+0x441` check).

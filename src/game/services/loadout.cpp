@@ -30,6 +30,15 @@ Job jobs[SC_LOADOUT_MAX_JOBS]{};
 uint64_t nextJob = 0;
 uint32_t tickNow = 0;
 bool haveTick = false;
+constexpr const char* kCapOutfit = "game.loadout.outfit";
+// Hair, hair colour, eyebrow, teeth, eyes, head and body have no slot: this version cannot undo them.
+bool OutfitSlot(uint32_t slot) {
+    return slot >= SC_LOADOUT_SLOT_CLOTHING_TORSO_0 && slot <= SC_LOADOUT_SLOT_JEWELLERY;
+}
+bool SlotAllowed(uint32_t slot) {
+    if (!OutfitSlot(slot)) return true;
+    return caps::Has(kCapOutfit);
+}
 constexpr const char* kCapRespawn = "game.events.loadout_respawn_completed";
 // One state word makes recording atomic with Stop/restart. Low bits: enabled/pending;
 // the generation changes whenever admission is configured, so old producers cannot replay.
@@ -69,6 +78,7 @@ void Fault() {
     caps::Set("game.loadout.async", false, "loadout provider fault; process restart required");
     caps::Set("game.loadout.apply", false, "loadout provider fault; process restart required");
     caps::Set("game.loadout.weapons", false, "loadout provider fault; process restart required");
+    caps::Set(kCapOutfit, false, "loadout provider fault; process restart required");
     SetRespawn(false, "loadout provider fault; process restart required");
 }
 using AsyncThunk = void(*)(void*);
@@ -109,6 +119,10 @@ sco_result CheckRequest(const sc_loadout_request* request) {
         for (uint32_t j = 0; j < i; ++j)
             if (request->items[j].slot == item.slot) return SCO_BAD_ARG;
     }
+    // 1.3: outfit slots exist only on this route and only while the capability is on. Refuse the
+    // whole batch before a job or an admission call, so no partial outfit is ever started.
+    for (uint32_t i = 0; i < request->count; ++i)
+        if (!SlotAllowed(request->items[i].slot)) return SCO_UNAVAILABLE;
     return SCO_OK;
 }
 bool Discard(Job& job) {
@@ -248,7 +262,7 @@ Result StartLoadout(const LoadoutBackend* backend, const LoadoutAsyncBackend* as
     if (started) return Result::Ok;
     engine = backend ? *backend : LoadoutBackend{};
     asyncEngine = async ? *async : LoadoutAsyncBackend{};
-    Result r = sco::host::ProvideGameService(SC_LOADOUT_SERVICE_NAME, SC_LOADOUT_VERSION_1_2, &table);
+    Result r = sco::host::ProvideGameService(SC_LOADOUT_SERVICE_NAME, SC_LOADOUT_VERSION_1_3, &table);
     if (r == Result::Ok) {
         r = Subscribe(sco::host::GameOwner(), "tick", OnTick, nullptr);
         if (r != Result::Ok) sco::host::WithdrawGameService(SC_LOADOUT_SERVICE_NAME);
@@ -263,12 +277,16 @@ Result StartLoadout(const LoadoutBackend* backend, const LoadoutAsyncBackend* as
               faulted ? "loadout provider fault; process restart required" :
                         "typed weapon and multitool slot methods not verified; default off");
     const bool respawnWanted = started && !faulted && engine.verified && engine.respawnCompleted && engine.offline;
-    caps::Set("game.loadout.async", started && !faulted && InstalledAsync(),
+    const bool asyncOn = started && !faulted && InstalledAsync();
+    caps::Set("game.loadout.async", asyncOn,
               "verified async spawn, attachment and readback provider required");
+    caps::Set(kCapOutfit, asyncOn && asyncEngine.outfit,
+              faulted ? "loadout provider fault; process restart required" :
+                        "outfit item-port names not verified in game; needs the async route and the explicit outfit switch (SCO_LOADOUT_OUTFIT=1 in the product host); default off");
     respawnSubscribed = respawnWanted && Subscribe(sco::host::GameOwner(), "tick", OnRespawnTick, nullptr) == Result::Ok;
     SetRespawn(respawnSubscribed,
                faulted ? "loadout provider fault; process restart required" :
-                         "native respawn-loadout-completed occurrence not verified (F-INTAKE-004, T-3); default off");
+                         "the native respawn-loadout-completed event has not been seen in game; default off");
     if (!started) { engine = {}; asyncEngine = {}; }
     return r;
 }
@@ -291,8 +309,11 @@ void TickLoadout(uint32_t now) {
         sc_loadout_status terminal = SC_LOADOUT_UNAVAILABLE;
         if (!job.token) {
             const auto& item = job.items[index];
-            if (item.slot < SC_LOADOUT_SLOT_HEAD || item.slot > SC_LOADOUT_SLOT_SIDEARM_TOOL_BATTERY) {
+            if (item.slot < SC_LOADOUT_SLOT_HEAD || item.slot > SC_LOADOUT_SLOT_JEWELLERY) {
                 complete = true; ok = true; terminal = SC_LOADOUT_UNSUPPORTED;
+            } else if (!SlotAllowed(item.slot)) {
+                // Capability revoked after submit: no engine call, the slot stays unavailable.
+                complete = true; ok = true; terminal = SC_LOADOUT_UNAVAILABLE;
             } else {
                 if (!CallAsync([&] { ok = asyncEngine.begin(item.slot, item.item_class, &job.token, &terminal); }))
                     ok = false;
@@ -344,6 +365,7 @@ Result StopLoadout() {
     caps::Set("game.loadout.apply", false, "game loadout stopped");
     caps::Set("game.loadout.weapons", false, "game loadout stopped");
     caps::Set("game.loadout.async", false, "game loadout stopped");
+    caps::Set(kCapOutfit, false, "game loadout stopped");
     const Result tick = Unsubscribe(sco::host::GameOwner(), "tick", OnTick);
     for (auto& job : jobs) if (job.owner && Discard(job)) job = {};
     Result respawn = Result::Ok;

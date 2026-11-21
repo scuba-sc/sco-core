@@ -20,7 +20,7 @@
       "callback_context": "unspecified",
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND; game.reputation.checks OFF (the default): UNAVAILABLE without an engine read; null/unknown self: BAD_ARG. Other failures as in the buffer contract.",
-      "absent_capability": "Absent table: query_service NOT_FOUND; game.reputation.checks OFF: UNAVAILABLE",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND. While game.reputation.checks is off: SCO_UNAVAILABLE.",
       "cleanup": "No in-flight cancellation entrypoint; checks only reads and nothing is undone at unload; your last error is forgotten on ordinary owner release.",
       "language_mappings": {
         "c": {
@@ -84,10 +84,7 @@
         "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
       ],
       "limitations": [
-        "internal allocation unspecified.",
-        "Recursive reentrancy unspecified.",
-        "Capabilities OFF by default pending an in-game run.",
-        "Game-service behavior not verified in a game session."
+        "Capabilities are off until they have been run in game."
       ]
     },
     {
@@ -173,10 +170,7 @@
         "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
       ],
       "limitations": [
-        "internal allocation unspecified.",
-        "recursive reentrancy unspecified.",
-        "Capabilities OFF by default pending an in-game run.",
-        "Game-service behavior not verified in a game session."
+        "Capabilities are off until they have been run in game."
       ]
     }
   ]

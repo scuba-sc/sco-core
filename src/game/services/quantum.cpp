@@ -1,4 +1,4 @@
-// Owner-approved G8 bounded control state. Activation requires an installed host
+// Bounded control state. Activation requires an installed host
 // bridge AND owner cleanup; unknown engine/admission evidence still fails closed.
 #include "quantum.h"
 #include "sco/host.h"
@@ -169,7 +169,7 @@ Result StartQuantum(const QuantumBackend& backend, bool ownerCleanupReady) {
     bridge = backend; cleanupReady = ownerCleanupReady;
     started = true; now = 0; ticked = false; holdAnchored = false; ++session;
     caps::Set("game.quantum.control", bridge.observe && bridge.apply && cleanupReady,
-              "G8 approved; installed host bridge and owner cleanup required");
+              "needs the installed host bridge and owner cleanup");
     return Result::Ok;
 }
 void ReleaseQuantumOwner(const void* released) {

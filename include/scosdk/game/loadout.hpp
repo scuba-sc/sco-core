@@ -11,7 +11,8 @@ public:
     sco_result Open(const sco_api* api, sco_plugin* self) noexcept {
         return Open(api, self, SC_LOADOUT_SERVICE_VERSION);
     }
-    // Require at least minVersion (e.g. SC_LOADOUT_VERSION_1_1 for weapon slots 8-21).
+    // Require at least minVersion (e.g. SC_LOADOUT_VERSION_1_1 for weapon slots 8-21,
+    // SC_LOADOUT_VERSION_1_3 for outfit slots 22-31, which only Submit handles).
     sco_result Open(const sco_api* api, sco_plugin* self, uint32_t minVersion) noexcept {
         table_ = nullptr; self_ = nullptr;
         if (!api || !self) return SCO_BAD_ARG;

@@ -20,7 +20,7 @@
       "callback_context": "No callbacks.",
       "reentrancy": "Recursive calls unsupported.",
       "results": "1 success; 0 invalid input, wrong thread, missing readiness, unreadable/unstreamed/incomplete ancestry, expired epoch, ambiguous name or quota refusal. All outputs unchanged on 0.",
-      "absent_capability": "Absent table: query_service NOT_FOUND. Missing game readiness: 0.",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND. Missing game readiness: 0.",
       "cleanup": "Synchronous read; no cancellation. Stop clears observations and expires epochs. Table lives until plugins unload; no calls after shutdown admission.",
       "language_mappings": {
         "c": {
@@ -75,7 +75,7 @@
         "tests/test_game_spatial.cpp"
       ],
       "limitations": [
-        "Synthetic shared-logic fixtures only; Windows SEH/provider and live game not verified.",
+        "Synthetic shared-logic fixtures only; Windows SEH and provider not verified. Not run in game.",
         "Observed chains only, not exhaustive streamed-world discovery.",
         "System classification ungrounded: system_id is always unknown (0).",
         "Raw native calls do not promise process recovery after arbitrary pointer misuse or allocation failure."
@@ -100,7 +100,7 @@
       "callback_context": "No callbacks.",
       "reentrancy": "Recursive calls unsupported.",
       "results": "1 success; 0 invalid input, wrong thread, missing readiness, unreadable/unstreamed/incomplete ancestry, expired epoch, ambiguous name or quota refusal. All outputs unchanged on 0.",
-      "absent_capability": "Absent table: query_service NOT_FOUND. Missing game readiness: 0.",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND. Missing game readiness: 0.",
       "cleanup": "Synchronous read; no cancellation. Stop clears observations and expires epochs. Table lives until plugins unload; no calls after shutdown admission.",
       "language_mappings": {
         "c": {
@@ -155,7 +155,7 @@
         "tests/test_game_spatial.cpp"
       ],
       "limitations": [
-        "Synthetic shared-logic fixtures only; Windows SEH/provider and live game not verified.",
+        "Synthetic shared-logic fixtures only; Windows SEH and provider not verified. Not run in game.",
         "Observed chains only, not exhaustive streamed-world discovery.",
         "System classification ungrounded: system_id is always unknown (0).",
         "Raw native calls do not promise process recovery after arbitrary pointer misuse or allocation failure."
@@ -180,7 +180,7 @@
       "callback_context": "No callbacks.",
       "reentrancy": "Recursive calls unsupported.",
       "results": "1 success; 0 invalid input, wrong thread, missing readiness, unreadable/unstreamed/incomplete ancestry, expired epoch, ambiguous name or quota refusal. All outputs unchanged on 0.",
-      "absent_capability": "Absent table: query_service NOT_FOUND. Missing game readiness: 0.",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND. Missing game readiness: 0.",
       "cleanup": "Synchronous read; no cancellation. Stop clears observations and expires epochs. Table lives until plugins unload; no calls after shutdown admission.",
       "language_mappings": {
         "c": {
@@ -235,7 +235,7 @@
         "tests/test_game_spatial.cpp"
       ],
       "limitations": [
-        "Synthetic shared-logic fixtures only; Windows SEH/provider and live game not verified.",
+        "Synthetic shared-logic fixtures only; Windows SEH and provider not verified. Not run in game.",
         "Observed chains only, not exhaustive streamed-world discovery.",
         "System classification ungrounded: system_id is always unknown (0).",
         "Raw native calls do not promise process recovery after arbitrary pointer misuse or allocation failure."
@@ -260,7 +260,7 @@
       "callback_context": "No callbacks.",
       "reentrancy": "Recursive calls unsupported.",
       "results": "1 success; 0 invalid input, wrong thread, missing readiness, unreadable/unstreamed/incomplete ancestry, expired epoch, ambiguous name or quota refusal. All outputs unchanged on 0.",
-      "absent_capability": "Absent table: query_service NOT_FOUND. Missing game readiness: 0.",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND. Missing game readiness: 0.",
       "cleanup": "Synchronous read; no cancellation. Stop clears observations and expires epochs. Table lives until plugins unload; no calls after shutdown admission.",
       "language_mappings": {
         "c": {
@@ -315,7 +315,7 @@
         "tests/test_game_spatial.cpp"
       ],
       "limitations": [
-        "Synthetic shared-logic fixtures only; Windows SEH/provider and live game not verified.",
+        "Synthetic shared-logic fixtures only; Windows SEH and provider not verified. Not run in game.",
         "Observed chains only, not exhaustive streamed-world discovery.",
         "System classification ungrounded: system_id is always unknown (0).",
         "Raw native calls do not promise process recovery after arbitrary pointer misuse or allocation failure."

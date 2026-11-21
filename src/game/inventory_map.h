@@ -1,6 +1,6 @@
 #pragma once
 // game.inventory inside the game pack: the layout the adapter reads (F-4.10.197.2878-011..-016).
-// Private to src/game/. Static analysis only, not run in game. inventory_sigs.cpp's rows pin the
+// Private to src/game/. Static analysis only. Not run in game. inventory_sigs.cpp's rows pin the
 // functions these offsets belong to; the adapter (services/inventory_engine.cpp) checks every
 // vtable entry it calls against those rows before it calls it, and fails closed on a mismatch.
 #include <cstddef>

@@ -190,6 +190,22 @@
 	text-wrap: balance;
 }
 
+.sco-landing__lede {
+	max-width: 45rem;
+	margin: 1rem 0 0;
+	color: var(--sco-landing-muted);
+	font-size: 1rem;
+	line-height: 1.6;
+}
+
+.sco-landing__languages-label {
+	margin: 1.25rem 0 0;
+	color: var(--sco-landing-muted);
+	font-family: var(--sl-font-mono);
+	font-size: 0.75rem;
+	letter-spacing: 0.04em;
+}
+
 .sco-landing__actions {
 	display: flex;
 	flex-wrap: wrap;
@@ -247,7 +263,7 @@
 	flex-wrap: wrap;
 	align-items: center;
 	gap: 0 1.5rem;
-	margin: 1.25rem 0 0;
+	margin: 0;
 	padding: 0;
 	list-style: none;
 	font-size: 0.875rem;

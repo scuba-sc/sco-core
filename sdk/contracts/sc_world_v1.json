@@ -13,14 +13,14 @@
       "member_extent": 16,
       "table_size": 40,
       "since": "`size >= 16`; 1.0",
-      "purpose": "Casts a ray from from (metres, in zone zone_id's local frame) along dir (any non-zero length; it is normalised) for at most max_dist metres, and fills *out_hit (out_hit-&gt;size must be sizeof(sc_world_hit)). max_dist must be positive and finite; one over SC_WORLD_RAY_MAX_DISTANCE is clamped to it. The cast tries the zone and then up to two of its parents (never the world's root zone), as sc-offline's build mode does, and reports the first hit, in the frame of zone_id. Nothing is skipped: your own player's body can be hit. SCO_OK: hit. SCO_NOT_FOUND: nothing hit within max_dist (last_error says \"no hit\"), or the zone isn't streamed in, or you haven't spawned. SCO_BAD_ARG: a NULL pointer, zone 0, a non-finite or zero direction, a bad max_dist or a too-small out_hit-&gt;size. SCO_UNAVAILABLE: game.world.raycast isn't ready. SCO_FAILED: the game faulted. *out_hit is zeroed (apart from size) on every failure. Implementation: NULL/undersized hit rejected before zeroing; adequately-sized hit is zeroed excluding size, only known fields written. Unknown caller tail untouched.",
-      "buffer_contract": "`sco_result (*raycast)(uint64_t zone_id, const double from[3], const double dir[3], double max_dist, sc_world_hit* out_hit);`<br>Casts a ray from from (metres, in zone zone_id's local frame) along dir (any non-zero length; it is normalised) for at most max_dist metres, and fills *out_hit (out_hit-&gt;size must be sizeof(sc_world_hit)). max_dist must be positive and finite; one over SC_WORLD_RAY_MAX_DISTANCE is clamped to it. The cast tries the zone and then up to two of its parents (never the world's root zone), as sc-offline's build mode does, and reports the first hit, in the frame of zone_id. Nothing is skipped: your own player's body can be hit. SCO_OK: hit. SCO_NOT_FOUND: nothing hit within max_dist (last_error says \"no hit\"), or the zone isn't streamed in, or you haven't spawned. SCO_BAD_ARG: a NULL pointer, zone 0, a non-finite or zero direction, a bad max_dist or a too-small out_hit-&gt;size. SCO_UNAVAILABLE: game.world.raycast isn't ready. SCO_FAILED: the game faulted. *out_hit is zeroed (apart from size) on every failure. Implementation: NULL/undersized hit rejected before zeroing; adequately-sized hit is zeroed excluding size, only known fields written. Unknown caller tail untouched.",
+      "purpose": "Casts a ray from from (metres, in zone zone_id's local frame) along dir (any non-zero length; it is normalised) for at most max_dist metres, and fills *out_hit (out_hit-&gt;size must be sizeof(sc_world_hit)). max_dist must be positive and finite; one over SC_WORLD_RAY_MAX_DISTANCE is clamped to it. The cast tries the zone and then up to two of its parents (never the world's root zone), as sc-offline's build mode does, and reports the first hit, in the frame of zone_id. Nothing is skipped: your own player's body can be hit.",
+      "buffer_contract": "`sco_result (*raycast)(uint64_t zone_id, const double from[3], const double dir[3], double max_dist, sc_world_hit* out_hit);`<br>Casts a ray from from (metres, in zone zone_id's local frame) along dir (any non-zero length; it is normalised) for at most max_dist metres, and fills *out_hit (out_hit-&gt;size must be sizeof(sc_world_hit)). max_dist must be positive and finite; one over SC_WORLD_RAY_MAX_DISTANCE is clamped to it. The cast tries the zone and then up to two of its parents (never the world's root zone), as sc-offline's build mode does, and reports the first hit, in the frame of zone_id. Nothing is skipped: your own player's body can be hit.",
       "ownership": "Caller buffers; no allocation crosses boundary; queries do not own entities. Internal allocation unspecified.",
       "thread_affinity": "Game thread only (WRONG_THREAD elsewhere); last_error any thread. Recursive reentrancy unspecified.",
       "callback_context": "unspecified",
       "reentrancy": "unspecified",
-      "results": "Absent table: query_service NOT_FOUND; missing operation capability: UNAVAILABLE; BAD_ARG for invalid required outputs. Additional failures/output state unspecified unless described in the buffer contract.",
-      "absent_capability": "Absent table: query_service NOT_FOUND",
+      "results": "Absent table: query_service NOT_FOUND; missing operation capability: UNAVAILABLE; BAD_ARG for invalid required outputs. Result codes: SCO_OK: hit. SCO_NOT_FOUND: nothing hit within max_dist (last_error says \"no hit\"), or the zone isn't streamed in, or you haven't spawned. SCO_BAD_ARG: a NULL pointer, zone 0, a non-finite or zero direction, a bad max_dist or a too-small out_hit-&gt;size. SCO_UNAVAILABLE: game.world.raycast isn't ready. SCO_FAILED: the game faulted. *out_hit is zeroed (apart from size) on every failure. Implementation: NULL/undersized hit rejected before zeroing; adequately-sized hit is zeroed excluding size, only known fields written. Unknown caller tail untouched. Additional failures/output state unspecified unless described here or in the buffer contract.",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND.",
       "cleanup": "No cancellation entrypoint; synchronous query.",
       "language_mappings": {
         "c": {
@@ -86,12 +86,7 @@
         "tools/test.sh",
         "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
       ],
-      "limitations": [
-        "Internal allocation unspecified.",
-        "Recursive reentrancy unspecified.",
-        "Additional failures/output state unspecified unless described in the buffer contract.",
-        "Game-service behavior not verified in a game session."
-      ]
+      "limitations": []
     },
     {
       "id": "sc-world-v1-camera",
@@ -112,7 +107,7 @@
       "callback_context": "unspecified",
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND; missing operation capability: UNAVAILABLE; BAD_ARG for invalid required outputs. Additional failures/output state unspecified unless described in the buffer contract.",
-      "absent_capability": "Absent table: query_service NOT_FOUND",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND.",
       "cleanup": "No cancellation entrypoint; synchronous query.",
       "language_mappings": {
         "c": {
@@ -178,12 +173,7 @@
         "tools/test.sh",
         "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
       ],
-      "limitations": [
-        "Internal allocation unspecified.",
-        "Recursive reentrancy unspecified.",
-        "Additional failures/output state unspecified unless described in the buffer contract.",
-        "Game-service behavior not verified in a game session."
-      ]
+      "limitations": []
     },
     {
       "id": "sc-world-v1-last-error",
@@ -271,10 +261,7 @@
         "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
       ],
       "limitations": [
-        "Internal allocation unspecified.",
-        "recursive reentrancy unspecified.",
-        "stopped-service refusal unspecified (no started check).",
-        "Game-service behavior not verified in a game session."
+        "Stopped-service refusal unspecified (no started check)."
       ]
     },
     {
@@ -296,7 +283,7 @@
       "callback_context": "unspecified",
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND; a 1.0 table: query_service UNAVAILABLE for SC_WORLD_VERSION_1_1 (or check size); game.world.free_camera_flag OFF (the default): UNAVAILABLE without a game read; NULL out_set: BAD_ARG. Other failures as in the buffer contract.",
-      "absent_capability": "Absent table: query_service NOT_FOUND; game.world.free_camera_flag OFF: UNAVAILABLE",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND. While game.world.free_camera_flag is off: SCO_UNAVAILABLE.",
       "cleanup": "No cancellation entrypoint; synchronous read-only query, nothing to undo at unload.",
       "language_mappings": {
         "c": {
@@ -363,10 +350,7 @@
         "tests/test_lua.cpp"
       ],
       "limitations": [
-        "Internal allocation unspecified.",
-        "Recursive reentrancy unspecified.",
-        "Capability OFF by default pending an in-game run.",
-        "Game-service behavior not verified in a game session."
+        "Capability is off until it has been run in game."
       ]
     }
   ]

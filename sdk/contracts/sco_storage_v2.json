@@ -83,7 +83,7 @@
       "limitations": [
         "Interval observations, not a transaction across concurrent writes.",
         "Metadata never opens a database; expensive counts may fail within the SQL budget.",
-        "Experimental Rust has no typed metadata wrapper in this change."
+        "The experimental Rust binding has no typed metadata wrapper."
       ]
     },
     {
@@ -168,7 +168,7 @@
       "limitations": [
         "Interval observations, not a transaction across concurrent writes.",
         "Metadata never opens a database; expensive counts may fail within the SQL budget.",
-        "Experimental Rust has no typed metadata wrapper in this change."
+        "The experimental Rust binding has no typed metadata wrapper."
       ]
     },
     {
@@ -253,7 +253,7 @@
       "limitations": [
         "Interval observations, not a transaction across concurrent writes.",
         "Metadata never opens a database; expensive counts may fail within the SQL budget.",
-        "Experimental Rust has no typed metadata wrapper in this change."
+        "The experimental Rust binding has no typed metadata wrapper."
       ]
     },
     {
@@ -338,7 +338,7 @@
       "limitations": [
         "Interval observations, not a transaction across concurrent writes.",
         "Metadata never opens a database; expensive counts may fail within the SQL budget.",
-        "Experimental Rust has no typed metadata wrapper in this change."
+        "The experimental Rust binding has no typed metadata wrapper."
       ]
     }
   ]

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Headless tests of the ImGui adapter's pure layout rules (src/widgets/imgui_layout.h): text
-// ellipsis, label column, control width and combo popup limits. No ImGui involved.
+// ellipsis, label column, control width, combo popup limits and NUMBER slider text. No ImGui involved.
 #include "../src/widgets/imgui_layout.h"
 #include <cstdio>
 #include <limits>
@@ -139,11 +139,31 @@ static void TestText() {
     CHECK(ValidUtf8(std::string(TooltipText(utf8))) && TooltipText(utf8).size() == kMaxMeasuredBytes * 2 - 1);
 }
 
+// NUMBER slider text: whole values without decimals, others with up to three, no "-0", no '%'.
+static void TestNumberText() {
+    CHECK(NumberText(30.0) == "30" && NumberText(0.0) == "0" && NumberText(-12.0) == "-12");
+    CHECK(NumberText(0.5) == "0.5" && NumberText(0.25) == "0.25" && NumberText(0.125) == "0.125");
+    CHECK(NumberText(-2.5) == "-2.5" && NumberText(0.1) == "0.1" && NumberText(1.05) == "1.05");
+    CHECK(NumberText(1.23456) == "1.235" && NumberText(29.99996) == "30");
+    CHECK(NumberText(-0.0) == "0" && NumberText(-0.0004) == "0");
+    CHECK(NumberText(1e20) == "100000000000000000000");
+    const double huge = std::numeric_limits<double>::max();
+    CHECK(NumberText(huge).size() == 309 && NumberText(-huge).size() == 310);
+    for (const double value : {0.0, 0.5, 1.23456, -7.0, huge, std::numeric_limits<double>::infinity()})
+        CHECK(NumberText(value).find('%') == std::string::npos);
+    // Rounding matches print-and-read-back at three decimals, the old "%.3f" behaviour.
+    CHECK(RoundDecimals(0.123456, 3) == 0.123 && RoundDecimals(2.0, 3) == 2.0 && RoundDecimals(-1.0005, 0) == -1.0);
+    CHECK(RoundDecimals(74.5, 3) == 74.5 && RoundDecimals(0.12, 3) == 0.12);
+    const double inf = std::numeric_limits<double>::infinity();
+    CHECK(RoundDecimals(inf, 3) == inf);
+}
+
 int main() {
     TestEllipsize();
     TestColumnsAndWidths();
     TestPopupLimits();
     TestText();
+    TestNumberText();
     std::printf("widgets layout: %d passed, %d failed\n", pass, fail);
     return fail ? 1 : 0;
 }

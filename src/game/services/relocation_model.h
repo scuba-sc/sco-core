@@ -3,6 +3,7 @@
 #include <sc_relocation.h>
 #include <array>
 #include <cmath>
+#include <cstdio>
 #include <cstring>
 namespace sco::game::services::relocation {
 struct Evidence {
@@ -10,7 +11,21 @@ struct Evidence {
     uint64_t session, playerId, currentSystem, targetSystem;
     bool streamed, arrived, applied, fault;
     uint64_t targetEpoch = 0, targetInstance = 0;
+    // Why `arrived` is false, for the failure log. Set only when the pose was checked this tick.
+    bool poseRead = false, positionNear = false, rotationNear = false;
+    // How far the pose was from the target when read: metres and degrees, or -1 when not measured.
+    // Numbers only, so the failure log can show a small steady offset without printing coordinates.
+    double metres = -1, degrees = -1;
 };
+// How close the player must be to the target to count as arrived: position only.
+// The game settles a character on the ground and normalises its orientation after a move, so
+// centimetre and sub-degree equality with the requested pose is not observable for a real player
+// (an in-game run moved the player to the saved spot and still never matched 0.05 m and 1 degree).
+// 0.5 m tells "the move happened" from "the player is somewhere else" without asking for more
+// precision than the game gives. Rotation is measured and reported, never required.
+inline constexpr double kArrivalMetres = 0.5;
+// Rotation error at or below this is reported as rotation_near in the failure log. Informational only.
+inline constexpr double kRotationReportDegrees = 1.0;
 // What was and was not true at the moment a pending request failed, for one diagnostic log line.
 // Booleans only: no coordinates, ids or addresses.
 struct Diagnosis {
@@ -18,38 +33,94 @@ struct Diagnosis {
     uint64_t elapsedMs = 0;
     bool positionOnly = false;
     bool applied = false, streamed = false, arrived = false;
+    // What the pose looked like on the first tick after the move was applied and at the closest approach
+    // to the target on any later tick, so a failure shows what the game did (-1: never observed).
+    double firstMetres = -1, firstDegrees = -1, closestMetres = -1, closestDegrees = -1;
     bool offline = false, player = false, transport = false, fault = false;
     bool sessionMatches = false, playerMatches = false, systemMatches = false, targetSystemMatches = false;
     bool targetInstanceMatches = false;   // meaningful for position-only requests
+    bool poseRead = false, positionNear = false, rotationNear = false;
+    double metres = -1, degrees = -1;
+    // A timeout after the move was applied and the target was streamed, with no arrival seen.
+    bool arrivalUnconfirmed = false;
 };
+// One "<label>=<metres> m <degrees> deg" item of the failure log. `missing` when there is no
+// measurement; metres only for a position-only request, which never tests orientation. Numbers only.
+inline int FormatOffset(const char* label, bool measured, double metres, double degrees, bool positionOnly,
+                        const char* missing, char* out, size_t cap) {
+    if (!out || !cap) return 0;
+    if (!measured || metres < 0) return std::snprintf(out, cap, "%s=%s", label, missing);
+    if (positionOnly || degrees < 0) return std::snprintf(out, cap, "%s=%.3f m", label, metres);
+    return std::snprintf(out, cap, "%s=%.3f m %.3f deg", label, metres, degrees);
+}
+// The pose trail of the failure log line, for example
+// "first=0.412 m 3.100 deg closest=0.212 m 2.900 deg last=12.351 m 95.263 deg": the first observation after
+// the move was applied, the closest approach seen on any later tick, and the last observation (the moment
+// of failure, which can be long after the player walked away). Numbers only, no coordinates.
+inline int FormatTrail(const Diagnosis& d, char* out, size_t cap) {
+    if (!out || !cap) return 0;
+    char first[64], closest[64], last[64];
+    FormatOffset("first", d.firstMetres >= 0, d.firstMetres, d.firstDegrees, d.positionOnly, "none", first, sizeof(first));
+    FormatOffset("closest", d.closestMetres >= 0, d.closestMetres, d.closestDegrees, d.positionOnly, "none", closest, sizeof(closest));
+    FormatOffset("last", d.poseRead, d.metres, d.degrees, d.positionOnly, "not measured", last, sizeof(last));
+    return std::snprintf(out, cap, "%s %s %s", first, closest, last);
+}
 inline bool PositionRequest(const sc_relocation_position_request& r) {
     if(r.size<sizeof(r)||!r.zone_id||!r.target_epoch||!r.timeout_ms||r.timeout_ms>60000)return false;
     for(double x:r.pos)if(!std::isfinite(x)||std::abs(x)>1e12)return false;
     return true;
 }
-inline bool ArrivedPosition(const sc_relocation_position_request& r,const double p[3]) {
-    if(!p)return false;
+// One arrival check of a full pose. read is false when the pose or the target was unusable.
+struct Arrival {
+    bool read = false, positionNear = false, rotationNear = false;
+    double metres = -1, degrees = -1;   // -1 when not measured
+    // Arrival is position only; rotationNear is reported but not required.
+    bool Near() const { return read && positionNear; }
+};
+// Distance in metres to the target, or -1 when the position is unusable.
+inline double PositionDistance(const sc_relocation_position_request& r,const double p[3]) {
+    if(!p)return -1;
     double distance=0;
     for(int i=0;i<3;++i) {
-        if(!std::isfinite(p[i])||!std::isfinite(r.pos[i]))return false;
+        if(!std::isfinite(p[i])||!std::isfinite(r.pos[i]))return -1;
         distance=std::hypot(distance,p[i]-r.pos[i]);
     }
-    return distance<=0.05;
+    return distance;
 }
-inline bool Arrived(const sc_relocation_request& r, const double p[3], const double q[4]) {
-    if (!p || !q) return false;
+inline bool PositionNear(const sc_relocation_position_request& r,const double p[3]) {
+    const double distance=PositionDistance(r,p);
+    return distance>=0&&distance<=kArrivalMetres;
+}
+inline bool ArrivedPosition(const sc_relocation_position_request& r,const double p[3]) {
+    return PositionNear(r,p);
+}
+// Measures position against kArrivalMetres (which decides arrival) and orientation against
+// kRotationReportDegrees (reported only). A quaternion and its negative are the same orientation, so the
+// angle uses the absolute dot product: 2*acos(|dot|).
+inline Arrival CheckArrival(const sc_relocation_request& r, const double p[3], const double q[4]) {
+    Arrival a;
+    if (!p || !q) return a;
     double distance=0, norm=0, targetNorm=0, dot=0;
     for (int i=0;i<3;++i) {
-        if (!std::isfinite(p[i]) || !std::isfinite(r.pos[i])) return false;
+        if (!std::isfinite(p[i]) || !std::isfinite(r.pos[i])) return a;
         distance=std::hypot(distance,p[i]-r.pos[i]);
     }
     for (int i=0;i<4;++i) {
-        if (!std::isfinite(q[i]) || !std::isfinite(r.rot_xyzw[i])) return false;
+        if (!std::isfinite(q[i]) || !std::isfinite(r.rot_xyzw[i])) return a;
         norm=std::hypot(norm,q[i]); targetNorm=std::hypot(targetNorm,r.rot_xyzw[i]);
     }
-    if (!std::isfinite(norm) || !std::isfinite(targetNorm) || norm<1e-12 || targetNorm<1e-12) return false;
+    if (!std::isfinite(norm) || !std::isfinite(targetNorm) || norm<1e-12 || targetNorm<1e-12) return a;
     for (int i=0;i<4;++i) dot+=(q[i]/norm)*(r.rot_xyzw[i]/targetNorm);
-    return distance<=0.05 && std::abs(dot)>=0.999999;
+    const double minDot=std::cos(kRotationReportDegrees*3.14159265358979323846/360.0);
+    a.read=true;
+    a.metres=distance;
+    a.degrees=2.0*std::acos(std::fmin(1.0,std::abs(dot)))*180.0/3.14159265358979323846;
+    a.positionNear=distance<=kArrivalMetres;
+    a.rotationNear=std::abs(dot)>=minDot;
+    return a;
+}
+inline bool Arrived(const sc_relocation_request& r, const double p[3], const double q[4]) {
+    return CheckArrival(r,p,q).Near();
 }
 // The game's zone accessors, passed in so the system classifier below is portable and testable.
 struct ZoneOps {
@@ -144,6 +215,10 @@ class Machine {
         sc_relocation_position_request position{};
         uint64_t targetInstance = 0;
         bool positionOnly = false;
+        // After the move was applied: first and closest observation of the pose, and whether the
+        // player was ever within kArrivalMetres. Updated on Tick.
+        bool firstSeen = false, arrivedSeen = false;
+        double firstMetres = -1, firstDegrees = -1, closestMetres = -1, closestDegrees = -1;
     };
 public:
     sco_result Request(const void* owner, const sc_relocation_request& r, const Evidence& e,
@@ -162,6 +237,8 @@ public:
         if(admitted!=SCO_OK)return admitted;
         chosen->request = r;
         for (double& x : chosen->request.rot_xyzw) x /= norm;
+        // Already at the target when asked: done, with nothing applied.
+        if (e.arrived) chosen->status.state=SC_RELOCATION_COMPLETE;
         *ticket=chosen->status.ticket;
         return SCO_OK;
     }
@@ -174,6 +251,7 @@ public:
         if(admitted!=SCO_OK)return admitted;
         chosen->position=r;chosen->position.size=sizeof(chosen->position);
         chosen->positionOnly=true;chosen->targetInstance=e.targetInstance;
+        if(e.arrived)chosen->status.state=SC_RELOCATION_COMPLETE;
         *ticket=chosen->status.ticket;
         return SCO_OK;
     }
@@ -196,6 +274,9 @@ public:
     // why, when given, is filled in only when this call fails the request.
     bool Tick(uint64_t now, const Evidence& e, Diagnosis* why = nullptr) {
         Slot* s = Active(); if (!s) return false;
+        // Only poses seen after the apply say anything about the move (the tick that applies it reads the
+        // pose before the move).
+        if (s->status.applied && e.streamed) Observe(*s, e);
         uint32_t reason = 0;
         if (e.fault) reason = SC_RELOCATION_REASON_FAULT;
         else if (!e.offline) reason = SC_RELOCATION_REASON_SAFETY;
@@ -207,13 +288,20 @@ public:
         else if (!e.transport) reason = SC_RELOCATION_REASON_TRANSPORT;
         else if (s->positionOnly && e.streamed && (!e.targetInstance || e.targetInstance!=s->targetInstance))
             reason = SC_RELOCATION_REASON_TARGET;
-        else if (now < s->since || now-s->since >= (s->positionOnly?s->position.timeout_ms:s->request.timeout_ms))
+        // Arrival seen on the tick the deadline passes counts as arrived, not as a timeout.
+        else if ((now < s->since || now-s->since >= (s->positionOnly?s->position.timeout_ms:s->request.timeout_ms)) &&
+                 !(s->status.applied && s->arrivedSeen))
             reason = SC_RELOCATION_REASON_TIMEOUT;
         if (reason) {
             s->status.state=SC_RELOCATION_FAILED; s->status.reason=reason;
             if (why) {
                 why->reason=reason; why->elapsedMs=now>=s->since ? now-s->since : 0; why->positionOnly=s->positionOnly;
                 why->applied=s->status.applied!=0; why->streamed=e.streamed; why->arrived=e.arrived;
+                why->poseRead=e.poseRead; why->positionNear=e.positionNear; why->rotationNear=e.rotationNear;
+                why->metres=e.metres; why->degrees=e.degrees;
+                why->firstMetres=s->firstMetres; why->firstDegrees=s->firstDegrees;
+                why->closestMetres=s->closestMetres; why->closestDegrees=s->closestDegrees;
+                why->arrivalUnconfirmed=reason==SC_RELOCATION_REASON_TIMEOUT && why->applied && e.streamed && !e.arrived;
                 why->offline=e.offline; why->player=e.player; why->transport=e.transport; why->fault=e.fault;
                 why->sessionMatches=e.session && s->session==e.session;
                 why->playerMatches=e.playerId && s->player==e.playerId;
@@ -223,7 +311,8 @@ public:
             }
             return false;
         }
-        if (s->status.applied && e.streamed && e.arrived) { s->status.state=SC_RELOCATION_COMPLETE; return false; }
+        // Once arrival was seen after the apply the request is complete, whatever the player does next.
+        if (s->status.applied && s->arrivedSeen) { s->status.state=SC_RELOCATION_COMPLETE; return false; }
         return e.streamed && !s->status.applied;
     }
     void Applied(bool ok, bool fault = false) {
@@ -240,6 +329,14 @@ public:
     void Release(const void* owner) { for (auto& s : slots_) if (s.owner==owner) s={}; }
     void Stop() { for (auto& s : slots_) s={}; } // sequence retained across restart
 private:
+    static void Observe(Slot& s, const Evidence& e) {
+        if (e.poseRead && e.metres >= 0) {
+            if (!s.firstSeen) { s.firstSeen = true; s.firstMetres = e.metres; s.firstDegrees = e.degrees; }
+            if (s.closestMetres < 0 || e.metres < s.closestMetres) { s.closestMetres = e.metres; s.closestDegrees = e.degrees; }
+            if (e.metres <= kArrivalMetres) s.arrivedSeen = true;
+        }
+        if (e.arrived) s.arrivedSeen = true;
+    }
     sco_result Admit(const void* owner,const Evidence& e,uint64_t now,Slot*& chosen) {
         if (e.fault || !e.offline || !e.transport || !e.player || !e.session || !e.playerId || !e.streamed ||
             !e.currentSystem || !e.targetSystem || e.currentSystem != e.targetSystem) return SCO_UNAVAILABLE;

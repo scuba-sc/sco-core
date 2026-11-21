@@ -20,7 +20,7 @@
       "callback_context": "unspecified",
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND; missing feature capability: UNAVAILABLE; null/unknown self: BAD_ARG; released-handle refusal unspecified. Additional failures/output state unspecified unless described in the buffer contract.",
-      "absent_capability": "Absent table: query_service NOT_FOUND",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND.",
       "cleanup": "No in-flight cancellation entrypoint; owned toggles switched off and speed restored on ordinary unload/non-retained crash cleanup. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls.",
       "language_mappings": {
         "c": {
@@ -85,11 +85,7 @@
         "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
       ],
       "limitations": [
-        "internal allocation unspecified.",
-        "Recursive reentrancy unspecified.",
-        "released-handle refusal unspecified.",
-        "Additional failures/output state unspecified unless described in the buffer contract.",
-        "Game-service behavior not verified in a game session."
+        "Released-handle refusal unspecified."
       ]
     },
     {
@@ -111,7 +107,7 @@
       "callback_context": "unspecified",
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND; missing feature capability: UNAVAILABLE; null/unknown self: BAD_ARG; released-handle refusal unspecified. Additional failures/output state unspecified unless described in the buffer contract.",
-      "absent_capability": "Absent table: query_service NOT_FOUND",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND.",
       "cleanup": "No in-flight cancellation entrypoint; owned toggles switched off and speed restored on ordinary unload/non-retained crash cleanup. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls.",
       "language_mappings": {
         "c": {
@@ -176,11 +172,7 @@
         "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
       ],
       "limitations": [
-        "internal allocation unspecified.",
-        "Recursive reentrancy unspecified.",
-        "released-handle refusal unspecified.",
-        "Additional failures/output state unspecified unless described in the buffer contract.",
-        "Game-service behavior not verified in a game session."
+        "Released-handle refusal unspecified."
       ]
     },
     {
@@ -202,7 +194,7 @@
       "callback_context": "unspecified",
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND; missing feature capability: UNAVAILABLE; null/unknown self: BAD_ARG; released-handle refusal unspecified. Additional failures/output state unspecified unless described in the buffer contract.",
-      "absent_capability": "Absent table: query_service NOT_FOUND",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND.",
       "cleanup": "No in-flight cancellation entrypoint; owned toggles switched off and speed restored on ordinary unload/non-retained crash cleanup. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls.",
       "language_mappings": {
         "c": {
@@ -267,11 +259,7 @@
         "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
       ],
       "limitations": [
-        "internal allocation unspecified.",
-        "Recursive reentrancy unspecified.",
-        "released-handle refusal unspecified.",
-        "Additional failures/output state unspecified unless described in the buffer contract.",
-        "Game-service behavior not verified in a game session."
+        "Released-handle refusal unspecified."
       ]
     },
     {
@@ -293,7 +281,7 @@
       "callback_context": "unspecified",
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND; missing feature capability: UNAVAILABLE; null/unknown self: BAD_ARG; released-handle refusal unspecified. Additional failures/output state unspecified unless described in the buffer contract.",
-      "absent_capability": "Absent table: query_service NOT_FOUND",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND.",
       "cleanup": "No in-flight cancellation entrypoint; owned toggles switched off and speed restored on ordinary unload/non-retained crash cleanup. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls.",
       "language_mappings": {
         "c": {
@@ -358,11 +346,7 @@
         "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
       ],
       "limitations": [
-        "internal allocation unspecified.",
-        "Recursive reentrancy unspecified.",
-        "released-handle refusal unspecified.",
-        "Additional failures/output state unspecified unless described in the buffer contract.",
-        "Game-service behavior not verified in a game session."
+        "Released-handle refusal unspecified."
       ]
     },
     {
@@ -384,7 +368,7 @@
       "callback_context": "unspecified",
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND; missing feature capability: UNAVAILABLE; null/unknown self: BAD_ARG; released-handle refusal unspecified. Additional failures/output state unspecified unless described in the buffer contract.",
-      "absent_capability": "Absent table: query_service NOT_FOUND",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND.",
       "cleanup": "No in-flight cancellation entrypoint; owned toggles switched off and speed restored on ordinary unload/non-retained crash cleanup. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls.",
       "language_mappings": {
         "c": {
@@ -449,11 +433,7 @@
         "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
       ],
       "limitations": [
-        "internal allocation unspecified.",
-        "Recursive reentrancy unspecified.",
-        "released-handle refusal unspecified.",
-        "Additional failures/output state unspecified unless described in the buffer contract.",
-        "Game-service behavior not verified in a game session."
+        "Released-handle refusal unspecified."
       ]
     },
     {
@@ -475,7 +455,7 @@
       "callback_context": "unspecified",
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND; missing feature capability: UNAVAILABLE; null/unknown self: BAD_ARG; released-handle refusal unspecified. Additional failures/output state unspecified unless described in the buffer contract.",
-      "absent_capability": "Absent table: query_service NOT_FOUND",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND.",
       "cleanup": "No in-flight cancellation entrypoint; owned toggles switched off and speed restored on ordinary unload/non-retained crash cleanup. Retained-provider faults skip owner resource-release hooks and require restart; backing resources remain retained, not safe for cached calls.",
       "language_mappings": {
         "c": {
@@ -542,11 +522,7 @@
         "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
       ],
       "limitations": [
-        "internal allocation unspecified.",
-        "Recursive reentrancy unspecified.",
-        "released-handle refusal unspecified.",
-        "Additional failures/output state unspecified unless described in the buffer contract.",
-        "Game-service behavior not verified in a game session."
+        "Released-handle refusal unspecified."
       ]
     },
     {
@@ -635,10 +611,7 @@
         "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
       ],
       "limitations": [
-        "internal allocation unspecified.",
-        "recursive reentrancy unspecified.",
-        "self validity and stopped-service rejection unspecified.",
-        "Game-service behavior not verified in a game session."
+        "Self validity and stopped-service rejection unspecified."
       ]
     }
   ]

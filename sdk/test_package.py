@@ -126,6 +126,19 @@ class RealManifest(unittest.TestCase):
         with self.assertRaisesRegex(pkg.ManifestError, "unresolved provenance"):
             records_with("unresolved", broad=True)
 
+    def test_widgets_view_ships_in_the_source_kits(self):
+        # The host-side widget view header, its implementation, its tests and its doc page travel together.
+        wanted = ["include/sco/widgets_view.h", "src/widgets/view.cpp", "src/widgets/view_internal.h",
+                  "tests/abi_widgets_view.c", "tests/test_widgets_view.cpp",
+                  "tests/test_widgets_view_reader.c", "docs/widgets-view.md"]
+        for profile in ("core-source", "host-source-sc"):
+            sources = {c["source"] for c in pkg.select(self.m, profile)}
+            for path in wanted:
+                self.assertIn(path, sources, f"{profile}: {path}")
+        for profile in ("core", "game-sc", "legacy"):
+            sources = {c["source"] for c in pkg.select(self.m, profile)}
+            self.assertNotIn("src/widgets/view.cpp", sources, profile)
+
     def test_rc2_discovery_metadata_profile_selection(self):
         # The RC2 scope decision retains both files in the game-bearing kits only.
         expected = {"game-sc", "legacy", "host-source-sc"}

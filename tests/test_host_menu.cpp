@@ -5,6 +5,7 @@
 #include "sco/widgets.h"
 #include "sco_content.h"
 #include <cstdio>
+#include <thread>
 static int passed=0, failed=0;
 #define CHECK(c) do { if(c) ++passed; else { ++failed; std::printf("FAIL %d: %s\n",__LINE__,#c); } } while(0)
 static sco::app::HostMenuContext seen{};
@@ -48,6 +49,25 @@ int main(){
  CHECK(seen.generation==1);
  CHECK(sco::app::IsHostMenuPanel("menu.main"));CHECK(!sco::app::IsHostMenuPanel("menu.status"));
  CHECK(sco::app::HostMenuFrame(&frames));CHECK(frames==1);
+ {   // HostWidgetsView: only the active reserved identity gets the static table and client.
+  const sco_widgets_view_v1* table=nullptr;sco_view_client* client=nullptr;
+  CHECK(!sco::app::HostWidgetsView(seen,nullptr,&client));CHECK(!sco::app::HostWidgetsView(seen,&table,nullptr));
+  sco::app::HostMenuContext other=seen;other.generation+=7;
+  CHECK(!sco::app::HostWidgetsView(other,&table,&client));CHECK(!table && !client);
+  CHECK(sco::app::HostWidgetsView(seen,&table,&client));CHECK(table && client);
+  CHECK(table->size>=sizeof(sco_widgets_view_v1) && table->version==SCO_WIDGETS_VIEW_VERSION_1_0);
+  CHECK(table->menu_thread_enter(client)==SCO_WRONG_THREAD);   // the game thread may not register
+  CHECK(!sco::app::HostWidgetsViewReleaseMenuThread(seen));    // nothing registered yet
+  sco_result entered=SCO_FAILED;
+  std::thread t([&]{entered=table->menu_thread_enter(client);});t.join();   // a thread that died without leaving
+  CHECK(entered==SCO_OK);
+  CHECK(!sco::app::HostWidgetsViewReleaseMenuThread(other));   // not a host-menu identity
+  CHECK(sco::app::HostWidgetsViewReleaseMenuThread(seen));
+  CHECK(!sco::app::HostWidgetsViewReleaseMenuThread(seen));
+  sco_result again=SCO_FAILED;
+  std::thread t2([&]{again=table->menu_thread_enter(client);table->menu_thread_leave(client);});t2.join();
+  CHECK(again==SCO_OK);                                        // the registration was free to take
+ }
  auto old=seen;sco::app::Stop();CHECK(stops==1);CHECK(!sco::app::HostMenuActive(old));CHECK(sco::widgets::Panels().empty());
  CHECK(sco::app::Start(p));CHECK(seen.self!=old.self);CHECK(seen.generation!=old.generation);CHECK(!sco::app::HostMenuActive(old));
  sco::app::Stop();

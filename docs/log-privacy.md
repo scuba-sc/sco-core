@@ -1,10 +1,6 @@
 # Copied diagnostics and log privacy
 
-This describes the **host-only step-1 facilities**, not a deployed runtime MCP
-endpoint. The ordinary `Log`/`Status` sink and `mod.log` behavior are unchanged.
-There is no file tail, socket, IPC diagnostics channel, credential, audit collector
-or MCP-server change. Capture is inactive by default and is not installed into any
-product by this step. The existing catalogue-only server stays catalogue-only.
+This page describes the host-only diagnostics and capture facilities and what they do and do not reveal. It does not describe a deployed runtime MCP endpoint. The ordinary `Log` and `Status` sink and `mod.log` behavior are unchanged. There is no file tail, socket, IPC diagnostics channel, credential, audit collector or MCP-server change. Capture is inactive by default and no product installs it. The existing catalogue-only MCP server stays catalogue-only.
 
 ## Minimize before handling text
 

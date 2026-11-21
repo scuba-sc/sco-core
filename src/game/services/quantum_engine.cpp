@@ -5,7 +5,7 @@
 // (docs/quantum.md). Every layout constant below is a v0.7.7 value; every function and cvar
 // storage comes from a signature row. The bookkeeping (admission, first-prior save, restore,
 // ownership) lives in quantum_owned.cpp and is tested synthetically; this file only reads, writes
-// and calls under SEH. Nothing here has run in the game.
+// and calls under SEH. Not run in game.
 #include "quantum_owned.h"
 #include "../admission.h"
 #include "../../api/internal.h"

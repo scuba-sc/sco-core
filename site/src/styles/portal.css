@@ -381,19 +381,21 @@ site-search .sco-search-reset:disabled {
 	color: var(--sco-accent);
 }
 
-.starlight-aside[aria-label^='Catalogue snapshot'] {
-	border-inline-start-width: 2px;
-	background-color: color-mix(in srgb, var(--sl-color-orange-low) 35%, var(--sco-bg));
-	font-size: var(--sl-text-sm);
-	line-height: 1.6;
-}
-
-.starlight-aside[aria-label^='Catalogue snapshot'] .starlight-aside__title {
+.sco-banner {
+	margin-block: 0 var(--sco-space-4);
+	padding: var(--sco-space-2) var(--sco-space-3);
+	border-inline-start: 2px solid var(--sco-accent);
+	background-color: var(--sco-surface);
+	color: var(--sco-muted);
 	font-size: var(--sl-text-sm);
 	line-height: 1.5;
 }
 
-.starlight-aside[aria-label^='Catalogue snapshot'] code {
+.sco-banner p {
+	margin: 0;
+}
+
+.sco-banner code {
 	overflow-wrap: anywhere;
 }
 

@@ -3,7 +3,7 @@
 // a host registry's Resolve(); the rows are in src/game/asop_sigs.cpp (terminal, list, deliver, retrieve,
 // insurance), src/game/atc_sigs.cpp (ATC data manager) and src/game/hangar_sigs.cpp (hangar
 // instances, ship lifts, landing areas). docs/game/asop.md lists every row with its pattern source,
-// its checks and the root cause (rc1..rc22 of the research doc) it serves.
+// its checks and the root-cause labels (rc1..rc22) it serves.
 //
 // Rows are grouped into capabilities: a feature asks for its capability's rows with
 // sco::caps::SetFromSignatures(c.name, c.rows, c.count) and runs only when that is ready, so one
@@ -20,7 +20,7 @@ struct Capability {
     const char*        name;    // "asop.terminal"
     const char* const* rows;    // signature ids, all registered by RegisterGameSignatures(registry)
     size_t             count;
-    const char*        causes;  // root causes of the research doc it fixes, "rc1" / "rc7-rc11"
+    const char*        causes;  // root-cause labels it addresses, "rc1" / "rc7-rc11"
 };
 
 // Every ASOP / hangar / ATC capability, in a fixed order.

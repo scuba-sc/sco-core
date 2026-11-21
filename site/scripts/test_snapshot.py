@@ -22,7 +22,6 @@ class SnapshotTests(unittest.TestCase):
         cls.temp = tempfile.TemporaryDirectory(prefix='reference-test-', dir=os.environ.get('TMPDIR'))
         cls.work = Path(cls.temp.name)
         cls.sha = subprocess.check_output(['git', '-C', str(ROOT), 'rev-parse', 'HEAD'], text=True).strip()
-        cls.catalogue = ROOT / 'dist/sdk-catalogue.json'
         spec = importlib.util.spec_from_file_location('snapshot_under_test', SCRIPT)
         assert spec is not None and spec.loader is not None
         cls.tool = importlib.util.module_from_spec(spec)
@@ -31,6 +30,12 @@ class SnapshotTests(unittest.TestCase):
         # Fixture packages are built from the same immutable Git tree as the snapshot,
         # not from a possibly dirty worktree. The existing package tool is exercised.
         with cls.tool.source_tree(ROOT, cls.sha) as source:
+            # The catalogue digests the exact registry bytes, so it is built from the same Git tree.
+            # A catalogue built from a checkout with CRLF conversion (core.autocrlf=true on Windows)
+            # or from uncommitted edits would not match the committed bytes the snapshot verifies.
+            cls.catalogue = cls.work / 'sdk-catalogue.json'
+            subprocess.run([sys.executable, str(source / 'tools/sdk_catalogue.py'), 'build', '--root', str(source),
+                            '--out', str(cls.catalogue), '--source-sha', cls.sha], check=True)
             package = cls.tool.package_module(source, cls.sha)
             manifest = package.load_manifest(str(source / 'sdk/components.json'), str(source))
             for profile in ('core', 'game-sc'):

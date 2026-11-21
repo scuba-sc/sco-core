@@ -56,7 +56,7 @@
         }
       },
       "limitations": [
-        "Portable broker/provider tests use synthetic transport and forbid sockets; not native UDP or gameplay acceptance.",
+        "Portable broker and provider tests use synthetic transport and forbid sockets; native UDP is not tested. Not run in game.",
         "OK Host/Join is operation acceptance, not authenticated peer connection.",
         "No C# or Lua route.",
         "Fresh local UI consent is a caller obligation; startup/settings/peer replay and automatic retries must not assert it."
@@ -136,7 +136,7 @@
         }
       },
       "limitations": [
-        "Portable broker/provider tests use synthetic transport and forbid sockets; not native UDP or gameplay acceptance.",
+        "Portable broker and provider tests use synthetic transport and forbid sockets; native UDP is not tested. Not run in game.",
         "OK Host/Join is operation acceptance, not authenticated peer connection.",
         "No C# or Lua route.",
         "Fresh local UI consent is a caller obligation; startup/settings/peer replay and automatic retries must not assert it."
@@ -216,7 +216,7 @@
         }
       },
       "limitations": [
-        "Portable broker/provider tests use synthetic transport and forbid sockets; not native UDP or gameplay acceptance.",
+        "Portable broker and provider tests use synthetic transport and forbid sockets; native UDP is not tested. Not run in game.",
         "OK Host/Join is operation acceptance, not authenticated peer connection.",
         "No C# or Lua route.",
         "Fresh local UI consent is a caller obligation; startup/settings/peer replay and automatic retries must not assert it."
@@ -296,7 +296,7 @@
         }
       },
       "limitations": [
-        "Portable broker/provider tests use synthetic transport and forbid sockets; not native UDP or gameplay acceptance.",
+        "Portable broker and provider tests use synthetic transport and forbid sockets; native UDP is not tested. Not run in game.",
         "OK Host/Join is operation acceptance, not authenticated peer connection.",
         "No C# or Lua route.",
         "Fresh local UI consent is a caller obligation; startup/settings/peer replay and automatic retries must not assert it."

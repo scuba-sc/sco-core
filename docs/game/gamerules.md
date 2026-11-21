@@ -1,22 +1,15 @@
 # game.gamerules — read-only server GameRules parameters
 
-`sc_gamerules.h` · service `game.gamerules` · version 1.1 (`read` is the frozen 1.0 prefix;
-1.1 adds `list_params`) · game thread only · capability `game.gamerules.read` (default **OFF**,
-gates `read` only).
+The server tells the client which game rules apply: whether quantum travel and quantum boost are allowed, whether group QT is enforced, and the travel and target-lock thresholds that the HUD and driving code obey. Without this service a server gate that is off looks identical to a feature that is available. `game.gamerules` returns the client's received values for the current session, and lists the known parameter definitions.
 
-The server tells the client which game rules apply: whether quantum travel and quantum
-boost are allowed, whether group QT is enforced, and the travel/target-lock thresholds the
-HUD and driving code obey. Plugins currently cannot see any of it — a server gate that is
-off looks identical to a feature that is available. `game.gamerules.read` returns the
-client's received values for the current session.
+Header: [`sc_gamerules.h`](../../include/sc_gamerules.h). Table version 1.1 (`read` is the frozen 1.0 prefix, and 1.1 adds `list_params`). Game thread only. Capabilities `game.gamerules.read` (default **OFF**, gates `read` only) and `game.gamerules.params` (default **ON**, gates `list_params`). See [status](status.md). Not run in game.
 
 The plugin ABI is the header; the rest of this page is for the game pack and hosts.
 
 ## Where the values live
 
 The client's GameRules params sync stores the server parameter set behind a module
-accessor chain (evidence: F-4.10.196.36804-007/-008; verified at
-4.10.196.36804 and the 4.10.197.2878 hotfix):
+accessor chain (verified at 4.10.196.36804 and the 4.10.197.2878 hotfix):
 
 * the module-name string `IGameRulesParamsModule` in `.rdata` — the row anchor;
 * `gamerules.params_sync` resolves the sync function (label-anchored lea scan filtered by
@@ -38,14 +31,13 @@ backend access. Backend exceptions and native faults return `SCO_FAILED` once,
 then latch reads unavailable until process restart. Recursive reads and lifecycle
 replacement from a backend callback refuse. Output is copied only after success.
 
-### Native seam (K-40)
+### Native seam
 
 `InstallNativeGameRules` takes a route of three parts and installs nothing unless all three are
 present: the `IGameRulesParamsModule` instance, a read-only accessor for the params blob, and a
 host-owned change counter. The accessor is the missing piece — the only route this project has
 grounded applies state, so production resolves nothing and refuses, naming the first missing part.
-The refusal is not a placeholder: it is the same shape `game.audio.play_once` ships with, and the
-capability stays OFF either way.
+The capability stays OFF either way.
 
 An installed route copies the blob only when the counter moved. A read at an unchanged generation
 returns the previous copy, so a value cannot change between two reads the host counted as one
@@ -55,13 +47,11 @@ a route cannot report a layout this build does not have and no field is shifted.
 `generation` field stays what the game reported; the counter is host bookkeeping and never crosses
 the header.
 
-Not grounded, not enabled, not run in game: no build has a read-only accessor for the blob.
-
+Not grounded and not enabled: no build has a read-only accessor for the blob.
 
 `services::StartGameRules(backend)` publishes the table. With no backend bound (default
 production config) `read` returns `SCO_UNAVAILABLE`; the capability stays OFF. A host
-binds a backend only after grounding the layout on its exact build (rule 8 evidence:
-sigcheck rows OK on that build). Values are a snapshot of what the client received;
+binds a backend only after grounding the layout on its exact build (sigcheck rows OK on that build). Values are a snapshot of what the client received;
 `generation` changes when a new parameter set is applied, so a plugin can detect updates
 without polling intervals.
 
@@ -74,8 +64,8 @@ entry. It never reports a value, reads no game memory, calls no backend and need
 not evidence that its value can be read.
 
 The registry has 15 entries: the GameRules console variables whose names occur on the verified
-build 4.10.197.2878 as `g_gameRules.<group>.<name>` or `g_gameRules.<name>`
-(F-4.10.197.2878-054), in a fixed order. The names and groups are verified on that build; the
+build 4.10.197.2878 as `g_gameRules.<group>.<name>` or `g_gameRules.<name>`,
+in a fixed order. The names and groups are verified on that build; the
 `INT`/`FLOAT` types are not verified on a captured build. These are console variables, not the
 fields of `sc_gamerules_state`. Each record is
 `sc_gamerules_param_info`: `size`, `type` (`SC_GAMERULES_PARAM_INT` or `_FLOAT`), `name[48]`
@@ -114,21 +104,19 @@ Enumeration is deterministic, the registry order is fixed, and `offset` is an el
   short one. The call allocates nothing and costs O(count).
 
 Tests: `tests/abi_game_gamerules.c` (layout, frozen 1.0 prefix and the helper's extent checks) and
-`tests/test_gamerules_params.cpp` (the real host API with service start and stop). Not run in game.
+`tests/test_gamerules_params.cpp` (the real host API with service start and stop).
 
 ## Boundaries
 
-Read-only by contract (rule 11: interoperability, not enforcement): the service exists to
+Read-only by contract (interoperability, not enforcement): the service exists to
 explain *why* travel features are unavailable — for example, `game.quantum`'s physical
 travel cvar is written by the game itself exactly when this module reports
-quantum-travel-allowed (F-4.10.196.36804-007). A plugin that wants travel is looking at
+quantum-travel-allowed. A plugin that wants travel is looking at
 the server's answer, not a lock to work around.
 
 ## Language routes
 
-Current source/development kits expose `list_params` in C, C++20, C# and Lua.
-The published RC1 archive retains its earlier read-only language bindings; select
-the guide and wrappers from the same kit. Existing `read` wrappers are unchanged.
+The SDK exposes `list_params` in C, C++20, C# and Lua. Existing `read` wrappers are unchanged.
 
 Read-only in every language; nothing writes a value, and no route is a way around a server gate.
 
@@ -162,4 +150,4 @@ Check `valid` (`state.valid`, `s.valid`) first: a result of OK with `valid == 0`
 parameter set yet, and every other field is zero. The table has no `last_error` member, so the wrappers
 carry a result and no message. Tests: `tests/test_sdk.cpp` and `tests/test_language_routes.cpp` (C++, including the
 extent sweep), the fake-host test of `sdk/csharp/Sco.Sdk.Tests` (C#, including the layout and extent checks) and
-`tests/test_lua.cpp` (Lua). None of them runs in game: not run in game.
+`tests/test_lua.cpp` (Lua).

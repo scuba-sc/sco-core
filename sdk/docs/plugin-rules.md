@@ -12,12 +12,6 @@ Only these two, and only through the host's services:
 Both are host services, `sco.ipc` 1.0 ([IPC](../../docs/ipc.md)) and `sco.net` 1.0 ([multiplayer messages](../../docs/net.md)); a plugin can't open or join a session, only use the channels the product's session gives it. The design is [design/multiplayer.md](../../docs/design/multiplayer.md). A native plugin can technically open its own sockets or shared memory (it runs with the game's rights), so this is a review rule, not a sandbox.
 
 ## What a plugin may not do
-Runtime diagnostics is a separate host-only read boundary, not a plugin IPC
-permission or an SDK table. Product `Platform::runtimeInspection` stays off;
-positive trusted offline admission, operator disclosure consent and protected
-audit acknowledgement are mandatory. Revocation precedes exit/unload callouts.
-Neither plugin enablement nor game-service publication authorizes inspection.
-See [protected audit](../../docs/runtime-audit.md); no network/tunnel or recovery claim.
 
 These are permanent:
 
@@ -31,6 +25,15 @@ These are permanent:
 - Open network connections or shared memory of its own, outside `sco.net` and the IPC service.
 - Ship pieces of the game: no parts of `StarCitizen.exe`, dumps, or files extracted from `Data.p4k`. Entity and class names in text files are fine.
 - Collect or send personal data.
+
+## Runtime diagnostics
+
+Runtime diagnostics is a separate host-only read boundary, not a plugin IPC
+permission or an SDK table. Product `Platform::runtimeInspection` stays off;
+positive trusted offline admission, operator disclosure consent and protected
+audit acknowledgement are mandatory. Revocation precedes exit/unload callouts.
+Neither plugin enablement nor game-service publication authorizes inspection.
+See [protected audit](../../docs/runtime-audit.md); no network/tunnel or recovery claim.
 
 ## What a plugin should do
 
@@ -74,7 +77,7 @@ current administrative, fault and shutdown distinctions.
 - A host that reaches startup reporting may log discovered plugin states. When plugins are off, `sco::app` skips external discovery; a log can be absent or stale. `sc-offline.exe status` reports setup checks, not plugin load states.
 - Host-entered native callbacks have fault attribution and scheduling suppression, not a recovery guarantee. An attributed provider fault revokes new lookup and host work; an exposed provider enters a degraded, restart-required state with backing state retained. Other fault paths disable/quarantine the owner. Cached raw calls, arbitrary workers and corrupted process state cannot be made safe by that guard; continued execution may be unsafe or require a controlled stop. Native plugins have the host's full rights (see [supported usage](#native-trust-and-supported-usage)).
 - A native plugin is session-lifetime once anything has queried one of its services: the host refuses to reload or unload it while the game runs (`sco.reload` answers `provides a service in use; restart the game to reload it`), because a caller may still hold the service table. Restart the game to pick up a new build of such a plugin; a provider nobody ever asked a service of reloads while the game runs.
-- A Lua plugin runs in a sandbox with no file, process or network access, and an instruction budget per callback. Once `sco.net` ships, one exception: a Lua plugin whose `plugin.ini` declares `requires = sco.net` may read the peer list and publish and subscribe to `<plugin-id>.<channel>` messages. It never gets a socket, an address or session control (hosting, joining, admitting or removing peers), and gets no IPC.
+- A Lua plugin runs in a sandbox with no file, process or network access, and an instruction budget per callback. One exception: a Lua plugin whose `plugin.ini` declares `requires = sco.net` may read the peer list and publish and subscribe to `<plugin-id>.<channel>` messages. It never gets a socket, an address or session control (hosting, joining, admitting or removing peers), and gets no IPC.
 - A data pack never runs code.
 - sc-offline's self-update never touches `data\plugins\`.
 

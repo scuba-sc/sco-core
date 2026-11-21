@@ -124,7 +124,7 @@ class PublishedTests(unittest.TestCase):
         try:
             gen.use_published_metadata(meta)
             result=gen.banner({'sdk_version':SDK,'game_pack_version':GAME,'source_sha':'d'*40},None,'Guides')
-            self.assertIn('d'*40,result);self.assertIn(SHA,result);self.assertIn('sdk-v2.4.0-rc.2',result)
+            self.assertIn('source `'+'d'*12+'`',result);self.assertIn('sdk-v2.4.0-rc.2',result);self.assertNotIn(SHA[:12],result)
         finally:gen.PUBLISHED_RELEASE,gen.PUBLISHED_DOWNLOAD_TAG,gen.PUBLISHED_METADATA=saved
 
     def test_failed_promotion_cannot_deploy(self):

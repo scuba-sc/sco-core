@@ -123,8 +123,8 @@ typedef struct sc_game_mission_changed {
  * OCCURRENCE ONLY: the payload is just the size prefix. It names no entity, zone, slot or item, and
  * says nothing about what was equipped; it is not a per-slot confirmation and not a substitute for
  * game.loadout apply results. The only evidence for the native event is a type name whose
- * declaration is an empty marker struct (F-INTAKE-004); its dispatch site and calling convention
- * are unverified (T-3), so this is not run in game. The capability
+ * declaration is an empty marker struct; its dispatch site and calling convention
+ * are unverified. Not run in game. The capability
  * "game.events.loadout_respawn_completed" is OFF in production and turns on only when a verified,
  * offline-admitted host adapter attests the producer (src/game/services/loadout.h). Occurrences
  * recorded within one tick coalesce into one event; it is a notification, not a counter. A later

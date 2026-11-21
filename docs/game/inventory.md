@@ -1,22 +1,18 @@
 # game.inventory — read-only item-port view
 
-`sc_inventory.h` · service `game.inventory` · version 1.2 · game thread only ·
-capability `game.inventory.read` (default **OFF**).
+Header: [`sc_inventory.h`](../../include/sc_inventory.h). Service `game.inventory`, table version 1.2, game thread only. Capabilities `game.inventory.read` and `game.inventory.layout`, both **OFF** by default; see [status](status.md). Not run in game.
 
 `snapshot` copies the local player's item-port set as the client sees it: per port,
 `valid`, the attached item's item type id (field `item_class_id`) and the item's
 `entity_id` (session-scoped, joins to `game.entities`). Read-only by contract:
 the server owns items; this explains what is attached where, for UIs, gear presets,
-and the `game.loadout` readback (#7).
+and the `game.loadout` readback.
 
-**Status: synthetic evidence only. Not run in game.** The adapter below is built from static
-analysis of the 4.10.197.2878 executable and is exercised against synthetic game objects. The
-capability stays OFF until an in-game run confirms it.
+The adapter below is built from static analysis of the 4.10.197.2878 executable and is exercised against synthetic game objects. The capability stays OFF until an in-game run confirms it.
 
 ## Grounding
 
-Enumeration recipe (findings F-4.10.196.36804-009, corrected and extended on 4.10.197.2878 by
-F-4.10.197.2878-011..-016; static analysis only, not run in game):
+Enumeration recipe (static analysis of 4.10.197.2878):
 
 - The item ports belong to an item-port container, which is a **component** fetched from the
   local player's entity by its component type. The port range is read from that container,
@@ -113,7 +109,7 @@ differs. It resets when the service restarts.
 
 ## In-game checks (before the capability is turned on)
 
-Nothing below has been run. Known gear gives known values: a worn helmet reports item type 22 on
+Known gear gives known values: a worn helmet reports item type 22 on
 its port, a sidearm in the holster 95, torso armour 24, a backpack 26, a mobiGlas 132. Each item's
 `entity_id` equals its `game.entities` id. A backpack holding items shows its ports straight after
 the backpack's own port, and the 128 cap, `total_seen` and TRUNCATED match this page. Equipping or
@@ -122,7 +118,7 @@ on an entity without a container answers UNAVAILABLE with no crash.
 
 ## C# and Lua consumers
 
-The source SDK adds read-only inventory routes after published RC1; their presence does not
+The SDK includes read-only inventory routes in C# and Lua. Their presence does not
 establish native backend readiness. Both prefer service 1.1, fall back to its 1.0 snapshot prefix
 only when 1.1 is unavailable or not found, and require `game.inventory.read` for a snapshot.
 A missing provider, incomplete or null snapshot member, disabled capability, or unloaded consumer

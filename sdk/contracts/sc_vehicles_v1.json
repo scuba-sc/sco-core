@@ -20,7 +20,7 @@
       "callback_context": "unspecified",
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND; missing operation capability: UNAVAILABLE; self validity as checked by implementation; released-handle refusal unspecified. Additional failures/output state unspecified unless described in the buffer contract.",
-      "absent_capability": "Absent table: query_service NOT_FOUND",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND.",
       "cleanup": "No in-flight cancellation entrypoint; game acceptance need not mean action completed.",
       "language_mappings": {
         "c": {
@@ -85,11 +85,7 @@
         "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
       ],
       "limitations": [
-        "internal allocation unspecified.",
-        "Recursive reentrancy unspecified.",
-        "released-handle refusal unspecified.",
-        "Additional failures/output state unspecified unless described in the buffer contract.",
-        "Game-service behavior not verified in a game session."
+        "Released-handle refusal unspecified."
       ]
     },
     {
@@ -111,7 +107,7 @@
       "callback_context": "unspecified",
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND; missing operation capability: UNAVAILABLE; self validity as checked by implementation; released-handle refusal unspecified. Additional failures/output state unspecified unless described in the buffer contract.",
-      "absent_capability": "Absent table: query_service NOT_FOUND",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND.",
       "cleanup": "No in-flight cancellation entrypoint; game acceptance need not mean action completed.",
       "language_mappings": {
         "c": {
@@ -180,11 +176,7 @@
         "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
       ],
       "limitations": [
-        "internal allocation unspecified.",
-        "Recursive reentrancy unspecified.",
-        "released-handle refusal unspecified.",
-        "Additional failures/output state unspecified unless described in the buffer contract.",
-        "Game-service behavior not verified in a game session."
+        "Released-handle refusal unspecified."
       ]
     },
     {
@@ -206,7 +198,7 @@
       "callback_context": "unspecified",
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND; missing operation capability: UNAVAILABLE; self validity as checked by implementation; released-handle refusal unspecified. Additional failures/output state unspecified unless described in the buffer contract.",
-      "absent_capability": "Absent table: query_service NOT_FOUND",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND.",
       "cleanup": "No in-flight cancellation entrypoint; game acceptance need not mean action completed.",
       "language_mappings": {
         "c": {
@@ -271,11 +263,7 @@
         "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
       ],
       "limitations": [
-        "internal allocation unspecified.",
-        "Recursive reentrancy unspecified.",
-        "released-handle refusal unspecified.",
-        "Additional failures/output state unspecified unless described in the buffer contract.",
-        "Game-service behavior not verified in a game session."
+        "Released-handle refusal unspecified."
       ]
     },
     {
@@ -290,14 +278,14 @@
       "member_extent": 40,
       "table_size": 64,
       "since": "`size >= 40`; 1.0",
-      "purpose": "Puts actor into seat seat_index of ship, moving it out of any seat it's in first. You may seat your player's own actor, or an actor your plugin spawned through spawn.entities' spawn_as or game.actors' spawn_npc (while your plugin is loaded); anything else is SCO_BAD_ARG. SCO_FAILED: the seat isn't usable (no SC_SEAT_USABLE), someone else is in it (nobody is evicted), the actor isn't streamed in yet or has no seat link, or the game faulted. SCO_OK means the game accepted the link; it takes effect within a second or two: check seat_occupant() on a later tick, and call seat() again if it didn't take. game.vehicles.seat.",
-      "buffer_contract": "`sco_result (*seat)(sco_plugin* self, uint64_t actor, uint64_t ship, uint32_t seat_index);`<br>Puts actor into seat seat_index of ship, moving it out of any seat it's in first. You may seat your player's own actor, or an actor your plugin spawned through spawn.entities' spawn_as or game.actors' spawn_npc (while your plugin is loaded); anything else is SCO_BAD_ARG. SCO_FAILED: the seat isn't usable (no SC_SEAT_USABLE), someone else is in it (nobody is evicted), the actor isn't streamed in yet or has no seat link, or the game faulted. SCO_OK means the game accepted the link; it takes effect within a second or two: check seat_occupant() on a later tick, and call seat() again if it didn't take. game.vehicles.seat.",
+      "purpose": "Puts actor into seat seat_index of ship, moving it out of any seat it's in first. You may seat your player's own actor, or an actor your plugin spawned through spawn.entities' spawn_as or game.actors' spawn_npc (while your plugin is loaded); anything else is refused. SCO_OK means the game accepted the link; it takes effect within a second or two: check seat_occupant() on a later tick, and call seat() again if it didn't take. game.vehicles.seat.",
+      "buffer_contract": "`sco_result (*seat)(sco_plugin* self, uint64_t actor, uint64_t ship, uint32_t seat_index);`<br>Puts actor into seat seat_index of ship, moving it out of any seat it's in first. You may seat your player's own actor, or an actor your plugin spawned through spawn.entities' spawn_as or game.actors' spawn_npc (while your plugin is loaded); anything else is refused. SCO_OK means the game accepted the link; it takes effect within a second or two: check seat_occupant() on a later tick, and call seat() again if it didn't take. game.vehicles.seat.",
       "ownership": "Caller outputs; IDs/seat indexes are streaming-session values. No allocation transfer; internal allocation unspecified.",
       "thread_affinity": "Game thread only (WRONG_THREAD elsewhere); last_error any thread. Recursive reentrancy unspecified.",
       "callback_context": "unspecified",
       "reentrancy": "unspecified",
-      "results": "Absent table: query_service NOT_FOUND; missing operation capability: UNAVAILABLE; self validity as checked by implementation; released-handle refusal unspecified. Additional failures/output state unspecified unless described in the buffer contract.",
-      "absent_capability": "Absent table: query_service NOT_FOUND",
+      "results": "Absent table: query_service NOT_FOUND; missing operation capability: UNAVAILABLE; self validity as checked by implementation; released-handle refusal unspecified. Result codes: Any other actor: SCO_BAD_ARG. SCO_FAILED: the seat isn't usable (no SC_SEAT_USABLE), someone else is in it (nobody is evicted), the actor isn't streamed in yet or has no seat link, or the game faulted. Additional failures/output state unspecified unless described here or in the buffer contract.",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND.",
       "cleanup": "No in-flight cancellation entrypoint; game acceptance need not mean action completed.",
       "language_mappings": {
         "c": {
@@ -359,11 +347,7 @@
         "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
       ],
       "limitations": [
-        "internal allocation unspecified.",
-        "Recursive reentrancy unspecified.",
-        "released-handle refusal unspecified.",
-        "Additional failures/output state unspecified unless described in the buffer contract.",
-        "Game-service behavior not verified in a game session."
+        "Released-handle refusal unspecified."
       ]
     },
     {
@@ -385,7 +369,7 @@
       "callback_context": "unspecified",
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND; missing operation capability: UNAVAILABLE; self validity as checked by implementation; released-handle refusal unspecified. Additional failures/output state unspecified unless described in the buffer contract.",
-      "absent_capability": "Absent table: query_service NOT_FOUND",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND.",
       "cleanup": "No in-flight cancellation entrypoint; game acceptance need not mean action completed.",
       "language_mappings": {
         "c": {
@@ -447,11 +431,7 @@
         "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
       ],
       "limitations": [
-        "internal allocation unspecified.",
-        "Recursive reentrancy unspecified.",
-        "released-handle refusal unspecified.",
-        "Additional failures/output state unspecified unless described in the buffer contract.",
-        "Game-service behavior not verified in a game session."
+        "Released-handle refusal unspecified."
       ]
     },
     {
@@ -473,7 +453,7 @@
       "callback_context": "unspecified",
       "reentrancy": "unspecified",
       "results": "Absent table: query_service NOT_FOUND; missing operation capability: UNAVAILABLE; self validity as checked by implementation; released-handle refusal unspecified. Additional failures/output state unspecified unless described in the buffer contract.",
-      "absent_capability": "Absent table: query_service NOT_FOUND",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND.",
       "cleanup": "No in-flight cancellation entrypoint; game acceptance need not mean action completed.",
       "language_mappings": {
         "c": {
@@ -535,11 +515,7 @@
         "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
       ],
       "limitations": [
-        "internal allocation unspecified.",
-        "Recursive reentrancy unspecified.",
-        "released-handle refusal unspecified.",
-        "Additional failures/output state unspecified unless described in the buffer contract.",
-        "Game-service behavior not verified in a game session."
+        "Released-handle refusal unspecified."
       ]
     },
     {
@@ -626,10 +602,7 @@
         "sdk/csharp/Sco.Sdk.Tests/GameLayout.cs"
       ],
       "limitations": [
-        "internal allocation unspecified.",
-        "recursive reentrancy unspecified.",
-        "self validity and stopped-service rejection unspecified;",
-        "Game-service behavior not verified in a game session."
+        "Self validity and stopped-service rejection unspecified."
       ]
     }
   ]

@@ -10,7 +10,6 @@ worked pair of plugins, [`counter_service`](../sdk/examples/counter_service) and
 
 ## Contents
 
-- [The principles in one list](#the-principles-in-one-list)
 - [One feature per plugin](#one-feature-per-plugin)
 - [Share through a versioned service table](#share-through-a-versioned-service-table)
 - [Use another plugin's service](#use-another-plugins-service)
@@ -27,22 +26,6 @@ worked pair of plugins, [`counter_service`](../sdk/examples/counter_service) and
 - [Testing](#testing)
 - [Anti-patterns](#anti-patterns)
 - [The example pair](#the-example-pair)
-
-## The principles in one list
-
-1. One plugin owns one feature and its state.
-2. Plugins share state and behaviour only through a service table published with
-   `provide_service` under `<plugin id>.<name>`, or through commands.
-3. A table starts with `uint32_t size`, grows only at its end, and carries a
-   `(major << 16) | minor` version. Consumers check the size covers each member.
-4. A hard dependency goes in `plugin.ini` `requires`; the host orders loads and
-   refuses cycles and missing providers before any code runs.
-5. `SCO_UNAVAILABLE` and `SCO_NOT_FOUND` are answers, not errors. Check `has()` and
-   `query_service` results and say why a feature is off.
-6. Callbacks are short and run on the game thread; work you start, you stop.
-7. Everything you registered is withdrawn at unload; release what you own yourself.
-8. Only public SDK headers and services. No raw game memory.
-9. Content without code is a data pack.
 
 ## One feature per plugin
 
@@ -322,8 +305,7 @@ Take a waypoint feature: saved locations, a menu to manage them, and travel to o
 - **The scuba-engine studio**, a separate public project, loads a built DLL in its
   synthetic host to invoke commands and exercise widgets
   ([developer workflow](sdk-developer-mvp.md)).
-- None of these is the game. A checker, simulator or studio pass is not an in-game
-  result; say "not run in game" until it has been.
+- None of these is the game. Until your plugin has run in game, say Not run in game.
 
 ## Anti-patterns
 
@@ -337,29 +319,14 @@ Take a waypoint feature: saved locations, a menu to manage them, and travel to o
 - **Polling instead of events:** re-reading a setting, a capability or a peer's whole
   state every tick when `settings.changed`, `game.ready` or a generation number says
   when something changed.
-- **Assuming a service exists:** calling through a table without checking
-  `query_service`'s result, the table's `size` and the member, or calling a 1.1 member
-  of `sco_api` without the `api->size` check.
-- **Keeping a table forever:** caching a peer's table across a reload or a fault, or
-  using it during shutdown.
-- **Breaking a table in place:** reordering or retyping members under the same major.
-- **Raw game memory:** offsets, patches or hooks in a plugin instead of a public
-  service.
 
 ## The example pair
 
-[`counter_service`](../sdk/examples/counter_service) owns a counter and publishes
-`counter_service.counter` 1.0 (`add`, `get`) with a size-first table and an `api->size`
-check before `provide_service` (on a 1.0 `sco_api` it publishes nothing and keeps its
-command); it also registers the command `counter_service.value`, and its header pins the
-table layout with static asserts.
-[`counter_panel`](../sdk/examples/counter_panel) owns nothing: it says
-`requires = counter_service.counter`, looks the table up only when a command runs (never
-at load, so the provider stays reloadable until the feature is used), checks each
-member's extent and answers `SCO_UNAVAILABLE` with a reason when the service is missing.
-It shows a required dependency that still degrades: `requires` orders the load, but a
-stand-in host, or a provider that published nothing, can leave the service absent.
-Both are plain C against the neutral headers only. Both ship in the core SDK, are built
-and checked one folder at a time by the SDK's archive test, and are loaded together by
-CTest `host_sim_examples`, where `counter_panel.bump` answers `counter is 1` through the
-provider's table. Not run in game.
+[`counter_service`](../sdk/examples/counter_service) owns a counter, publishes
+`counter_service.counter` 1.0 (`add`, `get`) and registers the command
+`counter_service.value`. [`counter_panel`](../sdk/examples/counter_panel) owns nothing:
+it says `requires = counter_service.counter` and looks the table up only when a command
+runs. Both are plain C against the neutral headers and ship in the core SDK. The SDK
+archive test builds and checks them one folder at a time. CTest `host_sim_examples` loads
+them together, and `counter_panel.bump` answers `counter is 1` through the provider's
+table. Not run in game.

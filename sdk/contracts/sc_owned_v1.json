@@ -20,7 +20,7 @@
       "callback_context": "No caller callbacks. Existing game-pack primitives only.",
       "reentrancy": "No recursive reentry.",
       "results": "BAD_ARG invalid/released self or arguments; NOT_FOUND foreign/stale authority; UNAVAILABLE missing/partial/null prerequisite method; FAILED changed seat; TOO_MANY full tracking. Underlying refusal propagates; SCO_OK removal is initiation only.",
-      "absent_capability": "Absent table: query_service NOT_FOUND; prerequisite operations may be UNAVAILABLE.",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND. Prerequisite operations may return SCO_UNAVAILABLE.",
       "cleanup": "Ordinary unload removes retained placements/NPCs through existing hooks and clears receipts. No across-reload persistence; retained-provider faults require restart and skip resource hooks.",
       "language_mappings": {
         "c": {
@@ -75,9 +75,9 @@
         "tools/test_g9_owned_contract.py"
       ],
       "limitations": [
-        "Synthetic providers only; real engine and Windows/MSVC runtime not verified.",
+        "Synthetic providers only; not verified on Windows/MSVC. Not run in game.",
         "No confirmed-disappearance detector; receipts never advance from REQUESTED.",
-        "C# and Lua routes unsupported."
+        "No C# or Lua route."
       ]
     },
     {
@@ -99,7 +99,7 @@
       "callback_context": "No caller callbacks. Existing game-pack primitives only.",
       "reentrancy": "No recursive reentry.",
       "results": "BAD_ARG invalid/released self or arguments; NOT_FOUND foreign/stale authority; UNAVAILABLE missing/partial/null prerequisite method; FAILED changed seat; TOO_MANY full tracking. Underlying refusal propagates; SCO_OK removal is initiation only.",
-      "absent_capability": "Absent table: query_service NOT_FOUND; prerequisite operations may be UNAVAILABLE.",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND. Prerequisite operations may return SCO_UNAVAILABLE.",
       "cleanup": "Ordinary unload removes retained placements/NPCs through existing hooks and clears receipts. No across-reload persistence; retained-provider faults require restart and skip resource hooks.",
       "language_mappings": {
         "c": {
@@ -154,9 +154,9 @@
         "tools/test_g9_owned_contract.py"
       ],
       "limitations": [
-        "Synthetic providers only; real engine and Windows/MSVC runtime not verified.",
+        "Synthetic providers only; not verified on Windows/MSVC. Not run in game.",
         "No confirmed-disappearance detector; receipts never advance from REQUESTED.",
-        "C# and Lua routes unsupported."
+        "No C# or Lua route."
       ]
     },
     {
@@ -178,7 +178,7 @@
       "callback_context": "No caller callbacks. Existing game-pack primitives only.",
       "reentrancy": "No recursive reentry.",
       "results": "BAD_ARG invalid/released self or arguments; NOT_FOUND foreign/stale authority; UNAVAILABLE missing/partial/null prerequisite method; FAILED changed seat; TOO_MANY full tracking. Underlying refusal propagates; SCO_OK removal is initiation only.",
-      "absent_capability": "Absent table: query_service NOT_FOUND; prerequisite operations may be UNAVAILABLE.",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND. Prerequisite operations may return SCO_UNAVAILABLE.",
       "cleanup": "Ordinary unload removes retained placements/NPCs through existing hooks and clears receipts. No across-reload persistence; retained-provider faults require restart and skip resource hooks.",
       "language_mappings": {
         "c": {
@@ -233,9 +233,9 @@
         "tools/test_g9_owned_contract.py"
       ],
       "limitations": [
-        "Synthetic providers only; real engine and Windows/MSVC runtime not verified.",
+        "Synthetic providers only; not verified on Windows/MSVC. Not run in game.",
         "No confirmed-disappearance detector; receipts never advance from REQUESTED.",
-        "C# and Lua routes unsupported."
+        "No C# or Lua route."
       ]
     },
     {
@@ -257,7 +257,7 @@
       "callback_context": "No caller callbacks. Existing game-pack primitives only.",
       "reentrancy": "No recursive reentry.",
       "results": "BAD_ARG invalid/released self or arguments; NOT_FOUND foreign/stale authority; UNAVAILABLE missing/partial/null prerequisite method; FAILED changed seat; TOO_MANY full tracking. Underlying refusal propagates; SCO_OK removal is initiation only.",
-      "absent_capability": "Absent table: query_service NOT_FOUND; prerequisite operations may be UNAVAILABLE.",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND. Prerequisite operations may return SCO_UNAVAILABLE.",
       "cleanup": "Ordinary unload removes retained placements/NPCs through existing hooks and clears receipts. No across-reload persistence; retained-provider faults require restart and skip resource hooks.",
       "language_mappings": {
         "c": {
@@ -312,9 +312,9 @@
         "tools/test_g9_owned_contract.py"
       ],
       "limitations": [
-        "Synthetic providers only; real engine and Windows/MSVC runtime not verified.",
+        "Synthetic providers only; not verified on Windows/MSVC. Not run in game.",
         "No confirmed-disappearance detector; receipts never advance from REQUESTED.",
-        "C# and Lua routes unsupported."
+        "No C# or Lua route."
       ]
     },
     {
@@ -336,7 +336,7 @@
       "callback_context": "No caller callbacks. Existing game-pack primitives only.",
       "reentrancy": "No recursive reentry.",
       "results": "BAD_ARG invalid/released self or arguments; NOT_FOUND foreign/stale authority; UNAVAILABLE missing/partial/null prerequisite method; FAILED changed seat; TOO_MANY full tracking. Underlying refusal propagates; SCO_OK removal is initiation only.",
-      "absent_capability": "Absent table: query_service NOT_FOUND; prerequisite operations may be UNAVAILABLE.",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND. Prerequisite operations may return SCO_UNAVAILABLE.",
       "cleanup": "Ordinary unload removes retained placements/NPCs through existing hooks and clears receipts. No across-reload persistence; retained-provider faults require restart and skip resource hooks.",
       "language_mappings": {
         "c": {
@@ -391,9 +391,9 @@
         "tools/test_g9_owned_contract.py"
       ],
       "limitations": [
-        "Synthetic providers only; real engine and Windows/MSVC runtime not verified.",
+        "Synthetic providers only; not verified on Windows/MSVC. Not run in game.",
         "No confirmed-disappearance detector; receipts never advance from REQUESTED.",
-        "C# and Lua routes unsupported."
+        "No C# or Lua route."
       ]
     },
     {
@@ -415,7 +415,7 @@
       "callback_context": "No caller callbacks. Existing game-pack primitives only.",
       "reentrancy": "No recursive reentry.",
       "results": "BAD_ARG invalid/released self or arguments; NOT_FOUND foreign/stale authority; UNAVAILABLE missing/partial/null prerequisite method; FAILED changed seat; TOO_MANY full tracking. Underlying refusal propagates; SCO_OK removal is initiation only.",
-      "absent_capability": "Absent table: query_service NOT_FOUND; prerequisite operations may be UNAVAILABLE.",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND. Prerequisite operations may return SCO_UNAVAILABLE.",
       "cleanup": "Ordinary unload removes retained placements/NPCs through existing hooks and clears receipts. No across-reload persistence; retained-provider faults require restart and skip resource hooks.",
       "language_mappings": {
         "c": {
@@ -470,9 +470,9 @@
         "tools/test_g9_owned_contract.py"
       ],
       "limitations": [
-        "Synthetic providers only; real engine and Windows/MSVC runtime not verified.",
+        "Synthetic providers only; not verified on Windows/MSVC. Not run in game.",
         "No confirmed-disappearance detector; receipts never advance from REQUESTED.",
-        "C# and Lua routes unsupported."
+        "No C# or Lua route."
       ]
     }
   ]

@@ -1,20 +1,20 @@
 # sco-core
 
+sco-core is the mod framework and SDK under [sc-offline](https://github.com/scuba-sc/sc-offline), the Star Citizen offline mod.
+
+sco-core puts the game's internals (addresses, file formats, engine calls) behind one versioned plain-C plugin interface. Mods target sco-core, not a game build, so when a patch breaks something it gets fixed once here instead of in every mod.
+
 Consumer agents: start with the [SDK workflow skills](docs/agent-workflows.md) for building, debugging, packaging, upgrading and reporting public SDK gaps.
 
 [![test](https://github.com/scuba-sc/sco-core/actions/workflows/test.yml/badge.svg)](https://github.com/scuba-sc/sco-core/actions/workflows/test.yml)
 [![cmake](https://github.com/scuba-sc/sco-core/actions/workflows/cmake.yml/badge.svg)](https://github.com/scuba-sc/sco-core/actions/workflows/cmake.yml)
 [![sdk](https://github.com/scuba-sc/sco-core/actions/workflows/sdk.yml/badge.svg)](https://github.com/scuba-sc/sco-core/actions/workflows/sdk.yml)
 
-The mod framework and SDK under [sc-offline](https://github.com/scuba-sc/sc-offline), the Star Citizen offline mod.
-
-sco-core puts the game's internals (addresses, file formats, engine calls) behind one versioned plain-C plugin interface. Mods target sco-core, not a game build, so when a patch breaks something it gets fixed once here instead of in every mod.
-
 **SDK reference:** <https://scuba-sc.github.io/sco-core/>
 
 ## Who it is for
 
-- **Mod authors:** write a plugin in C, C++20, C# (NativeAOT, so players need no .NET), sandboxed Lua, or as a data pack with no code. Experimental raw Rust bindings ship from SDK 2.4.1 ([Rust support](sdk/rust/README.md)); they are in the `core` profile archives from SDK 2.4.1 and not in the 2.4.0 archives.
+- **Mod authors:** write a plugin in C, C++20, C# (NativeAOT, so players need no .NET), sandboxed Lua, or as a data pack with no code. Experimental raw Rust bindings are included from SDK 2.4.1 ([Rust support](sdk/rust/README.md)).
 - **Products** such as sc-offline: build sco-core in and ship features as built-in plugins on the same interface.
 - **Patch-day maintainers:** check a new game build without starting the game.
 
@@ -22,22 +22,22 @@ sco-core puts the game's internals (addresses, file formats, engine calls) behin
 
 - **A stable ABI:** [`sco_api.h`](include/sco_api.h), version 1.1. Version 1 only grows, so a plugin built today keeps loading in later 1.x hosts.
 - **Game-neutral host services:** storage (SQLite), retained widgets, UI and hotkeys, typed settings, local IPC and private-session messages.
-- **Optional Star Citizen extension:** DataCore patches and game services for actors, actor stats, vehicles, world, entities, events and more. Contract presence, native availability, static signature checks and in-game verification are separate: [status of every game.* table](docs/game/status.md). No current game-service implementation is claimed verified in game.
-- **Native fault handling and hot reload:** guarded host-entered calls on Windows support best-effort fault attribution and withdrawal, not safe recovery. Native plugins are trusted in-process code, not sandboxed; raw service calls and custom workers are not automatically guarded, and corruption can still end the process. Eligible plugins can reload while the game runs; restart after a native fault. [Guard limits and restart rules](docs/plugins.md#crash-containment).
+- **Optional Star Citizen extension:** DataCore patches and game services for actors, actor stats, vehicles, world, entities, events and more. [Game capability status](docs/game/status.md) lists the contract, availability and evidence of every `game.*` table. Services with only synthetic or static evidence are marked Not run in game.
+- **Native fault handling and hot reload:** on Windows, host-entered plugin calls are guarded, so a fault is attributed to a plugin and its registrations are withdrawn. That is not recovery: native plugins run in-process with the game's rights, raw service calls and your own threads are not guarded, and after a native fault you restart the game. Eligible plugins reload while the game runs. [Guard limits and restart rules](docs/plugins.md#crash-containment).
 
 ## Quick start: write a plugin
 
 <!-- release-block:current-release -->
-SDK **2.4.1** uses Star Citizen game pack **0.8.1** (checked against Star Citizen
+SDK **2.4.1** (release candidate 1, a pre-release for testing; the final release follows) uses Star Citizen game pack **0.8.1** (checked against Star Citizen
 Alpha 4.10.3, build 4.10.200.58746; see [game builds](docs/game/builds.md)) and plugin ABI **1.1**. Download it from the
-[`sdk-v2.4.1` release page](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.1) and verify each archive against that release's
-`SHA256SUMS`; the [release notes](https://github.com/scuba-sc/sco-core/blob/sdk-v2.4.1/docs/releases/sdk-v2.4.1.md) list what changed. The previous release is
+[`sdk-v2.4.1-rc.1` release page](https://github.com/scuba-sc/sco-core/releases/tag/sdk-v2.4.1-rc.1) and verify each archive against that release's
+`SHA256SUMS`; the [release notes](https://github.com/scuba-sc/sco-core/blob/sdk-v2.4.1-rc.1/docs/releases/sdk-v2.4.1.md) list what changed. The previous release is
 [SDK 2.4.0](https://github.com/scuba-sc/sco-core/blob/sdk-v2.4.0/docs/releases/sdk-v2.4.0.md).
 <!-- /release-block:current-release -->
 
 Choose the combined archive (or the core archive) from that release page, check the digest as in
 [Start your first plugin](docs/getting-started.md), or build an archive with
-`python3 sdk/package.py`. The SDK does not claim that anything in this release works in game. Then:
+`python3 sdk/package.py`. Then:
 
 ```sh
 cd sco-sdk-<version>

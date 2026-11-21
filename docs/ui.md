@@ -1,15 +1,22 @@
 # UI: neutral widgets and legacy `sco.ui`
 
+Everything on this page is covered by headless tests only. Not run in game. See [game capability status](game/status.md).
+
+## Contents
+
+- [Renderer-neutral widgets (`sco.widgets`)](#renderer-neutral-widgets-scowidgets): [1.1](#scowidgets-11), [1.4 callback tags](#scowidgets-14-canonical-callback-tags), [C++ panel cookbook](#cookbook-declarative-c-panels-scosdkmenu_builderhpp)
+- [Surfaces](#surfaces) and [projection](#projection-the-renderers-side)
+- Legacy `sco.ui`: [from C](#using-it-from-c), [from C++](#using-it-from-c-1), [the table](#the-table), [ids and order](#ids-and-order), [drawing](#drawing), [hotkeys](#hotkeys), [threads](#threads), [unload, crash and shutdown](#unload-crash-and-shutdown), [settings](#settings), [hosting it](#hosting-it), [third-party ABI coupling](#optional-third-party-abi-coupling-not-the-frozen-c-abi), [Lua](#lua), [limits](#limits), [developer reload](#developer-reload)
+
 ## Renderer-neutral widgets (`sco.widgets`)
 
 For new native UI, use **`sco.widgets`**, the retained renderer-neutral service
 in [`sco_widgets.h`](../include/sco_widgets.h) and [`scosdk/widgets.hpp`](../include/scosdk/widgets.hpp).
 The host owns rendering; plugins submit copied preorder trees and receive typed
 game-thread events. See [widget design](design/widgets.md) and
-[SDK widget guide](../sdk/docs/widgets.md). Published RC1 supplies widgets 1.2;
-SDK 2.4.0 supplies 1.3 with numeric presentation. SDK 2.4.1 provides 1.4, which adds canonical callback event tags,
-retaining the additive 1.3, 1.2, 1.1 and base 1.0 routes. A newer SDK does not
-upgrade an installed host. Query the version you need (1.3 for numeric
+[SDK widget guide](../sdk/docs/widgets.md). SDK 2.4.0 supplies widgets 1.3 (numeric
+presentation); SDK 2.4.1 adds 1.4 (canonical callback event tags). The additive 1.3, 1.2, 1.1
+and base 1.0 routes stay. A newer SDK does not upgrade an installed host. Query the version you need (1.3 for numeric
 presentation, 1.4 for tagged events), check the matching feature bit
 (`SCO_WIDGETS_FEATURE_NUMERIC_PRESENTATION`; `SCO_WIDGETS_FEATURE_STABLE_TAGS` and
 `SCO_WIDGETS_FEATURE_EVENT_TAG`) and the complete member extent before using it;
@@ -63,16 +70,11 @@ events; the new tree renders next pass.
 **Host adapter.** The optional ImGui adapter spells severity out as text (`Warning:`) as well as
 coloring it, shows tooltips on hover, and draws only the visible rows of a paged LIST/TABLE
 with Previous/Next controls that produce `SCO_WIDGET_EVENT_PAGE`.
-In current source the adapter also lays a form out in one label column per container (the
-widest label, up to 40% of the container and at least 100 px, with the control taking the rest
-of the row), draws LIST and COMBO options as one full-width row with an ellipsis and a full-text
-tooltip, and shares the width of a ROW of COLUMNs equally; see [widget design](design/widgets.md).
-This changes layout only, not the ABI or events. It was checked headlessly, not on screen. The scosdk C++ builder
-exposes the node attributes. Native C/C++ and current typed C#/Lua bindings
-also expose the guarded subtree/capability routes; C#/Lua support presentation
-fields, row/PAGE events and 1.2 stable tags. See the [SDK widget guide](../sdk/docs/widgets.md)
-for operation-specific checks and the unchanged published RC1 boundary. Nothing
-here has run in the game.
+Its layout rules are in the [widget design](design/widgets.md); they change layout only, not the ABI or events. The scosdk C++ builder
+exposes the node attributes. Native C and C++ and the typed C# and Lua bindings also expose the
+guarded subtree and capability routes; C# and Lua support presentation fields, row and PAGE
+events and 1.2 stable tags. See the [SDK widget guide](../sdk/docs/widgets.md) for
+operation-specific checks.
 
 ### `sco.widgets` 1.4: canonical callback tags
 
@@ -88,7 +90,6 @@ host's own node, never from the renderer. Require version 1.4 plus both `STABLE_
 `EVENT_TAG`: an older host may accept tags and still deliver numeric-only events. The guarded
 C++ (`SetPanelTagged`, `UpdateNodesTagged`), C# and Lua routes refuse an older provider before
 submitting. Details: [widget design](design/widgets.md#tagged-events-and-old-provider-refusal-14).
-Synthetic tests only; not run in game.
 
 ### Cookbook: declarative C++ panels (`scosdk/menu_builder.hpp`)
 
@@ -192,12 +193,9 @@ What to rely on:
   `Find(id)` works for both layouts, but indexing `Nodes()` as a base array only
   works for 1.0. Paging follows the LIST/TABLE row rules above.
 
-The sections below document the **legacy, still-supported `sco.ui` route**. Its
-opaque draw context is host-specific (sc-offline passes an ImGui context), so a
-drawing plugin on that route remains coupled to the host renderer ABI. Adding
-widgets does not change existing tabs/overlays, badges, hotkeys or their callbacks.
+The sections below cover the legacy `sco.ui` route. Its draw context is the host's renderer (sc-offline passes an ImGui context), so a drawing plugin is tied to that renderer. The registry itself (ids, order, hotkeys) is renderer-neutral. Widgets do not change existing tabs, overlays, badges, hotkeys or their callbacks.
 
-Legacy plugins register draw callbacks in the product's menu and bind keys to commands. Draw callbacks use the product's renderer contract; only the registry is renderer-neutral. A plugin registers a **tab** (a page in the menu) or an **overlay** (drawn over the game every frame) with a draw function, and the product calls that function during its own frame. A plugin binds a **hotkey**, a key chord, to a command, and the product runs the command through the command registry when the key is pressed. sco-core's legacy UI registry keeps ids, order, lifetime and the hotkey table. That registry draws nothing and has no ImGui or game dependency; sc-offline renders it with its ImGui menu. The separate retained-widget service has an optional host-only renderer adapter.
+Legacy plugins register draw callbacks in the product's menu and bind keys to commands. A plugin registers a **tab** (a page in the menu) or an **overlay** (drawn over the game every frame) with a draw function, and the product calls that function during its own frame. A plugin binds a **hotkey**, a key chord, to a command, and the product runs the command through the command registry when the key is pressed. sco-core's legacy UI registry keeps ids, order, lifetime and the hotkey table. That registry draws nothing and has no ImGui or game dependency; sc-offline renders it with its ImGui menu.
 
 It is a **host-owned service** (the reserved id `sco`, [API v1 § Host-owned services](api-v1.md#host-owned-services)) named `sco.ui`, version 1.0, found with the ordinary `query_service` of sco_api 1.1. `sco_api.h` is unchanged; the table is declared in [`include/sco_ui.h`](../include/sco_ui.h) (plain C) and pinned by [`tests/abi_ui.c`](../tests/abi_ui.c). The host kit (`sco::app::Start`) always publishes it.
 
@@ -211,8 +209,7 @@ stores each surface per plugin (withdrawn on unload or crash) and draws nothing;
 renderer reads the registry through the internal `sco/surfaces.h` (`sco::surfaces::Surfaces()`,
 `Revision()`) and projects each surface itself. Contracts:
 [contracts](contracts.md#scouisurfaces-sco_ui_surfaces_v1); pins: `tests/abi_ui_surfaces.c`;
-host tests: `tests/test_surfaces.cpp`. Nothing here has run in a game: the host side is covered by
-headless tests, and projection is the renderer's job.
+host tests: `tests/test_surfaces.cpp`. Projection is the renderer's job.
 
 ```c
 #include "sco_ui_surfaces.h"
@@ -319,20 +316,6 @@ The panel's widget tree is the same retained `sco.widgets` tree the menu shows; 
 maps it to pixels (fonts, scale per metre) is the product's choice. Events from a projected panel
 are delivered exactly as from the menu, through the panel's `sco_widget_event_fn`.
 
-## Contents
-
-- [Using it from C](#using-it-from-c)
-- [Using it from C++](#using-it-from-c-1)
-- [The table](#the-table)
-- [Ids and order](#ids-and-order)
-- [Drawing](#drawing)
-- [Hotkeys](#hotkeys)
-- [Threads](#threads)
-- [Unload, crash and shutdown](#unload-crash-and-shutdown)
-- [Hosting it](#hosting-it)
-- [Lua](#lua)
-- [Limits](#limits)
-
 ## Using it from C
 
 ```c
@@ -437,7 +420,7 @@ A hotkey is a binding from a key chord to a command, kept by sco-core and dispat
 
 The host normalizes a chord to lower case, the modifiers in the order `ctrl`, `alt`, `shift`, then the key's first name: `Alt + Ctrl + Esc` is `ctrl+alt+escape`, `numpad5` is `num5`, `ctrl+-` is `ctrl+minus`. Refused: an empty part (`ctrl+`, `ctrl++a`), a modifier twice, two keys, modifiers alone, an unknown name (`win+a`, `page up`, `f25`).
 
-**Conflicts.** One chord has one binding. Binding a chord already bound is `SCO_BAD_ARG`, whoever holds it, and `last_error` names the holder: `ctrl+alt+4 is bound by 'tester' to tester.go`. Plugins bind free keys; the first to bind a chord keeps it until it unbinds or unloads. (In game, sc-offline's F6 build mode collided with a test plugin's key: that is what this table prevents.)
+**Conflicts.** One chord has one binding. Binding a chord already bound is `SCO_BAD_ARG`, whoever holds it, and `last_error` names the holder: `ctrl+alt+4 is bound by 'tester' to tester.go`. Plugins bind free keys; the first to bind a chord keeps it until it unbinds or unloads.
 
 **Reserved chords.** The product declares the keys it handles itself (`sco::app::Platform::reservedChords`, or `sco::ui::ReserveChord`) before plugins load. Binding one is `SCO_BAD_ARG` with `f6 is reserved by the host`, and the product never dispatches it.
 
@@ -550,7 +533,7 @@ sc-offline hosts Dear ImGui **1.92.8 WIP**. Its public headers ship in the SDK a
 
 ## Lua
 
-Scripts bind hotkeys; tabs and overlays need draw callbacks from Lua, which wait for the Lua UI bindings (G018).
+Scripts bind hotkeys; tabs and overlays need draw callbacks from Lua, which are not available yet.
 
 | Function | Returns | Notes |
 |---|---|---|

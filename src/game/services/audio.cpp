@@ -199,7 +199,7 @@ Result StartAudio(const AudioBackend& value) {
     backend = value; started = true;
     caps::Set("game.audio.play_once", false, once_failed
         ? "native audio fault; restart required"
-        : "default OFF; native registration witness ungrounded; not run in game");
+        : "default off; native registration is not confirmed; not run in game");
     caps::Set("game.audio.triggers", Complete(), "audio requires a host-owned isolated effect provider");
     return Result::Ok;
 }

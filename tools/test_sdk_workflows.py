@@ -165,8 +165,8 @@ class Inputs(unittest.TestCase):
     def test_determinism_and_progressive_files(self):
         a = workflows.build(self.root, SHA)
         self.assertEqual(workflows.encoded(a), workflows.encoded(workflows.build(self.root, SHA)))
-        self.assertEqual(len(a['workflows']), 6)
-        self.assertEqual(sum(len(i['files']) for i in a['workflows']), 11)
+        self.assertEqual(len(a["workflows"]), 7)
+        self.assertEqual(sum(len(i['files']) for i in a['workflows']), 12)
         self.assertEqual(a['content_sha256'], workflows.digest(workflows.encoded(a['workflows'])))
 
     def test_gap_report_index_tracks_selected_sdk_not_bundle_baseline(self):
@@ -201,8 +201,8 @@ class Inputs(unittest.TestCase):
         archive = workflows.build(self.root, SHA, paths, packaged)
         for mode, index in (('source', source), ('archive', archive)):
             with self.subTest(mode=mode):
-                self.assertEqual(len(index['workflows']), 6)
-                self.assertEqual(sum(len(item['files']) for item in index['workflows']), 11)
+                self.assertEqual(len(index["workflows"]), 7)
+                self.assertEqual(sum(len(item['files']) for item in index['workflows']), 12)
                 for item in index['workflows']:
                     for record in item['files']:
                         raw = originals[record['path']] if mode == 'source' else packaged[record['path']][0]
@@ -304,7 +304,7 @@ class ArchiveAndMCP(unittest.TestCase):
                 top, entries = pkg.archive_entries(self.manifest, profile)
                 index = json.loads(entries['sdk-workflows.json'][0])
                 self.assertEqual(index['source_sha'], pkg.source_commit())
-                self.assertEqual(len(index['workflows']), 6)
+                self.assertEqual(len(index["workflows"]), 7)
                 inventory = json.loads(entries['ATTRIBUTIONS.json'][0])['files']
                 by_name = {r['path']: r for r in inventory}
                 self.assertEqual(by_name['sdk-workflows.json']['status'], 'needs-review')
@@ -371,13 +371,13 @@ class ArchiveAndMCP(unittest.TestCase):
                 self.assertIn(reference_path, files)
                 skill = files[skill_path]
                 reference = files[reference_path]
-                for required in ('tools/sco-plugin-verify.py', '--json >',
-                                 'archive-structure-and-manifest-verified',
-                                 'does not authenticate',
-                                 'guarantee host/runtime compatibility'):
+                for required in ('tools/sco-plugin-verify.py', '--json >'):
                     self.assertIn(required, skill)
                     self.assertIn(required, reference)
-                self.assertIn('installing or executing archive entries', skill)
+                for required in ('archive-structure-and-manifest-verified',
+                                 'does not authenticate',
+                                 'guarantee host/runtime compatibility'):
+                    self.assertIn(required, reference)
                 self.assertIn('does not install or execute archive entries', reference)
                 self.assertIn('pilot_probe/plugin.ini', reference)
                 self.assertIn('outer `data/plugins/` wrapper is not accepted', reference)
@@ -388,7 +388,8 @@ class ArchiveAndMCP(unittest.TestCase):
                 build_files = {item['path']: item['text'] for item in build_workflow['files']}
                 build_skill = build_files[prefix + 'skills/sco-build-check-package/SKILL.md']
                 build_reference = build_files[prefix + 'skills/sco-build-check-package/references/build.md']
-                for text in (build_skill, build_reference):
+                self.assertIn('--no-load', build_skill)
+                for text in (build_reference,):
                     self.assertIn('--no-load', text)
                     self.assertIn('provider availability', text)
                     self.assertIn('runtime compatibility', text)
@@ -431,7 +432,7 @@ class ArchiveAndMCP(unittest.TestCase):
             for name, expected_hash in manifest['mcp']['tools'].items():
                 self.assertEqual(workflows.digest(workflows.encoded(tools[name])), expected_hash)
             listed = c.call('list_workflows')['result']['structuredContent']['workflows']
-            self.assertEqual(len(listed), 6)
+            self.assertEqual(len(listed), 7)
             for item in listed:
                 response = c.call('get_workflow', {'id': item['id']})['result']['structuredContent']
                 for record in [response['file']] + [
@@ -446,16 +447,16 @@ class ArchiveAndMCP(unittest.TestCase):
         for extended in (False, True):
             c = self.client(extended=extended)
             names = [t['name'] for t in c.request('tools/list')['result']['tools']]
-            expected = client_module.EXTENDED_ORDER if extended else client_module.ORIGINAL_ORDER
+            expected = client_module.ALL_ORDER if extended else client_module.ORIGINAL_ORDER
             self.assertEqual(names, expected)
             if not extended:
                 self.assertIn('error', c.call('list_workflows'))
         c = self.client(extended=True, extra=('--workflow-tools',))
         tools = c.request('tools/list')['result']['tools']
-        self.assertEqual([t['name'] for t in tools], client_module.EXTENDED_ORDER)
+        self.assertEqual([t['name'] for t in tools], client_module.ALL_ORDER)
         self.assertTrue(all(t['annotations']['readOnlyHint'] for t in tools))
         listed = c.call('list_workflows')['result']['structuredContent']
-        self.assertEqual(len(listed['workflows']), 6)
+        self.assertEqual(len(listed['workflows']), 7)
         for item in listed['workflows']:
             response = c.call('get_workflow', {'id': item['id']})['result']['structuredContent']
             self.assertEqual(response['file']['path'], item['entry'])
@@ -481,12 +482,21 @@ class ArchiveAndMCP(unittest.TestCase):
             path.write_bytes(workflows.encoded(d))
             r = subprocess.run([sys.executable, str(client_module.SERVER), '--catalogue', str(self.cat),
                                 '--workflow-tools', '--workflows', str(path)], input=b'', capture_output=True, timeout=10)
-            self.assertNotEqual(r.returncode, 0)
+            self.assertEqual(r.returncode, 0)
             self.assertEqual(r.stdout, b'')
-            self.assertIn(b'workflows refused', r.stderr)
+            self.assertIn(b'workflow index refused', r.stderr)
+            self.assertIn(b'disabled', r.stderr)
+        # An invalid index disables only the two workflow tools; the rest still serves.
+        d = copy.deepcopy(self.index)
+        d.update(source_sha='b' * 40)
+        path.write_bytes(workflows.encoded(d))
+        c = client_module.Client(self.cat, extended=True, extra=('--workflows', str(path)))
+        self.addCleanup(c.close)
+        self.assertIn('result', c.initialize())
+        self.assertEqual([t['name'] for t in c.request('tools/list')['result']['tools']], client_module.EXTENDED_ORDER)
         # The explicitly selected index also works without the old opt-in flag.
         c = self.client(extended=True, extra=('--workflows', str(self.index_path)))
-        self.assertEqual(len(c.call('list_workflows')['result']['structuredContent']['workflows']), 6)
+        self.assertEqual(len(c.call('list_workflows')['result']['structuredContent']['workflows']), 7)
 
 
 

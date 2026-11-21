@@ -272,11 +272,77 @@ static void RunTwoColumnCombos() {
     ImGui::DestroyContext(context);
 }
 
+// What real ImGui draws for a NUMBER slider and an unlabelled ROW of buttons: whole values without
+// decimals ("30", not "30.000"), others with up to three, and no blank line above the row. Slider
+// text is read from ImGui's own text log, which records what it renders.
+static void RunNumberAndRows() {
+    ImGuiContext* context = ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO();
+    io.IniFilename = nullptr;
+    io.LogFilename = nullptr;
+    io.DisplaySize = ImVec2(1000, 800);
+    io.DeltaTime = 1.0f / 60.0f;
+    io.BackendFlags |= ImGuiBackendFlags_RendererHasTextures;
+    io.Fonts->AddFontDefault();
+    struct Case { double value; const char* shown; };
+    for (const Case c : {Case{30, "30"}, Case{0.5, "0.5"}, Case{0.125, "0.125"}, Case{1.23456, "1.235"}}) {
+        Panel panel;
+        panel.id = "number";
+        panel.nodes.emplace_back();
+        Node& slider = panel.nodes.back();
+        slider.kind = SCO_WIDGET_SLIDER; slider.id = 1; slider.label = "Speed";
+        slider.minimum = 0; slider.maximum = 100; slider.value = c.value;
+        std::string logged;
+        for (int frame = 0; frame < 2; ++frame) {
+            ImGui::NewFrame();
+            ImGui::SetNextWindowPos(ImVec2(0, 0));
+            ImGui::SetNextWindowSize(ImVec2(1000, 800));
+            ImGui::Begin("root");
+            ImGui::LogToBuffer();
+            std::vector<Event> events;
+            ImGuiRenderer(false).Render(panel, events);
+            CHECK(events.empty());
+            logged = ImGui::GetCurrentContext()->LogBuffer.c_str();
+            ImGui::LogFinish();
+            ImGui::End();
+            ImGui::EndFrame();
+        }
+        CHECK(logged.find(c.shown) != std::string::npos);
+        CHECK(std::string(c.shown).find('.') != std::string::npos || logged.find(std::string(c.shown) + ".") == std::string::npos);
+    }
+    // An unlabelled ROW of two buttons is exactly one button high.
+    Panel panel;
+    panel.id = "rows";
+    for (uint32_t id : {1u, 2u, 3u}) {
+        panel.nodes.emplace_back();
+        Node& node = panel.nodes.back();
+        node.id = id; node.kind = id == 1 ? SCO_WIDGET_ROW : SCO_WIDGET_BUTTON; node.parent = id == 1 ? 0 : 1;
+        node.label = id == 1 ? "" : id == 2 ? "Save" : "Load";
+    }
+    float rowHeight = 0, frameHeight = 0;
+    for (int frame = 0; frame < 2; ++frame) {
+        ImGui::NewFrame();
+        ImGui::SetNextWindowPos(ImVec2(0, 0));
+        ImGui::SetNextWindowSize(ImVec2(1000, 800));
+        ImGui::Begin("root");
+        std::vector<Event> events;
+        ImGuiRenderer(false).Render(panel, events);
+        rowHeight = ImGui::GetItemRectSize().y;   // the ROW's group
+        frameHeight = ImGui::GetFrameHeight();
+        ImGui::End();
+        ImGui::EndFrame();
+    }
+    CHECK(std::fabs(rowHeight - frameHeight) < 0.5f);
+    std::printf("number slider text and unlabelled row: row %.0f px, button %.0f px\n", rowHeight, frameHeight);
+    ImGui::DestroyContext(context);
+}
+
 int main() {
     Run(false);
     Run(true);
     RunAlignment();
     RunTwoColumnCombos();
+    RunNumberAndRows();
     std::printf("widgets imgui smoke: %d passed, %d failed\n", pass, fail);
     return fail ? 1 : 0;
 }

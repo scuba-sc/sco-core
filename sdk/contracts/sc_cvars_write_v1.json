@@ -20,7 +20,7 @@
       "callback_context": "Host-only verified offline engine callbacks; no plugin callbacks.",
       "reentrancy": "FAILED; cleanup during active adapter call retains lease and requires restart.",
       "results": "BAD_ARG unknown or released handle; UNAVAILABLE stopped/session-ended/terminal/fault admission; FAILED recursive call. Restore bypasses feature capability loss; engine failure or readback mismatch latches restart-required and retains unrestored leases.",
-      "absent_capability": "Table absent: query_service NOT_FOUND; operation unavailable: UNAVAILABLE. Explicit restore may ignore feature capability loss for cleanup.",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND. Operation unavailable: SCO_UNAVAILABLE. Explicit restore may ignore feature capability loss for cleanup.",
       "cleanup": "Explicit owner restore, ordinary release via existing spawn dispatcher, game.exit and stop restore first priors; failed restoration retains outstanding leases/context, no retry or replacement until process restart. Loader-retained provider faults skip owner hooks; host session/stop cleanup is independent.",
       "language_mappings": {
         "c": {
@@ -77,7 +77,7 @@
       ],
       "limitations": [
         "Production engine lookup/get/set signatures/types and native fault boundary unverified; capability OFF.",
-        "Portable dispatcher stand-in; Windows spawn dispatcher, SEH, MSVC and gameplay not verified.",
+        "Portable dispatcher stand-in; Windows spawn dispatcher, SEH and MSVC not verified. Not run in game.",
         "No arbitrary console, bridge values or persistent config changes."
       ]
     },
@@ -100,7 +100,7 @@
       "callback_context": "Host-only verified offline engine callbacks; no plugin callbacks.",
       "reentrancy": "FAILED; cleanup during active adapter call retains lease and requires restart.",
       "results": "BAD_ARG invalid name/type/noncanonical bool/unknown or released handle; UNAVAILABLE admission/capability/adapter/cleanup missing or name held by another owner; engine failure or readback mismatch latches restart-required and retains unrestored leases.",
-      "absent_capability": "Table absent: query_service NOT_FOUND; operation unavailable: UNAVAILABLE. Explicit restore may ignore feature capability loss for cleanup.",
+      "absent_capability": "Table absent: query_service returns SCO_NOT_FOUND. Operation unavailable: SCO_UNAVAILABLE. Explicit restore may ignore feature capability loss for cleanup.",
       "cleanup": "Explicit owner restore, ordinary release via existing spawn dispatcher, game.exit and stop restore first priors; failed restoration retains outstanding leases/context, no retry or replacement until process restart. Loader-retained provider faults skip owner hooks; host session/stop cleanup is independent.",
       "language_mappings": {
         "c": {
@@ -157,7 +157,7 @@
       ],
       "limitations": [
         "Production engine lookup/get/set signatures/types and native fault boundary unverified; capability OFF.",
-        "Portable dispatcher stand-in; Windows spawn dispatcher, SEH, MSVC and gameplay not verified.",
+        "Portable dispatcher stand-in; Windows spawn dispatcher, SEH and MSVC not verified. Not run in game.",
         "No arbitrary console, bridge values or persistent config changes."
       ]
     }

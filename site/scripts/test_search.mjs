@@ -27,11 +27,11 @@ export async function testSearch(catalogue, normalizeTaskQuery) {
       throw Error(`${query}: intended entry absent from first ${limit} results: ${entries.map(r => r.url)}`);
     }
     const html = await (await fetch(`/sco-core/${route}/`)).text();
-    if (!html.includes(catalogue.source_sha) || !html.includes('development preview')) {
+    if (!html.includes(catalogue.source_sha.slice(0, 12)) || !html.includes('Development preview')) {
       throw Error('Result lost snapshot identity or mixed preview/release');
     }
     if (route.startsWith('reference/')) {
-      for (const heading of ['Absent capability', 'Language mappings', 'Examples']) {
+      for (const heading of ['Results and failures', 'Language mappings']) {
         if (!html.includes(heading)) throw Error('Missing result section: ' + heading);
       }
       const record = catalogue.records.find(r => r.id === route.slice('reference/'.length));
@@ -54,7 +54,7 @@ export async function testSearch(catalogue, normalizeTaskQuery) {
       throw Error('Unknown query escaped the current site');
     }
     const response = await fetch(url);
-    if (!response.ok || !(await response.text()).includes(catalogue.source_sha)) {
+    if (!response.ok || !(await response.text()).includes(catalogue.source_sha.slice(0, 12))) {
       throw Error('Unknown query hit is stale or dead');
     }
   }

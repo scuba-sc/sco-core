@@ -1,9 +1,8 @@
 # Container contents
 
-`game.inventory.contents` 1.0 (`sc_container_contents.h`) copies a bounded
-read-only snapshot of stored items. It is independent of `game.inventory`, whose
-records describe attachments to equipped item ports. Neither frozen `sco_api.h`
-nor the existing item-port record/table layouts change.
+`game.inventory.contents` copies a bounded read-only snapshot of the items stored in a container. It is independent of `game.inventory`, whose records describe attachments to equipped item ports. Neither frozen `sco_api.h` nor the existing item-port record and table layouts change.
+
+Header: [`sc_container_contents.h`](../../include/sc_container_contents.h). Table version 1.0. Capability `game.inventory.contents.read` (OFF); see [status](status.md). Not run in game.
 
 The caller supplies a live plugin handle, nonzero session-local container ID,
 output size and capacity (0..64). The service validates provider output in its own
@@ -31,12 +30,10 @@ game-pack startup uses `ConfigureProductionContainerContents` followed by
 `StartProductionContainerContents`; configuration is game-thread-only, refused
 while active, and cleared at service stop. Hosts do not publish a competing table.
 The direct `StartContainerContents` entry remains for standalone host fixtures.
-The
-host owns its callback/context until stop; callback output is copied immediately.
+The host owns its callback and context until stop. Callback output is copied immediately.
 The default game-pack composition publishes an unavailable service with capability
-`game.inventory.contents.read` OFF. No production native container adapter ships
-in this increment. Synthetic provider/real-host consumer and C/C++ ABI fixtures
-are the evidence; not run in game.
+`game.inventory.contents.read` OFF. No production native container adapter ships.
+The evidence is synthetic provider, real-host consumer and C/C++ ABI fixtures.
 
 The C++ `sco::sdk::game::ContainerContents` wrapper consumes the same table. No C#
 or Lua route is supported. Studio mocks and game hosts use the same public layout;
@@ -49,7 +46,6 @@ checks a C plugin from a matching game-enabled kit. Its complete source is linke
 from the canonical `sc_container_contents_v1.snapshot` record, so current-source
 MCP `get_example` can return it from a configured kit root. The example separates
 service lookup, a successful empty snapshot and provider failure; the checker
-does not supply this service. The published RC2 catalogue predates that example
-link even though the example itself ships in the combined and game overlay kits.
+does not supply this service.
 The static [status registry](status.md) and native index are discovery evidence,
 not observations of the running host.

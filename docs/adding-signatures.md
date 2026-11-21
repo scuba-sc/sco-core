@@ -1,6 +1,6 @@
 # Adding a signature
 
-This is how a sc-offline feature's addresses move into sco-core. Teleport ([`src/game/teleport_sigs.cpp`](../src/game/teleport_sigs.cpp)) was the first and is the example to copy.
+This page shows how an sc-offline feature's addresses move into sco-core. Teleport ([`src/game/teleport_sigs.cpp`](../src/game/teleport_sigs.cpp)) was the first and is the example to copy.
 
 ## Rules
 

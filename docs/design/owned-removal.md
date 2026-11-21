@@ -1,6 +1,6 @@
-# Retained build and owned-seat removal (G9)
+# Retained build and owned-seat removal
 
-## Decision pending owner
+## Decision
 
 Use explicit retained ownership, **not persistence across reload**. A build consumer
 spawns through `game.entities`, then calls `game.owned.retain_build` instead of
@@ -11,8 +11,8 @@ from the legacy alive-based ownership pruning so an unstreamed placement does
 not lose its undo/removal authority. Legacy `keep` refuses retained placements;
 unretained legacy keeps still relinquish authority irreversibly. Neither this
 service nor receipts adopt previously kept, player, foreign or `spawn_as` IDs.
-The policy is deliberately narrower than charter decision 5's alternative
-across-reload handles. Saving/recreating placements is consumer policy, not
+The policy is deliberately narrower than the alternative of handles that
+survive a reload. Saving/recreating placements is consumer policy, not
 persistence of these session IDs.
 
 ## Split authority
@@ -65,7 +65,7 @@ This explicit route choice is not permission to bypass the sandbox with commands
 ## Focused evidence and owed acceptance
 
 `python3 tools/test_g9_owned_contract.py --build-dir <scratch-build>` is the one
-named G9 gate: synthetic providers through the real host registry/release hooks,
+named owned-contract gate: synthetic providers through the real host registry/release hooks,
 C11/C++20/short-enum and Windows-x64 header compile, exact catalogue/package
 membership and source integration assertions. It runs only `test_owned_removal`.
 Fixtures use synthetic IDs and refuse partial and NULL underlying methods,

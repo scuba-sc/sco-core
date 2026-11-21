@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only
- * Optional game.audio 1.1. Native C/C++ only; not run in game.
+ * Optional game.audio 1.1. Native C/C++ only. Not run in game.
  * Game-thread synchronous operations; no plugin callbacks or engine pointers.
  * All IDs are host-issued session tokens, never persisted or reused. Resolve
  * names exactly (case-sensitive, printable ASCII, 1..127 bytes). Unknown names

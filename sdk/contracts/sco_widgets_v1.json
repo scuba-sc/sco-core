@@ -107,8 +107,8 @@
       "limitations": [
         "C# provides bounded copied UTF-8 trees and registry-rooted callbacks; Windows NativeAOT host loading remains unverified locally.",
         "Lua uses bounded declarative tables, registry-rooted callbacks and shared sandbox budgets; no native FFI or draw callbacks.",
-        "Host adapter controls appearance/placement; native plugins are not sandboxed. Headless tests do not verify GPU rendering or gameplay.",
-        "Tag-free legacy events retain32/40-byte prefixes. C#/Lua copy event tags; C# validates against the retained node, Lua validates bounded tag/callback identity without a second node tree. Not run in game."
+        "Host adapter controls appearance/placement; native plugins are not sandboxed. Headless tests do not check GPU rendering. Not run in game.",
+        "Tag-free legacy events retain 32/40-byte prefixes. C#/Lua copy event tags; C# validates against the retained node, Lua validates bounded tag/callback identity without a second node tree. Not run in game."
       ]
     },
     {
@@ -214,7 +214,7 @@
       "limitations": [
         "C# provides bounded copied UTF-8 trees and registry-rooted callbacks; Windows NativeAOT host loading remains unverified locally.",
         "Lua uses bounded declarative tables, registry-rooted callbacks and shared sandbox budgets; no native FFI or draw callbacks.",
-        "Host adapter controls appearance/placement; native plugins are not sandboxed. Headless tests do not verify GPU rendering or gameplay."
+        "Host adapter controls appearance/placement; native plugins are not sandboxed. Headless tests do not check GPU rendering. Not run in game."
       ]
     },
     {
@@ -297,8 +297,8 @@
         "tests/test_lua.cpp"
       ],
       "limitations": [
-        "Headless host tests only; not run in game. Renderer presentation of severity, tooltips and paging is the host adapter's.",
-        "Tag-free legacy events retain32/40-byte prefixes. C#/Lua copy event tags; C# validates against the retained node, Lua validates bounded tag/callback identity without a second node tree. Not run in game."
+        "Headless host tests only. Not run in game. Renderer presentation of severity, tooltips and paging is the host adapter's.",
+        "Tag-free legacy events retain 32/40-byte prefixes. C#/Lua copy event tags; C# validates against the retained node, Lua validates bounded tag/callback identity without a second node tree. Not run in game."
       ]
     },
     {
@@ -381,7 +381,7 @@
         "tests/test_lua.cpp"
       ],
       "limitations": [
-        "Headless host tests only; not run in game. Renderer presentation of severity, tooltips and paging is the host adapter's."
+        "Headless host tests only. Not run in game. Renderer presentation of severity, tooltips and paging is the host adapter's."
       ]
     },
     {
@@ -464,7 +464,7 @@
         "tests/test_lua.cpp"
       ],
       "limitations": [
-        "Headless host tests only; not run in game. Renderer presentation of severity, tooltips and paging is the host adapter's."
+        "Headless host tests only. Not run in game. Renderer presentation of severity, tooltips and paging is the host adapter's."
       ]
     }
   ]

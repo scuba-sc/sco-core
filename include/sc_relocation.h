@@ -6,11 +6,15 @@
  * Request requires host-certified offline admission, validated transport, a live
  * player, and KNOWN equal nonzero systems. Unknown safety/system refuses.
  * A streamed destination is required at admission. Later stream loss waits until
- * timeout; session/player/system change fails. Admission is NOT completion.
+ * timeout; session/player/system change fails. Admission is not completion, except
+ * that a request already at its target completes at admission with applied 0.
  * Tick drives bounded work; status only reads. For the frozen 1.0 request,
- * Completed means a fresh observed
- * player pose matches target within 0.05m and quaternion |dot| >= 0.999999 in
- * the target frame. Cancellation cannot undo an already initiated movement.
+ * Completed means that, after the move was applied, a later fresh observed
+ * player pose was within 0.5m of the target position in the target frame.
+ * Orientation is reported in the host log but is not required: the game settles
+ * a character on the ground and normalises its orientation, so centimetre and
+ * sub-degree equality is not observable. A request already within 0.5m at
+ * admission completes at admission. Cancellation cannot undo an already initiated movement.
  * One active request globally; 32 retained terminal tickets; oldest terminal may
  * be evicted on admission. Tickets are opaque, owner-scoped, never persist them.
  * Owner unload cancels and forgets tickets; stop fails pending and forgets all.
@@ -73,9 +77,10 @@ typedef struct sc_relocation_v1 {
  * Known equal nonzero systems and all 1.0 offline/player/ownership guards apply.
  * Position is finite and bounded as above; timeout remains 1..60000 ms.
  *
- * After position-only initiation, a later tick must freshly observe position in
- * the admitted target frame within 0.05m. Orientation is neither requested nor
- * tested; this does not certify unrelated engine/physics orientation behavior.
+ * Position is observed at admission and on later ticks, in the admitted target
+ * frame, within 0.5m. A request already within 0.5m completes at admission
+ * with applied 0. Otherwise a later tick must freshly observe position within
+ * 0.5m. Orientation is neither requested nor tested; this does not certify unrelated engine/physics orientation behavior.
  * A target identity change fails with REASON_TARGET. Stream loss waits only to
  * timeout; reappearance with a different identity fails. Status/cancel, global
  * one-pending/32-terminal quotas, no retry/rollback and owner cleanup are shared

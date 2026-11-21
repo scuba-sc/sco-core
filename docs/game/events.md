@@ -1,9 +1,10 @@
 # Actor status and game event rows
 
-Which of these capabilities are on, and how far each has been checked: [status](status.md) (`game.actors.state` and `game.events.vehicle_seat` are off until an in-game run; `game.events.mission_changed` is on
-by default, by owner ruling, and fires only where a game.missions backend reports active missions).
+The game pack puts actor status reads and low-volume game events (player spawn and death, seat enter and exit, mission changes, respawn completion) on the kernel event bus. This page lists the signature rows behind them. Event names and payload structs are in [`sc_game_events.h`](../../include/sc_game_events.h). This is a row reference with no table version.
 
-The rows in [`src/game/events_sigs.cpp`](../../src/game/events_sigs.cpp) come from the spikes in [game world spikes](../design/game-world-spikes.md) (B4, B5, B6, B8), each locator and byte check as written there and proven unique in the .text of 4.10.196.36804. Accessor: [`sco/game/events.h`](../../include/sco/game/events.h).
+Capabilities, as listed in [status](status.md): `game.actors.health`, `game.events.player_spawned`, `game.events.player_died`, `game.events.actor_died` and `game.events.mission_changed` are ON. `game.actors.state`, `game.events.vehicle_seat` and `game.events.loadout_respawn_completed` are OFF. `game.events.mission_changed` fires only where a `game.missions` backend reports active missions. Not run in game.
+
+The rows in [`src/game/events_sigs.cpp`](../../src/game/events_sigs.cpp) come from the spikes in [game world spikes](../design/game-world-spikes.md) (B4, B5, B6, B8), each locator and byte check as written there and proven unique in the .text of 4.10.196.36804. They resolve on 4.10.200.58746 as well ([verified builds](../game-pack.md#verified-game-builds)). Accessor: [`sco/game/events.h`](../../include/sco/game/events.h).
 
 | Capability | Rows |
 |---|---|
@@ -30,8 +31,8 @@ The rows in [`src/game/events_sigs.cpp`](../../src/game/events_sigs.cpp) come fr
 The loadout owner provides an occurrence-only event, deferred to the game-thread
 tick after a fresh offline admission check. Its capability
 `game.events.loadout_respawn_completed` defaults OFF; native dispatch site and
-calling convention remain unverified (F-INTAKE-004 / T-3). The host producer seam
-is tested with the real event bus and a native subscriber; not run in game.
+calling convention remain unverified. The host producer seam is tested with the
+real event bus and a native subscriber.
 See [loadout lifecycle](loadout.md) for coalescing and Stop behavior.
 
 ## game.mission.changed (no rows)

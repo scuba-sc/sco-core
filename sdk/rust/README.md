@@ -5,13 +5,13 @@ the C ABI or offer a safe Rust SDK. The broader Rust refactor is deferred to 2.5
 These bindings and the example are experimental, not a claim of game acceptance,
 plugin safety, distribution approval or stable Rust API. Other host and game service
 headers do not yet have Rust bindings; the scaffolder does not yet support Rust.
-These files are in the current unpublished development core and combined plugin
-kits; the standalone source kits, game overlay and published stable SDK 2.4.0
-archives do not contain them. Check the selected archive's inventory.
+These files are in the core and combined plugin kits from SDK 2.4.1. The
+standalone source kits, the game overlay and the SDK 2.4.0 archives do not
+contain them. Check the selected archive's inventory.
 
 For the supported product target, use the x86_64-pc-windows-msvc Rust toolchain
 (Rust 1.99 or newer) with the Visual Studio x64 build tools. From an extracted core
-or combined development kit that contains these files:
+or combined kit:
 
 ```sh
 cargo test --offline --locked --manifest-path rust/sco-sdk/Cargo.toml
@@ -46,17 +46,12 @@ ABI. A panic aborts the process, so callback code must avoid panics. The host re
 registered commands at unload; plugin-owned callback state must stay valid until then.
 Strings and callback inputs are borrowed for the durations stated in the C contract.
 
-`cargo test` checks Rust layouts against the frozen C ABI pins and refusal of a real
-short allocation. The `experimental-rust-qualification` workflow runs for pull requests
-and manual dispatch, checking the exact pull-request head. It is configured to build
-unpublished legacy, core and game-sc development archives on
-each of Linux, Windows and macOS with Rust 1.99.1. On each system it tests the legacy
-and core archives, then the core with game-sc overlaid. Those checks run both Rust crate
-tests, build the example and invoke it with `sco-plugin-check` against full and short
-host tables. The workflow's configuration does not establish that a run passed; inspect
-the result for the exact source revision. The Rust files in the core profile remain
-experimental, and inclusion in an archive does not establish platform support.
+`cargo test` checks the Rust layouts against the frozen C ABI pins and checks that a
+real short allocation is refused. The `experimental-rust-qualification` CI workflow
+builds the example on Linux, Windows and macOS with Rust 1.99.1 and runs it through
+`sco-plugin-check` with full and short host tables. Being in an archive does not make a
+platform supported.
 
-The checker does not actually close the dynamic library. These checks do not replace
-review, real-host validation or in-game acceptance. GPL-3.0-only applies; see the kit's
+The checker does not close the dynamic library. None of this replaces review,
+real-host validation or in-game acceptance. GPL-3.0-only applies; see the kit's
 licence and `sco_api.h`.

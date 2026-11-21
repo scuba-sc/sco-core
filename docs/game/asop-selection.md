@@ -1,6 +1,10 @@
 # ASOP selection candidate
 
-`game.asop.selection` 1.0 is an unpublished candidate service for editing one host-owned selection document. It is available only if the host starts its coordinator and supplies an adapter. It does not enable a native hook or establish that a selection was requested, staged, published, observed, or used in game. Published and observed known flags are always clear in this candidate. The C interface is direct; the C++ wrapper checks each method extent. C# and Lua are unsupported.
+`game.asop.selection` edits one host-owned ASOP ship-selection document: a list of ship class names. It is available only if the host starts its coordinator and supplies an adapter.
+
+Header: [`sc_asop_selection.h`](../../include/sc_asop_selection.h). Table version 1.0. Capability `game.asop.selection.file` (OFF); see [status](status.md). Not run in game.
+
+It enables no native hook and does not show that a selection was requested, staged, published, observed or used in game. The published and observed known flags are always clear. The C interface is direct, and the C++ wrapper checks each method extent. C# and Lua are unsupported.
 
 The product adapter is responsible for binding the configured ships-file sibling `asop_ships.txt`; plugins have no file paths or file handles. The document uses one ASCII class name per line, with `#` comments, LF or CRLF and surrounding spaces or tabs. Valid names contain letters, digits, `_`, `-` and `.`, up to 63 bytes. At most 2048 case-insensitively unique names and 262144 bytes are accepted; the first spelling and order are retained, including names not found in the catalogue. A missing file is known absent, whereas inaccessible, unstable, malformed, or unresolved-recovery files are unknown and must not be treated as empty. An explicit empty replacement creates a file.
 
@@ -12,4 +16,4 @@ When the host supplies a busy-class callback, a save that would remove a class w
 
 `Stop` withdraws the service and its release hook; it refuses while adapter work is in progress. No file or selection is deleted on owner unload. The synchronous adapter and its context must outlive Start through Stop and cannot retain the commit permit. The product's fixed-file adapter has bounded Windows filesystem and recovery test evidence; broader failure and concurrency coverage remains necessary before integration. The current coordinator has no native publication or terminal-refresh bridge.
 
-`src/game/asop_selection/simulation.*` is a single-threaded, test-only generation model. It explores copied requested, staged, published and explicitly observed revisions, with each mock acknowledgement tied to a nonzero synthetic observer scope, membership-gated synthetic IDs, accepted operation history, explicit reader fences and bounded retained generations. Game/off mode passes the supplied original result through. The model has no engine pointers or hooks and is not wired to this service. Its fence and scope are test inputs; they do not establish when the game stops borrowing an entitlement array or whether any real terminal observed it. A real native producer still needs independently verified reader ownership, retirement, observation scope and publication boundaries.
+A native producer would still need independently verified reader ownership, retirement, observation scope and publication boundaries.

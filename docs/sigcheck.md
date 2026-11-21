@@ -1,6 +1,6 @@
 # Checking a game build with sco-sigcheck
 
-`sco-sigcheck` runs every signature table against a `StarCitizen.exe` file and prints the same report the game writes to `mod.log` at startup. It answers "does the mod still find its addresses in this build?" without starting the game, on macOS or Linux.
+`sco-sigcheck` runs every game signature table against a `StarCitizen.exe` file and prints the report the game writes to `mod.log` at startup. It tells you whether the mod still finds its addresses in a build without starting the game. It runs on Windows, macOS and Linux.
 
 ## Run it
 
@@ -8,46 +8,30 @@
 tools/sigcheck.sh <StarCitizen.exe> [-v] [--catalog <runtime_catalog.inc>]
 ```
 
-`tools/sigcheck.sh` builds `tests/out/sco-sigcheck` with clang (or gcc) and runs it. Set `CXX` to pick a compiler.
+`tools/sigcheck.sh` builds `tests/out/sco-sigcheck` with clang or gcc and runs it. Set `CXX` to pick a compiler. In a CMake build the target is `sco-sigcheck`, and it takes the same arguments.
 
 | Option | Does |
 |---|---|
-| `-v` | Also list rows that aren't OK in the table at the end (OK rows are always listed) |
+| `-v` | Also list the rows that are not OK in the table at the end (OK rows are always listed) |
 | `--catalog <file>` | Label rows whose address matches an entry in an sdk_dumper `runtime_catalog.inc`. Labels only: nothing is resolved from the catalog |
 
-The exe usually lives at `StarCitizen\LIVE\Bin64\StarCitizen.exe`. Copy it to the machine you run the check on; it's large (about 175 MB for build 12660092) and the tool only reads it.
+The exe is usually at `StarCitizen\LIVE\Bin64\StarCitizen.exe`. It is large (about 175 MB for one older build) and the tool only reads it, so you can copy it to the machine you check on.
 
 ## Output
 
 ```
-image: timestamp 0x6aa945e3, size 0x12a9b000, preferred base 0x140000000
-[core] signatures: 8/8 OK
-OK       teleport.to_camera                   0x2e20f30
-OK       teleport.client_mgr                  0xa19cf28
-OK       teleport.handle_from_id              0x2d3ce50
-OK       teleport.entity_system               0x9e2e708
-OK       system.quit                          0x7237c60
-OK       pak.datacore_loader                  0x70e0820
-OK       pak.crypak                           0x9e2e6a0
-OK       pak.slots                            0x70e0b49
+image: timestamp 0x<PE timestamp>, size 0x<image size>, preferred base 0x140000000
+[core] signatures: <n>/<n> OK
+OK       teleport.to_camera                   0x<RVA>
+OK       system.quit                          0x<RVA>
+...
 ```
 
-That is build 4.10.193.11644 (CL 12660092). The rows, by table:
-
-| Table | Rows | Used by |
-|---|---|---|
-| teleport | `teleport.to_camera`, `teleport.client_mgr`, `teleport.handle_from_id`, `teleport.entity_system`, `teleport.relocation` | sc-offline's teleport; `game.relocation`'s transport |
-| system | `system.quit` | the host kit's shutdown hook |
-| pak | `pak.datacore_loader` (the DataCore loader), `pak.crypak` (the `ICryPak*` global), `pak.slots` (the loader's read/seek/close calls) | `sco::game::pak`, the CryPak adapter for game-file overrides ([API](api.md#scogamepakh-the-crypak-adapter)) |
-| asop, atc, hangar | 62 rows: `asop.*`, `insurance.*`, `atc.*`, `hangar.*`, `lift.*`, `landing.*`, `respawn.*` | sc-offline's ship terminal, hangar and ATC module, grouped into 11 capabilities ([rows](game/asop.md)) |
-
-On 4.10.196.36804 (timestamp `0x6ac64e6f`) the report is `[core] signatures: 70/70 OK`.
-
-The `pak.*` rows need the exe's `.pdata` (the loader's start comes from its unwind data), which `sco-sigcheck` reads from the file.
-
-- `image:` identifies the build: the PE timestamp and image size change with every game build.
+- `image:` identifies the build. The PE timestamp and the image size change with every game build.
 - The `[core]` lines are exactly what `mod.log` shows for the same build.
-- The table lists each row's address as an RVA (offset from the image base). With `--catalog`, a matching row gets `= <name>` after it.
+- The table has one line per row with its address as an RVA (offset from the image base). With `--catalog`, a matching row gets `= <name>` after it.
+- The tool resolves every row of every game table: 347 rows in game pack 0.8.1. [`sdk/native_index.json`](../sdk/native_index.json) lists them. On the current verified build all of them resolve; see [the game pack page](game-pack.md#verified-game-builds).
+- The `pak.*` rows need the exe's `.pdata` (the loader's start comes from its unwind data), which `sco-sigcheck` reads from the file.
 
 A broken build looks like this:
 
@@ -58,29 +42,29 @@ A broken build looks like this:
 ...
 ```
 
-Fix the `FAILED` (or `MISSING`, `AMBIG`) rows; the `BLOCKED` ones follow. See [Adding a signature § When a game patch breaks a row](adding-signatures.md#when-a-game-patch-breaks-a-row).
+Fix the `FAILED`, `MISSING` and `AMBIG` rows. The `BLOCKED` ones follow. See [Adding a signature: when a game patch breaks a row](adding-signatures.md#when-a-game-patch-breaks-a-row).
 
 ## Exit codes
 
 | Code | Means |
 |---|---|
 | 0 | Every row is OK |
-| 1 | At least one row isn't OK |
-| 2 | Bad arguments, the file isn't a 64-bit PE image, or a table failed to register |
+| 1 | At least one row is not OK |
+| 2 | Bad arguments, the file is not a 64-bit PE image, or a table failed to register |
 
-Scripts can gate on the exit code. CI checks that the tool builds and exits 2 on a non-PE file; it can't check a real build because the game exe isn't public.
+Scripts can gate on the exit code. CI checks that the tool builds and exits 2 on a non-PE file. It cannot check a real build because the game exe is not public.
 
 ## Patch-day routine
 
 1. Copy the new `StarCitizen.exe` from a PC with the game.
-2. `tools/sigcheck.sh StarCitizen.exe`.
-3. Exit 0: sco-core's rows survived. Features that haven't moved to sco-core yet still need checking in game.
-4. Exit 1: fix the rows it names, re-run, then play-test those features.
-5. The game's data: extract `Game2.dcb` from the new `Data.p4k` and run `sco-dcb info` on it ([Checking a DataCore file](datacore.md#patch-day-routine)).
+2. Run `tools/sigcheck.sh StarCitizen.exe`.
+3. Exit 0: every row still resolves. Whether the features still work is a separate question (see below).
+4. Exit 1: fix the rows it names, run it again, then test those features.
+5. Extract `Game2.dcb` from the new `Data.p4k` and run `sco-dcb info` on it ([Checking a DataCore file](datacore.md#patch-day-routine)).
 
-## What it can't tell you
+## What it cannot tell you
 
-- Whether the feature works. A row being found means the bytes match; only playing proves the game still behaves the same.
-- Anything about addresses sc-offline still scans for itself (everything except teleport, the CSystem::Quit hook, the ASOP/hangar/ATC rows once sc-offline's module reads them and, once sc-offline enables `sco::game::pak`, the DataCore loader and CryPak).
-- Whether the DataCore loader still reads its file only through open/read/seek/close. `pak.slots` proves those calls exist; the in-game load line (`[pak] ... served from its mount`) proves the file was served.
+- Whether a feature works. A found row means the bytes match. Only a game session shows that the game still behaves the same. Not run in game. See [game capability status](game/status.md).
+- Anything about addresses a product scans for itself outside the game tables.
+- Whether the DataCore loader still reads its file only through open, read, seek and close. `pak.slots` proves those calls exist. The in-game load line (`[pak] ... served from its mount`) proves the file was served.
 - Anything about patches applied by other means (the launcher, data files).
